@@ -1,0 +1,19 @@
+packages:
+  "framer-motion": "For fluid, native-feeling animations, spring physics, and tap interactions"
+  "date-fns": "For readable countdown timers and relative dates"
+  "lucide-react": "For crisp, modern icons"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility for merging tailwind classes safely"
+
+images:
+  - path: "artifacts/bidreel-web/public/images/logo-icon.png"
+    description: "A sleek, minimal, glowing neon purple letter B combined with a play button or infinity loop, dark background, cyberpunk minimalist style, vector logo"
+    aspect_ratio: "1:1"
+  - path: "artifacts/bidreel-web/public/images/splash-bg.png"
+    description: "Abstract, very dark background with subtle neon purple volumetric light leaks and soft bokeh, moody atmospheric, vertical orientation"
+    aspect_ratio: "9:16"
+
+notes:
+  - App is mobile-first; on desktop it is constrained to a mobile-sized central column for optimal viewing of the TikTok-style vertical feed.
+  - All data is mocked; mutations update a local simulated cache.
+  - Dark mode is enforced.

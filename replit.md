@@ -10,7 +10,9 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 Users upload a video + image for an item, publish it as an auction (3-day fixed duration), and other users browse a vertical TikTok-style feed to place bids. WhatsApp contact via server-generated deep-links (phone numbers never exposed in API responses). Dark theme, neon purple accent.
 
 ### Database schema
-Migration file: `lib/db/migrations/001_initial_schema.sql`
+Migration files:
+- `lib/db/migrations/001_initial_schema.sql` — tables, indexes, triggers, views
+- `lib/db/migrations/002_rls_policies.sql` — RLS enable + 27 policies + is_admin() helper
 
 Tables: `profiles`, `auctions`, `bids`, `likes`, `reports`, `blocks`, `contact_requests`, `moderation_queue`, `admin_actions`
 Views: `v_public_profiles` (no phone), `v_auction_feed` (feed-optimized join), `v_admin_report_queue`

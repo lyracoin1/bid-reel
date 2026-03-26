@@ -29,6 +29,18 @@ Key schema decisions:
 - `admin_actions` is append-only audit log — polymorphic target_id (not a DB FK)
 - `moderation_queue` has UNIQUE(auction_id, source) — multiple reports roll up to one queue entry
 
+### Backend implementation status
+Auth routes implemented:
+- `POST /api/auth/request-otp` — sends SMS OTP via Supabase Auth
+- `POST /api/auth/verify-otp` — verifies OTP, upserts profile, returns JWT + PublicProfile
+- `GET /api/auth/me` — validates token, returns current user's profile
+
+New files:
+- `artifacts/api-server/src/lib/supabase.ts` — `supabase` (anon) + `supabaseAdmin` (service_role)
+- `artifacts/api-server/src/lib/profiles.ts` — `upsertProfile()` + `getProfileById()` (never returns phone)
+- `artifacts/api-server/src/middlewares/requireAuth.ts` — JWT middleware, attaches `req.user`
+- `artifacts/api-server/src/routes/auth.ts` — OTP + me routes
+
 ### Key API design decisions
 - Phone-based OTP auth → Bearer JWT token
 - Feed: cursor-paginated, active auctions only, sorted by ending soonest, blocked users excluded

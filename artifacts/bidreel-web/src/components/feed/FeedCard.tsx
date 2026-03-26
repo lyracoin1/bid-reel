@@ -113,7 +113,7 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         </h2>
         
         <div className="flex items-baseline gap-2">
-          <span className="text-4xl font-display font-bold text-primary text-glow">
+          <span className="text-4xl font-display font-bold text-white">
             {formatCurrency(auction.currentBid)}
           </span>
           <span className="text-sm font-medium text-white/60">

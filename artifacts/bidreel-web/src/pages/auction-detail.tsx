@@ -97,7 +97,7 @@ export default function AuctionDetail() {
           </h1>
 
           <div className="flex items-baseline gap-2 mb-6">
-            <span className="text-5xl font-display font-bold text-primary text-glow">
+            <span className="text-5xl font-display font-bold text-white">
               {formatCurrency(auction.currentBid)}
             </span>
             <span className="text-sm font-medium text-muted-foreground">
@@ -188,7 +188,7 @@ export default function AuctionDetail() {
                     onClick={() => setBidAmount(b => Math.max(nextMinimumBid, b - 10))}
                     className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center text-xl font-bold"
                   >-</button>
-                  <div className="text-4xl font-display font-bold text-primary w-40 text-center">
+                  <div className="text-4xl font-display font-bold text-white w-40 text-center">
                     {formatCurrency(bidAmount)}
                   </div>
                   <button 

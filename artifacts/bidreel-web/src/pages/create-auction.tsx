@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Camera, Upload, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Camera, Upload, ArrowRight, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { useCreateAuction } from "@/hooks/use-auctions";
@@ -36,7 +36,15 @@ export default function CreateAuction() {
         
         {/* Header */}
         <div className="flex items-center justify-between mt-4 mb-8">
-          <h1 className="text-2xl font-bold font-display">New Listing</h1>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => step === 1 ? setLocation("/feed") : setStep(1)}
+              className="w-10 h-10 rounded-full bg-secondary/80 border border-white/10 flex items-center justify-center text-white shrink-0"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <h1 className="text-2xl font-bold font-display">New Listing</h1>
+          </div>
           <div className="flex gap-1">
             <div className={`h-1.5 w-8 rounded-full ${step >= 1 ? 'bg-primary' : 'bg-secondary'}`} />
             <div className={`h-1.5 w-8 rounded-full ${step >= 2 ? 'bg-primary' : 'bg-secondary'}`} />
@@ -147,5 +155,3 @@ export default function CreateAuction() {
   );
 }
 
-// Temporary inline import until missing icon is noticed
-import { ArrowLeft } from "lucide-react";

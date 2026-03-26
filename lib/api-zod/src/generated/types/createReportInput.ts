@@ -6,7 +6,13 @@
 
  * OpenAPI spec version: 1.0.0
  */
+import type { ReportReason } from "./reportReason";
 
-export interface HealthStatus {
-  status: string;
+export interface CreateReportInput {
+  reason: ReportReason;
+  /**
+   * Optional free-text description (required when reason is "other")
+   * @maxLength 500
+   */
+  details?: string | null;
 }

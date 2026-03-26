@@ -6,7 +6,10 @@
 
  * OpenAPI spec version: 1.0.0
  */
+import type { AuctionSummary } from "./auctionSummary";
+import type { PaginationMeta } from "./paginationMeta";
 
-export interface HealthStatus {
-  status: string;
+export interface AuctionFeedPage {
+  items: AuctionSummary[];
+  pagination: PaginationMeta;
 }

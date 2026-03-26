@@ -7,6 +7,10 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface PlaceBidInput {
+  /**
+   * Bid amount — must exceed current highest bid
+   * @minimum 0.01
+   */
+  amount: number;
 }

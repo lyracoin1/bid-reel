@@ -7,6 +7,11 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface AdminStats {
+  totalUsers: number;
+  activeAuctions: number;
+  totalBids: number;
+  pendingReports: number;
+  newUsersToday: number;
+  newAuctionsToday: number;
 }

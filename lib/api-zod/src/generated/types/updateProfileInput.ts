@@ -7,6 +7,10 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface UpdateProfileInput {
+  /**
+   * @minLength 2
+   * @maxLength 50
+   */
+  displayName: string;
 }

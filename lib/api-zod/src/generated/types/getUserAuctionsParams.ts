@@ -6,7 +6,17 @@
 
  * OpenAPI spec version: 1.0.0
  */
+import type { AuctionStatus } from "./auctionStatus";
 
-export interface HealthStatus {
-  status: string;
-}
+export type GetUserAuctionsParams = {
+  /**
+   * Filter by auction status
+   */
+  status?: AuctionStatus;
+  cursor?: string;
+  /**
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+};

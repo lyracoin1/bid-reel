@@ -6,7 +6,12 @@
 
  * OpenAPI spec version: 1.0.0
  */
+import type { BidderSummary } from "./bidderSummary";
 
-export interface HealthStatus {
-  status: string;
+export interface Bid {
+  id: string;
+  auctionId: string;
+  bidder: BidderSummary;
+  amount: number;
+  placedAt: Date;
 }

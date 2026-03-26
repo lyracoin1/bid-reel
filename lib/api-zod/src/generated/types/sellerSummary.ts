@@ -7,6 +7,11 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
+/**
+ * Minimal seller info shown on auction cards — no phone number
+ */
+export interface SellerSummary {
+  id: string;
+  displayName: string | null;
+  avatarUrl: string | null;
 }

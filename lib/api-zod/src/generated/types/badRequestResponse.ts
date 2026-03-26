@@ -6,7 +6,9 @@
 
  * OpenAPI spec version: 1.0.0
  */
+import type { ApiError } from "./apiError";
 
-export interface HealthStatus {
-  status: string;
-}
+/**
+ * Invalid input or missing required fields
+ */
+export type BadRequestResponse = ApiError;

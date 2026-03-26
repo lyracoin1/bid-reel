@@ -6,7 +6,14 @@
 
  * OpenAPI spec version: 1.0.0
  */
+import type { ReportStatus } from "./reportStatus";
 
-export interface HealthStatus {
-  status: string;
-}
+export type AdminListReportsParams = {
+  status?: ReportStatus;
+  cursor?: string;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+};

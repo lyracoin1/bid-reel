@@ -7,6 +7,11 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
+/**
+ * Minimal bidder info shown in auction detail — no phone number
+ */
+export interface BidderSummary {
+  id: string;
+  displayName: string | null;
+  avatarUrl: string | null;
 }

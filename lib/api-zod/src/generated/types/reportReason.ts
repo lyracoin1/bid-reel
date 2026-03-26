@@ -7,6 +7,11 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
-}
+export type ReportReason = (typeof ReportReason)[keyof typeof ReportReason];
+
+export const ReportReason = {
+  spam_or_fake: "spam_or_fake",
+  offensive_content: "offensive_content",
+  prohibited_item: "prohibited_item",
+  other: "other",
+} as const;

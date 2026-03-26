@@ -7,6 +7,8 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface PaginationMeta {
+  /** Pass as `cursor` in the next request; null when no more pages */
+  nextCursor?: string | null;
+  hasMore: boolean;
 }

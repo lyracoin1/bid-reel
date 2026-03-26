@@ -2,21 +2,55 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 1.0.0
+  description: >
+    BidReel MVP — short-video auction platform API.
+    All authenticated endpoints require a Bearer token obtained via /auth/verify-otp.
+    Phone numbers are never exposed in API responses.
+
 servers:
   - url: /api
     description: Base API path
+
+security:
+  - BearerAuth: []
+
 tags:
   - name: health
-    description: Health operations
+    description: Health check
+  - name: auth
+    description: Phone-based OTP authentication
+  - name: users
+    description: User profiles
+  - name: auctions
+    description: Auction listings and feed
+  - name: bids
+    description: Bid placement and history
+  - name: likes
+    description: Like / unlike auctions
+  - name: reports
+    description: Report inappropriate content
+  - name: blocks
+    description: Block / unblock users
+  - name: contact
+    description: WhatsApp contact without exposing phone numbers
+  - name: admin
+    description: Moderation endpoints (admin role required)
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
 paths:
+
+  # -------------------------------------------------------------------------
+  # Health
+  # -------------------------------------------------------------------------
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
+      security: []
       responses:
         "200":
           description: Healthy
@@ -24,8 +58,738 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # -------------------------------------------------------------------------
+  # Auth
+  # -------------------------------------------------------------------------
+  /auth/request-otp:
+    post:
+      operationId: requestOtp
+      tags: [auth]
+      summary: Send OTP to phone number
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestOtpInput"
+      responses:
+        "200":
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestOtpResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /auth/verify-otp:
+    post:
+      operationId: verifyOtp
+      tags: [auth]
+      summary: Verify OTP and receive auth token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyOtpInput"
+      responses:
+        "200":
+          description: Authenticated — returns token and user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+
+  # -------------------------------------------------------------------------
+  # Users
+  # -------------------------------------------------------------------------
+  /users/me:
+    get:
+      operationId: getMyProfile
+      tags: [users]
+      summary: Get the authenticated user's profile
+      responses:
+        "200":
+          description: Own profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    patch:
+      operationId: updateMyProfile
+      tags: [users]
+      summary: Update the authenticated user's display name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileInput"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /users/{userId}:
+    get:
+      operationId: getUserProfile
+      tags: [users]
+      summary: Get another user's public profile
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: Public user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicUserProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # -------------------------------------------------------------------------
+  # Auctions
+  # -------------------------------------------------------------------------
+  /auctions:
+    post:
+      operationId: createAuction
+      tags: [auctions]
+      summary: Create a new auction listing
+      description: >
+        Accepts multipart/form-data with the video file, thumbnail image,
+        and auction metadata. Files are stored in Supabase Storage.
+        Auction duration is fixed at 3 days from creation.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CreateAuctionInput"
+      responses:
+        "201":
+          description: Auction created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuctionDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+
+  /auctions/feed:
+    get:
+      operationId: getAuctionFeed
+      tags: [auctions]
+      summary: Get paginated auction feed (active auctions only, sorted by ending soonest)
+      description: >
+        Returns a cursor-paginated list of active auctions for the vertical feed.
+        Auctions from blocked users are excluded. Expired auctions are excluded.
+      parameters:
+        - name: cursor
+          in: query
+          description: Pagination cursor from previous response (auction ID)
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Number of items to return (max 20)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 10
+      responses:
+        "200":
+          description: Feed page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuctionFeedPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auctions/{auctionId}:
+    get:
+      operationId: getAuction
+      tags: [auctions]
+      summary: Get full auction detail
+      parameters:
+        - $ref: "#/components/parameters/AuctionId"
+      responses:
+        "200":
+          description: Auction detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuctionDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      operationId: deleteAuction
+      tags: [auctions]
+      summary: Delete own auction (only when no bids have been placed)
+      parameters:
+        - $ref: "#/components/parameters/AuctionId"
+      responses:
+        "204":
+          description: Auction deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Cannot delete auction that already has bids
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /users/{userId}/auctions:
+    get:
+      operationId: getUserAuctions
+      tags: [auctions]
+      summary: Get auctions listed by a specific user
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+        - name: status
+          in: query
+          description: Filter by auction status
+          schema:
+            $ref: "#/components/schemas/AuctionStatus"
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: User's auctions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuctionFeedPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # -------------------------------------------------------------------------
+  # Bids
+  # -------------------------------------------------------------------------
+  /auctions/{auctionId}/bids:
+    post:
+      operationId: placeBid
+      tags: [bids]
+      summary: Place a bid on an auction
+      description: >
+        Bid must be strictly greater than the current highest bid.
+        Sellers cannot bid on their own auctions.
+        Auctions that have expired reject new bids.
+      parameters:
+        - $ref: "#/components/parameters/AuctionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlaceBidInput"
+      responses:
+        "201":
+          description: Bid placed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bid"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Seller cannot bid on their own auction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Bid too low or auction has ended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BidConflictError"
+        "410":
+          description: Auction has expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+    get:
+      operationId: getAuctionBids
+      tags: [bids]
+      summary: Get bid history for an auction (most recent first)
+      parameters:
+        - $ref: "#/components/parameters/AuctionId"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Bid history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BidPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # -------------------------------------------------------------------------
+  # Likes
+  # -------------------------------------------------------------------------
+  /auctions/{auctionId}/like:
+    post:
+      operationId: likeAuction
+      tags: [likes]
+      summary: Like an auction (idempotent — safe to call if already liked)
+      parameters:
+        - $ref: "#/components/parameters/AuctionId"
+      responses:
+        "200":
+          description: Like state after operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      operationId: unlikeAuction
+      tags: [likes]
+      summary: Unlike an auction (idempotent — safe to call if not liked)
+      parameters:
+        - $ref: "#/components/parameters/AuctionId"
+      responses:
+        "200":
+          description: Like state after operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeState"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # -------------------------------------------------------------------------
+  # Reports
+  # -------------------------------------------------------------------------
+  /auctions/{auctionId}/report:
+    post:
+      operationId: reportAuction
+      tags: [reports]
+      summary: Report an auction for policy violations
+      parameters:
+        - $ref: "#/components/parameters/AuctionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReportInput"
+      responses:
+        "201":
+          description: Report submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportAck"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: User has already reported this auction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  # -------------------------------------------------------------------------
+  # Blocks
+  # -------------------------------------------------------------------------
+  /users/{userId}/block:
+    post:
+      operationId: blockUser
+      tags: [blocks]
+      summary: Block a user — their auctions will be hidden from your feed
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: Block applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockAck"
+        "400":
+          description: Cannot block yourself
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      operationId: unblockUser
+      tags: [blocks]
+      summary: Unblock a user
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: Block removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockAck"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # -------------------------------------------------------------------------
+  # Contact (WhatsApp — no phone number exposed)
+  # -------------------------------------------------------------------------
+  /auctions/{auctionId}/contact:
+    get:
+      operationId: getContactLink
+      tags: [contact]
+      summary: >
+        Get a pre-built WhatsApp deep-link for contacting the auction seller.
+        The phone number is never returned — only a wa.me URL with a
+        pre-filled message.
+      parameters:
+        - $ref: "#/components/parameters/AuctionId"
+      responses:
+        "200":
+          description: WhatsApp contact link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactLinkResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Cannot contact yourself
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # -------------------------------------------------------------------------
+  # Admin
+  # -------------------------------------------------------------------------
+  /admin/reports:
+    get:
+      operationId: adminListReports
+      tags: [admin]
+      summary: List all pending reports (admin only)
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/ReportStatus"
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        "200":
+          description: Paginated list of reports
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminReportPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/reports/{reportId}:
+    patch:
+      operationId: adminResolveReport
+      tags: [admin]
+      summary: Resolve a report (dismiss or act on it)
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveReportInput"
+      responses:
+        "200":
+          description: Report resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminReport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/auctions/{auctionId}:
+    delete:
+      operationId: adminRemoveAuction
+      tags: [admin]
+      summary: Forcibly remove an auction listing (admin only)
+      parameters:
+        - $ref: "#/components/parameters/AuctionId"
+      responses:
+        "204":
+          description: Auction removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/users/{userId}/ban:
+    post:
+      operationId: adminBanUser
+      tags: [admin]
+      summary: Ban a user account (admin only)
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BanUserInput"
+      responses:
+        "200":
+          description: User banned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserAction"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/users/{userId}/unban:
+    post:
+      operationId: adminUnbanUser
+      tags: [admin]
+      summary: Unban a user account (admin only)
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: User unbanned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserAction"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/stats:
+    get:
+      operationId: adminGetStats
+      tags: [admin]
+      summary: Dashboard summary statistics (admin only)
+      responses:
+        "200":
+          description: Platform stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+# ---------------------------------------------------------------------------
+# Components
+# ---------------------------------------------------------------------------
 components:
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  # -------------------------------------------------------------------------
+  # Reusable parameters
+  # -------------------------------------------------------------------------
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: UUID of the target user
+
+    AuctionId:
+      name: auctionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: UUID of the target auction
+
+  # -------------------------------------------------------------------------
+  # Reusable responses
+  # -------------------------------------------------------------------------
+  responses:
+    BadRequest:
+      description: Invalid input or missing required fields
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+
+    Unauthorized:
+      description: Missing or invalid auth token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+
+    Forbidden:
+      description: Insufficient permissions for this operation
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+
+    UnprocessableEntity:
+      description: Semantically invalid input (e.g. OTP expired)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+
+    PayloadTooLarge:
+      description: Uploaded file exceeds maximum allowed size
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+
+  # -------------------------------------------------------------------------
+  # Schemas
+  # -------------------------------------------------------------------------
   schemas:
+
+    # -- Shared / primitives --------------------------------------------------
+
     HealthStatus:
       type: object
       properties:
@@ -34,3 +798,648 @@ components:
       required:
         - status
 
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Machine-readable error code (e.g. "BID_TOO_LOW")
+        message:
+          type: string
+          description: Human-readable description
+      required:
+        - error
+        - message
+
+    PaginationMeta:
+      type: object
+      properties:
+        nextCursor:
+          type: string
+          nullable: true
+          description: Pass as `cursor` in the next request; null when no more pages
+        hasMore:
+          type: boolean
+      required:
+        - hasMore
+
+    AuctionStatus:
+      type: string
+      enum: [active, ended, removed]
+      description: >
+        active — auction is live and accepting bids;
+        ended — 3-day window has elapsed (no more bids);
+        removed — taken down by admin or seller
+
+    ReportStatus:
+      type: string
+      enum: [pending, dismissed, actioned]
+
+    ReportReason:
+      type: string
+      enum:
+        - spam_or_fake
+        - offensive_content
+        - prohibited_item
+        - other
+
+    AuctionCategory:
+      type: string
+      enum:
+        - electronics
+        - fashion
+        - collectibles
+        - home_and_garden
+        - vehicles
+        - jewelry
+        - art
+        - sports
+        - other
+
+    # -- Auth -----------------------------------------------------------------
+
+    RequestOtpInput:
+      type: object
+      properties:
+        phoneNumber:
+          type: string
+          description: >
+            E.164 format phone number (e.g. +14155550123).
+            Country code is required.
+          pattern: "^\\+[1-9]\\d{7,14}$"
+          example: "+14155550123"
+      required:
+        - phoneNumber
+
+    RequestOtpResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "OTP sent"
+        expiresInSeconds:
+          type: integer
+          example: 300
+          description: How long the OTP remains valid
+        resendAvailableInSeconds:
+          type: integer
+          example: 60
+          description: Cooldown before another OTP can be requested
+      required:
+        - message
+        - expiresInSeconds
+        - resendAvailableInSeconds
+
+    VerifyOtpInput:
+      type: object
+      properties:
+        phoneNumber:
+          type: string
+          pattern: "^\\+[1-9]\\d{7,14}$"
+          example: "+14155550123"
+        otp:
+          type: string
+          minLength: 6
+          maxLength: 6
+          pattern: "^[0-9]{6}$"
+          example: "123456"
+      required:
+        - phoneNumber
+        - otp
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Bearer token — include in Authorization header
+        isNewUser:
+          type: boolean
+          description: True if this is the user's first login (prompt for display name)
+        user:
+          $ref: "#/components/schemas/UserProfile"
+      required:
+        - token
+        - isNewUser
+        - user
+
+    # -- Users ----------------------------------------------------------------
+
+    UserProfile:
+      type: object
+      description: Full profile — returned for the authenticated user only
+      properties:
+        id:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+          maxLength: 50
+          nullable: true
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+        auctionCount:
+          type: integer
+          description: Total auctions listed by this user
+        totalLikesReceived:
+          type: integer
+        bidsPlacedCount:
+          type: integer
+        isAdmin:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - displayName
+        - avatarUrl
+        - auctionCount
+        - totalLikesReceived
+        - bidsPlacedCount
+        - isAdmin
+        - createdAt
+
+    PublicUserProfile:
+      type: object
+      description: >
+        Publicly visible profile — phone number is never included.
+        The `isBlocked` field reflects whether the authenticated caller
+        has blocked this user.
+      properties:
+        id:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+        auctionCount:
+          type: integer
+        totalLikesReceived:
+          type: integer
+        isBanned:
+          type: boolean
+        isBlocked:
+          type: boolean
+          description: True if the calling user has blocked this profile
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - displayName
+        - avatarUrl
+        - auctionCount
+        - totalLikesReceived
+        - isBanned
+        - isBlocked
+        - createdAt
+
+    UpdateProfileInput:
+      type: object
+      properties:
+        displayName:
+          type: string
+          minLength: 2
+          maxLength: 50
+      required:
+        - displayName
+
+    # -- Auctions -------------------------------------------------------------
+
+    CreateAuctionInput:
+      type: object
+      description: multipart/form-data — files + JSON fields
+      properties:
+        video:
+          type: string
+          format: binary
+          description: Video file (MP4 or MOV, max 100 MB, max 60 seconds)
+        thumbnail:
+          type: string
+          format: binary
+          description: Thumbnail image (JPEG or PNG, max 5 MB)
+        title:
+          type: string
+          minLength: 3
+          maxLength: 80
+        description:
+          type: string
+          maxLength: 500
+        category:
+          $ref: "#/components/schemas/AuctionCategory"
+        startingBid:
+          type: number
+          format: double
+          minimum: 0.01
+          description: Starting bid amount (positive number)
+      required:
+        - video
+        - thumbnail
+        - title
+        - startingBid
+        - category
+
+    AuctionSummary:
+      type: object
+      description: Compact representation for feed cards
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        thumbnailUrl:
+          type: string
+          format: uri
+        videoUrl:
+          type: string
+          format: uri
+        currentBid:
+          type: number
+          format: double
+          description: Highest bid placed so far (or starting bid if no bids)
+        bidCount:
+          type: integer
+        likeCount:
+          type: integer
+        isLikedByMe:
+          type: boolean
+          description: Whether the authenticated caller has liked this auction
+        status:
+          $ref: "#/components/schemas/AuctionStatus"
+        endsAt:
+          type: string
+          format: date-time
+        seller:
+          $ref: "#/components/schemas/SellerSummary"
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - thumbnailUrl
+        - videoUrl
+        - currentBid
+        - bidCount
+        - likeCount
+        - isLikedByMe
+        - status
+        - endsAt
+        - seller
+        - createdAt
+
+    AuctionDetail:
+      allOf:
+        - $ref: "#/components/schemas/AuctionSummary"
+        - type: object
+          properties:
+            description:
+              type: string
+              nullable: true
+            category:
+              $ref: "#/components/schemas/AuctionCategory"
+            startingBid:
+              type: number
+              format: double
+            minimumNextBid:
+              type: number
+              format: double
+              description: >
+                Minimum valid bid the caller may place right now
+                (currentBid + increment). Null if auction has ended.
+              nullable: true
+            topBidder:
+              $ref: "#/components/schemas/BidderSummary"
+              nullable: true
+            isOwnAuction:
+              type: boolean
+              description: True when the caller is the seller of this auction
+          required:
+            - description
+            - category
+            - startingBid
+            - minimumNextBid
+            - topBidder
+            - isOwnAuction
+
+    AuctionFeedPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuctionSummary"
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
+      required:
+        - items
+        - pagination
+
+    SellerSummary:
+      type: object
+      description: Minimal seller info shown on auction cards — no phone number
+      properties:
+        id:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+      required:
+        - id
+        - displayName
+        - avatarUrl
+
+    BidderSummary:
+      type: object
+      description: Minimal bidder info shown in auction detail — no phone number
+      properties:
+        id:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+      required:
+        - id
+        - displayName
+        - avatarUrl
+
+    # -- Bids -----------------------------------------------------------------
+
+    PlaceBidInput:
+      type: object
+      properties:
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+          description: Bid amount — must exceed current highest bid
+      required:
+        - amount
+
+    Bid:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        auctionId:
+          type: string
+          format: uuid
+        bidder:
+          $ref: "#/components/schemas/BidderSummary"
+        amount:
+          type: number
+          format: double
+        placedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - auctionId
+        - bidder
+        - amount
+        - placedAt
+
+    BidPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Bid"
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
+      required:
+        - items
+        - pagination
+
+    BidConflictError:
+      allOf:
+        - $ref: "#/components/schemas/ApiError"
+        - type: object
+          properties:
+            currentBid:
+              type: number
+              format: double
+            minimumNextBid:
+              type: number
+              format: double
+          required:
+            - currentBid
+            - minimumNextBid
+
+    # -- Likes ----------------------------------------------------------------
+
+    LikeState:
+      type: object
+      properties:
+        auctionId:
+          type: string
+          format: uuid
+        isLiked:
+          type: boolean
+        likeCount:
+          type: integer
+      required:
+        - auctionId
+        - isLiked
+        - likeCount
+
+    # -- Reports --------------------------------------------------------------
+
+    CreateReportInput:
+      type: object
+      properties:
+        reason:
+          $ref: "#/components/schemas/ReportReason"
+        details:
+          type: string
+          maxLength: 500
+          description: Optional free-text description (required when reason is "other")
+          nullable: true
+      required:
+        - reason
+
+    ReportAck:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Report submitted. Our team will review it."
+        reportId:
+          type: string
+          format: uuid
+      required:
+        - message
+        - reportId
+
+    # -- Blocks ---------------------------------------------------------------
+
+    BlockAck:
+      type: object
+      properties:
+        targetUserId:
+          type: string
+          format: uuid
+        isBlocked:
+          type: boolean
+      required:
+        - targetUserId
+        - isBlocked
+
+    # -- Contact --------------------------------------------------------------
+
+    ContactLinkResponse:
+      type: object
+      description: >
+        Pre-built WhatsApp deep-link. The phone number of the seller is
+        embedded server-side and never returned in the response body.
+      properties:
+        whatsappUrl:
+          type: string
+          format: uri
+          description: >
+            wa.me URL with pre-filled message referencing the auction title.
+            Example: https://wa.me/14155550123?text=Hi%2C+I%27m+interested+...
+          example: "https://wa.me/14155550123?text=Hi%2C+I+am+interested+in+your+auction%3A+Vintage+Camera"
+        auctionTitle:
+          type: string
+      required:
+        - whatsappUrl
+        - auctionTitle
+
+    # -- Admin ----------------------------------------------------------------
+
+    AdminReport:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        reason:
+          $ref: "#/components/schemas/ReportReason"
+        details:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/ReportStatus"
+        reporter:
+          $ref: "#/components/schemas/BidderSummary"
+        auction:
+          $ref: "#/components/schemas/AuctionSummary"
+        createdAt:
+          type: string
+          format: date-time
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        adminNote:
+          type: string
+          nullable: true
+      required:
+        - id
+        - reason
+        - details
+        - status
+        - reporter
+        - auction
+        - createdAt
+        - resolvedAt
+        - adminNote
+
+    AdminReportPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminReport"
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
+      required:
+        - items
+        - pagination
+
+    ResolveReportInput:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [dismiss, remove_auction, ban_user]
+          description: >
+            dismiss — no policy violation found;
+            remove_auction — remove the reported listing;
+            ban_user — ban the seller of the reported listing
+        adminNote:
+          type: string
+          maxLength: 500
+          nullable: true
+      required:
+        - action
+
+    BanUserInput:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          description: Internal note explaining the ban reason
+          nullable: true
+
+    AdminUserAction:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        isBanned:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - userId
+        - isBanned
+        - updatedAt
+
+    AdminStats:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+        activeAuctions:
+          type: integer
+        totalBids:
+          type: integer
+        pendingReports:
+          type: integer
+        newUsersToday:
+          type: integer
+        newAuctionsToday:
+          type: integer
+      required:
+        - totalUsers
+        - activeAuctions
+        - totalBids
+        - pendingReports
+        - newUsersToday
+        - newAuctionsToday

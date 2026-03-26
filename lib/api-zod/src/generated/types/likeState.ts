@@ -7,6 +7,8 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface LikeState {
+  auctionId: string;
+  isLiked: boolean;
+  likeCount: number;
 }

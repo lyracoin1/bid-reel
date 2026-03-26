@@ -6,7 +6,12 @@
 
  * OpenAPI spec version: 1.0.0
  */
+import type { UserProfile } from "./userProfile";
 
-export interface HealthStatus {
-  status: string;
+export interface AuthResponse {
+  /** Bearer token — include in Authorization header */
+  token: string;
+  /** True if this is the user's first login (prompt for display name) */
+  isNewUser: boolean;
+  user: UserProfile;
 }

@@ -6,7 +6,10 @@
 
  * OpenAPI spec version: 1.0.0
  */
+import type { AdminReport } from "./adminReport";
+import type { PaginationMeta } from "./paginationMeta";
 
-export interface HealthStatus {
-  status: string;
+export interface AdminReportPage {
+  items: AdminReport[];
+  pagination: PaginationMeta;
 }

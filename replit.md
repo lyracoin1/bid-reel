@@ -4,6 +4,20 @@
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
 
+## Product
+
+**BidReel** — short-video auction mobile app MVP.
+Users upload a video + image for an item, publish it as an auction (3-day fixed duration), and other users browse a vertical TikTok-style feed to place bids. WhatsApp contact via server-generated deep-links (phone numbers never exposed in API responses). Dark theme, neon purple accent.
+
+### Key API design decisions
+- Phone-based OTP auth → Bearer JWT token
+- Feed: cursor-paginated, active auctions only, sorted by ending soonest, blocked users excluded
+- Auction creation: multipart/form-data (video + thumbnail + metadata), files → Supabase Storage
+- Bids: server validates amount > currentBid, seller cannot bid own auction, expired auctions reject bids
+- Likes: idempotent POST/DELETE, optimistic-update friendly
+- Contact: `/auctions/:id/contact` returns a `wa.me` URL — phone number embedded server-side, never returned in JSON
+- Admin endpoints: gated by `isAdmin` flag on user, actions: resolve reports, remove auctions, ban/unban users
+
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces

@@ -6,7 +6,10 @@
 
  * OpenAPI spec version: 1.0.0
  */
+import type { Bid } from "./bid";
+import type { PaginationMeta } from "./paginationMeta";
 
-export interface HealthStatus {
-  status: string;
+export interface BidPage {
+  items: Bid[];
+  pagination: PaginationMeta;
 }

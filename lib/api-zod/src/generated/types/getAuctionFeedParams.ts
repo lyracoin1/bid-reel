@@ -7,6 +7,15 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
-}
+export type GetAuctionFeedParams = {
+  /**
+   * Pagination cursor from previous response (auction ID)
+   */
+  cursor?: string;
+  /**
+   * Number of items to return (max 20)
+   * @minimum 1
+   * @maximum 20
+   */
+  limit?: number;
+};

@@ -7,6 +7,13 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface VerifyOtpInput {
+  /** @pattern ^\+[1-9]\d{7,14}$ */
+  phoneNumber: string;
+  /**
+   * @minLength 6
+   * @maxLength 6
+   * @pattern ^[0-9]{6}$
+   */
+  otp: string;
 }

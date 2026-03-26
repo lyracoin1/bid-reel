@@ -7,6 +7,11 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface RequestOtpInput {
+  /**
+   * E.164 format phone number (e.g. +14155550123). Country code is required.
+
+   * @pattern ^\+[1-9]\d{7,14}$
+   */
+  phoneNumber: string;
 }

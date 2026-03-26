@@ -6,7 +6,9 @@
 
  * OpenAPI spec version: 1.0.0
  */
+import type { ApiError } from "./apiError";
 
-export interface HealthStatus {
-  status: string;
-}
+/**
+ * Missing or invalid auth token
+ */
+export type UnauthorizedResponse = ApiError;

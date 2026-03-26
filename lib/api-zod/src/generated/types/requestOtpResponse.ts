@@ -7,6 +7,10 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface RequestOtpResponse {
+  message: string;
+  /** How long the OTP remains valid */
+  expiresInSeconds: number;
+  /** Cooldown before another OTP can be requested */
+  resendAvailableInSeconds: number;
 }

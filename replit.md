@@ -9,6 +9,24 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 **BidReel** — short-video auction mobile app MVP.
 Users upload a video + image for an item, publish it as an auction (3-day fixed duration), and other users browse a vertical TikTok-style feed to place bids. WhatsApp contact via server-generated deep-links (phone numbers never exposed in API responses). Dark theme, neon purple accent.
 
+### Database schema
+Migration file: `lib/db/migrations/001_initial_schema.sql`
+
+Tables: `profiles`, `auctions`, `bids`, `likes`, `reports`, `blocks`, `contact_requests`, `moderation_queue`, `admin_actions`
+Views: `v_public_profiles` (no phone), `v_auction_feed` (feed-optimized join), `v_admin_report_queue`
+Triggers: `bid → update current_price + bid_count`, `like/unlike → update like_count`, `updated_at` on profiles + auctions
+Enums: `auction_status`, `auction_category`, `report_reason`, `report_status`, `moderation_source`, `moderation_status`, `admin_action_type`, `admin_target_type`, `contact_status`
+
+Key schema decisions:
+- `profiles.phone` stored for wa.me generation only — excluded from `v_public_profiles` view
+- `auctions.current_price` + `bid_count` + `like_count` are denormalized counters updated by DB triggers
+- `auctions.ends_at` has a CHECK constraint enforcing 3-day window from `created_at` (±1hr tolerance)
+- `bids` are immutable (no UPDATE/DELETE); trigger updates auction current_price on INSERT
+- `likes` have UNIQUE(user_id, auction_id) — ON CONFLICT DO NOTHING for idempotent behavior
+- `blocks` have CHECK(blocker_id != blocked_id) for self-block prevention
+- `admin_actions` is append-only audit log — polymorphic target_id (not a DB FK)
+- `moderation_queue` has UNIQUE(auction_id, source) — multiple reports roll up to one queue entry
+
 ### Key API design decisions
 - Phone-based OTP auth → Bearer JWT token
 - Feed: cursor-paginated, active auctions only, sorted by ending soonest, blocked users excluded

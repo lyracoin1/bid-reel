@@ -1,0 +1,113 @@
+Based on the finalized OpenAPI spec for the MVP short-video auction app, create the full Supabase PostgreSQL database schema.
+
+Important rules:
+- Use Supabase PostgreSQL
+- Use Supabase Storage for media
+- Do not use Replit storage
+- Keep the schema MVP-focused but scalable
+- Authentication is phone-based through Supabase Auth
+- Do not create a custom passwords table
+- All IDs should be UUIDs
+- Add created_at timestamps
+- Add updated_at where useful
+- Use proper foreign keys and constraints
+- Keep the schema clean, production-minded, and aligned with the API spec
+
+Create these tables at minimum:
+- profiles
+- auctions
+- bids
+- likes
+- reports
+- blocks
+- contact_requests
+- moderation_queue
+- admin_actions
+
+Requirements per domain:
+
+Profiles:
+- linked to Supabase auth user id
+- phone number should not be publicly exposed in general API responses
+- support username, avatar_url, bio
+- support admin flag or role in a simple scalable way
+
+Auctions:
+- seller_id
+- title
+- description
+- video_url
+- image_url
+- start_price
+- current_price
+- minimum_increment
+- duration_days or fixed 3-day logic
+- status (active, ended, removed)
+- ends_at
+- like_count if needed, or explain whether it should be derived
+- report_count if needed, or explain whether it should be derived
+
+Bids:
+- auction_id
+- bidder_id
+- amount
+- enforce valid relationship structure
+- prepare for correct ordering and history retrieval
+
+Likes:
+- one like per user per auction
+- must support idempotent like/unlike behavior
+
+Reports:
+- reporter_id
+- auction_id
+- reason
+- status
+- optional note
+- prevent duplicate spammy reports where reasonable
+
+Blocks:
+- blocker_id
+- blocked_id
+- prevent duplicate block rows
+
+Contact requests:
+- auction_id
+- requester_id
+- seller_id
+- status
+- created_at
+
+Moderation queue:
+- auction_id
+- source (user report or system)
+- reason
+- status
+
+Admin actions:
+- admin_id
+- action_type
+- target_type
+- target_id
+- note
+
+Also do the following:
+1. Add indexes for likely query paths
+2. Add useful unique constraints
+3. Add check constraints where appropriate
+4. Add comments explaining important design decisions
+5. Include sample RLS planning notes, but do NOT implement policies yet unless necessary for schema completeness
+6. Ensure the schema supports:
+   - feed queries
+   - profile queries
+   - bid history
+   - blocking
+   - reporting
+   - admin moderation
+   - contact flow through WhatsApp without exposing raw phone values broadly
+
+Output:
+- One clean SQL migration file
+- Brief explanation of table relationships
+- Brief explanation of why certain indexes and constraints were chosen
+- Do not move to backend implementation yet

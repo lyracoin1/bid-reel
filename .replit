@@ -29,3 +29,6 @@ timeoutMs = 20000
 
 [userenv.shared]
 SUPABASE_URL = "https://zhbfbjwagehwetyqljjr.supabase.co"
+
+[userenv.development]
+USE_DEV_AUTH = "true"

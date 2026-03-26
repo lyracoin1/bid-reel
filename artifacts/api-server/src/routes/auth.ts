@@ -3,36 +3,37 @@ import { z } from "zod";
 import { supabase } from "../lib/supabase";
 import { upsertProfile, getProfileById } from "../lib/profiles";
 import { requireAuth } from "../middlewares/requireAuth";
+import { devLogin } from "../lib/devAuth";
 
 const router: IRouter = Router();
 
 // ---------------------------------------------------------------------------
-// Validation schemas
+// Shared helpers
 // ---------------------------------------------------------------------------
 
 const e164Regex = /^\+[1-9]\d{7,14}$/;
 
-const requestOtpSchema = z.object({
-  phoneNumber: z
-    .string()
-    .regex(e164Regex, "Phone number must be in E.164 format (e.g. +14155550123)"),
-});
+const phoneSchema = z
+  .string()
+  .regex(e164Regex, "Phone number must be in E.164 format (e.g. +14155550123)");
+
+const requestOtpSchema = z.object({ phoneNumber: phoneSchema });
 
 const verifyOtpSchema = z.object({
-  phoneNumber: z
-    .string()
-    .regex(e164Regex, "Phone number must be in E.164 format"),
+  phoneNumber: phoneSchema,
   otp: z
     .string()
     .length(6)
     .regex(/^\d{6}$/, "OTP must be exactly 6 digits"),
 });
 
+const devLoginSchema = z.object({ phoneNumber: phoneSchema });
+
 // ---------------------------------------------------------------------------
 // POST /api/auth/request-otp
 // ---------------------------------------------------------------------------
 // Triggers Supabase to send an SMS OTP to the given phone number.
-// No auth required — this is the first step of the login flow.
+// No auth required — this is the first step of the production login flow.
 // ---------------------------------------------------------------------------
 router.post("/auth/request-otp", async (req, res) => {
   const parsed = requestOtpSchema.safeParse(req.body);
@@ -50,8 +51,10 @@ router.post("/auth/request-otp", async (req, res) => {
   const { error } = await supabase.auth.signInWithOtp({ phone: phoneNumber });
 
   if (error) {
-    req.log.warn({ err: error.message, phone: phoneNumber.slice(0, 4) + "****" }, "OTP send failed");
-    // Surface a generic error to avoid leaking Supabase internals.
+    req.log.warn(
+      { err: error.message, phone: phoneNumber.slice(0, 4) + "****" },
+      "OTP send failed",
+    );
     res.status(400).json({
       error: "OTP_SEND_FAILED",
       message:
@@ -103,7 +106,6 @@ router.post("/auth/verify-otp", async (req, res) => {
 
   const { user, session } = data;
 
-  // Upsert profile — creates row on first login, returns existing on subsequent logins.
   let profileResult;
   try {
     profileResult = await upsertProfile(user.id, user.phone ?? phoneNumber);
@@ -121,16 +123,73 @@ router.post("/auth/verify-otp", async (req, res) => {
     token: session.access_token,
     isNewUser: profileResult.isNewUser,
     user: profileResult.profile,
-    // access_token is a Supabase JWT — include in subsequent requests as:
-    // Authorization: Bearer <token>
   });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/auth/dev-login
+// ---------------------------------------------------------------------------
+// DEV ONLY — bypasses SMS OTP for local development and API testing.
+//
+// Two independent guards prevent this from running in production:
+//   1. USE_DEV_AUTH env var must be exactly the string "true"
+//   2. NODE_ENV must not be "production"
+//
+// Given a phone number, creates or retrieves a Supabase user and returns
+// a real JWT token — identical in shape and behaviour to production login.
+//
+// See: src/lib/devAuth.ts for implementation details.
+// ---------------------------------------------------------------------------
+router.post("/auth/dev-login", async (req, res) => {
+  // Guard 1: explicit opt-in flag
+  if (process.env["USE_DEV_AUTH"] !== "true") {
+    res.status(403).json({
+      error: "DEV_AUTH_DISABLED",
+      message:
+        "Dev auth is not enabled. Set USE_DEV_AUTH=true in your environment to use this endpoint.",
+    });
+    return;
+  }
+
+  // Guard 2: never allow in production
+  if (process.env["NODE_ENV"] === "production") {
+    res.status(403).json({
+      error: "DEV_AUTH_DISABLED",
+      message: "Dev auth cannot be used in a production environment.",
+    });
+    return;
+  }
+
+  const parsed = devLoginSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    res.status(400).json({
+      error: "VALIDATION_ERROR",
+      message: parsed.error.issues[0]?.message ?? "Invalid request",
+    });
+    return;
+  }
+
+  const { phoneNumber } = parsed.data;
+
+  try {
+    const result = await devLogin(phoneNumber);
+    res.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    req.log.error({ err: message }, "Dev login failed");
+    res.status(500).json({
+      error: "DEV_LOGIN_FAILED",
+      message,
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
 // GET /api/auth/me
 // ---------------------------------------------------------------------------
 // Returns the authenticated user's current profile.
-// Lightweight endpoint for token validation and session restore on app launch.
+// Works with tokens from both production OTP and dev-login flows.
 // ---------------------------------------------------------------------------
 router.get("/auth/me", requireAuth, async (req, res) => {
   const profile = await getProfileById(req.user!.id);

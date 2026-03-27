@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, Compass, Plus, User } from "lucide-react";
+import { Home, Search, Plus, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
@@ -9,10 +9,10 @@ export function BottomNav() {
   const { t } = useLang();
 
   const navItems = [
-    { id: "feed",    path: "/feed",    icon: Home,    labelKey: "nav_feed"    as const },
-    { id: "explore", path: "/explore", icon: Compass, labelKey: "nav_explore" as const },
-    { id: "create",  path: "/create",  icon: Plus,    labelKey: "nav_sell"    as const, isAction: true },
-    { id: "profile", path: "/profile", icon: User,    labelKey: "nav_profile" as const },
+    { id: "feed",    path: "/feed",    icon: Home,   labelKey: "nav_feed"    as const, size: 22 },
+    { id: "explore", path: "/explore", icon: Search, labelKey: "nav_explore" as const, size: 24, prominent: true },
+    { id: "create",  path: "/create",  icon: Plus,   labelKey: "nav_sell"    as const, isAction: true },
+    { id: "profile", path: "/profile", icon: User,   labelKey: "nav_profile" as const, size: 22 },
   ];
 
   return (
@@ -35,13 +35,27 @@ export function BottomNav() {
             );
           }
 
+          const iconSize = (item as any).size ?? 22;
+          const isProminent = (item as any).prominent;
+
           return (
             <Link key={item.id} href={item.path} className="cursor-pointer">
               <motion.div
                 whileTap={{ scale: 0.85 }}
                 className="flex flex-col items-center gap-0.5 w-12"
               >
-                <Icon size={22} className={cn("transition-colors duration-200", isActive ? "text-primary" : "text-white/35")} />
+                {isProminent ? (
+                  <div className={cn(
+                    "w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200",
+                    isActive
+                      ? "bg-primary/20 text-primary shadow-sm shadow-primary/20"
+                      : "bg-white/6 text-white/50"
+                  )}>
+                    <Icon size={iconSize} strokeWidth={isActive ? 2.5 : 2} />
+                  </div>
+                ) : (
+                  <Icon size={iconSize} className={cn("transition-colors duration-200", isActive ? "text-primary" : "text-white/35")} />
+                )}
                 <span className={cn("text-[10px] font-semibold tracking-wide transition-colors", isActive ? "text-primary" : "text-white/30")}>
                   {t(item.labelKey)}
                 </span>

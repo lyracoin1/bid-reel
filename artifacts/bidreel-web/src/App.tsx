@@ -7,6 +7,7 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 // Pages
 import Splash from "@/pages/splash";
 import Feed from "@/pages/feed";
+import Explore from "@/pages/explore";
 import AuctionDetail from "@/pages/auction-detail";
 import CreateAuction from "@/pages/create-auction";
 import Profile from "@/pages/profile";
@@ -20,7 +21,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Splash} />
       <Route path="/feed" component={Feed} />
-      <Route path="/explore" component={Feed} />
+      <Route path="/explore" component={Explore} />
       <Route path="/auction/:id" component={AuctionDetail} />
       <Route path="/create" component={CreateAuction} />
       <Route path="/profile" component={Profile} />

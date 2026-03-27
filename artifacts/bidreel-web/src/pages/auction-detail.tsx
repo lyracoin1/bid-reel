@@ -125,7 +125,7 @@ export default function AuctionDetail() {
                 className={[
                   "px-4 py-2 rounded-xl text-xs font-bold border transition-all duration-200",
                   isFollowing(auction.seller.id)
-                    ? "bg-primary/20 border-primary/50 text-primary"
+                    ? "bg-[#0ea5e9]/15 border-[#0ea5e9]/45 text-[#7dd3fc] shadow-sm shadow-[#0ea5e9]/20"
                     : "bg-white/8 border-white/15 text-white",
                 ].join(" ")}
               >

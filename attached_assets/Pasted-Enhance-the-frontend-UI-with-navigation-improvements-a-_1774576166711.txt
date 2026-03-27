@@ -1,0 +1,115 @@
+Enhance the frontend UI with navigation improvements, a powerful search system, and refined follow button behavior.
+
+IMPORTANT:
+- Do NOT rebuild from scratch
+- Modify the current app only
+- Keep dark neon style
+- Prices must remain white
+- Purple is used for actions EXCEPT follow button (see below)
+
+--------------------------------------------------
+1) FOLLOW BUTTON REFINEMENT
+--------------------------------------------------
+
+Update the Follow button styling:
+
+States:
+- Default:
+  - Neutral / subtle style
+
+- Following (after click):
+  - Change color to a DARK NEON BLUE (not purple)
+  - The blue should feel glowing/neon but elegant (not too bright)
+  - Keep text readable (white text on blue background)
+
+Interaction:
+- Smooth transition when toggling
+- Slight scale or glow animation
+
+IMPORTANT:
+- Do NOT use purple for Follow anymore
+- Follow color = dark neon blue only
+
+--------------------------------------------------
+2) NAVIGATION IMPROVEMENTS
+--------------------------------------------------
+
+- Rename Home tab label to:
+  "الرئيسية"
+
+- Upgrade the Search (Explore) tab:
+  - Make the search icon bigger and more prominent
+  - It should feel like a primary feature
+  - Clean modern look
+
+--------------------------------------------------
+3) DEDICATED SEARCH SCREEN
+--------------------------------------------------
+
+Create a strong search experience:
+
+- Large search input at top
+- Placeholder:
+  "ابحث عن أي منتج..."
+
+- Focused, clean UI
+- Dark theme with subtle glow
+
+--------------------------------------------------
+4) POWERFUL SEARCH LOGIC
+--------------------------------------------------
+
+Implement smart search using existing mock data:
+
+Search should match:
+- Auction title
+- Auction description
+
+Behavior:
+- Case-insensitive
+- Partial matching
+
+Example:
+Typing "خلاط" returns:
+- خلاط كهربائي
+- خلاط مطبخ
+- مستعمل خلاط
+
+--------------------------------------------------
+5) SEARCH RESULTS UI
+--------------------------------------------------
+
+- Display results as cards/grid using existing FeedCard
+- Show:
+  - thumbnail
+  - title
+  - white price
+  - video/album indicator icons
+
+--------------------------------------------------
+6) EMPTY STATE
+--------------------------------------------------
+
+If no results:
+- Show:
+  "لا توجد نتائج"
+- Clean centered design
+
+--------------------------------------------------
+7) KEEP EVERYTHING ELSE INTACT
+--------------------------------------------------
+
+- Keep WhatsApp button
+- Keep Share button
+- Keep Like button behavior
+- Keep currency system
+- Keep album/video system
+
+--------------------------------------------------
+FINAL STEP
+--------------------------------------------------
+
+- Run the app
+- Show preview URL
+- Demonstrate search with a keyword
+- Show follow button before/after clicking

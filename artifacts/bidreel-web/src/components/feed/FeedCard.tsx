@@ -93,7 +93,7 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
             className={cn(
               "px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-md transition-all duration-200 shrink-0",
               following
-                ? "bg-primary/20 border-primary/50 text-primary"
+                ? "bg-[#0ea5e9]/15 border-[#0ea5e9]/45 text-[#7dd3fc] shadow-sm shadow-[#0ea5e9]/20"
                 : "bg-black/40 border-white/20 text-white"
             )}
           >

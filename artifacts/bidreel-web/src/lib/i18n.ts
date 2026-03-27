@@ -53,6 +53,8 @@ export type TKey =
   | "currency_mode" | "currency_usd" | "currency_local"
   // Follow
   | "follow" | "following"
+  // Search / Explore
+  | "search_placeholder" | "no_results" | "search_hint"
   // Interests onboarding
   | "interests_title" | "interests_subtitle" | "interests_skip" | "interests_done"
   // Time
@@ -86,12 +88,13 @@ const en: Translations = {
   time_ended: "Ended", time_s: "s", time_m: "m left", time_h: "h left", time_d: "d left",
   currency_mode: "Currency", currency_usd: "USD ($)", currency_local: "Local Currency",
   follow: "Follow", following: "Following",
+  search_placeholder: "Search for anything…", no_results: "No results found", search_hint: "Try a title or description",
   interests_title: "Choose what interests you", interests_subtitle: "Select topics you'd love to bid on",
   interests_skip: "Skip", interests_done: "Done",
 };
 
 const ar: Translations = {
-  nav_feed: "الخلاصة", nav_explore: "استكشاف", nav_sell: "بيع", nav_profile: "الملف الشخصي",
+  nav_feed: "الرئيسية", nav_explore: "استكشاف", nav_sell: "بيع", nav_profile: "الملف الشخصي",
   share: "مشاركة", chat: "دردشة", bid: "مزايدة", bids_count: "مزايدات", ended: "انتهى",
   current_bid: "المزايدة الحالية", whatsapp_cta: "مراسلة البائع عبر واتساب",
   about: "عن العنصر", bid_history: "سجل المزايدات", no_bids: "لا توجد مزايدات بعد — كن الأول!",
@@ -116,6 +119,7 @@ const ar: Translations = {
   time_ended: "انتهى", time_s: "ث", time_m: "د متبقية", time_h: "س متبقية", time_d: "ي متبقية",
   currency_mode: "العملة", currency_usd: "دولار أمريكي ($)", currency_local: "العملة المحلية",
   follow: "متابعة", following: "تتابعه",
+  search_placeholder: "ابحث عن أي منتج...", no_results: "لا توجد نتائج", search_hint: "ابحث بالعنوان أو الوصف",
   interests_title: "اختر ما يهمك", interests_subtitle: "حدد مواضيع تريد المزايدة عليها",
   interests_skip: "تخطى", interests_done: "تم",
 };
@@ -146,6 +150,7 @@ const ru: Translations = {
   time_ended: "Завершён", time_s: "с", time_m: "м осталось", time_h: "ч осталось", time_d: "д осталось",
   currency_mode: "Валюта", currency_usd: "USD ($)", currency_local: "Местная валюта",
   follow: "Подписаться", following: "Подписан",
+  search_placeholder: "Поиск товаров…", no_results: "Ничего не найдено", search_hint: "Попробуйте название или описание",
   interests_title: "Выберите интересы", interests_subtitle: "Темы, на которые вы хотите делать ставки",
   interests_skip: "Пропустить", interests_done: "Готово",
 };
@@ -176,6 +181,7 @@ const es: Translations = {
   time_ended: "Finalizado", time_s: "s", time_m: "m restante", time_h: "h restante", time_d: "d restante",
   currency_mode: "Moneda", currency_usd: "USD ($)", currency_local: "Moneda local",
   follow: "Seguir", following: "Siguiendo",
+  search_placeholder: "Buscar cualquier producto…", no_results: "Sin resultados", search_hint: "Prueba con un título o descripción",
   interests_title: "Elige tus intereses", interests_subtitle: "Selecciona temas en los que quieres pujar",
   interests_skip: "Saltar", interests_done: "Hecho",
 };
@@ -206,6 +212,7 @@ const fr: Translations = {
   time_ended: "Terminé", time_s: "s", time_m: "m restant", time_h: "h restant", time_d: "j restant",
   currency_mode: "Devise", currency_usd: "USD ($)", currency_local: "Devise locale",
   follow: "Suivre", following: "Abonné",
+  search_placeholder: "Rechercher un produit…", no_results: "Aucun résultat", search_hint: "Essayez un titre ou une description",
   interests_title: "Choisissez vos intérêts", interests_subtitle: "Sélectionnez les sujets sur lesquels vous souhaitez enchérir",
   interests_skip: "Ignorer", interests_done: "Terminer",
 };

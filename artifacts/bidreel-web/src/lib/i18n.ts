@@ -1,5 +1,15 @@
 export type Language = "en" | "ar" | "ru" | "es" | "fr";
 export type Direction = "ltr" | "rtl";
+export type CurrencyMode = "usd" | "local";
+
+/** Per-language local currency display info */
+export const CURRENCY_MAP: Record<Language, { flag: string; symbol: string; after: boolean }> = {
+  en: { flag: "🇺🇸", symbol: "$",    after: false }, // $500
+  ar: { flag: "🇸🇦", symbol: "ر.س", after: true  }, // 500 ر.س
+  ru: { flag: "🇷🇺", symbol: "₽",    after: true  }, // 500 ₽
+  es: { flag: "🇪🇸", symbol: "€",    after: true  }, // 500 €
+  fr: { flag: "🇫🇷", symbol: "€",    after: true  }, // 500 €
+};
 
 export const LANGUAGE_NAMES: Record<Language, string> = {
   en: "English",
@@ -39,6 +49,8 @@ export type TKey =
   // Profile
   | "listings" | "my_bids" | "bids_won" | "rating" | "log_out" | "language"
   | "no_listings" | "create_first" | "settings"
+  // Currency
+  | "currency_mode" | "currency_usd" | "currency_local"
   // Time
   | "time_ended" | "time_s" | "time_m" | "time_h" | "time_d";
 
@@ -68,6 +80,7 @@ const en: Translations = {
   log_out: "Log Out", language: "Language",
   no_listings: "No listings yet.", create_first: "Create your first listing", settings: "Settings",
   time_ended: "Ended", time_s: "s", time_m: "m left", time_h: "h left", time_d: "d left",
+  currency_mode: "Currency", currency_usd: "USD ($)", currency_local: "Local Currency",
 };
 
 const ar: Translations = {
@@ -94,6 +107,7 @@ const ar: Translations = {
   log_out: "تسجيل الخروج", language: "اللغة",
   no_listings: "لا توجد إدراجات بعد.", create_first: "أنشئ إدراجك الأول", settings: "الإعدادات",
   time_ended: "انتهى", time_s: "ث", time_m: "د متبقية", time_h: "س متبقية", time_d: "ي متبقية",
+  currency_mode: "العملة", currency_usd: "دولار أمريكي ($)", currency_local: "العملة المحلية",
 };
 
 const ru: Translations = {
@@ -120,6 +134,7 @@ const ru: Translations = {
   log_out: "Выйти", language: "Язык",
   no_listings: "Нет лотов.", create_first: "Создать первый лот", settings: "Настройки",
   time_ended: "Завершён", time_s: "с", time_m: "м осталось", time_h: "ч осталось", time_d: "д осталось",
+  currency_mode: "Валюта", currency_usd: "USD ($)", currency_local: "Местная валюта",
 };
 
 const es: Translations = {
@@ -146,6 +161,7 @@ const es: Translations = {
   log_out: "Cerrar sesión", language: "Idioma",
   no_listings: "Sin anuncios aún.", create_first: "Crea tu primer anuncio", settings: "Ajustes",
   time_ended: "Finalizado", time_s: "s", time_m: "m restante", time_h: "h restante", time_d: "d restante",
+  currency_mode: "Moneda", currency_usd: "USD ($)", currency_local: "Moneda local",
 };
 
 const fr: Translations = {
@@ -172,6 +188,7 @@ const fr: Translations = {
   log_out: "Se déconnecter", language: "Langue",
   no_listings: "Aucune annonce.", create_first: "Créer votre première annonce", settings: "Paramètres",
   time_ended: "Terminé", time_s: "s", time_m: "m restant", time_h: "h restant", time_d: "j restant",
+  currency_mode: "Devise", currency_usd: "USD ($)", currency_local: "Devise locale",
 };
 
 export const TRANSLATIONS: Record<Language, Translations> = { en, ar, ru, es, fr };

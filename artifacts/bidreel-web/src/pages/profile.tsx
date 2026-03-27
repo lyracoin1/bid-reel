@@ -4,9 +4,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { currentUser, mockAuctions } from "@/lib/mock-data";
-import { formatCurrency, getTimeRemaining } from "@/lib/utils";
+import { getTimeRemaining } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
-import { type Language, LANGUAGE_NAMES } from "@/lib/i18n";
+import { type Language, type CurrencyMode, LANGUAGE_NAMES, CURRENCY_MAP } from "@/lib/i18n";
 
 type Tab = "listings" | "bids";
 
@@ -15,8 +15,9 @@ const LANGUAGES: Language[] = ["en", "ar", "ru", "es", "fr"];
 export default function Profile() {
   const [activeTab, setActiveTab] = useState<Tab>("listings");
   const [showLangPicker, setShowLangPicker] = useState(false);
+  const [showCurrPicker, setShowCurrPicker] = useState(false);
   const [, setLocation] = useLocation();
-  const { t, lang, setLang } = useLang();
+  const { t, lang, setLang, currencyMode, setCurrencyMode, formatPrice } = useLang();
 
   const myListings = mockAuctions.filter(a => a.seller.id === currentUser.id);
   const myBids     = mockAuctions.filter(a => a.bids.some(b => b.user.id === currentUser.id));
@@ -90,6 +91,58 @@ export default function Profile() {
             )}
           </AnimatePresence>
 
+          {/* Currency mode picker */}
+          <div className="relative z-10 mb-5">
+            <button
+              onClick={() => { setShowCurrPicker(v => !v); setShowLangPicker(false); }}
+              className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-white/5 border border-white/8 hover:bg-white/8 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="text-base">💱</span>
+                <div className="text-start">
+                  <p className="text-xs font-bold text-white/40 uppercase tracking-widest leading-none">{t("currency_mode")}</p>
+                  <p className="text-sm font-semibold text-white mt-0.5">
+                    {currencyMode === "usd"
+                      ? t("currency_usd")
+                      : `${CURRENCY_MAP[lang].flag} ${t("currency_local")}`}
+                  </p>
+                </div>
+              </div>
+              <motion.div animate={{ rotate: showCurrPicker ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                <Check size={14} className={showCurrPicker ? "text-primary" : "text-white/20"} />
+              </motion.div>
+            </button>
+
+            <AnimatePresence>
+              {showCurrPicker && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute top-full left-0 right-0 mt-1.5 rounded-2xl bg-[#111118] border border-white/10 overflow-hidden shadow-xl z-30"
+                >
+                  {(["usd", "local"] as CurrencyMode[]).map(mode => {
+                    const isActive = currencyMode === mode;
+                    const label = mode === "usd"
+                      ? `$ ${t("currency_usd")}`
+                      : `${CURRENCY_MAP[lang].flag} ${t("currency_local")} · ${CURRENCY_MAP[lang].flag} ${CURRENCY_MAP[lang].symbol}`;
+                    return (
+                      <button
+                        key={mode}
+                        onClick={() => { setCurrencyMode(mode); setShowCurrPicker(false); }}
+                        className="w-full flex items-center justify-between px-4 py-3.5 text-sm hover:bg-white/6 transition-colors"
+                      >
+                        <span className={isActive ? "text-white font-semibold" : "text-white/55"}>{label}</span>
+                        {isActive && <Check size={14} className="text-primary" />}
+                      </button>
+                    );
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           {/* Stats row */}
           <div className="grid grid-cols-3 gap-3 relative z-10">
             {[
@@ -144,7 +197,7 @@ export default function Profile() {
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
                         <div className="absolute bottom-0 left-0 right-0 p-3">
                           <p className="text-xs font-bold text-white line-clamp-1">{auction.title}</p>
-                          <p className="text-sm font-bold text-white mt-0.5">{formatCurrency(auction.currentBid)}</p>
+                          <p className="text-sm font-bold text-white mt-0.5">{formatPrice(auction.currentBid)}</p>
                           <p className={`text-[10px] font-bold mt-1 ${timeInfo.isUrgent ? "text-red-400" : "text-emerald-400"}`}>{timeInfo.text}</p>
                         </div>
                       </div>
@@ -178,9 +231,9 @@ export default function Profile() {
                     <div className="flex-1 min-w-0">
                       <h4 className="font-semibold text-white text-sm line-clamp-1">{auction.title}</h4>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Current: <span className="text-white font-bold">{formatCurrency(auction.currentBid)}</span>
+                        Current: <span className="text-white font-bold">{formatPrice(auction.currentBid)}</span>
                       </p>
-                      {myBid && <p className="text-xs text-muted-foreground">Your bid: <span className="text-white">{formatCurrency(myBid.amount)}</span></p>}
+                      {myBid && <p className="text-xs text-muted-foreground">Your bid: <span className="text-white">{formatPrice(myBid.amount)}</span></p>}
                       <div className="flex items-center gap-2 mt-1.5">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isLeading ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
                           {isLeading ? t("leading") : t("outbid")}

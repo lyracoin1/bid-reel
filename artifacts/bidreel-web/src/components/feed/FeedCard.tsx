@@ -2,7 +2,7 @@ import { useLocation } from "wouter";
 import { Heart, Share2, MessageCircle, Gavel, Play } from "lucide-react";
 import { motion } from "framer-motion";
 import { type Auction } from "@/lib/mock-data";
-import { formatCurrency, getTimeRemaining, getWhatsAppUrl, cn } from "@/lib/utils";
+import { getTimeRemaining, getWhatsAppUrl, cn } from "@/lib/utils";
 import { useToggleLike } from "@/hooks/use-auctions";
 import { useLang } from "@/contexts/LanguageContext";
 
@@ -24,7 +24,7 @@ interface FeedCardProps {
 export function FeedCard({ auction, isActive }: FeedCardProps) {
   const [, setLocation] = useLocation();
   const { mutate: toggleLike } = useToggleLike();
-  const { t } = useLang();
+  const { t, formatPrice } = useLang();
   const timeInfo = getTimeRemaining(auction.endsAt);
   const whatsappUrl = getWhatsAppUrl(auction.seller.phone, auction.title);
 
@@ -140,7 +140,7 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
       >
         <h2 className="text-[22px] font-bold text-white leading-snug line-clamp-2 drop-shadow-sm">{auction.title}</h2>
         <div className="flex items-baseline gap-2.5">
-          <span className="text-3xl font-bold text-white tracking-tight">{formatCurrency(auction.currentBid)}</span>
+          <span className="text-3xl font-bold text-white tracking-tight">{formatPrice(auction.currentBid)}</span>
           <span className="text-xs font-medium text-white/50 uppercase tracking-wide">{auction.bidCount} {t("bids_count")}</span>
         </div>
       </div>

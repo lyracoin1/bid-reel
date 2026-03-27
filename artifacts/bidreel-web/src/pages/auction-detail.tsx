@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { ImageSlider } from "@/components/feed/ImageSlider";
 import { useAuction, usePlaceBid } from "@/hooks/use-auctions";
-import { formatCurrency, getTimeRemaining, getWhatsAppUrl, cn } from "@/lib/utils";
+import { getTimeRemaining, getWhatsAppUrl, cn } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { formatDistanceToNow } from "date-fns";
 
@@ -14,7 +14,7 @@ export default function AuctionDetail() {
   const [, setLocation] = useLocation();
   const { data: auction } = useAuction(id || "");
   const { mutate: placeBid, isPending: isBidding } = usePlaceBid();
-  const { t } = useLang();
+  const { t, formatPrice } = useLang();
 
   const [showBidSheet, setShowBidSheet] = useState(false);
   const [bidAmount, setBidAmount] = useState(0);
@@ -105,7 +105,7 @@ export default function AuctionDetail() {
 
           {/* Price */}
           <div className="flex items-baseline gap-2">
-            <span className="text-4xl font-bold text-white tracking-tight">{formatCurrency(auction.currentBid)}</span>
+            <span className="text-4xl font-bold text-white tracking-tight">{formatPrice(auction.currentBid)}</span>
             <span className="text-sm text-muted-foreground font-medium">{t("current_bid")}</span>
           </div>
 
@@ -146,7 +146,7 @@ export default function AuctionDetail() {
                       <p className="text-xs text-muted-foreground mt-0.5">{formatDistanceToNow(new Date(bid.timestamp))} ago</p>
                     </div>
                     <div className="flex flex-col items-end gap-0.5">
-                      <span className="text-sm font-bold text-white">{formatCurrency(bid.amount)}</span>
+                      <span className="text-sm font-bold text-white">{formatPrice(bid.amount)}</span>
                       {i === 0 && <span className="text-[10px] font-bold text-primary uppercase tracking-wide">{t("leading")}</span>}
                     </div>
                   </div>
@@ -186,13 +186,13 @@ export default function AuctionDetail() {
               <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-6" />
               <h3 className="text-lg font-bold text-white text-center mb-1">{t("place_bid")}</h3>
               <p className="text-sm text-muted-foreground text-center mb-7">
-                {t("min_bid")}: <span className="text-white font-semibold">{formatCurrency(minBid)}</span>
+                {t("min_bid")}: <span className="text-white font-semibold">{formatPrice(minBid)}</span>
               </p>
 
               <div className="flex justify-center items-center gap-5 mb-6">
                 <motion.button whileTap={{ scale: 0.88 }} onClick={() => setBidAmount(b => Math.max(minBid, b - 10))}
                   className="w-12 h-12 rounded-full bg-white/8 border border-white/10 flex items-center justify-center text-xl font-bold text-white">−</motion.button>
-                <div className="text-4xl font-bold text-white w-40 text-center tracking-tight">{formatCurrency(bidAmount)}</div>
+                <div className="text-4xl font-bold text-white w-40 text-center tracking-tight">{formatPrice(bidAmount)}</div>
                 <motion.button whileTap={{ scale: 0.88 }} onClick={() => setBidAmount(b => b + 10)}
                   className="w-12 h-12 rounded-full bg-white/8 border border-white/10 flex items-center justify-center text-xl font-bold text-white">+</motion.button>
               </div>
@@ -210,7 +210,7 @@ export default function AuctionDetail() {
                 whileTap={{ scale: 0.97 }} onClick={submitBid} disabled={isBidding || bidAmount < minBid}
                 className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-lg shadow-primary/30 disabled:opacity-40 disabled:shadow-none"
               >
-                {isBidding ? t("processing") : `${t("confirm_bid")} — ${formatCurrency(bidAmount)}`}
+                {isBidding ? t("processing") : `${t("confirm_bid")} — ${formatPrice(bidAmount)}`}
               </motion.button>
             </motion.div>
           </>

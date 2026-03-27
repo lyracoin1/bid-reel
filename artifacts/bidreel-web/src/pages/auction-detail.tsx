@@ -1,6 +1,9 @@
 import { useState, useRef } from "react";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, ArrowDown, Share2, Clock, TrendingUp, Gavel, Play, Bell, Trophy, RefreshCw } from "lucide-react";
+import {
+  ArrowLeft, ArrowDown, Share2, Clock, TrendingUp, Gavel,
+  Play, Bell, Trophy, RefreshCw, ChevronDown,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { ImageSlider } from "@/components/feed/ImageSlider";
@@ -15,39 +18,46 @@ import { getTimeRemaining, getWhatsAppUrl, getAuctionState, getCountdownToStart,
 import { useLang } from "@/contexts/LanguageContext";
 import { formatDistanceToNow } from "date-fns";
 
+// ─── Quick-increment options ──────────────────────────────────────────────────
+const INCREMENTS = [10, 20, 50] as const;
+type Increment = typeof INCREMENTS[number];
+
 export default function AuctionDetail() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
   const { data: auction } = useAuction(id || "");
+
+  // ── Bid state ──────────────────────────────────────────────────────────────
+  const [selectedInc, setSelectedInc] = useState<Increment | null>(null);
+  const [bidError, setBidError] = useState<string | null>(null);
+  const [bidSuccess, setBidSuccess] = useState(false);
+  const bidPanelRef = useRef<HTMLDivElement>(null);
+
   const { mutate: placeBid, isPending: isBidding } = usePlaceBid({
     onSuccess: () => {
       setBidSuccess(true);
       setBidError(null);
-      setTimeout(() => { setShowBidSheet(false); setBidSuccess(false); }, 900);
+      // Reset after 2.5 s so panel is ready for the next bid
+      setTimeout(() => { setBidSuccess(false); setSelectedInc(null); }, 2500);
     },
     onError: (_code, message) => {
       setBidError(message);
     },
   });
+
+  // ── Other hooks (must be unconditional — Rules of Hooks) ──────────────────
   const { isFollowing, toggle: toggleFollow } = useFollow();
   const { isWatching, toggle: toggleWatch } = useWatchAuction();
   const { t, formatPrice } = useLang();
-
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [showBidSheet, setShowBidSheet] = useState(false);
-  const [bidAmount, setBidAmount] = useState(0);
-  const [bidError, setBidError] = useState<string | null>(null);
-  const [bidSuccess, setBidSuccess] = useState(false);
-
   const { isRefreshing, refresh } = useBidPolling();
   const { pullDistance, pullProgress, isRefreshing: isPulling } =
     usePullToRefresh(scrollRef, refresh);
   const showPullIndicator = pullDistance > 4 || isPulling;
-
-  // ── Supabase Realtime — must be called unconditionally (Rules of Hooks) ───
   const { realtimeCurrentBid, realtimeBidCount, isConnected } =
     useRealtimeBids(id ?? "", auction?.bidCount ?? 0);
 
+  // ── Guard ─────────────────────────────────────────────────────────────────
   if (!auction) {
     return (
       <MobileLayout>
@@ -58,14 +68,13 @@ export default function AuctionDetail() {
     );
   }
 
+  // ── Derived values ────────────────────────────────────────────────────────
   const state = getAuctionState(auction);
   const timeInfo = getTimeRemaining(auction.endsAt);
   const countdownToStart = auction.startsAt ? getCountdownToStart(auction.startsAt) : null;
-  const minBid = auction.currentBid + 10;
   const whatsappUrl = getWhatsAppUrl(auction.seller.phone, auction.title);
   const watching = isWatching(auction.id);
   const winner = state === "ended" && auction.bids.length > 0 ? auction.bids[0] : null;
-
   const isAlbum = auction.type === "album" && (auction.images?.length ?? 0) > 1;
   const isVideo = auction.type === "video";
   const isSeller = auction.seller.id === currentUser.id;
@@ -74,10 +83,11 @@ export default function AuctionDetail() {
 
   const displayedBid = realtimeCurrentBid ?? auction.currentBid;
   const displayedBidCount = realtimeBidCount ?? auction.bidCount;
-  const minBidRt = displayedBid + 10;
+  const minBid = displayedBid + 10;
 
-  const handleOpenBid = () => { setBidAmount(minBidRt); setBidError(null); setBidSuccess(false); setShowBidSheet(true); };
-  const submitBid = () => { setBidError(null); placeBid(auction.id, bidAmount); };
+  // Bid amount from the selected increment
+  const bidAmount = selectedInc !== null ? displayedBid + selectedInc : 0;
+
   const handleShare = async () => {
     if (navigator.share) {
       try { await navigator.share({ title: auction.title, url: window.location.href }); }
@@ -85,7 +95,17 @@ export default function AuctionDetail() {
     }
   };
 
-  // ── Timer chip content ────────────────────────────────────────────────────
+  const handleScrollToBid = () => {
+    bidPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+  const submitBid = () => {
+    if (!selectedInc) return;
+    setBidError(null);
+    placeBid(auction.id, bidAmount);
+  };
+
+  // ── Timer chip ────────────────────────────────────────────────────────────
   const timerChip = (() => {
     if (state === "upcoming") return {
       className: "bg-amber-500/15 text-amber-400 border-amber-500/25",
@@ -103,11 +123,14 @@ export default function AuctionDetail() {
     };
   })();
 
+  // ── Can the current user bid? ─────────────────────────────────────────────
+  const canBid = state === "active" && !isSeller;
+
   return (
-    <MobileLayout showNav={!showBidSheet} noPadding>
+    <MobileLayout showNav noPadding>
       <div
         ref={scrollRef}
-        className="relative w-full min-h-[100dvh] bg-background pb-36 overflow-y-auto"
+        className="relative w-full min-h-[100dvh] bg-background pb-32 overflow-y-auto"
       >
 
         {/* ── Pull-to-refresh indicator ── */}
@@ -155,7 +178,7 @@ export default function AuctionDetail() {
         </div>
 
         {/* ── Hero media ── */}
-        <div className="w-full h-[58vh] relative bg-black">
+        <div className="w-full h-[55vh] relative bg-black">
           {isAlbum ? (
             <ImageSlider images={auction.images!} alt={auction.title} className="w-full h-full" />
           ) : (
@@ -173,7 +196,6 @@ export default function AuctionDetail() {
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent pointer-events-none" />
 
-          {/* Upcoming banner on hero image */}
           {state === "upcoming" && (
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
               <div className="bg-black/60 backdrop-blur-md border border-amber-500/30 rounded-2xl px-6 py-4 text-center">
@@ -184,7 +206,6 @@ export default function AuctionDetail() {
             </div>
           )}
 
-          {/* Ended banner on hero image */}
           {state === "ended" && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
               <div className="bg-black/60 backdrop-blur-md border border-white/15 rounded-2xl px-6 py-4 text-center">
@@ -215,7 +236,7 @@ export default function AuctionDetail() {
           {/* Title */}
           <h1 className="text-2xl font-bold text-white leading-tight">{auction.title}</h1>
 
-          {/* Price — varies by state; uses realtime value when available */}
+          {/* Price */}
           {state === "upcoming" ? (
             <div className="flex items-baseline gap-2">
               <span className="text-4xl font-bold text-white tracking-tight">{formatPrice(auction.startingBid)}</span>
@@ -249,7 +270,129 @@ export default function AuctionDetail() {
             </div>
           )}
 
-          {/* Bidding status pill */}
+          {/* ── INLINE BID PANEL ─────────────────────────────────────────────── */}
+          {canBid && (
+            <motion.div
+              ref={bidPanelRef}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="rounded-2xl bg-white/4 border border-white/10 overflow-hidden"
+            >
+              {/* Panel header */}
+              <div className="px-4 pt-4 pb-3 flex items-center justify-between border-b border-white/8">
+                <div>
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Place your bid</p>
+                  <p className="text-base font-bold text-white">
+                    Min <span className="text-primary">{formatPrice(minBid)}</span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 bg-primary/12 border border-primary/25 rounded-full px-3 py-1.5">
+                  <TrendingUp size={11} className="text-primary" />
+                  <span className="text-xs font-bold text-primary">+$10 increment</span>
+                </div>
+              </div>
+
+              {/* Quick-bid buttons grid */}
+              <div className="px-4 pt-4 pb-2">
+                <div className="grid grid-cols-3 gap-2.5">
+                  {INCREMENTS.map((inc) => {
+                    const amount = displayedBid + inc;
+                    const isSelected = selectedInc === inc;
+                    return (
+                      <motion.button
+                        key={inc}
+                        whileTap={{ scale: 0.93 }}
+                        onClick={() => {
+                          setSelectedInc(isSelected ? null : inc);
+                          setBidError(null);
+                          setBidSuccess(false);
+                        }}
+                        className={cn(
+                          "flex flex-col items-center py-3.5 rounded-xl border font-bold transition-all duration-150",
+                          isSelected
+                            ? "bg-primary/20 border-primary/55 text-primary shadow-[0_0_14px_-3px] shadow-primary/40"
+                            : "bg-white/6 border-white/12 text-white/80 active:bg-white/10"
+                        )}
+                      >
+                        <span className={cn(
+                          "text-xs font-bold mb-1",
+                          isSelected ? "text-primary/80" : "text-white/40"
+                        )}>
+                          +${inc}
+                        </span>
+                        <span className="text-sm font-bold">{formatPrice(amount)}</span>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Confirm button + feedback */}
+              <div className="px-4 pb-4 pt-2 space-y-2.5">
+                <AnimatePresence mode="wait">
+                  {bidSuccess ? (
+                    <motion.div
+                      key="success"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="w-full py-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center gap-2"
+                    >
+                      <Trophy size={16} className="text-emerald-400" />
+                      <span className="text-sm font-bold text-emerald-400">You're the highest bidder!</span>
+                    </motion.div>
+                  ) : (
+                    <motion.button
+                      key="submit"
+                      whileTap={{ scale: 0.97 }}
+                      onClick={submitBid}
+                      disabled={!selectedInc || isBidding}
+                      className={cn(
+                        "w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all duration-150",
+                        selectedInc
+                          ? "bg-primary text-white shadow-lg shadow-primary/35"
+                          : "bg-white/6 text-white/30 border border-white/8"
+                      )}
+                    >
+                      {isBidding ? (
+                        <>
+                          <RefreshCw size={15} className="animate-spin" />
+                          Processing…
+                        </>
+                      ) : selectedInc ? (
+                        <>
+                          <Gavel size={15} />
+                          Bid {formatPrice(bidAmount)}
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown size={15} />
+                          Select an amount above
+                        </>
+                      )}
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+
+                {/* Error feedback */}
+                <AnimatePresence>
+                  {bidError && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="text-xs text-red-400 text-center font-medium py-1"
+                    >
+                      ⚠ {bidError}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Bidding status pill (leading / outbid) */}
           <AnimatePresence>
             {state === "active" && !isSeller && bidStatus !== "not_bidding" && (
               <motion.div
@@ -280,7 +423,7 @@ export default function AuctionDetail() {
             )}
           </AnimatePresence>
 
-          {/* Winner banner — only when ended + bids exist */}
+          {/* Winner banner */}
           {winner && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
@@ -331,7 +474,6 @@ export default function AuctionDetail() {
             <a
               href={whatsappUrl} target="_blank" rel="noopener noreferrer"
               className="flex items-center justify-center gap-2.5 w-full py-3.5 border-t border-white/8 bg-[#25D366]/12 hover:bg-[#25D366]/20 transition-colors active:scale-[0.98] group"
-              style={{ boxShadow: "0 0 0 0 transparent" }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="#25D366" className="shrink-0 drop-shadow-[0_0_6px_#25D36680]">
                 <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
@@ -383,9 +525,7 @@ export default function AuctionDetail() {
 
       {/* ── Sticky bottom action bar ── */}
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 px-4 pb-6 pt-3 bg-gradient-to-t from-background via-background/90 to-transparent">
-
         {state === "upcoming" ? (
-          // Remind me button (amber)
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => toggleWatch(auction.id)}
@@ -399,99 +539,28 @@ export default function AuctionDetail() {
             <Bell size={20} fill={watching ? "currentColor" : "none"} />
             {watching ? t("reminded") : t("remind_me")}
           </motion.button>
+        ) : state === "ended" ? (
+          <div className="w-full py-4 rounded-2xl bg-white/6 border border-white/10 flex items-center justify-center text-white/40 font-bold text-base gap-2">
+            <Gavel size={20} />
+            {t("auction_closed")}
+          </div>
+        ) : isSeller ? (
+          <div className="w-full py-4 rounded-2xl bg-white/6 border border-white/10 flex items-center justify-center text-white/40 font-bold text-base gap-2">
+            <span>🏷️</span>
+            Your Listing
+          </div>
         ) : (
-          // Place Bid / Auction Closed
+          /* Scroll-to-bid shortcut — the bid panel is already visible above */
           <motion.button
             whileTap={{ scale: 0.97 }}
-            onClick={handleOpenBid}
-            disabled={state === "ended" || isSeller}
-            className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-lg shadow-primary/30 disabled:opacity-40 disabled:shadow-none"
+            onClick={handleScrollToBid}
+            className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-lg shadow-primary/30"
           >
             <Gavel size={20} />
-            {state === "ended" ? t("auction_closed") : isSeller ? "Your Listing" : t("place_bid")}
+            {selectedInc ? `Bid ${formatPrice(bidAmount)}` : t("place_bid")}
           </motion.button>
         )}
       </div>
-
-      {/* ── Bid sheet ── */}
-      <AnimatePresence>
-        {showBidSheet && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setShowBidSheet(false)} className="fixed inset-0 bg-black/70 z-50" />
-            <motion.div
-              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 220 }}
-              className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-50 bg-[#111118] rounded-t-3xl border-t border-white/8 px-6 pt-5 pb-10"
-            >
-              <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-6" />
-
-              {/* Success state */}
-              <AnimatePresence mode="wait">
-                {bidSuccess ? (
-                  <motion.div
-                    key="success"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="flex flex-col items-center justify-center py-8 gap-3"
-                  >
-                    <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-3xl">🏆</div>
-                    <p className="text-lg font-bold text-white">You're the highest bidder!</p>
-                    <p className="text-sm text-emerald-400 font-semibold">{formatPrice(bidAmount)}</p>
-                  </motion.div>
-                ) : (
-                  <motion.div key="form" initial={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                    <h3 className="text-lg font-bold text-white text-center mb-1">{t("place_bid")}</h3>
-                    <p className="text-sm text-muted-foreground text-center mb-6">
-                      {t("min_bid")}: <span className="text-white font-semibold">{formatPrice(minBidRt)}</span>
-                    </p>
-
-                    <div className="flex justify-center items-center gap-5 mb-6">
-                      <motion.button whileTap={{ scale: 0.88 }} onClick={() => setBidAmount(b => Math.max(minBidRt, b - 10))}
-                        className="w-12 h-12 rounded-full bg-white/8 border border-white/10 flex items-center justify-center text-xl font-bold text-white">−</motion.button>
-                      <div className="text-4xl font-bold text-white w-40 text-center tracking-tight">{formatPrice(bidAmount)}</div>
-                      <motion.button whileTap={{ scale: 0.88 }} onClick={() => setBidAmount(b => b + 10)}
-                        className="w-12 h-12 rounded-full bg-white/8 border border-white/10 flex items-center justify-center text-xl font-bold text-white">+</motion.button>
-                    </div>
-
-                    {/* Quick-add increments */}
-                    <div className="flex gap-2 mb-5">
-                      {[10, 20, 50].map(inc => (
-                        <motion.button key={inc} whileTap={{ scale: 0.92 }} onClick={() => setBidAmount(b => b + inc)}
-                          className="flex-1 py-2.5 rounded-xl bg-white/6 border border-white/10 text-sm font-semibold text-white/80 hover:bg-white/10 transition">
-                          +${inc}
-                        </motion.button>
-                      ))}
-                    </div>
-
-                    {/* Error feedback */}
-                    <AnimatePresence>
-                      {bidError && (
-                        <motion.p
-                          initial={{ opacity: 0, y: -4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0 }}
-                          className="text-sm text-red-400 text-center mb-4 font-medium"
-                        >
-                          ⚠ {bidError}
-                        </motion.p>
-                      )}
-                    </AnimatePresence>
-
-                    <motion.button
-                      whileTap={{ scale: 0.97 }} onClick={submitBid} disabled={isBidding || bidAmount < minBidRt}
-                      className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-lg shadow-primary/30 disabled:opacity-40 disabled:shadow-none"
-                    >
-                      {isBidding ? t("processing") : `${t("confirm_bid")} — ${formatPrice(bidAmount)}`}
-                    </motion.button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
     </MobileLayout>
   );
 }

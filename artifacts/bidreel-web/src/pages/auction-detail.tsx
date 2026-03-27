@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, Share2, Heart, Clock, ShieldCheck, TrendingUp } from "lucide-react";
+import { ArrowLeft, Share2, Clock, TrendingUp, MessageCircle, Gavel } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { useAuction, usePlaceBid } from "@/hooks/use-auctions";
-import { formatCurrency, getTimeRemaining, cn } from "@/lib/utils";
+import { formatCurrency, getTimeRemaining, getWhatsAppUrl, cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 
 export default function AuctionDetail() {
@@ -12,9 +12,9 @@ export default function AuctionDetail() {
   const [, setLocation] = useLocation();
   const { data: auction } = useAuction(id || "");
   const { mutate: placeBid, isPending: isBidding } = usePlaceBid();
-  
+
   const [showBidSheet, setShowBidSheet] = useState(false);
-  const [bidAmount, setBidAmount] = useState<number>(0);
+  const [bidAmount, setBidAmount] = useState(0);
 
   if (!auction) {
     return (
@@ -27,207 +27,249 @@ export default function AuctionDetail() {
   }
 
   const timeInfo = getTimeRemaining(auction.endsAt);
-  const nextMinimumBid = auction.currentBid + (auction.currentBid * 0.05 > 50 ? 50 : 10); // Simple 5% or $10 increment rule
+  const minBid = auction.currentBid + 10;
+  const whatsappUrl = getWhatsAppUrl(auction.seller.phone, auction.title);
 
   const handleOpenBid = () => {
-    setBidAmount(nextMinimumBid);
+    setBidAmount(minBid);
     setShowBidSheet(true);
   };
 
-  const submitBid = async () => {
-    try {
-      await placeBid(auction.id, bidAmount);
-      setShowBidSheet(false);
-    } catch (e) {
-      console.error(e);
-      // In real app, show toast
+  const submitBid = () => {
+    placeBid(auction.id, bidAmount);
+    setShowBidSheet(false);
+  };
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: auction.title, url: window.location.href });
+      } catch (_) {}
     }
   };
 
   return (
     <MobileLayout showNav={!showBidSheet} noPadding>
-      <div className="relative w-full min-h-[100dvh] bg-background pb-32">
-        
-        {/* Top Nav Bar */}
-        <div className="fixed top-0 left-0 right-0 z-50 px-4 py-4 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent max-w-md mx-auto">
-          <button 
+      <div className="relative w-full min-h-[100dvh] bg-background pb-36">
+
+        {/* ── Floating top bar ── */}
+        <div className="fixed top-0 left-0 right-0 z-50 max-w-md mx-auto px-4 pt-12 pb-3 flex justify-between items-center bg-gradient-to-b from-black/80 via-black/30 to-transparent">
+          <motion.button
+            whileTap={{ scale: 0.9 }}
             onClick={() => setLocation("/feed")}
-            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white"
+            className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-md border border-white/12 flex items-center justify-center text-white"
           >
-            <ArrowLeft size={20} />
-          </button>
-          <div className="flex gap-2">
-            <button className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white">
-              <Share2 size={20} />
-            </button>
-          </div>
+            <ArrowLeft size={18} />
+          </motion.button>
+
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={handleShare}
+            className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-md border border-white/12 flex items-center justify-center text-white"
+          >
+            <Share2 size={18} />
+          </motion.button>
         </div>
 
-        {/* Media Hero */}
-        <div className="w-full h-[55vh] relative bg-black">
-          <img 
-            src={auction.mediaUrl} 
+        {/* ── Hero image ── */}
+        <div className="w-full h-[58vh] relative bg-black">
+          <img
+            src={auction.mediaUrl}
             alt={auction.title}
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent" />
         </div>
 
-        {/* Content Details */}
-        <div className="px-6 -mt-8 relative z-10">
-          
-          <div className="flex justify-between items-start mb-4">
+        {/* ── Content ── */}
+        <div className="px-5 -mt-6 relative z-10 space-y-5">
+
+          {/* Timer + bids row */}
+          <div className="flex items-center justify-between">
             <div className={cn(
-              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold",
-              timeInfo.isEnded ? "bg-secondary text-muted-foreground" :
-              timeInfo.isUrgent ? "bg-destructive/20 text-destructive border border-destructive/30" : 
-              "bg-secondary/80 text-foreground border border-white/5"
+              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border",
+              timeInfo.isEnded
+                ? "bg-white/8 text-white/40 border-white/8"
+                : timeInfo.isUrgent
+                ? "bg-red-500/15 text-red-400 border-red-500/25"
+                : "bg-emerald-500/12 text-emerald-400 border-emerald-500/20"
             )}>
-              <Clock size={14} />
+              <Clock size={12} />
               {timeInfo.text}
             </div>
-            <div className="flex items-center gap-1 text-muted-foreground text-sm font-medium">
-              <TrendingUp size={16} className="text-primary" />
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground font-medium">
+              <TrendingUp size={15} className="text-primary" />
               {auction.bidCount} bids
             </div>
           </div>
 
-          <h1 className="text-3xl font-display font-bold text-white leading-tight mb-2">
+          {/* Title */}
+          <h1 className="text-2xl font-bold text-white leading-tight">
             {auction.title}
           </h1>
 
-          <div className="flex items-baseline gap-2 mb-6">
-            <span className="text-5xl font-display font-bold text-white">
+          {/* Price */}
+          <div className="flex items-baseline gap-2">
+            <span className="text-4xl font-bold text-white tracking-tight">
               {formatCurrency(auction.currentBid)}
             </span>
-            <span className="text-sm font-medium text-muted-foreground">
-              Current Bid
-            </span>
+            <span className="text-sm text-muted-foreground font-medium">current bid</span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-secondary/50 border border-white/5 mb-8 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img src={auction.seller.avatar} alt={auction.seller.name} className="w-12 h-12 rounded-full object-cover" />
-              <div>
-                <p className="font-semibold text-white">{auction.seller.name}</p>
-                <p className="text-xs text-muted-foreground">{auction.seller.handle}</p>
+          {/* Seller card + WhatsApp CTA */}
+          <div className="rounded-2xl bg-white/5 border border-white/8 overflow-hidden">
+            <div className="flex items-center gap-3 p-4">
+              <img
+                src={auction.seller.avatar}
+                alt={auction.seller.name}
+                className="w-11 h-11 rounded-full object-cover ring-2 ring-white/10"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-white text-sm leading-none">{auction.seller.name}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{auction.seller.handle}</p>
               </div>
             </div>
-            <button className="px-4 py-2 rounded-full bg-white/10 text-sm font-semibold hover:bg-white/20 transition">
-              Contact
-            </button>
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2.5 w-full py-3.5 border-t border-white/8 bg-[#25D366]/12 hover:bg-[#25D366]/20 transition-colors active:scale-[0.98]"
+            >
+              <MessageCircle size={18} className="text-[#25D366]" />
+              <span className="text-sm font-bold text-[#25D366]">Message Seller on WhatsApp</span>
+            </a>
           </div>
 
-          <div className="mb-8">
-            <h3 className="text-lg font-bold mb-3">Description</h3>
-            <p className="text-muted-foreground leading-relaxed">
+          {/* Description */}
+          <div>
+            <h3 className="text-sm font-bold text-white/60 uppercase tracking-widest mb-2">About</h3>
+            <p className="text-[15px] text-muted-foreground leading-relaxed">
               {auction.description}
             </p>
           </div>
 
-          {/* Bid History */}
-          <div className="mb-12">
-            <h3 className="text-lg font-bold mb-4">Recent Bids</h3>
+          {/* Bid history */}
+          <div>
+            <h3 className="text-sm font-bold text-white/60 uppercase tracking-widest mb-3">Bid History</h3>
             {auction.bids.length > 0 ? (
-              <div className="space-y-4">
-                {auction.bids.slice(0, 5).map((bid, i) => (
-                  <div key={bid.id} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <img src={bid.user.avatar} className="w-8 h-8 rounded-full" />
-                      <div>
-                        <p className="text-sm font-medium text-white">{bid.user.name}</p>
-                        <p className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(bid.timestamp))} ago</p>
-                      </div>
+              <div className="space-y-3">
+                {auction.bids.map((bid, i) => (
+                  <div key={bid.id} className="flex items-center gap-3">
+                    <img
+                      src={bid.user.avatar}
+                      alt={bid.user.name}
+                      className="w-9 h-9 rounded-full object-cover"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-white leading-none">{bid.user.name}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {formatDistanceToNow(new Date(bid.timestamp))} ago
+                      </p>
                     </div>
-                    <span className="font-bold text-white">{formatCurrency(bid.amount)}</span>
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span className="text-sm font-bold text-white">{formatCurrency(bid.amount)}</span>
+                      {i === 0 && (
+                        <span className="text-[10px] font-bold text-primary uppercase tracking-wide">Leading</span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="p-6 rounded-2xl border border-dashed border-white/10 text-center">
-                <p className="text-muted-foreground text-sm">No bids yet. Be the first!</p>
+              <div className="py-8 rounded-2xl border border-dashed border-white/10 text-center">
+                <p className="text-muted-foreground text-sm">No bids yet — be the first!</p>
               </div>
             )}
           </div>
         </div>
-
-        {/* Sticky Bottom CTA */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-xl border-t border-white/5 max-w-md mx-auto z-40">
-          <motion.button 
-            whileTap={{ scale: 0.98 }}
-            onClick={handleOpenBid}
-            disabled={timeInfo.isEnded}
-            className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-bold text-lg box-glow disabled:opacity-50 disabled:shadow-none"
-          >
-            {timeInfo.isEnded ? "Auction Closed" : "Place Bid"}
-          </motion.button>
-        </div>
-
-        {/* Bid Sheet Overlay */}
-        <AnimatePresence>
-          {showBidSheet && (
-            <>
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setShowBidSheet(false)}
-                className="fixed inset-0 bg-black/80 z-50 max-w-md mx-auto"
-              />
-              <motion.div 
-                initial={{ y: "100%" }}
-                animate={{ y: 0 }}
-                exit={{ y: "100%" }}
-                transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="fixed bottom-0 left-0 right-0 bg-card rounded-t-3xl p-6 z-50 max-w-md mx-auto border-t border-white/10"
-              >
-                <h3 className="text-xl font-bold mb-6 text-center">Place your bid</h3>
-                
-                <div className="flex justify-center items-center gap-4 mb-8">
-                  <button 
-                    onClick={() => setBidAmount(b => Math.max(nextMinimumBid, b - 10))}
-                    className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center text-xl font-bold"
-                  >-</button>
-                  <div className="text-4xl font-display font-bold text-white w-40 text-center">
-                    {formatCurrency(bidAmount)}
-                  </div>
-                  <button 
-                    onClick={() => setBidAmount(b => b + 10)}
-                    className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center text-xl font-bold"
-                  >+</button>
-                </div>
-
-                <div className="flex gap-2 mb-8">
-                  {[10, 50, 100].map(inc => (
-                    <button 
-                      key={inc}
-                      onClick={() => setBidAmount(b => b + inc)}
-                      className="flex-1 py-2 rounded-xl bg-secondary/50 border border-white/5 text-sm font-semibold hover:bg-secondary transition"
-                    >
-                      +${inc}
-                    </button>
-                  ))}
-                </div>
-
-                <motion.button 
-                  whileTap={{ scale: 0.98 }}
-                  onClick={submitBid}
-                  disabled={isBidding}
-                  className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-bold text-lg box-glow relative overflow-hidden"
-                >
-                  {isBidding ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                      Processing...
-                    </span>
-                  ) : "Confirm Bid"}
-                </motion.button>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-
       </div>
+
+      {/* ── Sticky bid bar ── */}
+      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 px-4 pb-6 pt-3 bg-gradient-to-t from-background via-background/90 to-transparent">
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={handleOpenBid}
+          disabled={timeInfo.isEnded}
+          className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-lg shadow-primary/30 disabled:opacity-40 disabled:shadow-none"
+        >
+          <Gavel size={20} />
+          {timeInfo.isEnded ? "Auction Closed" : "Place a Bid"}
+        </motion.button>
+      </div>
+
+      {/* ── Bid sheet ── */}
+      <AnimatePresence>
+        {showBidSheet && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowBidSheet(false)}
+              className="fixed inset-0 bg-black/70 z-50"
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 220 }}
+              className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-50 bg-[#111118] rounded-t-3xl border-t border-white/8 px-6 pt-5 pb-10"
+            >
+              {/* Drag handle */}
+              <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-6" />
+
+              <h3 className="text-lg font-bold text-white text-center mb-1">Place your bid</h3>
+              <p className="text-sm text-muted-foreground text-center mb-7">
+                Minimum bid: <span className="text-white font-semibold">{formatCurrency(minBid)}</span>
+              </p>
+
+              {/* Amount stepper */}
+              <div className="flex justify-center items-center gap-5 mb-6">
+                <motion.button
+                  whileTap={{ scale: 0.88 }}
+                  onClick={() => setBidAmount(b => Math.max(minBid, b - 10))}
+                  className="w-12 h-12 rounded-full bg-white/8 border border-white/10 flex items-center justify-center text-xl font-bold text-white"
+                >
+                  −
+                </motion.button>
+                <div className="text-4xl font-bold text-white w-40 text-center tracking-tight">
+                  {formatCurrency(bidAmount)}
+                </div>
+                <motion.button
+                  whileTap={{ scale: 0.88 }}
+                  onClick={() => setBidAmount(b => b + 10)}
+                  className="w-12 h-12 rounded-full bg-white/8 border border-white/10 flex items-center justify-center text-xl font-bold text-white"
+                >
+                  +
+                </motion.button>
+              </div>
+
+              {/* Quick increments */}
+              <div className="flex gap-2 mb-7">
+                {[10, 25, 50, 100].map(inc => (
+                  <motion.button
+                    key={inc}
+                    whileTap={{ scale: 0.92 }}
+                    onClick={() => setBidAmount(b => b + inc)}
+                    className="flex-1 py-2.5 rounded-xl bg-white/6 border border-white/10 text-sm font-semibold text-white/80 hover:bg-white/10 transition"
+                  >
+                    +${inc}
+                  </motion.button>
+                ))}
+              </div>
+
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={submitBid}
+                disabled={isBidding || bidAmount < minBid}
+                className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-lg shadow-primary/30 disabled:opacity-40 disabled:shadow-none"
+              >
+                {isBidding ? "Processing…" : `Confirm Bid — ${formatCurrency(bidAmount)}`}
+              </motion.button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </MobileLayout>
   );
 }

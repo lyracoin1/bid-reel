@@ -3,55 +3,55 @@ import { Home, Compass, Plus, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
+const navItems = [
+  { id: "feed",    path: "/feed",    icon: Home,    label: "Feed" },
+  { id: "explore", path: "/explore", icon: Compass, label: "Explore" },
+  { id: "create",  path: "/create",  icon: Plus,    label: "Sell",    isAction: true },
+  { id: "profile", path: "/profile", icon: User,    label: "Profile" },
+];
+
 export function BottomNav() {
   const [location] = useLocation();
 
-  const navItems = [
-    { id: "feed", path: "/feed", icon: Home, label: "Feed" },
-    { id: "explore", path: "/explore", icon: Compass, label: "Explore" },
-    { id: "create", path: "/create", icon: Plus, label: "Sell", isAction: true },
-    { id: "profile", path: "/profile", icon: User, label: "Profile" },
-  ];
-
   return (
-    <div className="absolute bottom-0 w-full z-50 px-4 pb-6 pt-4">
-      <div className="glass-panel rounded-full px-6 py-3 flex justify-between items-center relative">
+    <div className="absolute bottom-0 left-0 right-0 z-50 px-4 pb-5">
+      <div className="relative flex items-center justify-between bg-[#111118]/90 backdrop-blur-xl border border-white/8 rounded-2xl px-5 py-3 shadow-xl shadow-black/50">
         {navItems.map((item) => {
-          const isActive = location === item.path;
+          const isActive = location.startsWith(item.path);
           const Icon = item.icon;
 
           if (item.isAction) {
             return (
-              <Link key={item.id} href={item.path} className="relative -top-5">
+              <Link key={item.id} href={item.path}>
                 <motion.div
-                  whileTap={{ scale: 0.9 }}
-                  className="w-14 h-14 rounded-full bg-primary flex items-center justify-center text-primary-foreground box-glow cursor-pointer"
+                  whileTap={{ scale: 0.88 }}
+                  className="w-12 h-12 -mt-7 rounded-2xl bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/50 cursor-pointer"
                 >
-                  <Icon size={28} strokeWidth={2.5} />
+                  <Icon size={24} strokeWidth={2.5} />
                 </motion.div>
               </Link>
             );
           }
 
           return (
-            <Link key={item.id} href={item.path} className="relative flex flex-col items-center justify-center w-12 cursor-pointer">
+            <Link key={item.id} href={item.path} className="cursor-pointer">
               <motion.div
                 whileTap={{ scale: 0.85 }}
-                className="flex flex-col items-center"
+                className="flex flex-col items-center gap-0.5 w-12"
               >
                 <Icon
-                  size={24}
+                  size={22}
                   className={cn(
-                    "transition-colors duration-300",
-                    isActive ? "text-primary" : "text-muted-foreground hover:text-white"
+                    "transition-colors duration-200",
+                    isActive ? "text-primary" : "text-white/35"
                   )}
                 />
-                {isActive && (
-                  <motion.div 
-                    layoutId="nav-indicator"
-                    className="absolute -bottom-2 w-1.5 h-1.5 rounded-full bg-primary"
-                  />
-                )}
+                <span className={cn(
+                  "text-[10px] font-semibold tracking-wide transition-colors",
+                  isActive ? "text-primary" : "text-white/30"
+                )}>
+                  {item.label}
+                </span>
               </motion.div>
             </Link>
           );

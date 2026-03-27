@@ -1,0 +1,101 @@
+Enhance the existing frontend UI with the following advanced features.
+
+DO NOT rebuild from scratch. Modify the current app.
+
+--------------------------------
+1) MULTI-LANGUAGE SUPPORT
+--------------------------------
+Add support for multiple languages:
+
+- Arabic (RTL)
+- English
+- Russian
+- Spanish
+- French
+
+Requirements:
+- Add a simple language switcher (in Profile or Settings icon)
+- UI should instantly update text when language changes
+- Arabic must use RTL layout correctly
+- Other languages remain LTR
+- Use a simple translation system (no backend needed, mock translations)
+
+--------------------------------
+2) POST TYPE: VIDEO OR IMAGE ALBUM
+--------------------------------
+Extend the auction post system to support:
+
+- type: "video"
+- type: "album"
+
+For album:
+- Allow up to 6 images
+- Store images as an array
+
+--------------------------------
+3) FEED VISUAL INDICATORS (LIKE INSTAGRAM)
+--------------------------------
+In the feed grid and feed cards:
+
+- If post type = video:
+  → Show a small white PLAY icon (▶) in the top-right corner
+
+- If post type = album (multiple images):
+  → Show a stacked-squares icon (⧉ or similar) in the top-right corner
+
+Design rules:
+- Icons must be white
+- Small and clean
+- Slight transparent or glassy background
+- Do NOT make them large or distracting
+
+--------------------------------
+4) ALBUM BEHAVIOR
+--------------------------------
+- In the feed:
+  → Show only ONE cover image
+
+- In auction detail screen:
+  → If album:
+     - Show image gallery / slider
+     - Allow swiping between images
+
+--------------------------------
+5) CREATE AUCTION IMPROVEMENTS
+--------------------------------
+In Create Auction screen:
+
+- Add a toggle:
+  → "Video" or "Photos"
+
+If "Photos" selected:
+- Allow uploading up to 6 images
+- Show preview thumbnails
+- Mark it as an album post
+
+If "Video" selected:
+- Keep existing video flow
+
+--------------------------------
+6) KEEP EXISTING DESIGN RULES
+--------------------------------
+- Prices MUST remain white
+- Purple ONLY for actions and highlights
+- Back arrows ONLY on non-root screens
+- Maintain dark neon style
+
+--------------------------------
+7) DO NOT BREAK EXISTING FEATURES
+--------------------------------
+- Keep WhatsApp button
+- Keep Share button
+- Keep bid system UI
+- Keep navigation as is
+
+--------------------------------
+FINAL STEP
+--------------------------------
+After implementation:
+- Run the app
+- Show the preview URL
+- Clearly explain what was added and where

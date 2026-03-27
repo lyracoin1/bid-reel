@@ -1,9 +1,20 @@
 import { useLocation } from "wouter";
-import { Heart, Share2, MessageCircle, Gavel } from "lucide-react";
+import { Heart, Share2, MessageCircle, Gavel, Play } from "lucide-react";
 import { motion } from "framer-motion";
 import { type Auction } from "@/lib/mock-data";
 import { formatCurrency, getTimeRemaining, getWhatsAppUrl, cn } from "@/lib/utils";
 import { useToggleLike } from "@/hooks/use-auctions";
+import { useLang } from "@/contexts/LanguageContext";
+
+// Album stacked-squares icon (inline SVG — not in lucide)
+function AlbumIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="5" y="5" width="14" height="14" rx="2" />
+      <rect x="2" y="2" width="14" height="14" rx="2" fill="none" />
+    </svg>
+  );
+}
 
 interface FeedCardProps {
   auction: Auction;
@@ -13,36 +24,42 @@ interface FeedCardProps {
 export function FeedCard({ auction, isActive }: FeedCardProps) {
   const [, setLocation] = useLocation();
   const { mutate: toggleLike } = useToggleLike();
+  const { t } = useLang();
   const timeInfo = getTimeRemaining(auction.endsAt);
   const whatsappUrl = getWhatsAppUrl(auction.seller.phone, auction.title);
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (navigator.share) {
-      try {
-        await navigator.share({ title: auction.title, text: `Check out this auction: ${auction.title}`, url: window.location.href });
-      } catch (_) {}
+      try { await navigator.share({ title: auction.title, url: window.location.href }); }
+      catch (_) {}
     }
   };
 
   return (
     <div className="relative w-full h-[100dvh] snap-always bg-black flex flex-col overflow-hidden">
 
-      {/* Full-bleed background image */}
-      <div
-        className="absolute inset-0 cursor-pointer"
-        onClick={() => setLocation(`/auction/${auction.id}`)}
-      >
+      {/* Full-bleed image */}
+      <div className="absolute inset-0 cursor-pointer" onClick={() => setLocation(`/auction/${auction.id}`)}>
         <img
           src={auction.mediaUrl}
           alt={auction.title}
-          className={cn(
-            "w-full h-full object-cover transition-transform duration-700",
-            isActive ? "scale-100" : "scale-105"
-          )}
+          className={cn("w-full h-full object-cover transition-transform duration-700", isActive ? "scale-100" : "scale-105")}
         />
-        {/* Layered gradients for depth */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent via-40% to-black/95 pointer-events-none" />
+      </div>
+
+      {/* ── Post type indicator (top-right corner of image) ── */}
+      <div className="absolute top-14 right-3 z-20">
+        {auction.type === "video" ? (
+          <div className="w-8 h-8 rounded-lg bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white">
+            <Play size={14} fill="white" />
+          </div>
+        ) : auction.type === "album" && (auction.images?.length ?? 0) > 1 ? (
+          <div className="w-8 h-8 rounded-lg bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white">
+            <AlbumIcon size={16} />
+          </div>
+        ) : null}
       </div>
 
       {/* ── Top bar: seller pill + timer ── */}
@@ -51,11 +68,7 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
           className="flex items-center gap-2.5 bg-black/40 backdrop-blur-md border border-white/10 rounded-full pl-1 pr-3 py-1 active:scale-95 transition-transform"
           onClick={() => setLocation(`/auction/${auction.id}`)}
         >
-          <img
-            src={auction.seller.avatar}
-            alt={auction.seller.name}
-            className="w-7 h-7 rounded-full object-cover"
-          />
+          <img src={auction.seller.avatar} alt={auction.seller.name} className="w-7 h-7 rounded-full object-cover" />
           <span className="text-sm font-semibold text-white leading-none">{auction.seller.handle}</span>
         </button>
 
@@ -67,11 +80,10 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
             ? "bg-red-500/20 text-red-400 border-red-500/30"
             : "bg-emerald-500/15 text-emerald-400 border-emerald-500/25"
         )}>
-          <span className={cn(
-            "w-1.5 h-1.5 rounded-full",
+          <span className={cn("w-1.5 h-1.5 rounded-full",
             timeInfo.isEnded ? "bg-white/30" : timeInfo.isUrgent ? "bg-red-400 animate-pulse" : "bg-emerald-400"
           )} />
-          {timeInfo.text}
+          {timeInfo.isEnded ? t("time_ended") : timeInfo.text}
         </div>
       </div>
 
@@ -79,16 +91,11 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
       <div className="absolute right-3 bottom-36 z-20 flex flex-col items-center gap-5">
 
         {/* Like */}
-        <motion.button
-          whileTap={{ scale: 0.8 }}
-          className="flex flex-col items-center gap-1.5"
-          onClick={(e) => { e.stopPropagation(); toggleLike(auction.id); }}
-        >
+        <motion.button whileTap={{ scale: 0.8 }} className="flex flex-col items-center gap-1.5"
+          onClick={(e) => { e.stopPropagation(); toggleLike(auction.id); }}>
           <div className={cn(
             "w-12 h-12 rounded-full flex items-center justify-center border backdrop-blur-md transition-colors",
-            auction.isLikedByMe
-              ? "bg-primary/25 border-primary/50 text-primary"
-              : "bg-black/40 border-white/15 text-white"
+            auction.isLikedByMe ? "bg-primary/25 border-primary/50 text-primary" : "bg-black/40 border-white/15 text-white"
           )}>
             <Heart size={22} className={cn(auction.isLikedByMe ? "fill-primary" : "")} />
           </div>
@@ -96,43 +103,33 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         </motion.button>
 
         {/* Share */}
-        <motion.button
-          whileTap={{ scale: 0.8 }}
-          className="flex flex-col items-center gap-1.5"
-          onClick={handleShare}
-        >
+        <motion.button whileTap={{ scale: 0.8 }} className="flex flex-col items-center gap-1.5" onClick={handleShare}>
           <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white">
             <Share2 size={20} />
           </div>
-          <span className="text-[11px] font-semibold text-white/80">Share</span>
+          <span className="text-[11px] font-semibold text-white/80">{t("share")}</span>
         </motion.button>
 
         {/* WhatsApp */}
         <motion.a
-          href={whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          whileTap={{ scale: 0.8 }}
-          className="flex flex-col items-center gap-1.5"
+          href={whatsappUrl} target="_blank" rel="noopener noreferrer"
+          whileTap={{ scale: 0.8 }} className="flex flex-col items-center gap-1.5"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="w-12 h-12 rounded-full bg-[#25D366]/20 backdrop-blur-md border border-[#25D366]/40 flex items-center justify-center text-[#25D366]">
             <MessageCircle size={22} />
           </div>
-          <span className="text-[11px] font-semibold text-white/80">Chat</span>
+          <span className="text-[11px] font-semibold text-white/80">{t("chat")}</span>
         </motion.a>
 
-        {/* Bid — primary CTA */}
-        <motion.button
-          whileTap={{ scale: 0.88 }}
-          onClick={(e) => { e.stopPropagation(); setLocation(`/auction/${auction.id}`); }}
-          className="flex flex-col items-center gap-1.5 mt-1"
-        >
+        {/* Bid */}
+        <motion.button whileTap={{ scale: 0.88 }} className="flex flex-col items-center gap-1.5 mt-1"
+          onClick={(e) => { e.stopPropagation(); setLocation(`/auction/${auction.id}`); }}>
           <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/40 relative">
             <div className="absolute -inset-1 bg-primary/25 rounded-full animate-ping" />
             <Gavel size={26} />
           </div>
-          <span className="text-[11px] font-bold text-primary">Bid</span>
+          <span className="text-[11px] font-bold text-primary">{t("bid")}</span>
         </motion.button>
       </div>
 
@@ -141,17 +138,10 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         className="absolute bottom-28 left-4 right-20 z-10 flex flex-col gap-2 cursor-pointer"
         onClick={() => setLocation(`/auction/${auction.id}`)}
       >
-        <h2 className="text-[22px] font-bold text-white leading-snug line-clamp-2 drop-shadow-sm">
-          {auction.title}
-        </h2>
-
+        <h2 className="text-[22px] font-bold text-white leading-snug line-clamp-2 drop-shadow-sm">{auction.title}</h2>
         <div className="flex items-baseline gap-2.5">
-          <span className="text-3xl font-bold text-white tracking-tight">
-            {formatCurrency(auction.currentBid)}
-          </span>
-          <span className="text-xs font-medium text-white/50 uppercase tracking-wide">
-            {auction.bidCount} bids
-          </span>
+          <span className="text-3xl font-bold text-white tracking-tight">{formatCurrency(auction.currentBid)}</span>
+          <span className="text-xs font-medium text-white/50 uppercase tracking-wide">{auction.bidCount} {t("bids_count")}</span>
         </div>
       </div>
     </div>

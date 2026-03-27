@@ -2,16 +2,18 @@ import { Link, useLocation } from "wouter";
 import { Home, Compass, Plus, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-
-const navItems = [
-  { id: "feed",    path: "/feed",    icon: Home,    label: "Feed" },
-  { id: "explore", path: "/explore", icon: Compass, label: "Explore" },
-  { id: "create",  path: "/create",  icon: Plus,    label: "Sell",    isAction: true },
-  { id: "profile", path: "/profile", icon: User,    label: "Profile" },
-];
+import { useLang } from "@/contexts/LanguageContext";
 
 export function BottomNav() {
   const [location] = useLocation();
+  const { t } = useLang();
+
+  const navItems = [
+    { id: "feed",    path: "/feed",    icon: Home,    labelKey: "nav_feed"    as const },
+    { id: "explore", path: "/explore", icon: Compass, labelKey: "nav_explore" as const },
+    { id: "create",  path: "/create",  icon: Plus,    labelKey: "nav_sell"    as const, isAction: true },
+    { id: "profile", path: "/profile", icon: User,    labelKey: "nav_profile" as const },
+  ];
 
   return (
     <div className="absolute bottom-0 left-0 right-0 z-50 px-4 pb-5">
@@ -39,18 +41,9 @@ export function BottomNav() {
                 whileTap={{ scale: 0.85 }}
                 className="flex flex-col items-center gap-0.5 w-12"
               >
-                <Icon
-                  size={22}
-                  className={cn(
-                    "transition-colors duration-200",
-                    isActive ? "text-primary" : "text-white/35"
-                  )}
-                />
-                <span className={cn(
-                  "text-[10px] font-semibold tracking-wide transition-colors",
-                  isActive ? "text-primary" : "text-white/30"
-                )}>
-                  {item.label}
+                <Icon size={22} className={cn("transition-colors duration-200", isActive ? "text-primary" : "text-white/35")} />
+                <span className={cn("text-[10px] font-semibold tracking-wide transition-colors", isActive ? "text-primary" : "text-white/30")}>
+                  {t(item.labelKey)}
                 </span>
               </motion.div>
             </Link>

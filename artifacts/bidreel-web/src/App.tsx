@@ -2,6 +2,7 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 
 // Pages
 import Splash from "@/pages/splash";
@@ -18,7 +19,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Splash} />
       <Route path="/feed" component={Feed} />
-      <Route path="/explore" component={Feed} /> {/* Map explore to feed for MVP */}
+      <Route path="/explore" component={Feed} />
       <Route path="/auction/:id" component={AuctionDetail} />
       <Route path="/create" component={CreateAuction} />
       <Route path="/profile" component={Profile} />
@@ -29,14 +30,16 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <LanguageProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </LanguageProvider>
   );
 }
 

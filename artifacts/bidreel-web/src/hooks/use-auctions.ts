@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import { mockAuctions, currentUser, type Auction } from '@/lib/mock-data';
 
-// Simple global state for mock purposes
 let globalAuctions = [...mockAuctions];
 type Listeners = Set<() => void>;
 const listeners: Listeners = new Set();
-
 const notify = () => listeners.forEach(l => l());
 
 export function useAuctions() {
@@ -22,8 +20,7 @@ export function useAuctions() {
 
 export function useAuction(id: string) {
   const { data: auctions } = useAuctions();
-  const auction = auctions.find(a => a.id === id);
-  return { data: auction || null, isLoading: false };
+  return { data: auctions.find(a => a.id === id) || null, isLoading: false };
 }
 
 export function usePlaceBid() {
@@ -31,30 +28,19 @@ export function usePlaceBid() {
 
   const mutate = async (auctionId: string, amount: number) => {
     setIsPending(true);
-    // Simulate network delay
     await new Promise(r => setTimeout(r, 600));
-    
-    const auctionIndex = globalAuctions.findIndex(a => a.id === auctionId);
-    if (auctionIndex >= 0) {
-      const auction = globalAuctions[auctionIndex];
+
+    const idx = globalAuctions.findIndex(a => a.id === auctionId);
+    if (idx >= 0) {
+      const auction = globalAuctions[idx];
       if (amount > auction.currentBid) {
-        globalAuctions[auctionIndex] = {
+        globalAuctions[idx] = {
           ...auction,
           currentBid: amount,
           bidCount: auction.bidCount + 1,
-          bids: [
-            {
-              id: `bid_${Date.now()}`,
-              user: currentUser,
-              amount: amount,
-              timestamp: new Date().toISOString()
-            },
-            ...auction.bids
-          ]
+          bids: [{ id: `bid_${Date.now()}`, user: currentUser, amount, timestamp: new Date().toISOString() }, ...auction.bids],
         };
         notify();
-      } else {
-        throw new Error("Bid must be higher than current bid");
       }
     }
     setIsPending(false);
@@ -66,24 +52,26 @@ export function usePlaceBid() {
 export function useCreateAuction() {
   const [isPending, setIsPending] = useState(false);
 
-  const mutate = async (data: Partial<Auction>) => {
+  const mutate = async (data: Partial<Auction> & { images?: string[] }) => {
     setIsPending(true);
     await new Promise(r => setTimeout(r, 1000));
-    
+
     const newAuction: Auction = {
       id: `a_${Date.now()}`,
       title: data.title || "New Item",
       description: data.description || "",
       currentBid: data.startingBid || 0,
       startingBid: data.startingBid || 0,
-      endsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days
+      endsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
       mediaUrl: data.mediaUrl || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&h=1400&fit=crop",
+      type: (data as any).type || "video",
+      images: (data as any).images,
       seller: currentUser,
       likes: 0,
       bidCount: 0,
       bids: [],
     };
-    
+
     globalAuctions = [newAuction, ...globalAuctions];
     notify();
     setIsPending(false);
@@ -98,11 +86,7 @@ export function useToggleLike() {
     const idx = globalAuctions.findIndex(a => a.id === auctionId);
     if (idx >= 0) {
       const a = globalAuctions[idx];
-      globalAuctions[idx] = {
-        ...a,
-        isLikedByMe: !a.isLikedByMe,
-        likes: a.isLikedByMe ? a.likes - 1 : a.likes + 1
-      };
+      globalAuctions[idx] = { ...a, isLikedByMe: !a.isLikedByMe, likes: a.isLikedByMe ? a.likes - 1 : a.likes + 1 };
       notify();
     }
   };

@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, Share2, Clock, TrendingUp, MessageCircle, Gavel, Play, Bell, Trophy } from "lucide-react";
+import { ArrowLeft, ArrowDown, Share2, Clock, TrendingUp, MessageCircle, Gavel, Play, Bell, Trophy, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { ImageSlider } from "@/components/feed/ImageSlider";
 import { useAuction, usePlaceBid } from "@/hooks/use-auctions";
 import { useFollow } from "@/hooks/use-follow";
 import { useWatchAuction } from "@/hooks/use-watch";
+import { useBidPolling } from "@/hooks/use-bid-polling";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { getTimeRemaining, getWhatsAppUrl, getAuctionState, getCountdownToStart, cn } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { formatDistanceToNow } from "date-fns";
@@ -20,8 +22,14 @@ export default function AuctionDetail() {
   const { isWatching, toggle: toggleWatch } = useWatchAuction();
   const { t, formatPrice } = useLang();
 
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [showBidSheet, setShowBidSheet] = useState(false);
   const [bidAmount, setBidAmount] = useState(0);
+
+  const { isRefreshing, refresh } = useBidPolling();
+  const { pullDistance, pullProgress, isRefreshing: isPulling } =
+    usePullToRefresh(scrollRef, refresh);
+  const showPullIndicator = pullDistance > 4 || isPulling;
 
   if (!auction) {
     return (
@@ -73,7 +81,34 @@ export default function AuctionDetail() {
 
   return (
     <MobileLayout showNav={!showBidSheet} noPadding>
-      <div className="relative w-full min-h-[100dvh] bg-background pb-36">
+      <div
+        ref={scrollRef}
+        className="relative w-full min-h-[100dvh] bg-background pb-36 overflow-y-auto"
+      >
+
+        {/* ── Pull-to-refresh indicator ── */}
+        <AnimatePresence>
+          {showPullIndicator && (
+            <motion.div
+              key="ptr-detail"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed top-24 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 bg-black/85 backdrop-blur-md border border-white/12 rounded-full px-4 py-2 pointer-events-none"
+            >
+              {isPulling ? (
+                <RefreshCw size={13} className="text-primary animate-spin" />
+              ) : (
+                <motion.div animate={{ rotate: pullProgress * 180 }} transition={{ duration: 0 }}>
+                  <ArrowDown size={13} className={pullProgress >= 1 ? "text-primary" : "text-white/60"} />
+                </motion.div>
+              )}
+              <span className={`text-xs font-semibold ${pullProgress >= 1 || isPulling ? "text-primary" : "text-white/60"}`}>
+                {isPulling ? "Refreshing…" : pullProgress >= 1 ? "Release to refresh" : "Pull to refresh"}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── Floating top bar ── */}
         <div className="fixed top-0 left-0 right-0 z-50 max-w-md mx-auto px-4 pt-12 pb-3 flex justify-between items-center bg-gradient-to-b from-black/80 via-black/30 to-transparent">
@@ -81,10 +116,18 @@ export default function AuctionDetail() {
             className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-md border border-white/12 flex items-center justify-center text-white">
             <ArrowLeft size={18} />
           </motion.button>
-          <motion.button whileTap={{ scale: 0.9 }} onClick={handleShare}
-            className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-md border border-white/12 flex items-center justify-center text-white">
-            <Share2 size={18} />
-          </motion.button>
+          <div className="flex items-center gap-2">
+            <motion.button
+              whileTap={{ scale: 0.9 }} onClick={refresh} disabled={isRefreshing}
+              className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-md border border-white/12 flex items-center justify-center text-white disabled:opacity-50"
+            >
+              <RefreshCw size={16} className={isRefreshing ? "animate-spin text-primary" : ""} />
+            </motion.button>
+            <motion.button whileTap={{ scale: 0.9 }} onClick={handleShare}
+              className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-md border border-white/12 flex items-center justify-center text-white">
+              <Share2 size={18} />
+            </motion.button>
+          </div>
         </div>
 
         {/* ── Hero media ── */}

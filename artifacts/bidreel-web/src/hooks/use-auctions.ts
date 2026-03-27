@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react';
-import { mockAuctions, currentUser, type Auction } from '@/lib/mock-data';
+import { mockAuctions, mockUsers, currentUser, type Auction } from '@/lib/mock-data';
 
 let globalAuctions = [...mockAuctions];
 type Listeners = Set<() => void>;
 const listeners: Listeners = new Set();
 const notify = () => listeners.forEach(l => l());
+
+/** Read-only snapshot for the polling service — returns the live array reference. */
+export function getAuctions(): Auction[] {
+  return globalAuctions;
+}
 
 export function useAuctions() {
   const [auctions, setAuctions] = useState<Auction[]>(globalAuctions);
@@ -40,6 +45,10 @@ export function usePlaceBid() {
           bidCount: auction.bidCount + 1,
           bids: [{ id: `bid_${Date.now()}`, user: currentUser, amount, timestamp: new Date().toISOString() }, ...auction.bids],
         };
+        // Inform the polling service of the user's new bid so outbid detection is accurate
+        import('@/hooks/use-bid-polling').then(({ recordUserBid }) => {
+          recordUserBid(auctionId, amount);
+        });
         notify();
       }
     }
@@ -92,3 +101,24 @@ export function useToggleLike() {
   };
   return { mutate };
 }
+
+// ── Demo: simulate a competitor outbidding the current user ─────────────────
+// Fires 10 s after page load to demonstrate the outbid toast.
+// In production, real-time bids arrive via WebSocket or FCM — remove this block.
+setTimeout(() => {
+  const competitor = mockUsers.find(u => u.id === "u3")!; // Marcus Doe
+  const idx = globalAuctions.findIndex(a => a.id === "a4");
+  if (idx < 0) return;
+  const auction = globalAuctions[idx];
+  const demoAmount = auction.currentBid + 600;
+  globalAuctions[idx] = {
+    ...auction,
+    currentBid: demoAmount,
+    bidCount: auction.bidCount + 1,
+    bids: [
+      { id: `demo_${Date.now()}`, user: competitor, amount: demoAmount, timestamp: new Date().toISOString() },
+      ...auction.bids,
+    ],
+  };
+  notify();
+}, 10_000);

@@ -31,7 +31,7 @@ export interface Auction {
   isLikedByMe?: boolean;
 }
 
-const mockUsers: User[] = [
+export const mockUsers: User[] = [
   { id: "u1", name: "Alex Chen",     handle: "@alexc",   phone: "14155550001", avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&auto=format" },
   { id: "u2", name: "Sarah Jenkins", handle: "@sarahj",  phone: "14155550002", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&auto=format" },
   { id: "u3", name: "Marcus Doe",    handle: "@marcusd", phone: "14155550003", avatar: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=100&h=100&fit=crop&auto=format" },

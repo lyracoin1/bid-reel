@@ -11,6 +11,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
+import { notifyOutbid } from "../lib/notifications";
 
 const router = Router();
 
@@ -101,10 +102,10 @@ router.post("/bids", requireAuth, async (req, res) => {
   const { auctionId, amount } = parsed.data;
   const userId = req.user!.id;
 
-  // 2. Fetch auction
+  // 2. Fetch auction (include title for notification message)
   const { data: auction, error: auctionErr } = await supabaseAdmin
     .from("auctions")
-    .select("id, seller_id, current_bid, min_increment, starts_at, ends_at, bid_count")
+    .select("id, seller_id, current_bid, min_increment, starts_at, ends_at, bid_count, title")
     .eq("id", auctionId)
     .single();
 
@@ -146,7 +147,16 @@ router.post("/bids", requireAuth, async (req, res) => {
     return;
   }
 
-  // 6. Insert bid
+  // 6. Find the current leading bidder (for outbid notification after insert)
+  const { data: prevLeader } = await supabaseAdmin
+    .from("bids")
+    .select("user_id")
+    .eq("auction_id", auctionId)
+    .order("amount", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // 7. Insert bid
   const { data: newBid, error: bidErr } = await supabaseAdmin
     .from("bids")
     .insert({ auction_id: auctionId, user_id: userId, amount })
@@ -159,7 +169,7 @@ router.post("/bids", requireAuth, async (req, res) => {
     return;
   }
 
-  // 7. Update auction current_bid and bid_count atomically
+  // 8. Update auction current_bid and bid_count atomically
   const { data: updatedAuction, error: updateErr } = await supabaseAdmin
     .from("auctions")
     .update({
@@ -173,7 +183,16 @@ router.post("/bids", requireAuth, async (req, res) => {
 
   if (updateErr || !updatedAuction) {
     logger.error({ err: updateErr, auctionId }, "Auction current_bid update failed after bid insert");
-    // Bid was saved — don't fail the request, but log the inconsistency
+  }
+
+  // 9. Fire outbid notification (fire-and-forget, non-fatal)
+  if (prevLeader && prevLeader.user_id !== userId) {
+    void notifyOutbid(
+      prevLeader.user_id,
+      auctionId,
+      (auction as any).title ?? "this auction",
+      amount,
+    );
   }
 
   logger.info({ bidId: newBid.id, auctionId, userId, amount }, "Bid placed successfully");

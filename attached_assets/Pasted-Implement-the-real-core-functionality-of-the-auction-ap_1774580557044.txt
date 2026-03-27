@@ -1,0 +1,79 @@
+Implement the real core functionality of the auction app immediately. Ignore secondary polish features until this is complete.
+
+HIGHEST PRIORITY: make the app actually usable.
+
+1. Real media upload (must work for real)
+
+* Replace all mock/fake media behavior
+* Enable real image selection from device gallery
+* Enable real video selection from device gallery
+* Enable real camera/video recording flow if supported
+* Upload selected files to Supabase Storage
+* Save the resulting public URLs in the database
+* Support:
+
+  * one video per auction
+  * or up to 6 images per auction
+* Validate file size before upload
+* Show upload progress, success, and failure states
+* Render uploaded media in feed, detail, and profile using real stored URLs only
+
+2. Real bidding system (must work for real)
+
+* Create or complete the bids table:
+
+  * id
+  * auction_id
+  * user_id
+  * amount
+  * created_at
+* Add or use auction fields:
+
+  * current_price
+  * min_increment
+  * status
+  * seller_id
+* Show on auction detail:
+
+  * current highest bid
+  * minimum increment
+  * fast bid buttons such as +10, +20, +50
+* Implement real POST bid flow
+* Validate:
+
+  * auction must be active
+  * bid amount must be greater than current_price
+  * user cannot bid on own auction
+* On success:
+
+  * insert bid
+  * update current_price
+  * refresh auction UI immediately
+
+3. Real UI requirements for auction detail
+
+* The bidding area must visibly show:
+
+  * current price
+  * minimum bid increment
+  * quick bid buttons
+  * bid status feedback
+* Do not leave the auction detail in a placeholder/demo state
+
+4. Real-time follow-up
+
+* After real bidding works, connect Supabase Realtime for the current auction
+* Instantly update the current price and highest bid state when new bids arrive
+
+5. Scope control
+
+* Do NOT work on cosmetic extras first
+* Do NOT work on cleanup lifecycle, advanced notifications, or polish before real media upload and real bidding are working
+
+Definition of done:
+
+* I can create an auction with real uploaded media
+* I can open that auction and see the real media
+* I can place a real bid
+* I can see the current price update correctly
+* I can see minimum increment and quick bid actions clearly in the UI

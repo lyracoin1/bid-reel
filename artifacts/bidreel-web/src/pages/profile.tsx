@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { HamburgerMenu } from "@/components/HamburgerMenu";
+import { NotificationBell } from "@/components/NotificationBell";
 import { currentUser, mockAuctions } from "@/lib/mock-data";
 import { getTimeRemaining } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
@@ -48,8 +49,11 @@ export default function Profile() {
               </div>
             </div>
 
-            {/* Hamburger menu — all settings live here */}
-            <HamburgerMenu />
+            {/* Action buttons row — notification bell + settings */}
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+              <HamburgerMenu />
+            </div>
           </div>
 
           {/* Stats row */}

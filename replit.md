@@ -13,6 +13,8 @@ Users upload a video + image for an item, publish it as an auction (3-day fixed 
 Migration files:
 - `lib/db/migrations/001_initial_schema.sql` — tables, indexes, triggers, views
 - `lib/db/migrations/002_rls_policies.sql` — RLS enable + 27 policies + is_admin() helper
+- `artifacts/api-server/src/migrations/002_bids_table.sql` — bids table + min_increment column
+- `artifacts/api-server/src/migrations/003_notifications_table.sql` — notifications table + RLS + Realtime
 
 Tables: `profiles`, `auctions`, `bids`, `likes`, `reports`, `blocks`, `contact_requests`, `moderation_queue`, `admin_actions`
 Views: `v_public_profiles` (no phone), `v_auction_feed` (feed-optimized join), `v_admin_report_queue`

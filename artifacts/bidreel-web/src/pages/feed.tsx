@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCw, ArrowDown } from "lucide-react";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { FeedCard } from "@/components/feed/FeedCard";
+import { HamburgerMenu } from "@/components/HamburgerMenu";
 import { useAuctions } from "@/hooks/use-auctions";
 import { useBidPolling } from "@/hooks/use-bid-polling";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
@@ -45,6 +46,13 @@ export default function Feed() {
 
   return (
     <MobileLayout noPadding>
+
+      {/* ── Hamburger menu button ─────────────────────────────────────────── */}
+      <div className="fixed top-0 right-0 z-[55] max-w-md mx-auto pt-12 pr-4 pointer-events-none" style={{ left: 0, right: 0 }}>
+        <div className="flex justify-end pointer-events-auto">
+          <HamburgerMenu />
+        </div>
+      </div>
 
       {/* ── Pull-to-refresh indicator ──────────────────────────────────────── */}
       <AnimatePresence>

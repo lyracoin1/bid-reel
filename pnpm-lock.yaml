@@ -223,6 +223,10 @@ importers:
         version: 3.1.0
 
   artifacts/bidreel-web:
+    dependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.100.0
+        version: 2.100.0
     devDependencies:
       '@hookform/resolvers':
         specifier: ^3.10.0

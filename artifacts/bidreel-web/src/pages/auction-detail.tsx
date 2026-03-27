@@ -8,6 +8,7 @@ import { useAuction, usePlaceBid } from "@/hooks/use-auctions";
 import { useFollow } from "@/hooks/use-follow";
 import { useWatchAuction } from "@/hooks/use-watch";
 import { useBidPolling, getUserBidStatus } from "@/hooks/use-bid-polling";
+import { useRealtimeBids } from "@/hooks/use-realtime-bids";
 import { currentUser } from "@/lib/mock-data";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { getTimeRemaining, getWhatsAppUrl, getAuctionState, getCountdownToStart, cn } from "@/lib/utils";
@@ -31,6 +32,10 @@ export default function AuctionDetail() {
   const { pullDistance, pullProgress, isRefreshing: isPulling } =
     usePullToRefresh(scrollRef, refresh);
   const showPullIndicator = pullDistance > 4 || isPulling;
+
+  // ── Supabase Realtime — must be called unconditionally (Rules of Hooks) ───
+  const { realtimeCurrentBid, realtimeBidCount, isConnected } =
+    useRealtimeBids(id ?? "", auction?.bidCount ?? 0);
 
   if (!auction) {
     return (
@@ -56,7 +61,11 @@ export default function AuctionDetail() {
   const topBidUserId = auction.bids[0]?.user.id;
   const bidStatus = getUserBidStatus(auction.id, topBidUserId);
 
-  const handleOpenBid = () => { setBidAmount(minBid); setShowBidSheet(true); };
+  const displayedBid = realtimeCurrentBid ?? auction.currentBid;
+  const displayedBidCount = realtimeBidCount ?? auction.bidCount;
+  const minBidRt = displayedBid + 10;
+
+  const handleOpenBid = () => { setBidAmount(minBidRt); setShowBidSheet(true); };
   const submitBid = () => { placeBid(auction.id, bidAmount); setShowBidSheet(false); };
   const handleShare = async () => {
     if (navigator.share) {
@@ -188,14 +197,14 @@ export default function AuctionDetail() {
             </div>
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground font-medium">
               <TrendingUp size={15} className={state === "active" ? "text-primary" : "text-white/30"} />
-              {auction.bidCount} {t("bids_count")}
+              {displayedBidCount} {t("bids_count")}
             </div>
           </div>
 
           {/* Title */}
           <h1 className="text-2xl font-bold text-white leading-tight">{auction.title}</h1>
 
-          {/* Price — varies by state */}
+          {/* Price — varies by state; uses realtime value when available */}
           {state === "upcoming" ? (
             <div className="flex items-baseline gap-2">
               <span className="text-4xl font-bold text-white tracking-tight">{formatPrice(auction.startingBid)}</span>
@@ -203,13 +212,29 @@ export default function AuctionDetail() {
             </div>
           ) : state === "ended" ? (
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-bold text-white tracking-tight">{formatPrice(auction.currentBid)}</span>
+              <span className="text-4xl font-bold text-white tracking-tight">{formatPrice(displayedBid)}</span>
               <span className="text-sm text-muted-foreground font-medium">{t("final_price")}</span>
             </div>
           ) : (
-            <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-bold text-white tracking-tight">{formatPrice(auction.currentBid)}</span>
-              <span className="text-sm text-muted-foreground font-medium">{t("current_bid")}</span>
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <motion.span
+                key={displayedBid}
+                initial={{ scale: 1.08, color: "#a855f7" }}
+                animate={{ scale: 1, color: "#ffffff" }}
+                transition={{ duration: 0.4 }}
+                className="text-4xl font-bold tracking-tight"
+              >
+                {formatPrice(displayedBid)}
+              </motion.span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground font-medium">{t("current_bid")}</span>
+                {isConnected && (
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 uppercase tracking-wide">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
+                    LIVE
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
@@ -391,11 +416,11 @@ export default function AuctionDetail() {
               <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-6" />
               <h3 className="text-lg font-bold text-white text-center mb-1">{t("place_bid")}</h3>
               <p className="text-sm text-muted-foreground text-center mb-7">
-                {t("min_bid")}: <span className="text-white font-semibold">{formatPrice(minBid)}</span>
+                {t("min_bid")}: <span className="text-white font-semibold">{formatPrice(minBidRt)}</span>
               </p>
 
               <div className="flex justify-center items-center gap-5 mb-6">
-                <motion.button whileTap={{ scale: 0.88 }} onClick={() => setBidAmount(b => Math.max(minBid, b - 10))}
+                <motion.button whileTap={{ scale: 0.88 }} onClick={() => setBidAmount(b => Math.max(minBidRt, b - 10))}
                   className="w-12 h-12 rounded-full bg-white/8 border border-white/10 flex items-center justify-center text-xl font-bold text-white">−</motion.button>
                 <div className="text-4xl font-bold text-white w-40 text-center tracking-tight">{formatPrice(bidAmount)}</div>
                 <motion.button whileTap={{ scale: 0.88 }} onClick={() => setBidAmount(b => b + 10)}
@@ -412,7 +437,7 @@ export default function AuctionDetail() {
               </div>
 
               <motion.button
-                whileTap={{ scale: 0.97 }} onClick={submitBid} disabled={isBidding || bidAmount < minBid}
+                whileTap={{ scale: 0.97 }} onClick={submitBid} disabled={isBidding || bidAmount < minBidRt}
                 className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-lg shadow-primary/30 disabled:opacity-40 disabled:shadow-none"
               >
                 {isBidding ? t("processing") : `${t("confirm_bid")} — ${formatPrice(bidAmount)}`}

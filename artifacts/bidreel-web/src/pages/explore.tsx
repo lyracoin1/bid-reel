@@ -16,8 +16,11 @@ function AlbumIcon({ size = 14 }: { size?: number }) {
   );
 }
 
+const MAX_RESULTS = 12;
+
 export default function Explore() {
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [, setLocation] = useLocation();
   const { data: auctions } = useAuctions();
   const { t, formatPrice } = useLang();
@@ -28,15 +31,21 @@ export default function Explore() {
     return () => clearTimeout(timer);
   }, []);
 
-  const q = query.trim().toLowerCase();
-  const results = q
-    ? auctions.filter(a =>
-        a.title.toLowerCase().includes(q) ||
-        a.description.toLowerCase().includes(q)
-      )
-    : auctions;
+  // 350ms debounce on the actual search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query.trim().toLowerCase()), 350);
+    return () => clearTimeout(timer);
+  }, [query]);
 
-  const hasQuery = query.trim().length > 0;
+  const hasQuery = debouncedQuery.length > 0;
+  const allResults = hasQuery
+    ? auctions.filter(a =>
+        a.title.toLowerCase().includes(debouncedQuery) ||
+        a.description.toLowerCase().includes(debouncedQuery)
+      )
+    : [];
+  const results = allResults.slice(0, MAX_RESULTS);
+  const hasMore = allResults.length > MAX_RESULTS;
   const noResults = hasQuery && results.length === 0;
 
   return (
@@ -85,7 +94,8 @@ export default function Explore() {
           )}
           {hasQuery && !noResults && (
             <p className="text-xs text-white/30 mt-3 font-medium">
-              {results.length} {results.length === 1 ? "result" : "results"}
+              {allResults.length} {allResults.length === 1 ? "result" : "results"}
+              {hasMore && ` · showing first ${MAX_RESULTS}`}
             </p>
           )}
         </div>
@@ -93,7 +103,35 @@ export default function Explore() {
         {/* Results / empty state */}
         <div className="flex-1 overflow-y-auto pb-4 px-4">
           <AnimatePresence mode="wait">
-            {noResults ? (
+            {!hasQuery ? (
+              <motion.div
+                key="idle"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="flex flex-col items-center justify-center pt-20 text-center gap-5"
+              >
+                <div className="w-20 h-20 rounded-full bg-white/5 border border-white/8 flex items-center justify-center text-3xl">
+                  🛍️
+                </div>
+                <div>
+                  <p className="text-base font-bold text-white mb-1">Find great auctions</p>
+                  <p className="text-sm text-white/35">Search by title, category, or keyword</p>
+                </div>
+                <div className="flex flex-wrap gap-2 justify-center mt-1">
+                  {["Watch", "Camera", "Car", "Rolex"].map(tag => (
+                    <button
+                      key={tag}
+                      onClick={() => setQuery(tag)}
+                      className="px-4 py-1.5 rounded-full bg-white/6 border border-white/10 text-sm text-white/60 font-medium hover:bg-white/10 transition"
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            ) : noResults ? (
               <motion.div
                 key="empty"
                 initial={{ opacity: 0, y: 12 }}

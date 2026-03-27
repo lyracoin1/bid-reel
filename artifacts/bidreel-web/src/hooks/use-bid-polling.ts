@@ -86,6 +86,25 @@ export interface BidPollingResult {
   refresh: () => Promise<void>;
 }
 
+// ── Status API ────────────────────────────────────────────────────────────────
+export type BidStatus = "leading" | "outbid" | "not_bidding";
+
+/**
+ * Returns the current user's bidding position on a given auction.
+ * "leading"     — user has bid AND currently holds the top spot
+ * "outbid"      — user has bid BUT someone else holds the top spot
+ * "not_bidding" — user has not placed a bid on this auction
+ */
+export function getUserBidStatus(
+  auctionId: string,
+  topBidUserId: string | undefined,
+): BidStatus {
+  const myBid = userBids.get(auctionId);
+  if (!myBid) return "not_bidding";
+  if (topBidUserId === currentUser.id) return "leading";
+  return "outbid";
+}
+
 export function useBidPolling(): BidPollingResult {
   const [isRefreshing, setIsRefreshing] = useState(false);
 

@@ -1,17 +1,28 @@
 import { useLocation } from "wouter";
-import { Heart, Share2, MessageCircle, Gavel, Play } from "lucide-react";
-import { motion } from "framer-motion";
+import { Share2, MessageCircle, Gavel, Play } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { type Auction } from "@/lib/mock-data";
 import { getTimeRemaining, getWhatsAppUrl, cn } from "@/lib/utils";
 import { useToggleLike } from "@/hooks/use-auctions";
+import { useFollow } from "@/hooks/use-follow";
 import { useLang } from "@/contexts/LanguageContext";
 
-// Album stacked-squares icon (inline SVG — not in lucide)
 function AlbumIcon({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="5" y="5" width="14" height="14" rx="2" />
       <rect x="2" y="2" width="14" height="14" rx="2" fill="none" />
+    </svg>
+  );
+}
+
+function HeartIcon({ liked }: { liked: boolean }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      fill={liked ? "#ef4444" : "none"}
+      stroke={liked ? "#ef4444" : "rgba(255,255,255,0.95)"}
+    >
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
     </svg>
   );
 }
@@ -24,9 +35,11 @@ interface FeedCardProps {
 export function FeedCard({ auction, isActive }: FeedCardProps) {
   const [, setLocation] = useLocation();
   const { mutate: toggleLike } = useToggleLike();
+  const { isFollowing, toggle: toggleFollow } = useFollow();
   const { t, formatPrice } = useLang();
   const timeInfo = getTimeRemaining(auction.endsAt);
   const whatsappUrl = getWhatsAppUrl(auction.seller.phone, auction.title);
+  const following = isFollowing(auction.seller.id);
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -62,18 +75,45 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         ) : null}
       </div>
 
-      {/* ── Top bar: seller pill + timer ── */}
-      <div className="absolute top-0 left-0 right-0 z-10 pt-12 px-4 flex items-center justify-between">
-        <button
-          className="flex items-center gap-2.5 bg-black/40 backdrop-blur-md border border-white/10 rounded-full pl-1 pr-3 py-1 active:scale-95 transition-transform"
-          onClick={() => setLocation(`/auction/${auction.id}`)}
-        >
-          <img src={auction.seller.avatar} alt={auction.seller.name} className="w-7 h-7 rounded-full object-cover" />
-          <span className="text-sm font-semibold text-white leading-none">{auction.seller.handle}</span>
-        </button>
+      {/* ── Top bar: seller pill + Follow + timer ── */}
+      <div className="absolute top-0 left-0 right-0 z-10 pt-12 px-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <button
+            className="flex items-center gap-2.5 bg-black/40 backdrop-blur-md border border-white/10 rounded-full pl-1 pr-3 py-1 active:scale-95 transition-transform shrink-0"
+            onClick={(e) => { e.stopPropagation(); setLocation(`/auction/${auction.id}`); }}
+          >
+            <img src={auction.seller.avatar} alt={auction.seller.name} className="w-7 h-7 rounded-full object-cover" />
+            <span className="text-sm font-semibold text-white leading-none">{auction.seller.handle}</span>
+          </button>
+
+          {/* Follow button */}
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={(e) => { e.stopPropagation(); toggleFollow(auction.seller.id); }}
+            className={cn(
+              "px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-md transition-all duration-200 shrink-0",
+              following
+                ? "bg-primary/20 border-primary/50 text-primary"
+                : "bg-black/40 border-white/20 text-white"
+            )}
+          >
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={following ? "following" : "follow"}
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+                transition={{ duration: 0.15 }}
+                className="block"
+              >
+                {following ? `✓ ${t("following")}` : `+ ${t("follow")}`}
+              </motion.span>
+            </AnimatePresence>
+          </motion.button>
+        </div>
 
         <div className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-md border",
+          "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-md border shrink-0",
           timeInfo.isEnded
             ? "bg-white/10 text-white/50 border-white/10"
             : timeInfo.isUrgent
@@ -91,14 +131,23 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
       <div className="absolute right-3 bottom-36 z-20 flex flex-col items-center gap-5">
 
         {/* Like */}
-        <motion.button whileTap={{ scale: 0.8 }} className="flex flex-col items-center gap-1.5"
-          onClick={(e) => { e.stopPropagation(); toggleLike(auction.id); }}>
-          <div className={cn(
-            "w-12 h-12 rounded-full flex items-center justify-center border backdrop-blur-md transition-colors",
-            auction.isLikedByMe ? "bg-primary/25 border-primary/50 text-primary" : "bg-black/40 border-white/15 text-white"
-          )}>
-            <Heart size={22} className={cn(auction.isLikedByMe ? "fill-primary" : "")} />
-          </div>
+        <motion.button
+          whileTap={{ scale: 0.75 }}
+          className="flex flex-col items-center gap-1.5"
+          onClick={(e) => { e.stopPropagation(); toggleLike(auction.id); }}
+        >
+          <motion.div
+            animate={auction.isLikedByMe ? { scale: [1, 1.3, 1] } : { scale: 1 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className={cn(
+              "w-12 h-12 rounded-full flex items-center justify-center border backdrop-blur-md transition-colors",
+              auction.isLikedByMe
+                ? "bg-red-500/20 border-red-500/40"
+                : "bg-black/40 border-white/15"
+            )}
+          >
+            <HeartIcon liked={!!auction.isLikedByMe} />
+          </motion.div>
           <span className="text-[11px] font-semibold text-white/80">{auction.likes}</span>
         </motion.button>
 

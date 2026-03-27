@@ -1,0 +1,105 @@
+Enhance the existing frontend UI and interaction system with these MVP features.
+
+IMPORTANT:
+- Do NOT rebuild from scratch
+- Modify the current app only
+- Keep the current dark neon-purple style
+- Keep prices white
+- Keep existing WhatsApp, Share, bid UI, and navigation working
+
+--------------------------------------------------
+1) FOLLOW BUTTON FOR SELLERS
+--------------------------------------------------
+Add a Follow / Following button for seller accounts.
+
+Requirements:
+- Show Follow button on seller profile screens
+- Show a compact Follow button in auction detail near seller info if appropriate
+- States:
+  - Follow
+  - Following
+- Add a clean toggle interaction
+- Keep the styling premium and minimal
+- Use purple accent for follow actions, not for prices
+- Do not overcomplicate logic; mock data is enough for now
+
+Behavior:
+- Tapping Follow changes state to Following
+- Tapping again can unfollow
+- Seller follow state should feel personal and content-driven
+
+--------------------------------------------------
+2) OPTIONAL INTEREST SELECTION DURING ONBOARDING / REGISTRATION
+--------------------------------------------------
+Add an optional interest selection step during first-time signup / onboarding.
+
+Requirements:
+- Make it optional, not required
+- User can skip it
+- Present it as:
+  "Choose what interests you"
+- Add example interest categories such as:
+  - Fishing
+  - Cars
+  - Phones
+  - Fashion
+  - Electronics
+  - Furniture
+  - Watches
+  - Gaming
+  - Sports
+  - Collectibles
+
+Behavior:
+- User can select multiple interests
+- Selected interests should have a strong active visual state
+- Add Skip button
+- Keep it mobile-first and beautiful
+- This is mock/frontend-only for now, no backend connection needed yet
+
+UI:
+- Use rounded selectable chips/cards
+- Keep the screen consistent with the neon dark design
+- Arabic should work well in RTL
+- Other languages should remain supported
+
+--------------------------------------------------
+3) LIKE BUTTON REFINEMENT
+--------------------------------------------------
+Refine the Like (heart) button interaction.
+
+Requirements:
+- The heart icon should have two states:
+  1) Default:
+     - Outline only
+     - No fill
+  2) Liked:
+     - Keep the outline visible
+     - Fill ONLY the inside of the heart with red
+     - Do NOT make the whole icon solid red
+     - Do NOT change the outline color unnecessarily
+
+Design:
+- Use a clean icon/SVG that supports stroke + fill separately
+- Fill color should be a clear red
+- Outline should stay crisp and visible
+- Add a subtle pop animation on like
+
+--------------------------------------------------
+4) KEEP MVP CLEAN
+--------------------------------------------------
+- Do not add complex recommendation logic yet
+- Do not add backend follow system yet
+- Do not add real persistence yet unless already easy in current frontend mock setup
+- Focus on UI structure and realistic app behavior
+
+--------------------------------------------------
+FINAL STEP
+--------------------------------------------------
+After implementation:
+- Run the app
+- Show me the preview URL
+- Summarize exactly what was added:
+  - follow feature
+  - optional interests onboarding
+  - red-filled heart behavior

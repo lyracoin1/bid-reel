@@ -51,6 +51,10 @@ export type TKey =
   | "no_listings" | "create_first" | "settings"
   // Currency
   | "currency_mode" | "currency_usd" | "currency_local"
+  // Follow
+  | "follow" | "following"
+  // Interests onboarding
+  | "interests_title" | "interests_subtitle" | "interests_skip" | "interests_done"
   // Time
   | "time_ended" | "time_s" | "time_m" | "time_h" | "time_d";
 
@@ -81,6 +85,9 @@ const en: Translations = {
   no_listings: "No listings yet.", create_first: "Create your first listing", settings: "Settings",
   time_ended: "Ended", time_s: "s", time_m: "m left", time_h: "h left", time_d: "d left",
   currency_mode: "Currency", currency_usd: "USD ($)", currency_local: "Local Currency",
+  follow: "Follow", following: "Following",
+  interests_title: "Choose what interests you", interests_subtitle: "Select topics you'd love to bid on",
+  interests_skip: "Skip", interests_done: "Done",
 };
 
 const ar: Translations = {
@@ -108,6 +115,9 @@ const ar: Translations = {
   no_listings: "لا توجد إدراجات بعد.", create_first: "أنشئ إدراجك الأول", settings: "الإعدادات",
   time_ended: "انتهى", time_s: "ث", time_m: "د متبقية", time_h: "س متبقية", time_d: "ي متبقية",
   currency_mode: "العملة", currency_usd: "دولار أمريكي ($)", currency_local: "العملة المحلية",
+  follow: "متابعة", following: "تتابعه",
+  interests_title: "اختر ما يهمك", interests_subtitle: "حدد مواضيع تريد المزايدة عليها",
+  interests_skip: "تخطى", interests_done: "تم",
 };
 
 const ru: Translations = {
@@ -135,6 +145,9 @@ const ru: Translations = {
   no_listings: "Нет лотов.", create_first: "Создать первый лот", settings: "Настройки",
   time_ended: "Завершён", time_s: "с", time_m: "м осталось", time_h: "ч осталось", time_d: "д осталось",
   currency_mode: "Валюта", currency_usd: "USD ($)", currency_local: "Местная валюта",
+  follow: "Подписаться", following: "Подписан",
+  interests_title: "Выберите интересы", interests_subtitle: "Темы, на которые вы хотите делать ставки",
+  interests_skip: "Пропустить", interests_done: "Готово",
 };
 
 const es: Translations = {
@@ -162,6 +175,9 @@ const es: Translations = {
   no_listings: "Sin anuncios aún.", create_first: "Crea tu primer anuncio", settings: "Ajustes",
   time_ended: "Finalizado", time_s: "s", time_m: "m restante", time_h: "h restante", time_d: "d restante",
   currency_mode: "Moneda", currency_usd: "USD ($)", currency_local: "Moneda local",
+  follow: "Seguir", following: "Siguiendo",
+  interests_title: "Elige tus intereses", interests_subtitle: "Selecciona temas en los que quieres pujar",
+  interests_skip: "Saltar", interests_done: "Hecho",
 };
 
 const fr: Translations = {
@@ -189,6 +205,9 @@ const fr: Translations = {
   no_listings: "Aucune annonce.", create_first: "Créer votre première annonce", settings: "Paramètres",
   time_ended: "Terminé", time_s: "s", time_m: "m restant", time_h: "h restant", time_d: "j restant",
   currency_mode: "Devise", currency_usd: "USD ($)", currency_local: "Devise locale",
+  follow: "Suivre", following: "Abonné",
+  interests_title: "Choisissez vos intérêts", interests_subtitle: "Sélectionnez les sujets sur lesquels vous souhaitez enchérir",
+  interests_skip: "Ignorer", interests_done: "Terminer",
 };
 
 export const TRANSLATIONS: Record<Language, Translations> = { en, ar, ru, es, fr };

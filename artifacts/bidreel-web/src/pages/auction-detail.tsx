@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { ImageSlider } from "@/components/feed/ImageSlider";
 import { useAuction, usePlaceBid } from "@/hooks/use-auctions";
+import { useFollow } from "@/hooks/use-follow";
 import { getTimeRemaining, getWhatsAppUrl, cn } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { formatDistanceToNow } from "date-fns";
@@ -14,6 +15,7 @@ export default function AuctionDetail() {
   const [, setLocation] = useLocation();
   const { data: auction } = useAuction(id || "");
   const { mutate: placeBid, isPending: isBidding } = usePlaceBid();
+  const { isFollowing, toggle: toggleFollow } = useFollow();
   const { t, formatPrice } = useLang();
 
   const [showBidSheet, setShowBidSheet] = useState(false);
@@ -117,6 +119,29 @@ export default function AuctionDetail() {
                 <p className="font-semibold text-white text-sm leading-none">{auction.seller.name}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">{auction.seller.handle}</p>
               </div>
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => toggleFollow(auction.seller.id)}
+                className={[
+                  "px-4 py-2 rounded-xl text-xs font-bold border transition-all duration-200",
+                  isFollowing(auction.seller.id)
+                    ? "bg-primary/20 border-primary/50 text-primary"
+                    : "bg-white/8 border-white/15 text-white",
+                ].join(" ")}
+              >
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.span
+                    key={isFollowing(auction.seller.id) ? "on" : "off"}
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 5 }}
+                    transition={{ duration: 0.14 }}
+                    className="block"
+                  >
+                    {isFollowing(auction.seller.id) ? `✓ ${t("following")}` : `+ ${t("follow")}`}
+                  </motion.span>
+                </AnimatePresence>
+              </motion.button>
             </div>
             <a
               href={whatsappUrl} target="_blank" rel="noopener noreferrer"

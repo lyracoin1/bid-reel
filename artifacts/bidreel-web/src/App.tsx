@@ -10,6 +10,7 @@ import Feed from "@/pages/feed";
 import AuctionDetail from "@/pages/auction-detail";
 import CreateAuction from "@/pages/create-auction";
 import Profile from "@/pages/profile";
+import Interests from "@/pages/interests";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/auction/:id" component={AuctionDetail} />
       <Route path="/create" component={CreateAuction} />
       <Route path="/profile" component={Profile} />
+      <Route path="/interests" component={Interests} />
       <Route component={NotFound} />
     </Switch>
   );

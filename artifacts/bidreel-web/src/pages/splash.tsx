@@ -6,9 +6,10 @@ export default function Splash() {
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    // Simulate auth check and auto-redirect
+    // Route to interests onboarding on first visit, then feed
     const timer = setTimeout(() => {
-      setLocation("/feed");
+      const seen = localStorage.getItem("hasSeenInterests");
+      setLocation(seen ? "/feed" : "/interests");
     }, 2500);
     return () => clearTimeout(timer);
   }, [setLocation]);

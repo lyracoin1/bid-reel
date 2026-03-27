@@ -19,7 +19,16 @@ export default function AuctionDetail() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
   const { data: auction } = useAuction(id || "");
-  const { mutate: placeBid, isPending: isBidding } = usePlaceBid();
+  const { mutate: placeBid, isPending: isBidding } = usePlaceBid({
+    onSuccess: () => {
+      setBidSuccess(true);
+      setBidError(null);
+      setTimeout(() => { setShowBidSheet(false); setBidSuccess(false); }, 900);
+    },
+    onError: (_code, message) => {
+      setBidError(message);
+    },
+  });
   const { isFollowing, toggle: toggleFollow } = useFollow();
   const { isWatching, toggle: toggleWatch } = useWatchAuction();
   const { t, formatPrice } = useLang();
@@ -27,6 +36,8 @@ export default function AuctionDetail() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showBidSheet, setShowBidSheet] = useState(false);
   const [bidAmount, setBidAmount] = useState(0);
+  const [bidError, setBidError] = useState<string | null>(null);
+  const [bidSuccess, setBidSuccess] = useState(false);
 
   const { isRefreshing, refresh } = useBidPolling();
   const { pullDistance, pullProgress, isRefreshing: isPulling } =
@@ -65,8 +76,8 @@ export default function AuctionDetail() {
   const displayedBidCount = realtimeBidCount ?? auction.bidCount;
   const minBidRt = displayedBid + 10;
 
-  const handleOpenBid = () => { setBidAmount(minBidRt); setShowBidSheet(true); };
-  const submitBid = () => { placeBid(auction.id, bidAmount); setShowBidSheet(false); };
+  const handleOpenBid = () => { setBidAmount(minBidRt); setBidError(null); setBidSuccess(false); setShowBidSheet(true); };
+  const submitBid = () => { setBidError(null); placeBid(auction.id, bidAmount); };
   const handleShare = async () => {
     if (navigator.share) {
       try { await navigator.share({ title: auction.title, url: window.location.href }); }
@@ -414,34 +425,69 @@ export default function AuctionDetail() {
               className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-50 bg-[#111118] rounded-t-3xl border-t border-white/8 px-6 pt-5 pb-10"
             >
               <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-6" />
-              <h3 className="text-lg font-bold text-white text-center mb-1">{t("place_bid")}</h3>
-              <p className="text-sm text-muted-foreground text-center mb-7">
-                {t("min_bid")}: <span className="text-white font-semibold">{formatPrice(minBidRt)}</span>
-              </p>
 
-              <div className="flex justify-center items-center gap-5 mb-6">
-                <motion.button whileTap={{ scale: 0.88 }} onClick={() => setBidAmount(b => Math.max(minBidRt, b - 10))}
-                  className="w-12 h-12 rounded-full bg-white/8 border border-white/10 flex items-center justify-center text-xl font-bold text-white">−</motion.button>
-                <div className="text-4xl font-bold text-white w-40 text-center tracking-tight">{formatPrice(bidAmount)}</div>
-                <motion.button whileTap={{ scale: 0.88 }} onClick={() => setBidAmount(b => b + 10)}
-                  className="w-12 h-12 rounded-full bg-white/8 border border-white/10 flex items-center justify-center text-xl font-bold text-white">+</motion.button>
-              </div>
+              {/* Success state */}
+              <AnimatePresence mode="wait">
+                {bidSuccess ? (
+                  <motion.div
+                    key="success"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex flex-col items-center justify-center py-8 gap-3"
+                  >
+                    <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-3xl">🏆</div>
+                    <p className="text-lg font-bold text-white">You're the highest bidder!</p>
+                    <p className="text-sm text-emerald-400 font-semibold">{formatPrice(bidAmount)}</p>
+                  </motion.div>
+                ) : (
+                  <motion.div key="form" initial={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <h3 className="text-lg font-bold text-white text-center mb-1">{t("place_bid")}</h3>
+                    <p className="text-sm text-muted-foreground text-center mb-6">
+                      {t("min_bid")}: <span className="text-white font-semibold">{formatPrice(minBidRt)}</span>
+                    </p>
 
-              <div className="flex gap-2 mb-7">
-                {[10, 25, 50, 100].map(inc => (
-                  <motion.button key={inc} whileTap={{ scale: 0.92 }} onClick={() => setBidAmount(b => b + inc)}
-                    className="flex-1 py-2.5 rounded-xl bg-white/6 border border-white/10 text-sm font-semibold text-white/80 hover:bg-white/10 transition">
-                    +${inc}
-                  </motion.button>
-                ))}
-              </div>
+                    <div className="flex justify-center items-center gap-5 mb-6">
+                      <motion.button whileTap={{ scale: 0.88 }} onClick={() => setBidAmount(b => Math.max(minBidRt, b - 10))}
+                        className="w-12 h-12 rounded-full bg-white/8 border border-white/10 flex items-center justify-center text-xl font-bold text-white">−</motion.button>
+                      <div className="text-4xl font-bold text-white w-40 text-center tracking-tight">{formatPrice(bidAmount)}</div>
+                      <motion.button whileTap={{ scale: 0.88 }} onClick={() => setBidAmount(b => b + 10)}
+                        className="w-12 h-12 rounded-full bg-white/8 border border-white/10 flex items-center justify-center text-xl font-bold text-white">+</motion.button>
+                    </div>
 
-              <motion.button
-                whileTap={{ scale: 0.97 }} onClick={submitBid} disabled={isBidding || bidAmount < minBidRt}
-                className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-lg shadow-primary/30 disabled:opacity-40 disabled:shadow-none"
-              >
-                {isBidding ? t("processing") : `${t("confirm_bid")} — ${formatPrice(bidAmount)}`}
-              </motion.button>
+                    {/* Quick-add increments */}
+                    <div className="flex gap-2 mb-5">
+                      {[10, 20, 50].map(inc => (
+                        <motion.button key={inc} whileTap={{ scale: 0.92 }} onClick={() => setBidAmount(b => b + inc)}
+                          className="flex-1 py-2.5 rounded-xl bg-white/6 border border-white/10 text-sm font-semibold text-white/80 hover:bg-white/10 transition">
+                          +${inc}
+                        </motion.button>
+                      ))}
+                    </div>
+
+                    {/* Error feedback */}
+                    <AnimatePresence>
+                      {bidError && (
+                        <motion.p
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          className="text-sm text-red-400 text-center mb-4 font-medium"
+                        >
+                          ⚠ {bidError}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+
+                    <motion.button
+                      whileTap={{ scale: 0.97 }} onClick={submitBid} disabled={isBidding || bidAmount < minBidRt}
+                      className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-lg shadow-primary/30 disabled:opacity-40 disabled:shadow-none"
+                    >
+                      {isBidding ? t("processing") : `${t("confirm_bid")} — ${formatPrice(bidAmount)}`}
+                    </motion.button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           </>
         )}

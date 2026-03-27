@@ -24,8 +24,9 @@ export const auctionsTable = pgTable("auctions", {
   imagePaths:   text("image_paths").array(),    // ordered album image paths
 
   // Bidding
-  startingBid:  integer("starting_bid").notNull().default(0),  // in cents
-  currentBid:   integer("current_bid").notNull().default(0),
+  startingBid:  integer("starting_bid").notNull().default(0),   // in cents
+  currentBid:   integer("current_bid").notNull().default(0),    // in cents
+  minIncrement: integer("min_increment").notNull().default(1000), // in cents (default $10)
   bidCount:     integer("bid_count").notNull().default(0),
 
   // Timing

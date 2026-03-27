@@ -1,10 +1,11 @@
 import { useLocation } from "wouter";
-import { Share2, MessageCircle, Gavel, Play } from "lucide-react";
+import { Share2, MessageCircle, Gavel, Play, Bell } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type Auction } from "@/lib/mock-data";
-import { getTimeRemaining, getWhatsAppUrl, cn } from "@/lib/utils";
+import { getTimeRemaining, getWhatsAppUrl, getAuctionState, getCountdownToStart, cn } from "@/lib/utils";
 import { useToggleLike } from "@/hooks/use-auctions";
 import { useFollow } from "@/hooks/use-follow";
+import { useWatchAuction } from "@/hooks/use-watch";
 import { useLang } from "@/contexts/LanguageContext";
 
 function AlbumIcon({ size = 20 }: { size?: number }) {
@@ -36,10 +37,15 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
   const [, setLocation] = useLocation();
   const { mutate: toggleLike } = useToggleLike();
   const { isFollowing, toggle: toggleFollow } = useFollow();
+  const { isWatching, toggle: toggleWatch } = useWatchAuction();
   const { t, formatPrice } = useLang();
+
+  const state = getAuctionState(auction);
   const timeInfo = getTimeRemaining(auction.endsAt);
+  const countdownToStart = auction.startsAt ? getCountdownToStart(auction.startsAt) : null;
   const whatsappUrl = getWhatsAppUrl(auction.seller.phone, auction.title);
   const following = isFollowing(auction.seller.id);
+  const watching = isWatching(auction.id);
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -48,6 +54,32 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
       catch (_) {}
     }
   };
+
+  // ── Timer pill ─────────────────────────────────────────────────────────────
+  const timerPill = (() => {
+    if (state === "upcoming") {
+      return {
+        className: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+        dot: "bg-amber-400 animate-pulse",
+        label: `${t("starts_in")} ${countdownToStart}`,
+      };
+    }
+    if (state === "ended") {
+      return {
+        className: "bg-white/10 text-white/50 border-white/10",
+        dot: "bg-white/30",
+        label: t("time_ended"),
+      };
+    }
+    // active
+    return {
+      className: timeInfo.isUrgent
+        ? "bg-red-500/20 text-red-400 border-red-500/30"
+        : "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
+      dot: timeInfo.isUrgent ? "bg-red-400 animate-pulse" : "bg-emerald-400",
+      label: timeInfo.text,
+    };
+  })();
 
   return (
     <div className="relative w-full h-[100dvh] snap-always bg-black flex flex-col overflow-hidden">
@@ -60,6 +92,10 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
           className={cn("w-full h-full object-cover transition-transform duration-700", isActive ? "scale-100" : "scale-105")}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent via-40% to-black/95 pointer-events-none" />
+        {/* Subtle overlay for ended/upcoming to visually dim */}
+        {state !== "active" && (
+          <div className="absolute inset-0 bg-black/25 pointer-events-none" />
+        )}
       </div>
 
       {/* ── Post type indicator (top-right corner of image) ── */}
@@ -112,18 +148,13 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
           </motion.button>
         </div>
 
+        {/* Timer / state pill */}
         <div className={cn(
           "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-md border shrink-0",
-          timeInfo.isEnded
-            ? "bg-white/10 text-white/50 border-white/10"
-            : timeInfo.isUrgent
-            ? "bg-red-500/20 text-red-400 border-red-500/30"
-            : "bg-emerald-500/15 text-emerald-400 border-emerald-500/25"
+          timerPill.className
         )}>
-          <span className={cn("w-1.5 h-1.5 rounded-full",
-            timeInfo.isEnded ? "bg-white/30" : timeInfo.isUrgent ? "bg-red-400 animate-pulse" : "bg-emerald-400"
-          )} />
-          {timeInfo.isEnded ? t("time_ended") : timeInfo.text}
+          <span className={cn("w-1.5 h-1.5 rounded-full", timerPill.dot)} />
+          {timerPill.label}
         </div>
       </div>
 
@@ -171,15 +202,49 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
           <span className="text-[11px] font-semibold text-white/80">{t("chat")}</span>
         </motion.a>
 
-        {/* Bid */}
-        <motion.button whileTap={{ scale: 0.88 }} className="flex flex-col items-center gap-1.5 mt-1"
-          onClick={(e) => { e.stopPropagation(); setLocation(`/auction/${auction.id}`); }}>
-          <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/40 relative">
-            <div className="absolute -inset-1 bg-primary/25 rounded-full animate-ping" />
-            <Gavel size={26} />
-          </div>
-          <span className="text-[11px] font-bold text-primary">{t("bid")}</span>
-        </motion.button>
+        {/* Primary action — changes by state */}
+        {state === "upcoming" ? (
+          // Bell: remind me
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            className="flex flex-col items-center gap-1.5 mt-1"
+            onClick={(e) => { e.stopPropagation(); toggleWatch(auction.id); }}
+          >
+            <div className={cn(
+              "w-14 h-14 rounded-full flex items-center justify-center shadow-lg relative transition-all duration-200",
+              watching
+                ? "bg-amber-500/30 border-2 border-amber-500/60 text-amber-300 shadow-amber-500/30"
+                : "bg-amber-500/20 border border-amber-500/40 text-amber-400 shadow-amber-500/20"
+            )}>
+              {watching && <div className="absolute -inset-1 bg-amber-500/15 rounded-full animate-ping" />}
+              <Bell size={24} fill={watching ? "currentColor" : "none"} />
+            </div>
+            <span className={cn("text-[11px] font-bold", watching ? "text-amber-300" : "text-amber-400")}>
+              {watching ? t("reminded") : t("remind_me")}
+            </span>
+          </motion.button>
+        ) : (
+          // Gavel: bid (active = pulsing, ended = dimmed)
+          <motion.button
+            whileTap={state === "active" ? { scale: 0.88 } : {}}
+            className="flex flex-col items-center gap-1.5 mt-1"
+            onClick={(e) => { e.stopPropagation(); if (state === "active") setLocation(`/auction/${auction.id}`); }}
+            disabled={state === "ended"}
+          >
+            <div className={cn(
+              "w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg relative",
+              state === "active"
+                ? "bg-primary shadow-primary/40"
+                : "bg-white/10 shadow-none opacity-40"
+            )}>
+              {state === "active" && <div className="absolute -inset-1 bg-primary/25 rounded-full animate-ping" />}
+              <Gavel size={26} />
+            </div>
+            <span className={cn("text-[11px] font-bold", state === "active" ? "text-primary" : "text-white/40")}>
+              {t("bid")}
+            </span>
+          </motion.button>
+        )}
       </div>
 
       {/* ── Bottom info ── */}
@@ -188,10 +253,26 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         onClick={() => setLocation(`/auction/${auction.id}`)}
       >
         <h2 className="text-[22px] font-bold text-white leading-snug line-clamp-2 drop-shadow-sm">{auction.title}</h2>
-        <div className="flex items-baseline gap-2.5">
-          <span className="text-3xl font-bold text-white tracking-tight">{formatPrice(auction.currentBid)}</span>
-          <span className="text-xs font-medium text-white/50 uppercase tracking-wide">{auction.bidCount} {t("bids_count")}</span>
-        </div>
+
+        {state === "upcoming" ? (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-white tracking-tight">{formatPrice(auction.startingBid)}</span>
+              <span className="text-xs font-medium text-white/50 uppercase tracking-wide">{t("starting_at")}</span>
+            </div>
+            <span className="text-xs font-semibold text-amber-400">{t("bid_opens_soon")}</span>
+          </div>
+        ) : state === "ended" ? (
+          <div className="flex items-baseline gap-2.5">
+            <span className="text-3xl font-bold text-white tracking-tight">{formatPrice(auction.currentBid)}</span>
+            <span className="text-xs font-medium text-white/40 uppercase tracking-wide">{t("final_price")}</span>
+          </div>
+        ) : (
+          <div className="flex items-baseline gap-2.5">
+            <span className="text-3xl font-bold text-white tracking-tight">{formatPrice(auction.currentBid)}</span>
+            <span className="text-xs font-medium text-white/50 uppercase tracking-wide">{auction.bidCount} {t("bids_count")}</span>
+          </div>
+        )}
       </div>
     </div>
   );

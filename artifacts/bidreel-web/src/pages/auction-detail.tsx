@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, Share2, Clock, TrendingUp, MessageCircle, Gavel, Play } from "lucide-react";
+import { ArrowLeft, Share2, Clock, TrendingUp, MessageCircle, Gavel, Play, Bell, Trophy } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { ImageSlider } from "@/components/feed/ImageSlider";
 import { useAuction, usePlaceBid } from "@/hooks/use-auctions";
 import { useFollow } from "@/hooks/use-follow";
-import { getTimeRemaining, getWhatsAppUrl, cn } from "@/lib/utils";
+import { useWatchAuction } from "@/hooks/use-watch";
+import { getTimeRemaining, getWhatsAppUrl, getAuctionState, getCountdownToStart, cn } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { formatDistanceToNow } from "date-fns";
 
@@ -16,6 +17,7 @@ export default function AuctionDetail() {
   const { data: auction } = useAuction(id || "");
   const { mutate: placeBid, isPending: isBidding } = usePlaceBid();
   const { isFollowing, toggle: toggleFollow } = useFollow();
+  const { isWatching, toggle: toggleWatch } = useWatchAuction();
   const { t, formatPrice } = useLang();
 
   const [showBidSheet, setShowBidSheet] = useState(false);
@@ -31,9 +33,13 @@ export default function AuctionDetail() {
     );
   }
 
+  const state = getAuctionState(auction);
   const timeInfo = getTimeRemaining(auction.endsAt);
+  const countdownToStart = auction.startsAt ? getCountdownToStart(auction.startsAt) : null;
   const minBid = auction.currentBid + 10;
   const whatsappUrl = getWhatsAppUrl(auction.seller.phone, auction.title);
+  const watching = isWatching(auction.id);
+  const winner = state === "ended" && auction.bids.length > 0 ? auction.bids[0] : null;
 
   const isAlbum = auction.type === "album" && (auction.images?.length ?? 0) > 1;
   const isVideo = auction.type === "video";
@@ -46,6 +52,24 @@ export default function AuctionDetail() {
       catch (_) {}
     }
   };
+
+  // ── Timer chip content ────────────────────────────────────────────────────
+  const timerChip = (() => {
+    if (state === "upcoming") return {
+      className: "bg-amber-500/15 text-amber-400 border-amber-500/25",
+      label: `${t("starts_in")} ${countdownToStart}`,
+    };
+    if (state === "ended") return {
+      className: "bg-white/8 text-white/40 border-white/8",
+      label: t("time_ended"),
+    };
+    return {
+      className: timeInfo.isUrgent
+        ? "bg-red-500/15 text-red-400 border-red-500/25"
+        : "bg-emerald-500/12 text-emerald-400 border-emerald-500/20",
+      label: timeInfo.text,
+    };
+  })();
 
   return (
     <MobileLayout showNav={!showBidSheet} noPadding>
@@ -69,7 +93,10 @@ export default function AuctionDetail() {
             <ImageSlider images={auction.images!} alt={auction.title} className="w-full h-full" />
           ) : (
             <div className="relative w-full h-full">
-              <img src={auction.mediaUrl} alt={auction.title} className="w-full h-full object-cover" />
+              <img
+                src={auction.mediaUrl} alt={auction.title}
+                className={cn("w-full h-full object-cover", state !== "active" && "opacity-80")}
+              />
               {isVideo && (
                 <div className="absolute top-4 right-4 w-8 h-8 rounded-lg bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white z-10">
                   <Play size={14} fill="white" />
@@ -78,6 +105,26 @@ export default function AuctionDetail() {
             </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent pointer-events-none" />
+
+          {/* Upcoming banner on hero image */}
+          {state === "upcoming" && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+              <div className="bg-black/60 backdrop-blur-md border border-amber-500/30 rounded-2xl px-6 py-4 text-center">
+                <p className="text-amber-400 text-xs font-bold uppercase tracking-widest mb-1">{t("upcoming_badge")}</p>
+                <p className="text-white text-2xl font-bold">{t("starts_in")} {countdownToStart}</p>
+                <p className="text-white/50 text-xs mt-1">{t("bid_opens_soon")}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Ended banner on hero image */}
+          {state === "ended" && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+              <div className="bg-black/60 backdrop-blur-md border border-white/15 rounded-2xl px-6 py-4 text-center">
+                <p className="text-white/40 text-xs font-bold uppercase tracking-widest">{t("time_ended")}</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Content ── */}
@@ -87,17 +134,13 @@ export default function AuctionDetail() {
           <div className="flex items-center justify-between">
             <div className={cn(
               "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border",
-              timeInfo.isEnded
-                ? "bg-white/8 text-white/40 border-white/8"
-                : timeInfo.isUrgent
-                ? "bg-red-500/15 text-red-400 border-red-500/25"
-                : "bg-emerald-500/12 text-emerald-400 border-emerald-500/20"
+              timerChip.className
             )}>
               <Clock size={12} />
-              {timeInfo.isEnded ? t("time_ended") : timeInfo.text}
+              {timerChip.label}
             </div>
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground font-medium">
-              <TrendingUp size={15} className="text-primary" />
+              <TrendingUp size={15} className={state === "active" ? "text-primary" : "text-white/30"} />
               {auction.bidCount} {t("bids_count")}
             </div>
           </div>
@@ -105,11 +148,39 @@ export default function AuctionDetail() {
           {/* Title */}
           <h1 className="text-2xl font-bold text-white leading-tight">{auction.title}</h1>
 
-          {/* Price */}
-          <div className="flex items-baseline gap-2">
-            <span className="text-4xl font-bold text-white tracking-tight">{formatPrice(auction.currentBid)}</span>
-            <span className="text-sm text-muted-foreground font-medium">{t("current_bid")}</span>
-          </div>
+          {/* Price — varies by state */}
+          {state === "upcoming" ? (
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-bold text-white tracking-tight">{formatPrice(auction.startingBid)}</span>
+              <span className="text-sm text-muted-foreground font-medium">{t("starting_at")}</span>
+            </div>
+          ) : state === "ended" ? (
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-bold text-white tracking-tight">{formatPrice(auction.currentBid)}</span>
+              <span className="text-sm text-muted-foreground font-medium">{t("final_price")}</span>
+            </div>
+          ) : (
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-bold text-white tracking-tight">{formatPrice(auction.currentBid)}</span>
+              <span className="text-sm text-muted-foreground font-medium">{t("current_bid")}</span>
+            </div>
+          )}
+
+          {/* Winner banner — only when ended + bids exist */}
+          {winner && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 px-4 py-3"
+            >
+              <Trophy size={20} className="text-amber-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-bold text-amber-400/70 uppercase tracking-widest">{t("winner")}</p>
+                <p className="text-sm font-bold text-white leading-tight">{winner.user.name}</p>
+              </div>
+              <img src={winner.user.avatar} alt={winner.user.name} className="w-9 h-9 rounded-full object-cover ring-2 ring-amber-500/40 shrink-0" />
+            </motion.div>
+          )}
 
           {/* Seller card + WhatsApp */}
           <div className="rounded-2xl bg-white/5 border border-white/8 overflow-hidden">
@@ -172,29 +243,57 @@ export default function AuctionDetail() {
                     </div>
                     <div className="flex flex-col items-end gap-0.5">
                       <span className="text-sm font-bold text-white">{formatPrice(bid.amount)}</span>
-                      {i === 0 && <span className="text-[10px] font-bold text-primary uppercase tracking-wide">{t("leading")}</span>}
+                      {i === 0 && state === "active" && (
+                        <span className="text-[10px] font-bold text-primary uppercase tracking-wide">{t("leading")}</span>
+                      )}
+                      {i === 0 && state === "ended" && (
+                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wide">{t("winner")}</span>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="py-8 rounded-2xl border border-dashed border-white/10 text-center">
-                <p className="text-muted-foreground text-sm">{t("no_bids")}</p>
+                <p className="text-muted-foreground text-sm">
+                  {state === "upcoming" ? t("bid_opens_soon") : t("no_bids")}
+                </p>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* ── Sticky bid bar ── */}
+      {/* ── Sticky bottom action bar ── */}
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 px-4 pb-6 pt-3 bg-gradient-to-t from-background via-background/90 to-transparent">
-        <motion.button
-          whileTap={{ scale: 0.97 }} onClick={handleOpenBid} disabled={timeInfo.isEnded}
-          className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-lg shadow-primary/30 disabled:opacity-40 disabled:shadow-none"
-        >
-          <Gavel size={20} />
-          {timeInfo.isEnded ? t("auction_closed") : t("place_bid")}
-        </motion.button>
+
+        {state === "upcoming" ? (
+          // Remind me button (amber)
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={() => toggleWatch(auction.id)}
+            className={cn(
+              "w-full py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2.5 shadow-lg transition-all duration-200",
+              watching
+                ? "bg-amber-500/25 border border-amber-500/50 text-amber-300 shadow-amber-500/20"
+                : "bg-amber-500/20 border border-amber-500/40 text-amber-400 shadow-amber-500/15"
+            )}
+          >
+            <Bell size={20} fill={watching ? "currentColor" : "none"} />
+            {watching ? t("reminded") : t("remind_me")}
+          </motion.button>
+        ) : (
+          // Place Bid / Auction Closed
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={handleOpenBid}
+            disabled={state === "ended"}
+            className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-lg shadow-primary/30 disabled:opacity-40 disabled:shadow-none"
+          >
+            <Gavel size={20} />
+            {state === "ended" ? t("auction_closed") : t("place_bid")}
+          </motion.button>
+        )}
       </div>
 
       {/* ── Bid sheet ── */}

@@ -19,10 +19,11 @@ export interface Auction {
   description: string;
   currentBid: number;
   startingBid: number;
+  startsAt?: string | null;  // null/absent = already started; future = upcoming
   endsAt: string;
-  mediaUrl: string;         // Cover / first image / video thumbnail
-  type: "video" | "album"; // Post type
-  images?: string[];        // Album: up to 6 images (mediaUrl = images[0])
+  mediaUrl: string;          // Cover / first image / video thumbnail
+  type: "video" | "album";  // Post type
+  images?: string[];         // Album: up to 6 images (mediaUrl = images[0])
   seller: User;
   likes: number;
   bidCount: number;
@@ -42,6 +43,12 @@ export const currentUser: User = mockUsers[0];
 const future = (hours: number) => {
   const d = new Date();
   d.setHours(d.getHours() + hours);
+  return d.toISOString();
+};
+
+const past = (hours: number) => {
+  const d = new Date();
+  d.setHours(d.getHours() - hours);
   return d.toISOString();
 };
 
@@ -129,13 +136,50 @@ export const mockAuctions: Auction[] = [
     ],
   },
   {
+    // ── ENDED auction (bidding closed, winner visible) ──
     id: "a6",
     type: "video",
     title: "Vintage Fender Stratocaster 1974",
     description: "All-original sunburst finish. Plays beautifully. Comes with original hardshell case.",
     currentBid: 9200, startingBid: 7000,
-    endsAt: future(60),
+    endsAt: past(3),          // ended 3 hours ago
     mediaUrl: "https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=800&h=1400&fit=crop&auto=format",
-    seller: mockUsers[3], likes: 321, bidCount: 11, bids: [],
+    seller: mockUsers[3], likes: 321, bidCount: 11,
+    bids: [
+      { id: "b8",  user: mockUsers[1], amount: 9200, timestamp: new Date(Date.now() - 1000 * 60 * 200).toISOString() },
+      { id: "b9",  user: mockUsers[2], amount: 8800, timestamp: new Date(Date.now() - 1000 * 60 * 300).toISOString() },
+      { id: "b10", user: mockUsers[0], amount: 8200, timestamp: new Date(Date.now() - 1000 * 60 * 400).toISOString() },
+    ],
+  },
+  {
+    // ── UPCOMING auction (starts in 6 hours, no bidding yet) ──
+    id: "a7",
+    type: "video",
+    title: "Patek Philippe Nautilus Ref. 5711",
+    description: "Factory sealed. Last reference before discontinuation. One of the most sought-after watches in the world. Starting bid is firm — no reserve.",
+    currentBid: 0,
+    startingBid: 85000,
+    startsAt: future(6),      // starts in 6 hours
+    endsAt: future(78),
+    mediaUrl: "https://images.unsplash.com/photo-1585386959984-a4155224a1ad?w=800&h=1400&fit=crop&auto=format",
+    seller: mockUsers[1], likes: 2104, bidCount: 0, bids: [],
+  },
+  {
+    // ── UPCOMING auction (starts in 18 hours) ──
+    id: "a8",
+    type: "album",
+    title: "Ferrari F40 1/18 Diecast Collection",
+    description: "Complete set of 12 limited-edition diecast Ferrari F40 models, never opened. Each box numbered. A grail piece for collectors.",
+    currentBid: 0,
+    startingBid: 3200,
+    startsAt: future(18),     // starts in 18 hours
+    endsAt: future(90),
+    mediaUrl: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&h=1400&fit=crop&auto=format",
+    images: [
+      "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&h=1400&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=800&h=1400&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1544636331-e26879cd4d9b?w=800&h=1400&fit=crop&auto=format",
+    ],
+    seller: mockUsers[2], likes: 876, bidCount: 0, bids: [],
   },
 ];

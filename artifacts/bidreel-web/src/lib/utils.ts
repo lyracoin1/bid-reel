@@ -2,6 +2,36 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { differenceInSeconds } from "date-fns";
 
+// ── Auction state ────────────────────────────────────────────────────────────
+
+export type AuctionState = "upcoming" | "active" | "ended";
+
+/**
+ * Derives the canonical state of an auction from its timestamps.
+ * upcoming → startsAt is in the future
+ * active   → between startsAt (or has no startsAt) and endsAt
+ * ended    → endsAt is in the past
+ */
+export function getAuctionState(auction: {
+  startsAt?: string | null;
+  endsAt: string;
+}): AuctionState {
+  const now = new Date();
+  if (new Date(auction.endsAt) <= now) return "ended";
+  if (auction.startsAt && new Date(auction.startsAt) > now) return "upcoming";
+  return "active";
+}
+
+/** Returns a human-readable countdown string until the auction starts. */
+export function getCountdownToStart(startsAt: string): string {
+  const secondsLeft = differenceInSeconds(new Date(startsAt), new Date());
+  if (secondsLeft <= 0) return "now";
+  if (secondsLeft < 60)    return `${secondsLeft}s`;
+  if (secondsLeft < 3600)  return `${Math.floor(secondsLeft / 60)}m`;
+  if (secondsLeft < 86400) return `${Math.floor(secondsLeft / 3600)}h`;
+  return `${Math.floor(secondsLeft / 86400)}d`;
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }

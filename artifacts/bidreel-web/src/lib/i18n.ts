@@ -53,6 +53,9 @@ export type TKey =
   | "currency_mode" | "currency_usd" | "currency_local"
   // Follow
   | "follow" | "following"
+  // Auction states
+  | "starts_in" | "upcoming_badge" | "final_price" | "remind_me" | "reminded"
+  | "bid_opens_soon" | "winner" | "starting_at"
   // Search / Explore
   | "search_placeholder" | "no_results" | "search_hint"
   // Interests onboarding
@@ -88,6 +91,9 @@ const en: Translations = {
   time_ended: "Ended", time_s: "s", time_m: "m left", time_h: "h left", time_d: "d left",
   currency_mode: "Currency", currency_usd: "USD ($)", currency_local: "Local Currency",
   follow: "Follow", following: "Following",
+  starts_in: "Starts in", upcoming_badge: "Upcoming", final_price: "Final Price",
+  remind_me: "Remind Me", reminded: "Reminded ✓", bid_opens_soon: "Bidding opens soon",
+  winner: "Winner", starting_at: "Starting at",
   search_placeholder: "Search for anything…", no_results: "No results found", search_hint: "Try a title or description",
   interests_title: "Choose what interests you", interests_subtitle: "Select topics you'd love to bid on",
   interests_skip: "Skip", interests_done: "Done",
@@ -119,6 +125,9 @@ const ar: Translations = {
   time_ended: "انتهى", time_s: "ث", time_m: "د متبقية", time_h: "س متبقية", time_d: "ي متبقية",
   currency_mode: "العملة", currency_usd: "دولار أمريكي ($)", currency_local: "العملة المحلية",
   follow: "متابعة", following: "تتابعه",
+  starts_in: "يبدأ في", upcoming_badge: "قادم", final_price: "السعر النهائي",
+  remind_me: "ذكّرني", reminded: "تم التذكير ✓", bid_opens_soon: "المزايدة تفتح قريباً",
+  winner: "الفائز", starting_at: "يبدأ من",
   search_placeholder: "ابحث عن أي منتج...", no_results: "لا توجد نتائج", search_hint: "ابحث بالعنوان أو الوصف",
   interests_title: "اختر ما يهمك", interests_subtitle: "حدد مواضيع تريد المزايدة عليها",
   interests_skip: "تخطى", interests_done: "تم",
@@ -150,6 +159,9 @@ const ru: Translations = {
   time_ended: "Завершён", time_s: "с", time_m: "м осталось", time_h: "ч осталось", time_d: "д осталось",
   currency_mode: "Валюта", currency_usd: "USD ($)", currency_local: "Местная валюта",
   follow: "Подписаться", following: "Подписан",
+  starts_in: "Начнётся через", upcoming_badge: "Скоро", final_price: "Финальная цена",
+  remind_me: "Напомнить", reminded: "Напомнено ✓", bid_opens_soon: "Торги откроются скоро",
+  winner: "Победитель", starting_at: "Старт от",
   search_placeholder: "Поиск товаров…", no_results: "Ничего не найдено", search_hint: "Попробуйте название или описание",
   interests_title: "Выберите интересы", interests_subtitle: "Темы, на которые вы хотите делать ставки",
   interests_skip: "Пропустить", interests_done: "Готово",
@@ -181,6 +193,9 @@ const es: Translations = {
   time_ended: "Finalizado", time_s: "s", time_m: "m restante", time_h: "h restante", time_d: "d restante",
   currency_mode: "Moneda", currency_usd: "USD ($)", currency_local: "Moneda local",
   follow: "Seguir", following: "Siguiendo",
+  starts_in: "Empieza en", upcoming_badge: "Próximamente", final_price: "Precio final",
+  remind_me: "Recuérdame", reminded: "Recordado ✓", bid_opens_soon: "Las pujas abren pronto",
+  winner: "Ganador", starting_at: "Sale desde",
   search_placeholder: "Buscar cualquier producto…", no_results: "Sin resultados", search_hint: "Prueba con un título o descripción",
   interests_title: "Elige tus intereses", interests_subtitle: "Selecciona temas en los que quieres pujar",
   interests_skip: "Saltar", interests_done: "Hecho",
@@ -212,6 +227,9 @@ const fr: Translations = {
   time_ended: "Terminé", time_s: "s", time_m: "m restant", time_h: "h restant", time_d: "j restant",
   currency_mode: "Devise", currency_usd: "USD ($)", currency_local: "Devise locale",
   follow: "Suivre", following: "Abonné",
+  starts_in: "Débute dans", upcoming_badge: "À venir", final_price: "Prix final",
+  remind_me: "Me rappeler", reminded: "Rappelé ✓", bid_opens_soon: "Les enchères ouvrent bientôt",
+  winner: "Gagnant", starting_at: "Départ à",
   search_placeholder: "Rechercher un produit…", no_results: "Aucun résultat", search_hint: "Essayez un titre ou une description",
   interests_title: "Choisissez vos intérêts", interests_subtitle: "Sélectionnez les sujets sur lesquels vous souhaitez enchérir",
   interests_skip: "Ignorer", interests_done: "Terminer",

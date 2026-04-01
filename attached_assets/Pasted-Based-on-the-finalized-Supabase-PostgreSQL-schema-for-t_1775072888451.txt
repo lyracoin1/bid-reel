@@ -1,0 +1,93 @@
+Based on the finalized Supabase PostgreSQL schema for the MVP short-video auction app, write the full Row Level Security (RLS) policies for Supabase.
+
+Important corrections before starting:
+- This project uses Supabase PostgreSQL only
+- Do NOT provision or use Replit database
+- Do NOT use Replit storage
+- This step is SQL and policy design only
+- Do not require live Supabase connection
+- Do not write backend code
+- Keep policies strict, simple, and aligned with the MVP
+- Authentication is phone-based through Supabase Auth
+- Use auth.uid() consistently
+
+Tables to cover:
+- profiles
+- auctions
+- bids
+- likes
+- reports
+- blocks
+- contact_requests
+- moderation_queue
+- admin_actions
+
+Policy goals:
+
+Profiles:
+- users can read public profile information of other users
+- users can insert their own profile row only
+- users can update their own profile only
+- users cannot update other users' profiles
+- raw phone values must not be broadly exposed
+
+Auctions:
+- authenticated users can read active auctions
+- seller can insert their own auctions only
+- seller can update their own auctions only when allowed
+- seller cannot arbitrarily modify protected fields such as current_price in unsafe ways unless clearly justified
+- removed or ended auctions should remain safe
+
+Bids:
+- authenticated users can read bid history if appropriate for MVP
+- users can place bids only as themselves
+- seller cannot bid on own auction
+- policies should support secure bid creation, but clearly state what must still be enforced in backend/service logic
+
+Likes:
+- authenticated users can like an auction only as themselves
+- users can delete their own likes only
+- prevent cross-user actions
+
+Reports:
+- authenticated users can create reports only as themselves
+- users should not read all reports globally
+- admin access can be planned separately
+
+Blocks:
+- users can create block rows only for themselves
+- users can delete their own block rows only
+
+Contact requests:
+- requester can create their own request
+- requester and seller can read relevant requests
+- only relevant parties can update request status if appropriate
+
+Moderation queue:
+- regular users should not access moderation queue directly
+- only admin path should access it
+
+Admin actions:
+- regular users should not access admin actions directly
+- only admin path should access it
+
+Admin model:
+- use a simple role approach based on profiles table
+- define helper policy assumptions for admin users
+- if needed, create a helper SQL function for is_admin()
+
+Output requirements:
+1. One clean SQL file containing:
+   - enable row level security statements
+   - helper functions if needed
+   - policies for each table
+2. Add SQL comments explaining important decisions
+3. Final summary:
+   - what is protected by RLS
+   - what still must be enforced in backend logic
+   - any policy limitations for this MVP
+
+Important:
+- Keep this practical and production-minded
+- Avoid overengineering
+- Do not move to backend implementation yet

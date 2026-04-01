@@ -59,7 +59,7 @@ export const mockAuctions: Auction[] = [
     title: "Vintage Leica M6 Camera",
     description: "Mint condition Leica M6. Original leather strap + 50mm Summicron lens. Tested and fully working. A dream for street photographers.",
     currentBid: 2450, startingBid: 1500,
-    endsAt: future(0.5),
+    endsAt: future(47),
     mediaUrl: "https://images.unsplash.com/photo-1516961642265-531546e84af2?w=800&h=1400&fit=crop&auto=format",
     images: [
       "https://images.unsplash.com/photo-1516961642265-531546e84af2?w=800&h=1400&fit=crop&auto=format",

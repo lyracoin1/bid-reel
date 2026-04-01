@@ -549,7 +549,7 @@ export default function AuctionDetail() {
       </div>
 
       {/* ── Sticky bottom action bar ── */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 px-4 pb-6 pt-3 bg-gradient-to-t from-background via-background/90 to-transparent">
+      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-[60] px-4 pb-[88px] pt-4 bg-gradient-to-t from-background via-background/96 to-transparent">
         {state === "upcoming" ? (
           <motion.button
             whileTap={{ scale: 0.97 }}
@@ -575,15 +575,89 @@ export default function AuctionDetail() {
             Your Listing
           </div>
         ) : (
-          /* Scroll-to-bid shortcut — the bid panel is already visible above */
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={handleScrollToBid}
-            className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-lg shadow-primary/30"
-          >
-            <Gavel size={20} />
-            {selectedInc ? `Bid ${formatPrice(bidAmount)}` : t("place_bid")}
-          </motion.button>
+          /* ── Active + can bid: inline quick-bid bar ─────────────────────── */
+          <AnimatePresence mode="wait">
+            {bidSuccess ? (
+              <motion.div
+                key="sticky-success"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="w-full py-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center gap-2"
+              >
+                <Trophy size={18} className="text-emerald-400" />
+                <span className="text-sm font-bold text-emerald-400">You're the highest bidder!</span>
+              </motion.div>
+            ) : selectedInc ? (
+              /* Amount selected → show confirm + change buttons */
+              <motion.div
+                key="sticky-confirm"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="flex gap-2.5"
+              >
+                <motion.button
+                  whileTap={{ scale: 0.94 }}
+                  onClick={() => { setSelectedInc(null); setBidError(null); }}
+                  className="flex-shrink-0 px-4 py-4 rounded-2xl bg-white/8 border border-white/12 text-white/60 font-bold text-sm"
+                >
+                  ✕
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={submitBid}
+                  disabled={isBidding}
+                  className="flex-1 py-4 rounded-2xl bg-primary text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-lg shadow-primary/35 disabled:opacity-60"
+                >
+                  {isBidding ? (
+                    <><RefreshCw size={17} className="animate-spin" /> Processing…</>
+                  ) : (
+                    <><Gavel size={18} /> Bid {formatPrice(bidAmount)}</>
+                  )}
+                </motion.button>
+              </motion.div>
+            ) : (
+              /* No amount selected → show increment chips + place-bid hint */
+              <motion.div
+                key="sticky-picker"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="space-y-2"
+              >
+                {bidError && (
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-xs text-red-400 text-center font-medium"
+                  >
+                    ⚠ {bidError}
+                  </motion.p>
+                )}
+                <div className="flex gap-2">
+                  {INCREMENTS.map((inc) => (
+                    <motion.button
+                      key={inc}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => { setSelectedInc(inc); setBidError(null); }}
+                      className="flex-1 py-3.5 rounded-xl bg-white/8 border border-white/14 flex flex-col items-center gap-0.5 active:bg-primary/20 active:border-primary/40 transition-colors"
+                    >
+                      <span className="text-[10px] font-bold text-white/40">+{formatPrice(inc)}</span>
+                      <span className="text-sm font-bold text-white">{formatPrice(displayedBid + inc)}</span>
+                    </motion.button>
+                  ))}
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
+                    onClick={handleScrollToBid}
+                    className="flex-shrink-0 w-14 py-3.5 rounded-xl bg-primary/15 border border-primary/35 flex items-center justify-center"
+                  >
+                    <Gavel size={18} className="text-primary" />
+                  </motion.button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         )}
       </div>
     </MobileLayout>

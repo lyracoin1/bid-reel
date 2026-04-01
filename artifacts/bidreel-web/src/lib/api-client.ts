@@ -88,6 +88,31 @@ export interface PlaceBidResult {
 // ─── Public API surface ────────────────────────────────────────────────────────
 
 /**
+ * Register an FCM device token with the server.
+ * Safe to call on every app load — the server upserts idempotently.
+ */
+export async function registerDeviceToken(
+  token: string,
+  platform: "web" | "ios" | "android" = "web",
+): Promise<void> {
+  const authToken = await getToken();
+  if (!authToken) return;
+
+  try {
+    await fetch(`${API_BASE}/notifications/register-device`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ token, platform }),
+    });
+  } catch {
+    console.warn("[api-client] registerDeviceToken failed — server unreachable");
+  }
+}
+
+/**
  * Place a bid on an auction.
  *
  * Returns the created bid + updated auction on success.

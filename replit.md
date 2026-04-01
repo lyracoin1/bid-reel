@@ -120,10 +120,29 @@ Express 5 API server for BidReel. Uses Supabase for auth, database, and storage.
 - `src/services/` — scaffolded; will hold business logic and DB calls per domain
   - `auctions.service.ts`, `bids.service.ts`, `auth.service.ts`, `reports.service.ts`, `blocks.service.ts`, `winners.service.ts`
 - `src/middlewares/requireAuth.ts` — Bearer JWT validation, attaches `req.user`
-- `src/lib/` — shared utilities: `supabase.ts`, `logger.ts`, `profiles.ts`, `notifications.ts`, `media-lifecycle.ts`, `devAuth.ts`
+- `src/lib/` — shared utilities: `supabase.ts`, `logger.ts`, `profiles.ts`, `notifications.ts`, `fcm.ts` (Firebase Admin push), `media-lifecycle.ts`, `devAuth.ts`
 - `src/utils/` — `response.ts` (typed HTTP helpers), `validation.ts` (Zod helpers + parseOrBadRequest), `pagination.ts` (cursor pagination)
 - `src/migrations/` — SQL files to run in Supabase SQL editor in order
-  - `004_mvp_schema.sql` — consolidated MVP schema (profiles, auctions, bids, reports) with RLS
+  - `001_auctions_media_lifecycle.sql` — auctions table with media lifecycle columns
+  - `002_bids_table.sql` — bids table + min_increment
+  - `003_notifications_table.sql` — notifications table + RLS + Realtime (**currently applied**)
+  - `004_mvp_schema.sql` — consolidated MVP schema (profiles, auctions, bids, reports)
+  - `005_complete_mvp_schema.sql` — authoritative schema superseding 001–004 (not yet applied)
+  - `006_rls_policies.sql` — complete RLS policy set (not yet applied)
+  - `007_user_devices.sql` — FCM device token table (not yet applied)
+
+**FCM Push Notifications:**
+- Backend: `src/lib/fcm.ts` — Firebase Admin SDK, lazy-initialised, no-op without `FIREBASE_SERVICE_ACCOUNT_JSON`
+- Trigger: `notifyOutbid` and `notifyAuctionStarted` in `notifications.ts` fire both DB insert + FCM push
+- Device registration: `POST /api/notifications/register-device`, `DELETE /api/notifications/unregister-device`
+- Frontend: `src/lib/firebase.ts` + `src/hooks/use-fcm-token.ts` + `public/firebase-messaging-sw.js`
+- Graceful degradation: app runs normally without Firebase configured; console logs helpful setup instructions
+
+**Firebase setup (one-time):**
+1. Create Firebase project → Enable Cloud Messaging → Add Web App
+2. Set `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_VAPID_KEY` on the frontend
+3. Set `FIREBASE_SERVICE_ACCOUNT_JSON` (service account JSON string) on the API server
+4. Apply migration `007_user_devices.sql` in Supabase SQL editor
 
 ### `lib/db` (`@workspace/db`)
 

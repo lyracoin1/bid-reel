@@ -30,6 +30,11 @@ export const env = {
   // ─── Feature flags ─────────────────────────────────────────────────────────
   useDevAuth: optional("USE_DEV_AUTH") === "true",
 
+  // ─── Firebase Cloud Messaging (optional) ───────────────────────────────────
+  // JSON string of the Firebase service account credentials.
+  // When absent the server runs without FCM push notifications.
+  firebaseServiceAccountJson: optional("FIREBASE_SERVICE_ACCOUNT_JSON"),
+
   // ─── Derived helpers ───────────────────────────────────────────────────────
   get isProduction() {
     return this.nodeEnv === "production";

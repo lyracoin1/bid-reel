@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { useFcmToken } from "@/hooks/use-fcm-token";
 
 // Pages
 import Splash from "@/pages/splash";
@@ -31,12 +32,18 @@ function Router() {
   );
 }
 
+function FcmInit() {
+  useFcmToken();
+  return null;
+}
+
 function App() {
   return (
     <LanguageProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <FcmInit />
             <Router />
           </WouterRouter>
           <Toaster />

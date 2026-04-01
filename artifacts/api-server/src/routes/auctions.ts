@@ -85,6 +85,30 @@ const VALID_CATEGORIES = [
   "vehicles", "jewelry", "art", "sports", "other",
 ] as const;
 
+/**
+ * Detects phone numbers or WhatsApp contact attempts in user-supplied text.
+ *
+ * Catches:
+ *   - Raw phone digits: +14155550123, 07911 123456, (555) 867-5309
+ *   - WhatsApp keywords: "whatsapp", "wa.me", "wa " followed by digits
+ *   - Telegram / contact-me solicitations (belt-and-suspenders)
+ *
+ * Contact is handled by the server via GET /api/auctions/:id/contact —
+ * phone numbers must never appear in auction content.
+ */
+const CONTACT_PATTERNS = [
+  /\bwhatsapp\b/i,
+  /\bwa\.me\b/i,
+  /\bwa\s*[+\d]/i,
+  /\btelegram\b/i,
+  /(?<!\d)(\+?1?\s*[\-.(]?\d{3}[\-.)\s]?\s*\d{3}[\-.\s]?\d{4})(?!\d)/,  // North-American
+  /(?<!\d)\+\d[\d\s\-().]{6,14}\d(?!\d)/,                                  // International E.164-ish
+];
+
+function containsContactInfo(text: string): boolean {
+  return CONTACT_PATTERNS.some((pattern) => pattern.test(text));
+}
+
 const createAuctionSchema = z.object({
   title: z
     .string()
@@ -109,6 +133,15 @@ const createAuctionSchema = z.object({
   thumbnailUrl: z.string().url("thumbnailUrl must be a valid URL"),
 });
 
+// Columns returned to the client — never expose internal/deleted fields.
+const AUCTION_SELECT = [
+  "id", "seller_id", "title", "description", "category",
+  "start_price", "current_bid", "min_increment",
+  "video_url", "thumbnail_url",
+  "bid_count", "like_count", "status",
+  "starts_at", "ends_at", "created_at",
+].join(", ");
+
 router.post("/auctions", requireAuth, async (req, res) => {
   const parsed = createAuctionSchema.safeParse(req.body);
 
@@ -124,7 +157,30 @@ router.post("/auctions", requireAuth, async (req, res) => {
     parsed.data;
   const sellerId = req.user!.id;
 
-  const endsAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+  // ── Content safety: no phone numbers or WhatsApp contact info ──────────────
+  if (description && containsContactInfo(description)) {
+    res.status(422).json({
+      error: "CONTACT_INFO_FORBIDDEN",
+      message:
+        "Descriptions must not include phone numbers or contact handles. " +
+        "Buyers contact sellers through the in-app contact feature after the auction ends.",
+    });
+    return;
+  }
+
+  if (containsContactInfo(title)) {
+    res.status(422).json({
+      error: "CONTACT_INFO_FORBIDDEN",
+      message: "Titles must not include phone numbers or contact handles.",
+    });
+    return;
+  }
+
+  // ── Timestamps ─────────────────────────────────────────────────────────────
+  const endsAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+  // Media purge starts 7 days after auction ends (video), 14 days (thumbnail).
+  // media_purge_after is the Phase-1 threshold; Phase-2 = purge_after + 7d.
+  const mediaPurgeAfter = new Date(endsAt.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const { data: auction, error } = await supabaseAdmin
     .from("auctions")
@@ -138,14 +194,18 @@ router.post("/auctions", requireAuth, async (req, res) => {
       min_increment: minIncrement,
       video_url: videoUrl,
       thumbnail_url: thumbnailUrl,
-      ends_at: endsAt,
+      ends_at: endsAt.toISOString(),
+      media_purge_after: mediaPurgeAfter.toISOString(),
     })
-    .select("*")
+    .select(AUCTION_SELECT)
     .single();
 
   if (error || !auction) {
     logger.error({ err: error }, "POST /auctions failed");
-    res.status(500).json({ error: "CREATE_FAILED", message: error?.message ?? "Failed to create auction" });
+    res.status(500).json({
+      error: "CREATE_FAILED",
+      message: error?.message ?? "Failed to create auction",
+    });
     return;
   }
 

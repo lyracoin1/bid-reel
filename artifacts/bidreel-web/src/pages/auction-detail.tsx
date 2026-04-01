@@ -18,9 +18,15 @@ import { getTimeRemaining, getWhatsAppUrl, getAuctionState, getCountdownToStart,
 import { useLang } from "@/contexts/LanguageContext";
 import { formatDistanceToNow } from "date-fns";
 
-// ─── Quick-increment options ──────────────────────────────────────────────────
-const INCREMENTS = [10, 20, 50] as const;
-type Increment = typeof INCREMENTS[number];
+// ─── Adaptive bid increments based on current price ───────────────────────────
+function getIncrements(currentBid: number): number[] {
+  if (currentBid >= 50_000) return [2_500, 5_000, 10_000];
+  if (currentBid >= 10_000) return [500, 1_000, 2_500];
+  if (currentBid >= 2_500)  return [100, 250, 500];
+  if (currentBid >= 500)    return [25, 50, 100];
+  if (currentBid >= 100)    return [10, 20, 50];
+  return [5, 10, 20];
+}
 
 export default function AuctionDetail() {
   const { id } = useParams();
@@ -28,7 +34,7 @@ export default function AuctionDetail() {
   const { data: auction } = useAuction(id || "");
 
   // ── Bid state ──────────────────────────────────────────────────────────────
-  const [selectedInc, setSelectedInc] = useState<Increment | null>(null);
+  const [selectedInc, setSelectedInc] = useState<number | null>(null);
   const [bidError, setBidError] = useState<string | null>(null);
   const [bidSuccess, setBidSuccess] = useState(false);
   const bidPanelRef = useRef<HTMLDivElement>(null);
@@ -83,7 +89,9 @@ export default function AuctionDetail() {
 
   const displayedBid = realtimeCurrentBid ?? auction.currentBid;
   const displayedBidCount = realtimeBidCount ?? auction.bidCount;
-  const minBid = displayedBid + 10;
+  const INCREMENTS = getIncrements(displayedBid);
+  const minIncrement = INCREMENTS[0];
+  const minBid = displayedBid + minIncrement;
 
   // Bid amount from the selected increment
   const bidAmount = selectedInc !== null ? displayedBid + selectedInc : 0;
@@ -289,7 +297,7 @@ export default function AuctionDetail() {
                 </div>
                 <div className="flex items-center gap-1.5 bg-primary/12 border border-primary/25 rounded-full px-3 py-1.5">
                   <TrendingUp size={11} className="text-primary" />
-                  <span className="text-xs font-bold text-primary">+$10 increment</span>
+                  <span className="text-xs font-bold text-primary">+{formatPrice(minIncrement)} min</span>
                 </div>
               </div>
 
@@ -319,7 +327,7 @@ export default function AuctionDetail() {
                           "text-xs font-bold mb-1",
                           isSelected ? "text-primary/80" : "text-white/40"
                         )}>
-                          +${inc}
+                          +{formatPrice(inc)}
                         </span>
                         <span className="text-sm font-bold">{formatPrice(amount)}</span>
                       </motion.button>

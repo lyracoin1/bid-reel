@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "S_JZvvUaSxI1VgdSYf3AM"
+uri = "file://docs/PRODUCT_BLUEPRINT.md"
+type = "text"
+title = "BidReel — Product Blueprint"

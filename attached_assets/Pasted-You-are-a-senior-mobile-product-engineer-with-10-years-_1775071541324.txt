@@ -1,0 +1,62 @@
+You are a senior mobile product engineer with 10+ years of experience building social-style mobile apps similar in interaction quality to TikTok, Instagram Reels, and marketplace apps.
+
+I want you to act like a real product-minded engineer, not just a code generator.
+
+Project goal:
+Build a launchable MVP for a mobile-first short-video auction app.
+
+Main concept:
+Users upload a video and image for an item, publish it as an auction, and other users can browse a vertical feed similar to TikTok and place bids. Users can like listings, view profiles, and contact sellers through WhatsApp directly. The app must remain simple, clean, and scalable.
+
+Important product decisions:
+- Build for mobile-first experience
+- Tech direction should be React-based and suitable for mobile app development
+- Include future support for admin/dashboard
+- Contact method in MVP: WhatsApp direct
+- Media upload: video + image from the user
+- Auction duration in MVP: 3 days
+- User type in MVP: normal user only, but structure should be scalable later
+- Authentication in MVP: phone number only
+- Profile should show the user’s videos and auctions
+- Likes are included from day one
+- Product quality matters more than rushing
+
+Design direction:
+- Dark theme
+- Neon purple primary accent
+- Floating icons and elevated controls
+- Premium, futuristic, smooth social-app feeling
+- Minimal but stylish
+- Reel-style vertical browsing experience
+
+Your task in this step:
+Do NOT write backend code yet.
+Do NOT create database code yet.
+
+Instead, create a complete product blueprint for this app from a senior mobile UX and architecture perspective.
+
+Include:
+1. Main app structure
+2. Full screen map
+3. Navigation flow
+4. Core user journeys
+5. Feed behavior
+6. Auction creation flow
+7. Auction detail flow
+8. Bidding interaction flow
+9. WhatsApp contact flow
+10. Profile structure
+11. Likes behavior
+12. Reporting and blocking flow
+13. Admin/dashboard structure for moderation
+14. Edge cases and failure cases
+15. Recommended technical architecture for mobile-first React implementation
+16. Suggested folder structure for frontend and backend later
+17. MVP scope vs later-phase features
+
+Output format:
+- Clear sections
+- Practical and implementation-friendly
+- Think like a senior engineer designing a real product
+- Make decisions where necessary instead of staying vague
+- Keep it launchable, scalable, and aligned with the product rules

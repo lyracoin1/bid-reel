@@ -6,3 +6,9 @@ id = "S_JZvvUaSxI1VgdSYf3AM"
 uri = "file://docs/PRODUCT_BLUEPRINT.md"
 type = "text"
 title = "BidReel — Product Blueprint"
+
+[[outputs]]
+id = "5HsJSwyIctGN8SC0I1hDM"
+uri = "file://lib/api-spec/openapi.yaml"
+type = "unspecified"
+title = "BidReel OpenAPI Spec (MVP)"

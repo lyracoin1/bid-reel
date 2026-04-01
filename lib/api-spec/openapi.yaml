@@ -34,6 +34,10 @@ tags:
     description: Block / unblock users
   - name: contact
     description: WhatsApp contact without exposing phone numbers
+  - name: media
+    description: Presigned media upload URLs (video + thumbnail)
+  - name: notifications
+    description: In-app notification feed
   - name: admin
     description: Moderation endpoints (admin role required)
 
@@ -180,13 +184,15 @@ paths:
       tags: [auctions]
       summary: Create a new auction listing
       description: >
-        Accepts multipart/form-data with the video file, thumbnail image,
-        and auction metadata. Files are stored in Supabase Storage.
-        Auction duration is fixed at 3 days from creation.
+        Accepts JSON with the auction metadata and the public media URLs
+        obtained from POST /media/upload-url (client uploads files directly
+        to Supabase Storage, then submits this request with the resulting URLs).
+        Auction duration is fixed at 3 days from creation — clients cannot
+        override ends_at.
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
               $ref: "#/components/schemas/CreateAuctionInput"
       responses:
@@ -200,8 +206,6 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
-        "413":
-          $ref: "#/components/responses/PayloadTooLarge"
         "422":
           $ref: "#/components/responses/UnprocessableEntity"
 
@@ -209,10 +213,12 @@ paths:
     get:
       operationId: getAuctionFeed
       tags: [auctions]
+      security: []
       summary: Get paginated auction feed (active auctions only, sorted by ending soonest)
       description: >
         Returns a cursor-paginated list of active auctions for the vertical feed.
-        Auctions from blocked users are excluded. Expired auctions are excluded.
+        Guests may browse without authentication. Auctions from blocked users are
+        excluded when the caller is authenticated. Expired auctions are excluded.
       parameters:
         - name: cursor
           in: query
@@ -546,6 +552,155 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  # -------------------------------------------------------------------------
+  # Media — presigned upload (client uploads directly to Supabase Storage)
+  # -------------------------------------------------------------------------
+  /media/upload-url:
+    post:
+      operationId: getUploadUrl
+      tags: [media]
+      summary: Request presigned upload URLs for video and thumbnail
+      description: >
+        Returns two short-lived presigned URLs — one for the video file and one for
+        the thumbnail image. The client uploads files directly to Supabase Storage
+        using these URLs (bypassing the API server). After upload completes, the
+        resulting public media URLs are passed to POST /auctions.
+        Video: max 100 MB, MP4 or MOV, max 60 seconds.
+        Thumbnail: max 5 MB, JPEG or PNG.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlRequest"
+      responses:
+        "200":
+          description: Presigned upload URLs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # -------------------------------------------------------------------------
+  # Notifications
+  # -------------------------------------------------------------------------
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: Get the authenticated user's in-app notifications
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+        - name: unreadOnly
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Notification feed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      responses:
+        "200":
+          description: All notifications marked read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updatedCount:
+                    type: integer
+                required:
+                  - updatedCount
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # -------------------------------------------------------------------------
+  # My bids and likes (profile tab data)
+  # -------------------------------------------------------------------------
+  /users/me/bids:
+    get:
+      operationId: getMyBids
+      tags: [bids]
+      summary: Get auctions the authenticated user has placed bids on
+      description: >
+        Returns the auctions (not individual bid rows) that the caller has
+        participated in, enriched with the caller's bid status
+        (winning / outbid / won / lost).
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: Auctions the user has bid on
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyBidPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /users/me/likes:
+    get:
+      operationId: getMyLikes
+      tags: [likes]
+      summary: Get auctions the authenticated user has liked
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: Liked auctions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuctionFeedPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   # -------------------------------------------------------------------------
   # Admin
@@ -1015,16 +1170,22 @@ components:
 
     CreateAuctionInput:
       type: object
-      description: multipart/form-data — files + JSON fields
+      description: >
+        JSON body. Media files must be uploaded to Supabase Storage first via
+        POST /media/upload-url; pass the resulting publicUrl values here.
       properties:
-        video:
+        videoUrl:
           type: string
-          format: binary
-          description: Video file (MP4 or MOV, max 100 MB, max 60 seconds)
-        thumbnail:
+          format: uri
+          description: >
+            Public URL of the already-uploaded video file in Supabase Storage.
+            Must be an MP4 or MOV, max 100 MB, max 60 seconds.
+        thumbnailUrl:
           type: string
-          format: binary
-          description: Thumbnail image (JPEG or PNG, max 5 MB)
+          format: uri
+          description: >
+            Public URL of the already-uploaded thumbnail image in Supabase
+            Storage. Must be JPEG or PNG, max 5 MB.
         title:
           type: string
           minLength: 3
@@ -1032,16 +1193,25 @@ components:
         description:
           type: string
           maxLength: 500
+          nullable: true
         category:
           $ref: "#/components/schemas/AuctionCategory"
         startingBid:
           type: number
           format: double
           minimum: 0.01
-          description: Starting bid amount (positive number)
+          description: Starting bid amount (positive number, stored as integer cents internally)
+        minimumBidIncrement:
+          type: number
+          format: double
+          minimum: 0.01
+          default: 10.00
+          description: >
+            Minimum amount each subsequent bid must exceed the current highest bid.
+            Defaults to 10.00 if omitted. Must be greater than zero.
       required:
-        - video
-        - thumbnail
+        - videoUrl
+        - thumbnailUrl
         - title
         - startingBid
         - category
@@ -1119,16 +1289,35 @@ components:
             topBidder:
               $ref: "#/components/schemas/BidderSummary"
               nullable: true
+            minimumBidIncrement:
+              type: number
+              format: double
+              description: The increment rule set at auction creation
             isOwnAuction:
               type: boolean
               description: True when the caller is the seller of this auction
+            winner:
+              description: >
+                Set only when auction status is "ended" and at least one bid was
+                placed. Null for active auctions or ended auctions with no bids.
+              nullable: true
+              allOf:
+                - $ref: "#/components/schemas/BidderSummary"
+            canContact:
+              type: boolean
+              description: >
+                True when the caller is the auction winner and the auction has
+                ended — they may call GET /auctions/{auctionId}/contact.
           required:
             - description
             - category
             - startingBid
+            - minimumBidIncrement
             - minimumNextBid
             - topBidder
             - isOwnAuction
+            - winner
+            - canContact
 
     AuctionFeedPage:
       type: object
@@ -1443,3 +1632,171 @@ components:
         - pendingReports
         - newUsersToday
         - newAuctionsToday
+
+    # -- Media upload ----------------------------------------------------------
+
+    UploadUrlRequest:
+      type: object
+      description: >
+        Declare which media types are needed so the server can issue scoped
+        presigned URLs for each. Both fields are optional — request only the
+        URLs you actually need.
+      properties:
+        video:
+          type: boolean
+          default: false
+          description: Request a presigned URL for the video file
+        thumbnail:
+          type: boolean
+          default: false
+          description: Request a presigned URL for the thumbnail image
+      required: []
+
+    UploadUrlResponse:
+      type: object
+      properties:
+        video:
+          nullable: true
+          description: Present when video was requested
+          allOf:
+            - $ref: "#/components/schemas/PresignedUploadSlot"
+        thumbnail:
+          nullable: true
+          description: Present when thumbnail was requested
+          allOf:
+            - $ref: "#/components/schemas/PresignedUploadSlot"
+
+    PresignedUploadSlot:
+      type: object
+      description: A single presigned upload target
+      properties:
+        uploadUrl:
+          type: string
+          format: uri
+          description: >
+            PUT this URL directly with the file as the request body.
+            The URL is valid for 15 minutes.
+        publicUrl:
+          type: string
+          format: uri
+          description: >
+            Permanent public URL for the asset once the upload is complete.
+            Pass this value in the subsequent POST /auctions request.
+        expiresAt:
+          type: string
+          format: date-time
+          description: When the presigned URL expires (15 minutes from issue)
+      required:
+        - uploadUrl
+        - publicUrl
+        - expiresAt
+
+    # -- Notifications ---------------------------------------------------------
+
+    NotificationType:
+      type: string
+      enum:
+        - outbid              # caller was outbid on an auction they bid on
+        - auction_won         # caller won an auction (ending, no one outbid them)
+        - new_bid_received    # seller: someone bid on their listing
+        - auction_ending_soon # 24 h warning for auctions the caller is winning or watching
+        - auction_removed     # seller: their listing was removed by admin
+      description: >
+        Machine-readable notification type used to render the correct icon
+        and route the tap to the correct screen.
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          $ref: "#/components/schemas/NotificationType"
+        isRead:
+          type: boolean
+        title:
+          type: string
+          description: Short notification headline (localised on client)
+          example: "You've been outbid!"
+        body:
+          type: string
+          description: Supporting text
+          example: "Someone outbid you on Vintage Camera. Current price: $150"
+        auction:
+          description: The auction this notification refers to (always present)
+          allOf:
+            - $ref: "#/components/schemas/AuctionSummary"
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - type
+        - isRead
+        - title
+        - body
+        - auction
+        - createdAt
+
+    NotificationPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notification"
+        unreadCount:
+          type: integer
+          description: Total unread notifications (not just in this page)
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
+      required:
+        - items
+        - unreadCount
+        - pagination
+
+    # -- My bids ---------------------------------------------------------------
+
+    MyBidStatus:
+      type: string
+      enum: [winning, outbid, won, lost]
+      description: >
+        winning — caller is current highest bidder on an active auction;
+        outbid  — caller bid but is no longer the highest bidder (auction active);
+        won     — auction ended and caller was the highest bidder;
+        lost    — auction ended and caller was not the highest bidder.
+
+    MyBidItem:
+      type: object
+      description: An auction the caller has bid on, enriched with bid status
+      properties:
+        auction:
+          $ref: "#/components/schemas/AuctionSummary"
+        myBidStatus:
+          $ref: "#/components/schemas/MyBidStatus"
+        myHighestBid:
+          type: number
+          format: double
+          description: The highest amount this caller placed on this auction
+        myLastBidAt:
+          type: string
+          format: date-time
+      required:
+        - auction
+        - myBidStatus
+        - myHighestBid
+        - myLastBidAt
+
+    MyBidPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MyBidItem"
+        pagination:
+          $ref: "#/components/schemas/PaginationMeta"
+      required:
+        - items
+        - pagination

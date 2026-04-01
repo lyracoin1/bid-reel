@@ -9,8 +9,10 @@
  *     that calls `checkOutbids()` on "auction.bid_placed" messages
  */
 
+import React from "react";
 import { useEffect, useState } from "react";
 import { toast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { mockAuctions, currentUser } from "@/lib/mock-data";
 import { getAuctions } from "@/hooks/use-auctions";
 import { formatCurrency } from "@/lib/utils";
@@ -68,6 +70,15 @@ function checkOutbids() {
         title: "🔴 You've been outbid!",
         description: `${topBid.user.name} bid ${formatCurrency(topBid.amount)} on "${auction.title}"`,
         variant: "destructive",
+        // Action button — navigates to the auction detail page
+        action: React.createElement(
+          ToastAction,
+          {
+            altText: "Bid now",
+            onClick: () => { window.location.href = `/auction/${auctionId}`; },
+          },
+          "Bid now",
+        ),
       });
     }
   });

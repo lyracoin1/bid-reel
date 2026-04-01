@@ -1,12 +1,16 @@
+import { useCallback } from "react";
 import { useLocation } from "wouter";
 import { Share2, MessageCircle, Gavel, Play, Bell } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type Auction } from "@/lib/mock-data";
-import { getTimeRemaining, getWhatsAppUrl, getAuctionState, getCountdownToStart, cn } from "@/lib/utils";
+import { getWhatsAppUrl, cn } from "@/lib/utils";
 import { useToggleLike } from "@/hooks/use-auctions";
 import { useFollow } from "@/hooks/use-follow";
 import { useWatchAuction } from "@/hooks/use-watch";
 import { useLang } from "@/contexts/LanguageContext";
+import { useLiveAuctionStatus } from "@/hooks/use-countdown";
+import { toast } from "@/hooks/use-toast";
+import type { AuctionState } from "@/lib/utils";
 
 function AlbumIcon({ size = 20 }: { size?: number }) {
   return (
@@ -40,9 +44,22 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
   const { isWatching, toggle: toggleWatch } = useWatchAuction();
   const { t, formatPrice } = useLang();
 
-  const state = getAuctionState(auction);
-  const timeInfo = getTimeRemaining(auction.endsAt);
-  const countdownToStart = auction.startsAt ? getCountdownToStart(auction.startsAt) : null;
+  // Live countdown — ticks every second and fires callbacks on state transitions
+  const onStateChange = useCallback((newState: AuctionState) => {
+    if (newState === "active") {
+      toast({
+        title: "🟢 Bidding is now open!",
+        description: `"${auction.title}" just went live — place your bid!`,
+      });
+    } else if (newState === "ended") {
+      toast({
+        title: "🏁 Auction ended",
+        description: `"${auction.title}" has closed.`,
+      });
+    }
+  }, [auction.title]);
+
+  const { state, timeInfo, countdownToStart } = useLiveAuctionStatus(auction, onStateChange);
   const whatsappUrl = getWhatsAppUrl(auction.seller.phone, auction.title);
   const following = isFollowing(auction.seller.id);
   const watching = isWatching(auction.id);

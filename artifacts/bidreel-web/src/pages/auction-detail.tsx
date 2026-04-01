@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import {
   ArrowLeft, ArrowDown, Share2, Clock, TrendingUp, Gavel,
@@ -14,8 +14,11 @@ import { useBidPolling, getUserBidStatus } from "@/hooks/use-bid-polling";
 import { useRealtimeBids } from "@/hooks/use-realtime-bids";
 import { currentUser } from "@/lib/mock-data";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
-import { getTimeRemaining, getWhatsAppUrl, getAuctionState, getCountdownToStart, cn } from "@/lib/utils";
+import { getWhatsAppUrl, cn } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
+import { useLiveAuctionStatus } from "@/hooks/use-countdown";
+import { toast } from "@/hooks/use-toast";
+import type { AuctionState } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 
 // ─── Adaptive bid increments based on current price ───────────────────────────
@@ -63,6 +66,23 @@ export default function AuctionDetail() {
   const { realtimeCurrentBid, realtimeBidCount, isConnected } =
     useRealtimeBids(id ?? "", auction?.bidCount ?? 0);
 
+  // ── Live state + countdown (must be unconditional) ────────────────────────
+  // Fallback to epoch when auction is null so the hook always receives valid strings
+  const EPOCH = new Date(0).toISOString();
+  const onStateChange = useCallback((newState: AuctionState) => {
+    if (!auction) return;
+    if (newState === "active") {
+      toast({ title: "🟢 Bidding is now open!", description: `"${auction.title}" just went live!` });
+    } else if (newState === "ended") {
+      toast({ title: "🏁 Auction has ended", description: `"${auction.title}" is now closed.` });
+    }
+  }, [auction?.title]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const { state, timeInfo, countdownToStart } = useLiveAuctionStatus(
+    { startsAt: auction?.startsAt, endsAt: auction?.endsAt ?? EPOCH },
+    auction ? onStateChange : undefined,
+  );
+
   // ── Guard ─────────────────────────────────────────────────────────────────
   if (!auction) {
     return (
@@ -75,9 +95,6 @@ export default function AuctionDetail() {
   }
 
   // ── Derived values ────────────────────────────────────────────────────────
-  const state = getAuctionState(auction);
-  const timeInfo = getTimeRemaining(auction.endsAt);
-  const countdownToStart = auction.startsAt ? getCountdownToStart(auction.startsAt) : null;
   const whatsappUrl = getWhatsAppUrl(auction.seller.phone, auction.title);
   const watching = isWatching(auction.id);
   const winner = state === "ended" && auction.bids.length > 0 ? auction.bids[0] : null;

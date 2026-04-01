@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { supabase } from "../lib/supabase";
+import { supabase, supabaseAdmin } from "../lib/supabase";
 import { upsertProfile, getProfileById } from "../lib/profiles";
 import { requireAuth } from "../middlewares/requireAuth";
 import { devLogin } from "../lib/devAuth";
@@ -203,6 +203,114 @@ router.get("/auth/me", requireAuth, async (req, res) => {
   }
 
   res.json({ user: profile });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/auth/register
+// ---------------------------------------------------------------------------
+// Registers a new user with email + password via Supabase Auth.
+// Creates a profile row on successful registration.
+// ---------------------------------------------------------------------------
+const registerSchema = z.object({
+  email: z.string().email("Must be a valid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  displayName: z
+    .string()
+    .min(2, "Display name must be at least 2 characters")
+    .max(50, "Display name must be 50 characters or fewer")
+    .optional(),
+});
+
+router.post("/auth/register", async (req, res) => {
+  const parsed = registerSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    res.status(400).json({
+      error: "VALIDATION_ERROR",
+      message: parsed.error.issues[0]?.message ?? "Invalid request",
+    });
+    return;
+  }
+
+  const { email, password, displayName } = parsed.data;
+
+  const { data, error } = await supabase.auth.signUp({ email, password });
+
+  if (error || !data.user) {
+    req.log.warn({ err: error?.message }, "Registration failed");
+    res.status(400).json({
+      error: "REGISTRATION_FAILED",
+      message: error?.message ?? "Could not create account. Email may already be in use.",
+    });
+    return;
+  }
+
+  const user = data.user;
+  const session = data.session;
+
+  // Upsert a minimal profile row so the user exists in our profiles table.
+  await supabaseAdmin.from("profiles").upsert(
+    {
+      id: user.id,
+      email: user.email ?? email,
+      display_name: displayName ?? null,
+    },
+    { onConflict: "id" },
+  );
+
+  res.status(201).json({
+    message: "Account created",
+    token: session?.access_token ?? null,
+    user: {
+      id: user.id,
+      email: user.email,
+      displayName: displayName ?? null,
+    },
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/auth/login
+// ---------------------------------------------------------------------------
+// Authenticates with email + password via Supabase Auth.
+// Returns a Bearer token on success.
+// ---------------------------------------------------------------------------
+const loginSchema = z.object({
+  email: z.string().email("Must be a valid email address"),
+  password: z.string().min(1, "Password is required"),
+});
+
+router.post("/auth/login", async (req, res) => {
+  const parsed = loginSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    res.status(400).json({
+      error: "VALIDATION_ERROR",
+      message: parsed.error.issues[0]?.message ?? "Invalid request",
+    });
+    return;
+  }
+
+  const { email, password } = parsed.data;
+
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error || !data.user || !data.session) {
+    req.log.warn({ err: error?.message }, "Login failed");
+    res.status(401).json({
+      error: "LOGIN_FAILED",
+      message: "Invalid email or password.",
+    });
+    return;
+  }
+
+  res.json({
+    token: data.session.access_token,
+    user: {
+      id: data.user.id,
+      email: data.user.email,
+    },
+  });
 });
 
 export default router;

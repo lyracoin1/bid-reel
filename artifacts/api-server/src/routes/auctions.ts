@@ -78,6 +78,81 @@ router.get("/auctions/:id", async (req, res) => {
   });
 });
 
+// ─── POST /api/auctions ───────────────────────────────────────────────────────
+
+const VALID_CATEGORIES = [
+  "electronics", "fashion", "collectibles", "home_and_garden",
+  "vehicles", "jewelry", "art", "sports", "other",
+] as const;
+
+const createAuctionSchema = z.object({
+  title: z
+    .string()
+    .min(3, "Title must be at least 3 characters")
+    .max(80, "Title must be 80 characters or fewer"),
+  description: z
+    .string()
+    .max(500, "Description must be 500 characters or fewer")
+    .optional(),
+  category: z.enum(VALID_CATEGORIES, {
+    errorMap: () => ({ message: `Category must be one of: ${VALID_CATEGORIES.join(", ")}` }),
+  }),
+  startPrice: z
+    .number()
+    .positive("Start price must be greater than 0"),
+  minIncrement: z
+    .number()
+    .positive("Minimum increment must be greater than 0")
+    .optional()
+    .default(10),
+  videoUrl: z.string().url("videoUrl must be a valid URL"),
+  thumbnailUrl: z.string().url("thumbnailUrl must be a valid URL"),
+});
+
+router.post("/auctions", requireAuth, async (req, res) => {
+  const parsed = createAuctionSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    res.status(400).json({
+      error: "VALIDATION_ERROR",
+      message: parsed.error.issues[0]?.message ?? "Invalid request body",
+    });
+    return;
+  }
+
+  const { title, description, category, startPrice, minIncrement, videoUrl, thumbnailUrl } =
+    parsed.data;
+  const sellerId = req.user!.id;
+
+  const endsAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: auction, error } = await supabaseAdmin
+    .from("auctions")
+    .insert({
+      seller_id: sellerId,
+      title,
+      description: description ?? null,
+      category,
+      start_price: startPrice,
+      current_bid: startPrice,
+      min_increment: minIncrement,
+      video_url: videoUrl,
+      thumbnail_url: thumbnailUrl,
+      ends_at: endsAt,
+    })
+    .select("*")
+    .single();
+
+  if (error || !auction) {
+    logger.error({ err: error }, "POST /auctions failed");
+    res.status(500).json({ error: "CREATE_FAILED", message: error?.message ?? "Failed to create auction" });
+    return;
+  }
+
+  logger.info({ auctionId: auction.id, sellerId }, "Auction created");
+  res.status(201).json({ auction });
+});
+
 // ─── POST /api/bids ───────────────────────────────────────────────────────────
 
 const placeBidSchema = z.object({
@@ -200,6 +275,124 @@ router.post("/bids", requireAuth, async (req, res) => {
   res.status(201).json({
     bid: newBid,
     auction: updatedAuction ?? { id: auctionId, current_bid: amount, bid_count: auction.bid_count + 1 },
+  });
+});
+
+// ─── POST /api/auctions/:id/bids ─────────────────────────────────────────────
+// Place a bid on a specific auction. auctionId comes from the URL, not the body.
+
+const auctionBidSchema = z.object({
+  amount: z
+    .number()
+    .int("Amount must be an integer (cents)")
+    .positive("Amount must be positive"),
+});
+
+router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
+  const auctionId = req.params["id"];
+  const userId = req.user!.id;
+
+  const parsed = auctionBidSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({
+      error: "VALIDATION_ERROR",
+      message: parsed.error.issues[0]?.message ?? "Invalid request body",
+    });
+    return;
+  }
+
+  const { amount } = parsed.data;
+
+  const { data: auction, error: auctionErr } = await supabaseAdmin
+    .from("auctions")
+    .select("id, seller_id, current_bid, min_increment, starts_at, ends_at, bid_count, title")
+    .eq("id", auctionId)
+    .single();
+
+  if (auctionErr || !auction) {
+    res.status(404).json({ error: "AUCTION_NOT_FOUND", message: "Auction not found" });
+    return;
+  }
+
+  if (!isAuctionActive(auction.starts_at, auction.ends_at)) {
+    res.status(409).json({
+      error: "AUCTION_NOT_ACTIVE",
+      message: "This auction is not currently accepting bids",
+    });
+    return;
+  }
+
+  if (auction.seller_id === userId) {
+    res.status(403).json({
+      error: "SELLER_CANNOT_BID",
+      message: "You cannot bid on your own auction",
+    });
+    return;
+  }
+
+  const minIncrement = auction.min_increment ?? 10;
+  const minimumBid = auction.current_bid + minIncrement;
+
+  if (amount < minimumBid) {
+    res.status(422).json({
+      error: "BID_TOO_LOW",
+      message: `Bid must be at least ${minimumBid} (current: ${auction.current_bid}, increment: ${minIncrement})`,
+      minimumBid,
+      currentBid: auction.current_bid,
+      minIncrement,
+    });
+    return;
+  }
+
+  const { data: prevLeader } = await supabaseAdmin
+    .from("bids")
+    .select("user_id")
+    .eq("auction_id", auctionId)
+    .order("amount", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data: newBid, error: bidErr } = await supabaseAdmin
+    .from("bids")
+    .insert({ auction_id: auctionId, user_id: userId, amount })
+    .select("id, auction_id, user_id, amount, created_at")
+    .single();
+
+  if (bidErr || !newBid) {
+    logger.error({ err: bidErr, auctionId, userId, amount }, "Bid insert failed");
+    res.status(500).json({ error: "BID_INSERT_FAILED", message: "Failed to record bid" });
+    return;
+  }
+
+  const { data: updatedAuction } = await supabaseAdmin
+    .from("auctions")
+    .update({
+      current_bid: amount,
+      bid_count: auction.bid_count + 1,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", auctionId)
+    .select("id, current_bid, bid_count, ends_at")
+    .single();
+
+  if (prevLeader && prevLeader.user_id !== userId) {
+    void notifyOutbid(
+      prevLeader.user_id,
+      auctionId,
+      (auction as any).title ?? "this auction",
+      amount,
+    );
+  }
+
+  logger.info({ bidId: newBid.id, auctionId, userId, amount }, "Bid placed via /auctions/:id/bids");
+
+  res.status(201).json({
+    bid: newBid,
+    auction: updatedAuction ?? {
+      id: auctionId,
+      current_bid: amount,
+      bid_count: auction.bid_count + 1,
+    },
   });
 });
 

@@ -100,15 +100,30 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 
 ### `artifacts/api-server` (`@workspace/api-server`)
 
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
+Express 5 API server for BidReel. Uses Supabase for auth, database, and storage.
 
 - Entry: `src/index.ts` — reads `PORT`, starts Express
 - App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
+- `pnpm --filter @workspace/api-server run dev` — build + start dev server
+- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.mjs`)
+- `.env.example` — reference for all required environment variables
+
+**Folder structure:**
+- `src/config/env.ts` — centralized env var access (all `process.env` reads live here)
+- `src/routes/` — HTTP layer: parse request, call lib/service, send response
+  - `auth.ts` — POST /register, POST /login, POST /request-otp, POST /verify-otp, GET /me
+  - `auctions.ts` — GET/POST /auctions, GET /auctions/:id, POST /auctions/:id/bids
+  - `reports.ts` — POST /reports
+  - `notifications.ts` — notification routes
+  - `admin.ts` — admin-only routes (protected by ADMIN_SECRET)
+- `src/controllers/` — scaffolded; will hold extracted handler logic as routes grow
+- `src/services/` — scaffolded; will hold business logic and DB calls per domain
+  - `auctions.service.ts`, `bids.service.ts`, `auth.service.ts`, `reports.service.ts`, `blocks.service.ts`, `winners.service.ts`
+- `src/middlewares/requireAuth.ts` — Bearer JWT validation, attaches `req.user`
+- `src/lib/` — shared utilities: `supabase.ts`, `logger.ts`, `profiles.ts`, `notifications.ts`, `media-lifecycle.ts`, `devAuth.ts`
+- `src/utils/` — `response.ts` (typed HTTP helpers), `validation.ts` (Zod helpers + parseOrBadRequest), `pagination.ts` (cursor pagination)
+- `src/migrations/` — SQL files to run in Supabase SQL editor in order
+  - `004_mvp_schema.sql` — consolidated MVP schema (profiles, auctions, bids, reports) with RLS
 
 ### `lib/db` (`@workspace/db`)
 

@@ -5,7 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { useFcmToken } from "@/hooks/use-fcm-token";
 
-// Pages
+// User pages
 import Splash from "@/pages/splash";
 import Feed from "@/pages/feed";
 import Explore from "@/pages/explore";
@@ -15,11 +15,20 @@ import Profile from "@/pages/profile";
 import Interests from "@/pages/interests";
 import NotFound from "@/pages/not-found";
 
+// Admin pages
+import { AdminGuard } from "@/pages/admin/AdminGuard";
+import AdminDashboard from "@/pages/admin/Dashboard";
+import AdminUsers from "@/pages/admin/Users";
+import AdminAuctions from "@/pages/admin/Auctions";
+import AdminReports from "@/pages/admin/Reports";
+import AdminStats from "@/pages/admin/Stats";
+
 const queryClient = new QueryClient();
 
 function Router() {
   return (
     <Switch>
+      {/* User routes */}
       <Route path="/" component={Splash} />
       <Route path="/feed" component={Feed} />
       <Route path="/explore" component={Explore} />
@@ -27,6 +36,24 @@ function Router() {
       <Route path="/create" component={CreateAuction} />
       <Route path="/profile" component={Profile} />
       <Route path="/interests" component={Interests} />
+
+      {/* Admin routes — all guarded */}
+      <Route path="/admin">
+        {() => <AdminGuard><AdminDashboard /></AdminGuard>}
+      </Route>
+      <Route path="/admin/users">
+        {() => <AdminGuard><AdminUsers /></AdminGuard>}
+      </Route>
+      <Route path="/admin/auctions">
+        {() => <AdminGuard><AdminAuctions /></AdminGuard>}
+      </Route>
+      <Route path="/admin/reports">
+        {() => <AdminGuard><AdminReports /></AdminGuard>}
+      </Route>
+      <Route path="/admin/stats">
+        {() => <AdminGuard><AdminStats /></AdminGuard>}
+      </Route>
+
       <Route component={NotFound} />
     </Switch>
   );

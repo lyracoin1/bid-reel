@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
   ArrowLeft, ArrowRight, Camera, Upload, CheckCircle2, Clock,
@@ -62,7 +62,16 @@ export default function CreateAuction() {
 
   // ── Video state ─────────────────────────────────────────────────────────────
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
+
+  // Revoke preview object URL on unmount or file change
+  useEffect(() => {
+    return () => {
+      if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoPreviewUrl]);
 
   // ── Photos state ────────────────────────────────────────────────────────────
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
@@ -97,8 +106,13 @@ export default function CreateAuction() {
       e.target.value = "";
       return;
     }
+    // Revoke previous preview URL
+    if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+    const objectUrl = URL.createObjectURL(file);
     setVideoFile(file);
-    console.log(`[create-auction] Video selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+    setVideoPreviewUrl(objectUrl);
+    console.log(`[create-auction] Video selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB) preview: ${objectUrl}`);
+    e.target.value = "";
   };
 
   const handlePhotosSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -277,35 +291,41 @@ export default function CreateAuction() {
                     Select a video from your device. Max 10 MB — MP4, MOV, or WebM.
                   </p>
 
-                  <button
-                    onClick={() => videoInputRef.current?.click()}
-                    className={cn(
-                      "flex-1 min-h-56 border-2 border-dashed rounded-3xl bg-white/3 flex flex-col items-center justify-center p-8 text-center cursor-pointer transition-all active:scale-[0.98]",
-                      videoFile
-                        ? "border-emerald-500/50 bg-emerald-500/5"
-                        : "border-white/12 hover:border-primary/50 hover:bg-primary/5",
-                    )}
-                  >
-                    {videoFile ? (
-                      <>
-                        <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 flex items-center justify-center mb-4">
-                          <CheckCircle2 size={28} className="text-emerald-400" />
-                        </div>
-                        <h3 className="font-bold text-white text-base mb-1 truncate max-w-[200px]">{videoFile.name}</h3>
-                        <p className="text-xs text-emerald-400 font-semibold">
-                          {(videoFile.size / 1024 / 1024).toFixed(1)} MB — tap to change
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <div className="w-16 h-16 rounded-2xl bg-primary/15 flex items-center justify-center mb-4">
-                          <Upload size={28} className="text-primary" />
-                        </div>
-                        <h3 className="font-bold text-white text-lg mb-1">{t("tap_to_select_video")}</h3>
-                        <p className="text-xs text-muted-foreground">MP4, MOV, WebM — max 10 MB</p>
-                      </>
-                    )}
-                  </button>
+                  {videoPreviewUrl ? (
+                    /* Video preview — real <video> element */
+                    <div className="flex-1 min-h-56 rounded-3xl overflow-hidden bg-black border border-emerald-500/30 relative">
+                      <video
+                        src={videoPreviewUrl}
+                        controls
+                        playsInline
+                        preload="metadata"
+                        className="w-full h-full object-contain max-h-72"
+                        onError={(e) => console.error("[create-auction] Preview error:", (e.target as HTMLVideoElement).error)}
+                      />
+                      <button
+                        onClick={() => videoInputRef.current?.click()}
+                        className="absolute top-2 right-2 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/70 text-white text-xs font-semibold border border-white/20 hover:bg-black/90 transition-colors"
+                      >
+                        <X size={12} /> Change
+                      </button>
+                      <div className="absolute bottom-2 left-2 bg-black/70 rounded-lg px-2.5 py-1 flex items-center gap-1.5">
+                        <CheckCircle2 size={12} className="text-emerald-400" />
+                        <span className="text-xs text-emerald-300 font-medium truncate max-w-[180px]">{videoFile?.name}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Upload CTA */
+                    <button
+                      onClick={() => videoInputRef.current?.click()}
+                      className="flex-1 min-h-56 border-2 border-dashed border-white/12 rounded-3xl bg-white/3 flex flex-col items-center justify-center p-8 text-center cursor-pointer transition-all active:scale-[0.98] hover:border-primary/50 hover:bg-primary/5"
+                    >
+                      <div className="w-16 h-16 rounded-2xl bg-primary/15 flex items-center justify-center mb-4">
+                        <Upload size={28} className="text-primary" />
+                      </div>
+                      <h3 className="font-bold text-white text-lg mb-1">{t("tap_to_select_video")}</h3>
+                      <p className="text-xs text-muted-foreground">MP4, MOV, WebM — max 10 MB</p>
+                    </button>
+                  )}
 
                   {videoError && (
                     <div className="mt-3 flex items-center gap-2 text-red-400 text-xs font-medium">

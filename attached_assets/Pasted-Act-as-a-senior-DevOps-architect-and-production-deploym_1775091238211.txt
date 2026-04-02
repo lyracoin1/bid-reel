@@ -1,0 +1,88 @@
+Act as a senior DevOps architect and production deployment engineer.
+
+I have a real auction app with:
+- React frontend
+- Node.js + Express backend
+- Supabase (DB, Auth, Storage, Realtime)
+- Real bidding engine
+- Notification system
+- Mobile-first product
+- Admin dashboard
+- Production security and reliability planning already done
+
+I now need a complete deployment and production setup plan.
+
+Your task:
+
+1. Production Architecture
+Design the final production setup for:
+- frontend hosting
+- backend hosting
+- Supabase production project
+- domains / subdomains
+- admin access
+- SSL / HTTPS
+
+2. Environment Strategy
+Define a clean separation for:
+- development
+- staging
+- production
+
+Include:
+- env vars
+- secrets handling
+- how to avoid mixing environments
+- migration flow between environments
+
+3. Deployment Pipeline
+Design how code should move from local/dev to production.
+Include:
+- build process
+- deploy process
+- migration order
+- rollback approach
+- health checks
+- post-deploy verification
+
+4. Supabase Production Configuration
+Explain what must be configured before launch:
+- auth settings
+- redirect URLs
+- RLS verification
+- storage buckets
+- cron jobs
+- database backups
+- service keys handling
+
+5. Hosting Recommendations
+Recommend practical hosting choices for:
+- React frontend
+- Express backend
+
+Be practical and cost-aware.
+Assume MVP launch, not enterprise overengineering.
+
+6. Launch Checklist
+Provide:
+- pre-launch checklist
+- go-live checklist
+- first 24 hours monitoring checklist
+
+7. Manual tasks vs what can be automated
+Clearly separate:
+- what must be done manually
+- what should be automated now
+- what can be postponed until later
+
+8. Output format:
+- deployment architecture
+- environment model
+- step-by-step deployment plan
+- launch checklist
+- rollback checklist
+- manual vs automated tasks
+
+Be very practical.
+Avoid generic DevOps advice.
+Assume a small team shipping fast but safely.

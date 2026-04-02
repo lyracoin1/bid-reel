@@ -1,0 +1,90 @@
+Act as a senior production engineer and backend reliability expert.
+
+I have a production auction app with:
+- Node.js + Express backend
+- Supabase (PostgreSQL, Auth, Storage)
+- Real bidding engine (RPC-based)
+- Notification system (event-driven)
+- Mobile-first frontend
+- Admin dashboard
+- Real users will use this app
+
+I need to make this system production-ready from a reliability and operations perspective.
+
+Your task:
+
+1. Error Handling Strategy
+Design a consistent error system across:
+- backend APIs
+- database (RPC errors)
+- frontend consumption
+
+Include:
+- error categories (validation, auth, business logic, system)
+- standardized error response format
+- user-safe vs internal error messages
+- retryable vs non-retryable errors
+
+2. Logging System
+Design structured logging:
+- what to log (requests, bids, admin actions, errors)
+- log format (JSON structure)
+- correlation/request IDs
+- sensitive data handling
+- where logs should go (local + production)
+
+3. Monitoring & Alerting
+Explain how to monitor:
+- errors
+- performance
+- abnormal behavior (e.g. bid spam)
+
+Include:
+- key metrics
+- alerts (what should trigger alerts)
+- dashboards
+
+4. Rate Limiting
+Design rate limiting strategy for:
+- login / OTP
+- bidding
+- uploads
+- admin endpoints
+- notifications
+
+Include:
+- per-user limits
+- per-IP limits
+- burst vs sustained traffic
+
+5. Validation Strategy
+Define strict validation:
+- request validation (body, params)
+- schema validation (Zod or similar)
+- database constraints vs API validation
+- file upload validation
+
+6. Retry & Failure Handling
+Design:
+- safe retry mechanisms
+- idempotency usage
+- handling partial failures (e.g. bid success but notification fails)
+
+7. Operational Safety
+Include:
+- feature flags (optional)
+- environment separation (dev/staging/prod)
+- secrets management
+- rollback strategy
+
+8. Output format:
+- system architecture (reliability view)
+- error model
+- logging plan
+- rate limit table
+- validation checklist
+- monitoring plan
+- top production risks
+
+Be practical and production-focused.
+Assume real traffic and possible abuse.

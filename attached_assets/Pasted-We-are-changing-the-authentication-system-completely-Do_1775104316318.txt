@@ -1,0 +1,74 @@
+We are changing the authentication system completely.
+
+Do NOT use OTP, email login, or any external auth flow.
+
+We want a simple phone-number-only login system.
+
+Requirements:
+
+1. Login flow (frontend):
+- Create or update a login page that only asks for a phone number.
+- Example input: 01060088141
+- No OTP, no password.
+- When the user submits the phone:
+  - Call a backend endpoint (e.g. POST /api/auth/phone-login)
+
+2. Backend logic (CRITICAL):
+- Implement a phone-based login endpoint.
+- Normalize the phone number (trim, remove spaces, standardize format).
+- Check if a user/profile exists with this phone:
+  - If YES:
+    - Log the user in (issue a valid session/token/JWT)
+  - If NO:
+    - Create a new user
+    - Create a new profile with this phone
+    - Then log them in
+
+3. Unique phone constraint:
+- A phone number MUST NOT exist in more than one account.
+- Enforce this at:
+  a) Application level (check before insert)
+  b) Database level (UNIQUE constraint on phone column)
+- If any duplicate attempt happens, fail clearly with a clean error.
+
+4. Session handling:
+- Store the token in localStorage.
+- On app load:
+  - If token exists → restore session
+  - If not → redirect to /login
+- All API calls must include Authorization: Bearer <token>
+
+5. Remove dependency on dev-login:
+- Do NOT rely on /api/auth/dev-login anymore for the main flow.
+- Keep it only if absolutely needed internally, but not for user login.
+
+6. Fix current "Not authenticated" / "غير موثق" issue:
+- Ensure that after login, the token is valid and used in:
+  - create-auction
+  - get-upload-url
+- The publish flow must NOT fail due to missing authentication anymore.
+
+7. Integration with auction flow:
+- After login, user must be able to:
+  - Upload video
+  - Publish auction
+- No auth-related errors should block this.
+
+8. Error handling:
+- If phone is empty or invalid → show clear Arabic message.
+- If something fails → show user-friendly message, not raw errors.
+
+9. Keep changes minimal but correct:
+- Do not break unrelated features.
+- Do not over-engineer.
+- Focus on a clean, working phone-only login.
+
+After implementation:
+1. Test:
+   - Login with a new phone → account created
+   - Login again with same phone → same account reused
+   - Try publishing auction → works without auth errors
+2. List all changed files
+3. Confirm that duplicate phones are impossible
+
+Reply only with: DONE

@@ -1,0 +1,39 @@
+The issue is still not fixed. The UI message changed to Arabic ("غير موثق"), but the real authentication problem clearly still exists in the deployed app.
+
+Do not just rename the error message again. I want a real runtime diagnosis and a real fix.
+
+Your task in this step:
+Trace the full authentication flow in the deployed/published environment and identify the exact runtime failure point.
+
+You must verify all of the following with real checks, not assumptions:
+
+1. Test whether POST /api/auth/dev-login succeeds in the published environment.
+   - Capture the real HTTP status code and response body.
+   - Confirm whether it returns a valid JWT or fails.
+2. Verify whether process.env.USE_DEV_AUTH is actually visible inside the API runtime that handles the deployed app.
+3. Verify whether the frontend token acquisition function is being called successfully.
+4. Verify whether the token is actually cached/stored after login.
+5. Verify whether create-auction and upload-url requests include the Authorization header with a valid Bearer token.
+6. Verify whether the published frontend is calling the correct backend/API origin and route.
+7. Verify whether there is a deployment/runtime mismatch between the published app and the API server.
+8. Verify whether the API server is running and reachable from the published frontend.
+
+Implementation rules:
+- Add minimal targeted diagnostics/logging where necessary.
+- Use real runtime evidence, not guesses.
+- Do not hide the failure by only changing the user-facing text.
+- Keep user-facing Arabic messages clean, but fix the actual auth chain.
+- If the current dev-login approach is fundamentally broken for the published app, implement the cleanest immediate working fix for the current environment.
+
+After diagnosing, fix the issue completely so that:
+- the published app can authenticate successfully,
+- the publish request is truly authenticated,
+- and the "unauthenticated" publish failure disappears for real.
+
+At the end, report:
+1. The exact failure point.
+2. The exact files changed.
+3. The exact fix applied.
+4. Whether auction publish now works end-to-end in the deployed app.
+
+Reply only with: DONE

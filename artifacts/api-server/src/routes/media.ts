@@ -123,7 +123,7 @@ router.post("/media/upload-url", requireAuth, async (req, res) => {
   // pending/{userId}/{uuid}.{ext}
   // The auction creation endpoint does not need to rename or move the file.
 
-  const ext = MIME_TO_EXT[mimeType] ?? fileType === "video" ? "mp4" : "jpg";
+  const ext = MIME_TO_EXT[mimeType] ?? (fileType === "video" ? "mp4" : "jpg");
   const filename = `${randomUUID()}.${ext}`;
   const path = `pending/${userId}/${filename}`;
 

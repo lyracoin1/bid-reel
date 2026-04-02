@@ -1,17 +1,27 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
+import { getToken } from "@/lib/api-client";
 
 export default function Splash() {
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    // Route to interests onboarding on first visit, then feed
-    const timer = setTimeout(() => {
+    let cancelled = false;
+    const run = async () => {
+      await new Promise(r => setTimeout(r, 2000));
+      if (cancelled) return;
+      const token = await getToken();
+      if (cancelled) return;
+      if (!token) {
+        setLocation("/login");
+        return;
+      }
       const seen = localStorage.getItem("hasSeenInterests");
       setLocation(seen ? "/feed" : "/interests");
-    }, 2500);
-    return () => clearTimeout(timer);
+    };
+    void run();
+    return () => { cancelled = true; };
   }, [setLocation]);
 
   return (

@@ -7,7 +7,7 @@ import { HamburgerMenu } from "@/components/HamburgerMenu";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useAuctions } from "@/hooks/use-auctions";
-import { getUserBidsApi, type ApiMyBidEntry } from "@/lib/api-client";
+import { getUserBidsApi, clearToken, type ApiMyBidEntry } from "@/lib/api-client";
 import { getTimeRemaining } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -239,7 +239,7 @@ export default function Profile() {
 
         {/* Logout */}
         <div className="px-5 pb-8">
-          <button onClick={() => setLocation("/")}
+          <button onClick={() => { clearToken(); setLocation("/login"); }}
             className="w-full py-3.5 rounded-2xl border border-white/8 bg-white/3 flex items-center justify-center gap-2 text-sm font-semibold text-white/50 hover:text-white/80 hover:bg-white/6 transition">
             <LogOut size={16} />{t("log_out")}
           </button>

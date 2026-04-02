@@ -67,9 +67,9 @@ timeoutMs = 20000
 SUPABASE_URL = "https://zhbfbjwagehwetyqljjr.supabase.co"
 SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpoYmZiandhZ2Vod2V0eXFsampyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDU0NDE0NSwiZXhwIjoyMDkwMTIwMTQ1fQ.AixLz3ae7bzg5j6R3JpjuQyAYhnJgh_FyJ0hrhaxfc0"
 ADMIN_PANEL_PASSWORD = "01207387165shjfm"
+USE_DEV_AUTH = "true"
 
 [userenv.development]
-USE_DEV_AUTH = "USE_DEV_AUTH=true"
 
 [nix]
 channel = "stable-25_05"

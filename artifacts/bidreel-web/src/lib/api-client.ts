@@ -3,15 +3,15 @@
  *
  * Thin HTTP client for the BidReel API server.
  *
- * Auth strategy (MVP):
- *   Uses the dev-login endpoint to exchange the mock user's phone number for
- *   a real Supabase JWT.  This keeps the frontend functional without a full
- *   login UI while still exercising the exact same requireAuth middleware that
- *   production will use.
- *
- *   Token is cached in memory for the lifetime of the page.  On the next
- *   reload it is re-fetched (dev logins are idempotent and fast).
+ * Auth strategy:
+ *   1. Check localStorage for a valid (non-expired) session token — used in
+ *      production after the user completes phone OTP login.
+ *   2. If no stored token, attempt dev-login (only works when the API server
+ *      has USE_DEV_AUTH=true set, i.e. the development environment).
+ *   3. If both fail, return null — the caller must redirect to /login.
  */
+
+import { getValidSessionToken, setSessionToken, clearSessionToken } from "./session";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
 const API_BASE = `${BASE}/api`;
@@ -21,12 +21,46 @@ const API_BASE = `${BASE}/api`;
 let cachedToken: string | null = null;
 let tokenPromise: Promise<string | null> | null = null;
 
+/** Stores a token received from the OTP login flow into memory + localStorage. */
+export function setToken(token: string): void {
+  cachedToken = token;
+  setSessionToken(token);
+}
+
+/** Clears the in-memory and persisted token (called on logout / 401). */
+export function clearToken(): void {
+  cachedToken = null;
+  clearSessionToken();
+}
+
+/** Redirects to the login page and clears the stale session. */
+export function redirectToLogin(): void {
+  const loginPath = `${import.meta.env.BASE_URL?.replace(/\/$/, "") ?? ""}/login`;
+  if (window.location.pathname === loginPath || window.location.pathname.endsWith("/login")) return;
+  clearToken();
+  window.location.replace(loginPath);
+}
+
 /**
- * Returns a valid Bearer token, initialising a dev-login session if needed.
- * Concurrent callers await the same in-flight promise (no double-login).
+ * Returns a valid Bearer token.
+ * Order of precedence:
+ *   1. In-memory cache (fast path)
+ *   2. localStorage (persisted production session)
+ *   3. Dev-login endpoint (development only — returns null in production)
  */
 export async function getToken(): Promise<string | null> {
+  // 1. In-memory cache
   if (cachedToken) return cachedToken;
+
+  // 2. localStorage session (production OTP login)
+  const stored = getValidSessionToken();
+  if (stored) {
+    cachedToken = stored;
+    console.log("[api-client] ✅ session token loaded from localStorage");
+    return cachedToken;
+  }
+
+  // 3. Dev-login fallback (only works when USE_DEV_AUTH=true on the server)
   if (tokenPromise) return tokenPromise;
 
   tokenPromise = (async () => {
@@ -34,11 +68,11 @@ export async function getToken(): Promise<string | null> {
       const res = await fetch(`${API_BASE}/auth/dev-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber: "+14155550001" }), // Alex Chen (currentUser)
+        body: JSON.stringify({ phoneNumber: "+14155550001" }),
       });
 
       if (!res.ok) {
-        console.warn("[api-client] dev-login failed, API may not be reachable");
+        console.warn("[api-client] dev-login not available (production?) — please log in");
         return null;
       }
 
@@ -223,7 +257,7 @@ export interface CreateAuctionInput {
 
 export async function createAuctionApi(input: CreateAuctionInput): Promise<{ auction: ApiAuctionRaw }> {
   const token = await getToken();
-  if (!token) throw new Error("Not authenticated");
+  if (!token) { redirectToLogin(); throw new Error("Not authenticated"); }
 
   console.log(`[api-client] POST /auctions title="${input.title}" startPrice=${input.startPrice}`);
 
@@ -235,6 +269,8 @@ export async function createAuctionApi(input: CreateAuctionInput): Promise<{ auc
     },
     body: JSON.stringify(input),
   });
+
+  if (res.status === 401) { redirectToLogin(); throw new Error("Session expired"); }
 
   const data = await res.json();
   if (!res.ok) {
@@ -267,7 +303,7 @@ export async function getUploadUrlApi(
   sizeBytes: number,
 ): Promise<UploadUrlResponse> {
   const token = await getToken();
-  if (!token) throw new Error("Not authenticated");
+  if (!token) { redirectToLogin(); throw new Error("Not authenticated"); }
 
   console.log(`[api-client] POST /media/upload-url fileType=${fileType} mimeType=${mimeType} size=${(sizeBytes / 1024).toFixed(1)}KB`);
 
@@ -279,6 +315,8 @@ export async function getUploadUrlApi(
     },
     body: JSON.stringify({ fileType, mimeType, sizeBytes }),
   });
+
+  if (res.status === 401) { redirectToLogin(); throw new Error("Session expired"); }
 
   const data = await res.json();
   if (!res.ok) {
@@ -352,6 +390,10 @@ export interface ApiUserProfile {
 export async function getUserMeApi(): Promise<ApiUserProfile> {
   const headers = await authHeaders();
   const res = await fetch(`${API_BASE}/users/me`, { headers });
+  if (res.status === 401) {
+    redirectToLogin();
+    throw Object.assign(new Error("Session expired"), { code: "UNAUTHORIZED" });
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as ApiError;
     throw new Error(err.message ?? "Failed to fetch own profile");

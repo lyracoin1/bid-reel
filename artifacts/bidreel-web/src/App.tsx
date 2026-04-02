@@ -7,6 +7,7 @@ import { useFcmToken } from "@/hooks/use-fcm-token";
 
 // User pages
 import Splash from "@/pages/splash";
+import Login from "@/pages/login";
 import Feed from "@/pages/feed";
 import Explore from "@/pages/explore";
 import AuctionDetail from "@/pages/auction-detail";
@@ -28,6 +29,9 @@ const queryClient = new QueryClient();
 function Router() {
   return (
     <Switch>
+      {/* Auth routes */}
+      <Route path="/login" component={Login} />
+
       {/* User routes */}
       <Route path="/" component={Splash} />
       <Route path="/feed" component={Feed} />

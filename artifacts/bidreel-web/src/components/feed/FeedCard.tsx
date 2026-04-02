@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
-import { Share2, Gavel, Bell } from "lucide-react";
+import { Share2, Gavel, Bell, MapPin } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type Auction } from "@/lib/mock-data";
 import { getWhatsAppUrl, cn } from "@/lib/utils";
@@ -14,6 +14,8 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { AuctionMenu } from "@/components/AuctionMenu";
 import type { AuctionState } from "@/lib/utils";
+import { useViewerLocation } from "@/hooks/use-viewer-location";
+import { haversineDistance, formatDistance, formatAuctionPrice } from "@/lib/geo";
 
 function AlbumIcon({ size = 20 }: { size?: number }) {
   return (
@@ -45,10 +47,20 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
   const { mutate: toggleLike } = useToggleLike();
   const { isFollowing, toggle: toggleFollow } = useFollow();
   const { isWatching, toggle: toggleWatch } = useWatchAuction();
-  const { t, formatPrice } = useLang();
+  const { t, lang } = useLang();
   const videoRef = useRef<HTMLVideoElement>(null);
   const { user: currentUser } = useCurrentUser();
   const isOwner = !!currentUser && auction.seller.id === currentUser.id;
+  const viewerLoc = useViewerLocation();
+
+  const distanceText = useMemo(() => {
+    if (!viewerLoc || !auction.lat || !auction.lng) return null;
+    const metres = haversineDistance(viewerLoc.lat, viewerLoc.lng, auction.lat, auction.lng);
+    return formatDistance(metres, lang);
+  }, [viewerLoc, auction.lat, auction.lng, lang]);
+
+  const fmtPrice = (amount: number) =>
+    formatAuctionPrice(amount, auction.currencyCode ?? "USD");
 
   // Live countdown — ticks every second and fires callbacks on state transitions
   const onStateChange = useCallback((newState: AuctionState) => {
@@ -329,20 +341,28 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         {state === "upcoming" ? (
           <div className="flex flex-col gap-1">
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-white tracking-tight">{formatPrice(auction.startingBid)}</span>
+              <span className="text-3xl font-bold text-white tracking-tight">{fmtPrice(auction.startingBid)}</span>
               <span className="text-xs font-medium text-white/50 uppercase tracking-wide">{t("starting_at")}</span>
             </div>
             <span className="text-xs font-semibold text-amber-400">{t("bid_opens_soon")}</span>
           </div>
         ) : state === "ended" ? (
           <div className="flex items-baseline gap-2.5">
-            <span className="text-3xl font-bold text-white tracking-tight">{formatPrice(auction.currentBid)}</span>
+            <span className="text-3xl font-bold text-white tracking-tight">{fmtPrice(auction.currentBid)}</span>
             <span className="text-xs font-medium text-white/40 uppercase tracking-wide">{t("final_price")}</span>
           </div>
         ) : (
           <div className="flex items-baseline gap-2.5">
-            <span className="text-3xl font-bold text-white tracking-tight">{formatPrice(auction.currentBid)}</span>
+            <span className="text-3xl font-bold text-white tracking-tight">{fmtPrice(auction.currentBid)}</span>
             <span className="text-xs font-medium text-white/50 uppercase tracking-wide">{auction.bidCount} {t("bids_count")}</span>
+          </div>
+        )}
+
+        {/* Distance badge */}
+        {distanceText && (
+          <div className="flex items-center gap-1 mt-0.5">
+            <MapPin size={11} className="text-white/40 shrink-0" />
+            <span className="text-[11px] font-medium text-white/40">{distanceText}</span>
           </div>
         )}
       </div>

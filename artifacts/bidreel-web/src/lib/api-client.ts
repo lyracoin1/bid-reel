@@ -148,6 +148,10 @@ export interface ApiAuctionRaw {
   starts_at: string | null;
   ends_at: string;
   created_at: string;
+  lat?: number | null;
+  lng?: number | null;
+  currency_code?: string | null;
+  currency_label?: string | null;
   seller: {
     id: string;
     display_name: string | null;
@@ -255,6 +259,8 @@ export interface CreateAuctionInput {
   thumbnailUrl: string;
   lat: number;
   lng: number;
+  currencyCode?: string;
+  currencyLabel?: string;
 }
 
 export async function createAuctionApi(input: CreateAuctionInput): Promise<{ auction: ApiAuctionRaw }> {

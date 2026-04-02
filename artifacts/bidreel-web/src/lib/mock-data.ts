@@ -29,4 +29,8 @@ export interface Auction {
   bidCount: number;
   bids: Bid[];
   isLikedByMe?: boolean;
+  lat?: number | null;
+  lng?: number | null;
+  currencyCode?: string | null;
+  currencyLabel?: string | null;
 }

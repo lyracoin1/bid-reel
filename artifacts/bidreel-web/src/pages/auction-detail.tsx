@@ -1,8 +1,8 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import {
   ArrowLeft, ArrowDown, Clock, TrendingUp, Gavel,
-  Bell, Trophy, RefreshCw, ChevronDown,
+  Bell, Trophy, RefreshCw, ChevronDown, MapPin,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
@@ -22,6 +22,8 @@ import { useLiveAuctionStatus } from "@/hooks/use-countdown";
 import { toast } from "@/hooks/use-toast";
 import type { AuctionState } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { useViewerLocation } from "@/hooks/use-viewer-location";
+import { haversineDistance, formatDistance, formatAuctionPrice } from "@/lib/geo";
 
 // ─── Adaptive bid increments based on current price ───────────────────────────
 function getIncrements(currentBid: number): number[] {
@@ -60,7 +62,8 @@ export default function AuctionDetail() {
   const { user: currentUser } = useCurrentUser();
   const { isFollowing, toggle: toggleFollow } = useFollow();
   const { isWatching, toggle: toggleWatch } = useWatchAuction();
-  const { t, formatPrice } = useLang();
+  const { t, lang } = useLang();
+  const viewerLoc = useViewerLocation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const { isRefreshing, refresh } = useBidPolling();
@@ -100,6 +103,13 @@ export default function AuctionDetail() {
     auction ? onStateChange : undefined,
   );
 
+  // ── Distance (unconditional — Rules of Hooks) ──────────────────────────
+  const distanceText = useMemo(() => {
+    if (!viewerLoc || !auction?.lat || !auction?.lng) return null;
+    const metres = haversineDistance(viewerLoc.lat, viewerLoc.lng, auction.lat!, auction.lng!);
+    return formatDistance(metres, lang);
+  }, [viewerLoc, auction?.lat, auction?.lng, lang]);
+
   // ── Guard ─────────────────────────────────────────────────────────────────
   if (!auction) {
     return (
@@ -126,6 +136,9 @@ export default function AuctionDetail() {
   const INCREMENTS = getIncrements(displayedBid);
   const minIncrement = INCREMENTS[0];
   const minBid = displayedBid + minIncrement;
+
+  const fmtPrice = (amount: number) =>
+    formatAuctionPrice(amount, auction.currencyCode ?? "USD");
 
   // Bid amount from the selected increment
   const bidAmount = selectedInc !== null ? displayedBid + selectedInc : 0;
@@ -276,15 +289,15 @@ export default function AuctionDetail() {
           {/* Title */}
           <h1 className="text-2xl font-bold text-white leading-tight">{auction.title}</h1>
 
-          {/* Price */}
+          {/* Price + Distance */}
           {state === "upcoming" ? (
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-bold text-white tracking-tight">{formatPrice(auction.startingBid)}</span>
+              <span className="text-4xl font-bold text-white tracking-tight">{fmtPrice(auction.startingBid)}</span>
               <span className="text-sm text-muted-foreground font-medium">{t("starting_at")}</span>
             </div>
           ) : state === "ended" ? (
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-bold text-white tracking-tight">{formatPrice(displayedBid)}</span>
+              <span className="text-4xl font-bold text-white tracking-tight">{fmtPrice(displayedBid)}</span>
               <span className="text-sm text-muted-foreground font-medium">{t("final_price")}</span>
             </div>
           ) : (
@@ -296,7 +309,7 @@ export default function AuctionDetail() {
                 transition={{ duration: 0.4 }}
                 className="text-4xl font-bold tracking-tight"
               >
-                {formatPrice(displayedBid)}
+                {fmtPrice(displayedBid)}
               </motion.span>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground font-medium">{t("current_bid")}</span>
@@ -307,6 +320,14 @@ export default function AuctionDetail() {
                   </span>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Distance badge */}
+          {distanceText && (
+            <div className="flex items-center gap-1.5">
+              <MapPin size={13} className="text-white/35 shrink-0" />
+              <span className="text-[13px] font-medium text-white/40">{distanceText}</span>
             </div>
           )}
 
@@ -324,12 +345,12 @@ export default function AuctionDetail() {
                 <div>
                   <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Place your bid</p>
                   <p className="text-base font-bold text-white">
-                    Min <span className="text-primary">{formatPrice(minBid)}</span>
+                    Min <span className="text-primary">{fmtPrice(minBid)}</span>
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 bg-primary/12 border border-primary/25 rounded-full px-3 py-1.5">
                   <TrendingUp size={11} className="text-primary" />
-                  <span className="text-xs font-bold text-primary">+{formatPrice(minIncrement)} min</span>
+                  <span className="text-xs font-bold text-primary">+{fmtPrice(minIncrement)} min</span>
                 </div>
               </div>
 
@@ -359,9 +380,9 @@ export default function AuctionDetail() {
                           "text-xs font-bold mb-1",
                           isSelected ? "text-primary/80" : "text-white/40"
                         )}>
-                          +{formatPrice(inc)}
+                          +{fmtPrice(inc)}
                         </span>
-                        <span className="text-sm font-bold">{formatPrice(amount)}</span>
+                        <span className="text-sm font-bold">{fmtPrice(amount)}</span>
                       </motion.button>
                     );
                   })}
@@ -403,7 +424,7 @@ export default function AuctionDetail() {
                       ) : selectedInc ? (
                         <>
                           <Gavel size={15} />
-                          Bid {formatPrice(bidAmount)}
+                          Bid {fmtPrice(bidAmount)}
                         </>
                       ) : (
                         <>
@@ -545,7 +566,7 @@ export default function AuctionDetail() {
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-0.5">
-                      <span className="text-sm font-bold text-white">{formatPrice(bid.amount)}</span>
+                      <span className="text-sm font-bold text-white">{fmtPrice(bid.amount)}</span>
                       {i === 0 && state === "active" && (
                         <span className="text-[10px] font-bold text-primary uppercase tracking-wide">{t("leading")}</span>
                       )}
@@ -632,7 +653,7 @@ export default function AuctionDetail() {
                   {isBidding ? (
                     <><RefreshCw size={17} className="animate-spin" /> Processing…</>
                   ) : (
-                    <><Gavel size={18} /> Bid {formatPrice(bidAmount)}</>
+                    <><Gavel size={18} /> Bid {fmtPrice(bidAmount)}</>
                   )}
                 </motion.button>
               </motion.div>
@@ -662,8 +683,8 @@ export default function AuctionDetail() {
                       onClick={() => { setSelectedInc(inc); setBidError(null); }}
                       className="flex-1 py-3.5 rounded-xl bg-white/8 border border-white/14 flex flex-col items-center gap-0.5 active:bg-primary/20 active:border-primary/40 transition-colors"
                     >
-                      <span className="text-[10px] font-bold text-white/40">+{formatPrice(inc)}</span>
-                      <span className="text-sm font-bold text-white">{formatPrice(displayedBid + inc)}</span>
+                      <span className="text-[10px] font-bold text-white/40">+{fmtPrice(inc)}</span>
+                      <span className="text-sm font-bold text-white">{fmtPrice(displayedBid + inc)}</span>
                     </motion.button>
                   ))}
                   <motion.button

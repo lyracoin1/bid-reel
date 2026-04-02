@@ -69,14 +69,26 @@ async function insertAuction(payload: {
   media_purge_after: string;
   lat?: number;
   lng?: number;
+  currency_code?: string;
+  currency_label?: string;
 }) {
-  const { start_price_value, min_increment_value, media_purge_after, lat, lng, ...base } = payload;
+  const {
+    start_price_value, min_increment_value, media_purge_after,
+    lat, lng, currency_code, currency_label,
+    ...base
+  } = payload;
 
   // PostgREST returns PGRST204 for "column not in schema cache"; Postgres returns 42703.
   const isColErr = (code: string | undefined) =>
     code === "PGRST204" || code === "42703";
 
-  // Attempt 1: new schema + lat/lng + media_purge_after
+  const locationFields = lat !== undefined && lng !== undefined ? { lat, lng } : {};
+  const currencyFields = {
+    currency_code: currency_code ?? "USD",
+    currency_label: currency_label ?? "US Dollar",
+  };
+
+  // Attempt 1: new schema + lat/lng + media_purge_after + currency
   const a1 = await supabaseAdmin
     .from("auctions")
     .insert({
@@ -84,7 +96,8 @@ async function insertAuction(payload: {
       current_bid: start_price_value,
       min_increment: min_increment_value,
       media_purge_after,
-      ...(lat !== undefined && lng !== undefined ? { lat, lng } : {}),
+      ...locationFields,
+      ...currencyFields,
     })
     .select("*")
     .single();
@@ -92,9 +105,26 @@ async function insertAuction(payload: {
   if (!a1.error) return a1;
   if (!isColErr(a1.error.code)) return a1;
 
-  // Fallback A: new column names + media_purge_after, without lat/lng
-  logger.warn({ code: a1.error.code, msg: a1.error.message }, "Schema fallback A: retrying without lat/lng");
+  // Fallback A: without currency (column not yet migrated)
+  logger.warn({ code: a1.error.code, msg: a1.error.message }, "Schema fallback A: retrying without currency fields");
   const a2 = await supabaseAdmin
+    .from("auctions")
+    .insert({
+      ...base,
+      current_bid: start_price_value,
+      min_increment: min_increment_value,
+      media_purge_after,
+      ...locationFields,
+    })
+    .select("*")
+    .single();
+
+  if (!a2.error) return a2;
+  if (!isColErr(a2.error.code)) return a2;
+
+  // Fallback B: without lat/lng or currency
+  logger.warn({ code: a2.error.code, msg: a2.error.message }, "Schema fallback B: retrying without lat/lng");
+  const a3 = await supabaseAdmin
     .from("auctions")
     .insert({
       ...base,
@@ -105,12 +135,12 @@ async function insertAuction(payload: {
     .select("*")
     .single();
 
-  if (!a2.error) return a2;
-  if (!isColErr(a2.error.code)) return a2;
+  if (!a3.error) return a3;
+  if (!isColErr(a3.error.code)) return a3;
 
-  // Fallback B: new column names but without media_purge_after or lat/lng
-  logger.warn({ code: a2.error.code, msg: a2.error.message }, "Schema fallback B: retrying without media_purge_after");
-  const a3 = await supabaseAdmin
+  // Fallback C: without media_purge_after
+  logger.warn({ code: a3.error.code, msg: a3.error.message }, "Schema fallback C: retrying without media_purge_after");
+  const a4 = await supabaseAdmin
     .from("auctions")
     .insert({
       ...base,
@@ -120,11 +150,11 @@ async function insertAuction(payload: {
     .select("*")
     .single();
 
-  if (!a3.error) return a3;
-  if (!isColErr(a3.error.code)) return a3;
+  if (!a4.error) return a4;
+  if (!isColErr(a4.error.code)) return a4;
 
-  // Fallback C: old schema names (current_price, minimum_increment, no lat/lng/media_purge_after)
-  logger.warn({ code: a3.error.code, msg: a3.error.message }, "Schema fallback C: using old column names (current_price, minimum_increment)");
+  // Fallback D: old schema names (current_price, minimum_increment)
+  logger.warn({ code: a4.error.code, msg: a4.error.message }, "Schema fallback D: using old column names (current_price, minimum_increment)");
   return supabaseAdmin
     .from("auctions")
     .insert({
@@ -304,6 +334,8 @@ const createAuctionSchema = z.object({
   lng: z
     .number({ required_error: "lng is required — location must be granted before publishing" })
     .min(-180).max(180),
+  currencyCode: z.string().max(10).optional().default("USD"),
+  currencyLabel: z.string().max(60).optional().default("US Dollar"),
 });
 
 // Columns returned to the client — never expose internal/deleted fields.
@@ -326,7 +358,7 @@ router.post("/auctions", requireAuth, async (req, res) => {
     return;
   }
 
-  const { title, description, category, startPrice, minIncrement, videoUrl, thumbnailUrl, lat, lng } =
+  const { title, description, category, startPrice, minIncrement, videoUrl, thumbnailUrl, lat, lng, currencyCode, currencyLabel } =
     parsed.data;
   const sellerId = req.user!.id;
 
@@ -367,6 +399,8 @@ router.post("/auctions", requireAuth, async (req, res) => {
     media_purge_after: mediaPurgeAfter.toISOString(),
     lat,
     lng,
+    currency_code: currencyCode,
+    currency_label: currencyLabel,
   });
 
   if (error || !auction) {

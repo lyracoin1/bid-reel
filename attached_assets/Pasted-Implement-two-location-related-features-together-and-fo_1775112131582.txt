@@ -1,0 +1,189 @@
+Implement two location-related features together, and follow these rules very carefully.
+
+These two features are related to location, but they serve different purposes:
+
+1. Viewer location is used only to calculate distance between the viewer and the auction
+2. Creator location is used only to determine the creator’s local currency label during auction creation
+
+Very important:
+There must be NO currency conversion anywhere in the system.
+Do not convert prices between USD and local currency.
+Do not change price based on viewer location.
+Do not calculate exchange rates.
+The numeric value entered by the auction creator must always remain exactly the same.
+
+==================================================
+FEATURE 1 — DISTANCE BETWEEN VIEWER AND AUCTION
+==================================================
+
+Goal:
+Show the distance between the current viewer and each auction.
+
+Requirements:
+
+1. Use:
+- the viewer’s current location
+- the auction’s stored location (lat/lng)
+
+2. Calculate geographic distance using a proper formula such as Haversine.
+
+3. Show distance in:
+- auction cards / listing view
+- auction detail page
+
+4. Display rules:
+- if distance is less than 1 km → show meters
+- if distance is 1 km or more → show kilometers
+
+Examples:
+- 850 m
+- 2.4 km
+- 12 km
+
+5. If viewer location is unavailable:
+- do not break the UI
+- either hide the distance cleanly
+- or show a neutral fallback text in Arabic
+
+6. Keep the design mobile-friendly and visually clean.
+
+==================================================
+FEATURE 2 — CURRENCY SELECTION WITH EXACTLY TWO OPTIONS
+==================================================
+
+Goal:
+When creating an auction, the user must choose the price currency from exactly two options only:
+- USD
+- Local Currency
+
+Important:
+The local currency is determined from the creator’s location/country only for labeling purposes.
+There must be no price conversion at all.
+
+Examples of local currency:
+- Egypt → EGP / جنيه
+- Morocco → MAD / درهم
+- Turkey → TRY / ليرة
+- etc.
+
+Behavior rules:
+
+1. In the create-auction flow, show exactly two currency options:
+- USD
+- Local Currency
+
+2. The local currency option must be dynamically labeled based on the creator’s country/location.
+Examples:
+- USD
+- EGP (Local Currency)
+or
+- USD
+- الجنيه المصري
+
+3. If the user selects USD:
+- and enters 500
+- store and display exactly 500 USD
+
+4. If the user selects Local Currency in Egypt:
+- and enters 2500
+- store and display exactly 2500 EGP
+
+5. If the user selects Local Currency in Morocco:
+- and enters 2500
+- store and display exactly 2500 MAD
+
+6. If the user selects Local Currency in Turkey:
+- and enters 2500
+- store and display exactly 2500 TRY
+
+7. The viewer’s country/location must NOT affect the displayed price.
+Example:
+- creator in Egypt publishes 2500 EGP
+- viewer in Turkey must still see 2500 EGP
+- viewer in Morocco must still see 2500 EGP
+- no conversion, no relabeling based on viewer
+
+==================================================
+BACKEND / STORAGE REQUIREMENTS
+==================================================
+
+1. Update backend validation and database schema as needed so auctions store:
+- price
+- currency_code
+- currency_label
+- optional currency_type (usd | local)
+- lat
+- lng
+
+2. Persist exactly what the auction creator selected.
+3. Auction list endpoints and auction detail endpoints must return the stored currency metadata.
+4. Do not compute exchange rates.
+5. Do not add conversion logic anywhere.
+
+==================================================
+CREATE-AUCTION UX REQUIREMENTS
+==================================================
+
+1. In the create-auction page:
+- keep the price input
+- add a currency selector with exactly two options only
+- clearly show the detected local currency label
+- use clear Arabic labels
+
+2. The user should understand that:
+- USD is always available
+- local currency is based on their location/country
+
+3. If local currency cannot be determined from location:
+- provide a safe fallback behavior
+- but do not invent currency conversion
+
+==================================================
+AUCTION DISPLAY REQUIREMENTS
+==================================================
+
+1. In auction cards and auction detail:
+- show the price exactly as stored
+- show the currency exactly as stored
+- show distance separately
+
+2. Do not mix the two concepts:
+- distance is based on viewer location
+- price currency is based on creator choice
+
+==================================================
+TESTING REQUIREMENTS
+==================================================
+
+After implementation, test all of the following:
+
+1. Create auction with USD
+- confirm stored/displayed as USD
+- confirm no conversion happens
+
+2. Create auction with local currency
+- confirm local currency label is correct for creator country
+- confirm numeric value remains unchanged
+
+3. Open the same auction from another location/user
+- confirm distance changes correctly for the viewer
+- confirm price does NOT change
+
+4. Test listing page
+- distance visible
+- price/currency visible correctly
+
+5. Test detail page
+- distance visible
+- price/currency visible correctly
+
+6. Test missing viewer location
+- UI still works
+- distance handling is graceful
+
+At the end:
+- list all changed files
+- explain how currency metadata is stored
+- explain how distance is calculated
+
+Reply only with: DONE

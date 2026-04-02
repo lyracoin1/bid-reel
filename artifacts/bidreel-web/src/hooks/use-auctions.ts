@@ -80,6 +80,10 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
     bidCount: r.bid_count ?? 0,
     bids: bids.map(apiBidToFrontend),
     isLikedByMe: false,
+    lat: r.lat ?? null,
+    lng: r.lng ?? null,
+    currencyCode: r.currency_code ?? null,
+    currencyLabel: r.currency_label ?? null,
   };
 }
 

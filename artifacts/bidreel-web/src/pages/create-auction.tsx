@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   ArrowLeft, ArrowRight, Camera, Upload, CheckCircle2, Clock,
   Play, Image as ImageIcon, X, AlertCircle, Loader2, Trash2,
-  MapPin, RefreshCw,
+  MapPin, RefreshCw, DollarSign,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
@@ -11,6 +11,7 @@ import { useCreateAuction } from "@/hooks/use-auctions";
 import { getUploadUrlApi, uploadFileToStorage } from "@/lib/api-client";
 import { useLang } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
+import { reverseGeocodeCountry, getCurrencyForCountry, type CurrencyInfo } from "@/lib/geo";
 
 type PostType = "video" | "photos";
 
@@ -98,9 +99,11 @@ export default function CreateAuction() {
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // ── Geolocation state ────────────────────────────────────────────────────────
+  // ── Geolocation + currency detection ─────────────────────────────────────────
   const [geoStatus, setGeoStatus] = useState<GeoStatus>("idle");
   const [coords, setCoords] = useState<GeoCoords | null>(null);
+  const [localCurrency, setLocalCurrency] = useState<CurrencyInfo | null>(null);
+  const [selectedCurrency, setSelectedCurrency] = useState<"usd" | "local">("usd");
 
   const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -109,10 +112,20 @@ export default function CreateAuction() {
     }
     setGeoStatus("requesting");
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setCoords({ lat, lng });
         setGeoStatus("granted");
-        console.log("[create-auction] Location granted:", pos.coords.latitude, pos.coords.longitude);
+        console.log("[create-auction] Location granted:", lat, lng);
+        try {
+          const cc = await reverseGeocodeCountry(lat, lng);
+          const info = getCurrencyForCountry(cc);
+          setLocalCurrency(info);
+          console.log("[create-auction] Detected local currency:", info.code, cc);
+        } catch {
+          console.warn("[create-auction] Could not detect local currency");
+        }
       },
       (err) => {
         console.warn("[create-auction] Location denied:", err.message);
@@ -242,6 +255,11 @@ export default function CreateAuction() {
 
       setUploadProgress(lang === "ar" ? "جارٍ نشر المزاد…" : "Publishing your auction…");
 
+      const effectiveCurrency =
+        selectedCurrency === "local" && localCurrency
+          ? localCurrency
+          : { code: "USD", label: "US Dollar", labelAr: "الدولار الأمريكي" };
+
       const id = await create({
         title: form.title,
         description: form.description || undefined,
@@ -251,6 +269,8 @@ export default function CreateAuction() {
         thumbnailUrl,
         lat: coords.lat,
         lng: coords.lng,
+        currencyCode: effectiveCurrency.code,
+        currencyLabel: effectiveCurrency.label,
       });
 
       setUploadProgress(null);
@@ -488,15 +508,70 @@ export default function CreateAuction() {
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder:text-white/25 focus:outline-none focus:border-primary/60 focus:bg-white/8 transition-all text-[15px]" />
                 </div>
 
-                {/* Starting bid */}
+                {/* Starting bid + Currency */}
                 <div>
                   <label className="block text-xs font-bold text-white/50 uppercase tracking-widest mb-2">{t("starting_bid")} *</label>
+
+                  {/* Currency selector — two options */}
+                  <div className="flex gap-2 mb-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCurrency("usd")}
+                      className={cn(
+                        "flex-1 py-2.5 rounded-xl text-sm font-bold border transition-all flex items-center justify-center gap-1.5",
+                        selectedCurrency === "usd"
+                          ? "bg-primary/20 border-primary/50 text-primary"
+                          : "bg-white/5 border-white/10 text-white/50",
+                      )}
+                    >
+                      <DollarSign size={14} />
+                      USD
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCurrency("local")}
+                      className={cn(
+                        "flex-1 py-2.5 rounded-xl text-sm font-bold border transition-all",
+                        selectedCurrency === "local"
+                          ? "bg-primary/20 border-primary/50 text-primary"
+                          : "bg-white/5 border-white/10 text-white/50",
+                        !localCurrency && "opacity-50",
+                      )}
+                    >
+                      {localCurrency
+                        ? `${localCurrency.code} — ${lang === "ar" ? localCurrency.labelAr : localCurrency.label}`
+                        : lang === "ar" ? "العملة المحلية" : "Local Currency"}
+                    </button>
+                  </div>
+
+                  {/* Price input — prefix changes by currency */}
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 text-lg font-bold">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 text-sm font-bold">
+                      {selectedCurrency === "usd"
+                        ? "$"
+                        : (localCurrency?.code ?? "?")}
+                    </span>
                     <input type="number" min="1" value={form.startingBid} onChange={set("startingBid")}
                       placeholder="0"
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-4 py-3.5 text-white text-xl font-bold placeholder:text-white/25 focus:outline-none focus:border-primary/60 focus:bg-white/8 transition-all" />
+                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white text-xl font-bold placeholder:text-white/25 focus:outline-none focus:border-primary/60 focus:bg-white/8 transition-all" />
                   </div>
+
+                  {/* Currency hint */}
+                  {selectedCurrency === "local" && !localCurrency && geoStatus !== "granted" && (
+                    <p className="mt-1.5 text-[11px] text-yellow-400/80">
+                      {lang === "ar"
+                        ? "فعّل الموقع أولاً لاكتشاف عملتك المحلية."
+                        : "Enable location first to detect your local currency."}
+                    </p>
+                  )}
+                  {selectedCurrency === "local" && localCurrency && (
+                    <p className="mt-1.5 text-[11px] text-emerald-400/80">
+                      {lang === "ar"
+                        ? `السعر سيُحفظ بـ ${localCurrency.labelAr} (${localCurrency.code}) — بدون أي تحويل.`
+                        : `Price stored in ${localCurrency.label} (${localCurrency.code}) — no conversion.`}
+                    </p>
+                  )}
                 </div>
 
                 {/* Category */}

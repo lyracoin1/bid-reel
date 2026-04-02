@@ -3,6 +3,7 @@ import { Grid, Gavel, LogOut, ShieldCheck, KeyRound, Loader2 } from "lucide-reac
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import { MobileLayout } from "@/components/layout/MobileLayout";
+import { formatAuctionPrice } from "@/lib/geo";
 import { HamburgerMenu } from "@/components/HamburgerMenu";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useCurrentUser, refreshCurrentUser } from "@/hooks/use-current-user";
@@ -19,7 +20,7 @@ export default function Profile() {
   const [myBids, setMyBids] = useState<ApiMyBidEntry[]>([]);
   const [bidsLoading, setBidsLoading] = useState(true);
   const [, setLocation] = useLocation();
-  const { t, formatPrice } = useLang();
+  const { t } = useLang();
 
   const [adminCode, setAdminCode] = useState("");
   const [adminLoading, setAdminLoading] = useState(false);
@@ -191,7 +192,7 @@ export default function Profile() {
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
                         <div className="absolute bottom-0 left-0 right-0 p-3">
                           <p className="text-xs font-bold text-white line-clamp-1">{auction.title}</p>
-                          <p className="text-sm font-bold text-white mt-0.5">{formatPrice(auction.currentBid)}</p>
+                          <p className="text-sm font-bold text-white mt-0.5">{formatAuctionPrice(auction.currentBid, auction.currencyCode ?? "USD")}</p>
                           <p className={`text-[10px] font-bold mt-1 ${timeInfo.isUrgent ? "text-red-400" : "text-emerald-400"}`}>{timeInfo.text}</p>
                         </div>
                       </div>
@@ -241,10 +242,10 @@ export default function Profile() {
                       <div className="flex-1 min-w-0">
                         <h4 className="font-semibold text-white text-sm line-clamp-1">{a.title}</h4>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Current: <span className="text-white font-bold">{formatPrice(a.currentBid)}</span>
+                          Current: <span className="text-white font-bold">{formatAuctionPrice(a.currentBid, a.currencyCode ?? "USD")}</span>
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Your bid: <span className="text-white">{formatPrice(entry.myBidAmount)}</span>
+                          Your bid: <span className="text-white">{formatAuctionPrice(entry.myBidAmount, a.currencyCode ?? "USD")}</span>
                         </p>
                         <div className="flex items-center gap-2 mt-1.5">
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${entry.isLeading ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>

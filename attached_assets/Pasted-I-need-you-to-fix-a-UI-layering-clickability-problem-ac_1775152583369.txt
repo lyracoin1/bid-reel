@@ -1,0 +1,58 @@
+I need you to fix a UI layering / clickability problem across the app.
+
+Problem:
+In many places in the app, UI elements overlap each other incorrectly. For example, when I tap the three-dot menu on an auction card, the menu appears, but other elements underneath or around it interfere with it and prevent proper clicking/tapping. This issue seems to exist in multiple places in the app, not just that menu.
+
+Your task:
+Do a full audit of the app’s interactive UI layers and fix all cases where overlapping elements block taps/clicks or make controls hard to access.
+
+Focus on these kinds of issues:
+1. Wrong z-index stacking
+2. Wrong positioning (absolute / fixed / sticky)
+3. overflow: hidden clipping menus, sheets, or dialogs
+4. Invisible layers intercepting clicks
+5. pointer-events issues
+6. Dropdowns, popovers, action sheets, modals, and menus rendering behind or under other content
+7. Bottom sheets or overlays not properly blocking/interacting with the background
+8. Mobile tap targets being partially covered by nearby elements
+
+Requirements:
+1. Fix the three-dot auction menu first
+- It must open above everything correctly
+- Its actions must be fully clickable
+- Nothing underneath should block interaction
+- Tapping outside should close it cleanly
+
+2. Audit the rest of the app for similar issues
+- Any overlapping buttons
+- Any hidden clickable areas
+- Any elements rendered behind cards, headers, sheets, or floating UI
+- Any screens where content layers make it hard to interact with controls
+
+3. Apply proper UI layering rules
+- Correct z-index hierarchy
+- Correct stacking contexts
+- Correct overflow behavior
+- Correct pointer-events behavior
+- Ensure overlays and menus are rendered in the right layer
+
+4. Mobile-first behavior
+- Test tap behavior on mobile-sized screens
+- Make sure menus, action sheets, dialogs, and floating buttons are easy to tap
+- Ensure there is enough spacing and no accidental overlap
+
+5. Do not only patch one component
+- Find the pattern causing this issue and fix it consistently across the app
+
+6. If needed, move menus/popovers/sheets to a portal-based rendering approach so they are not trapped inside parent containers
+
+7. Keep the visual design clean and unchanged as much as possible
+- This is primarily a usability and layout-fix task
+
+After implementation:
+1. Test the three-dot menu thoroughly
+2. Test other screens for overlap/clickability problems
+3. List all files changed
+4. Explain the root cause of the overlap issue
+
+Reply only with: DONE

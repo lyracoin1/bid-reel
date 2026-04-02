@@ -4,10 +4,10 @@ import { Search, X, Play, Clock, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { useAuctions } from "@/hooks/use-auctions";
-import { useLang } from "@/contexts/LanguageContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getAuctionState } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { formatAuctionPrice } from "@/lib/geo";
 import type { Auction } from "@/lib/mock-data";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -85,12 +85,10 @@ function SearchSkeleton() {
 function ResultCard({
   auction,
   index,
-  formatPrice,
   onClick,
 }: {
   auction: Auction;
   index: number;
-  formatPrice: (v: number) => string;
   onClick: () => void;
 }) {
   const state = getAuctionState(auction);
@@ -138,7 +136,7 @@ function ResultCard({
           {auction.title}
         </p>
         <p className="text-sm font-bold text-white tracking-tight">
-          {formatPrice(auction.currentBid || auction.startingBid)}
+          {formatAuctionPrice(auction.currentBid || auction.startingBid, auction.currencyCode ?? "USD")}
         </p>
         <p className="text-[10px] text-white/35 font-medium mt-0.5">
           {auction.bidCount} bids
@@ -160,7 +158,6 @@ export default function Explore() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [, setLocation] = useLocation();
   const { data: auctions } = useAuctions();
-  const { formatPrice } = useLang();
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Auto-focus
@@ -400,7 +397,6 @@ export default function Explore() {
                     key={auction.id}
                     auction={auction}
                     index={i}
-                    formatPrice={formatPrice}
                     onClick={() => setLocation(`/auction/${auction.id}`)}
                   />
                 ))}

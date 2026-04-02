@@ -1,0 +1,132 @@
+I need you to remove the old currency logic completely and replace it with the new logic exactly as follows.
+
+Current problems:
+1. After location is granted, the detected local currency is wrong. It stays Saudi Riyal even though the real location is Egypt.
+2. The hamburger menu still contains "Language Settings" and "Currency Settings". The currency settings option must be removed completely.
+3. The app is still mixing old currency-conversion logic with the new auction currency logic, and this is causing incorrect behavior.
+
+You must remove the old currency model and implement the new one exactly.
+
+========================================
+NEW CURRENCY LOGIC (THIS IS THE ONLY VALID LOGIC)
+========================================
+
+1. There is NO global app currency setting.
+- Remove all old "currency settings" UI and logic from the hamburger menu and anywhere else in the app.
+- Currency is NOT a user preference.
+- Currency must NOT be controlled from settings.
+
+2. Currency exists only at auction creation time.
+When the user creates an auction, they should see exactly two currency options:
+- USD
+- Local Currency
+
+3. Local Currency must be determined from the creator’s actual current location/country.
+Examples:
+- Egypt -> EGP / Egyptian Pound
+- Morocco -> MAD / Moroccan Dirham
+- Turkey -> TRY / Turkish Lira
+- Saudi Arabia -> SAR / Saudi Riyal
+
+4. The detected local currency must refresh correctly after location permission is granted.
+- Do not keep stale fallback currency values.
+- Do not keep old cached currency if the detected country changes.
+- If the user is in Egypt, Local Currency must become EGP, not SAR.
+
+5. There must be NO currency conversion anywhere in the app.
+- Do not convert local currency to USD
+- Do not convert USD to local currency
+- Do not convert based on viewer location
+- Do not convert in "My Auctions"
+- Do not convert in listing pages
+- Do not convert in detail pages
+- Do not convert in profile pages
+
+6. Auction price display must always show the exact stored value and exact stored currency chosen by the auction creator.
+Examples:
+- If I created an auction as 500 USD, it must always display as 500 USD everywhere.
+- If I created an auction as 2500 EGP, it must always display as 2500 EGP everywhere.
+- If I open My Auctions, I must see each auction exactly in the currency it was created with.
+- No dual display, no conversion, no alternate viewer currency display.
+
+========================================
+REQUIRED FIXES
+========================================
+
+1. Remove old currency settings
+- Remove "Currency Settings" from the hamburger menu completely
+- Remove any old state/store/context/hooks/services related to global app currency preference
+- Remove any conversion logic or display logic based on user-selected app currency
+
+2. Fix local currency detection
+- Audit the country detection logic
+- Audit reverse geocoding / country mapping
+- Audit fallback behavior
+- Make sure Egypt resolves to EGP
+- Make sure the local currency updates immediately after location is available
+
+3. Keep only auction-level currency
+- The auction creation form should provide only:
+  - USD
+  - Local Currency (detected from creator location)
+- Persist:
+  - price
+  - currency_code
+  - currency_label
+  - currency_type if needed
+- Display the stored currency exactly as saved
+
+4. Audit all auction displays
+- Feed / listing cards
+- Auction detail page
+- My Auctions
+- Profile listings
+- Any admin or preview views
+Make sure every place uses the stored price and stored currency only, with zero conversion.
+
+5. Keep distance logic separate
+- Viewer location affects only distance display
+- Creator location affects only the local currency label at creation time
+- Do not mix these concepts
+
+========================================
+ALSO FIX THE UI OVERLAP ISSUE
+========================================
+
+The three-dot menu and other overlapping UI elements still have clickability/layering issues.
+Fix the stacking / z-index / pointer-events / overflow problems so menus and controls are fully clickable.
+
+========================================
+TESTS REQUIRED
+========================================
+
+After implementation, verify all of the following:
+
+1. User in Egypt grants location
+- Local currency becomes EGP, not SAR
+
+2. Create auction with USD
+- It displays as USD everywhere
+
+3. Create auction with Local Currency in Egypt
+- It displays as EGP everywhere
+
+4. Open My Auctions
+- USD auctions remain USD
+- Local-currency auctions remain local-currency
+- No conversion anywhere
+
+5. Hamburger menu
+- Currency Settings is gone completely
+
+6. Three-dot menu
+- Fully clickable
+- No overlap issues
+
+At the end, report:
+1. the exact old currency logic you removed
+2. the exact files changed
+3. how local currency detection now works
+4. confirmation that no currency conversion remains anywhere
+
+Reply only with: DONE

@@ -425,6 +425,7 @@ export interface ApiMyBidEntry {
     bidCount: number;
     endsAt: string;
     startsAt: string | null;
+    currencyCode: string | null;
   };
 }
 

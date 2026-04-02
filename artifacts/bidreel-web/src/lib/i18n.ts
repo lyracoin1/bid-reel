@@ -1,15 +1,5 @@
 export type Language = "en" | "ar" | "ru" | "es" | "fr";
 export type Direction = "ltr" | "rtl";
-export type CurrencyMode = "usd" | "local";
-
-/** Per-language local currency display info */
-export const CURRENCY_MAP: Record<Language, { flag: string; symbol: string; after: boolean }> = {
-  en: { flag: "🇺🇸", symbol: "$",    after: false }, // $500
-  ar: { flag: "🇸🇦", symbol: "ر.س", after: true  }, // 500 ر.س
-  ru: { flag: "🇷🇺", symbol: "₽",    after: true  }, // 500 ₽
-  es: { flag: "🇪🇸", symbol: "€",    after: true  }, // 500 €
-  fr: { flag: "🇫🇷", symbol: "€",    after: true  }, // 500 €
-};
 
 export const LANGUAGE_NAMES: Record<Language, string> = {
   en: "English",
@@ -55,8 +45,6 @@ export type TKey =
   // Profile
   | "listings" | "my_bids" | "bids_won" | "rating" | "log_out" | "language"
   | "no_listings" | "create_first" | "settings"
-  // Currency
-  | "currency_mode" | "currency_usd" | "currency_local"
   // Follow
   | "follow" | "following"
   // Auction states
@@ -101,7 +89,6 @@ const en: Translations = {
   log_out: "Log Out", language: "Language",
   no_listings: "No listings yet.", create_first: "Create your first listing", settings: "Settings",
   time_ended: "Ended", time_s: "s", time_m: "m left", time_h: "h left", time_d: "d left",
-  currency_mode: "Currency", currency_usd: "USD ($)", currency_local: "Local Currency",
   follow: "Follow", following: "Following",
   starts_in: "Starts in", upcoming_badge: "Upcoming", final_price: "Final Price",
   remind_me: "Remind Me", reminded: "Reminded ✓", bid_opens_soon: "Bidding opens soon",
@@ -141,7 +128,6 @@ const ar: Translations = {
   log_out: "تسجيل الخروج", language: "اللغة",
   no_listings: "لا توجد إدراجات بعد.", create_first: "أنشئ إدراجك الأول", settings: "الإعدادات",
   time_ended: "انتهى", time_s: "ث", time_m: "د متبقية", time_h: "س متبقية", time_d: "ي متبقية",
-  currency_mode: "العملة", currency_usd: "دولار أمريكي ($)", currency_local: "العملة المحلية",
   follow: "متابعة", following: "تتابعه",
   starts_in: "يبدأ في", upcoming_badge: "قادم", final_price: "السعر النهائي",
   remind_me: "ذكّرني", reminded: "تم التذكير ✓", bid_opens_soon: "المزايدة تفتح قريباً",
@@ -181,7 +167,6 @@ const ru: Translations = {
   log_out: "Выйти", language: "Язык",
   no_listings: "Нет лотов.", create_first: "Создать первый лот", settings: "Настройки",
   time_ended: "Завершён", time_s: "с", time_m: "м осталось", time_h: "ч осталось", time_d: "д осталось",
-  currency_mode: "Валюта", currency_usd: "USD ($)", currency_local: "Местная валюта",
   follow: "Подписаться", following: "Подписан",
   starts_in: "Начнётся через", upcoming_badge: "Скоро", final_price: "Финальная цена",
   remind_me: "Напомнить", reminded: "Напомнено ✓", bid_opens_soon: "Торги откроются скоро",
@@ -221,7 +206,6 @@ const es: Translations = {
   log_out: "Cerrar sesión", language: "Idioma",
   no_listings: "Sin anuncios aún.", create_first: "Crea tu primer anuncio", settings: "Ajustes",
   time_ended: "Finalizado", time_s: "s", time_m: "m restante", time_h: "h restante", time_d: "d restante",
-  currency_mode: "Moneda", currency_usd: "USD ($)", currency_local: "Moneda local",
   follow: "Seguir", following: "Siguiendo",
   starts_in: "Empieza en", upcoming_badge: "Próximamente", final_price: "Precio final",
   remind_me: "Recuérdame", reminded: "Recordado ✓", bid_opens_soon: "Las pujas abren pronto",
@@ -261,7 +245,6 @@ const fr: Translations = {
   log_out: "Se déconnecter", language: "Langue",
   no_listings: "Aucune annonce.", create_first: "Créer votre première annonce", settings: "Paramètres",
   time_ended: "Terminé", time_s: "s", time_m: "m restant", time_h: "h restant", time_d: "j restant",
-  currency_mode: "Devise", currency_usd: "USD ($)", currency_local: "Devise locale",
   follow: "Suivre", following: "Abonné",
   starts_in: "Débute dans", upcoming_badge: "À venir", final_price: "Prix final",
   remind_me: "Me rappeler", reminded: "Rappelé ✓", bid_opens_soon: "Les enchères ouvrent bientôt",

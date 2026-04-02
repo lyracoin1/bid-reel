@@ -44,6 +44,7 @@ export async function getToken(): Promise<string | null> {
 
       const data = await res.json() as { token: string };
       cachedToken = data.token;
+      console.log("[api-client] ✅ dev-login OK — JWT acquired");
       return cachedToken;
     } catch {
       console.warn("[api-client] dev-login network error — API unreachable");
@@ -56,7 +57,16 @@ export async function getToken(): Promise<string | null> {
   return tokenPromise;
 }
 
-// ─── Typed response helpers ────────────────────────────────────────────────────
+// ─── Shared fetch helper ──────────────────────────────────────────────────────
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await getToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  return headers;
+}
+
+// ─── Typed shapes ─────────────────────────────────────────────────────────────
 
 interface ApiError {
   error: string;
@@ -85,7 +95,247 @@ export interface PlaceBidResult {
   auction: ApiAuction;
 }
 
-// ─── Public API surface ────────────────────────────────────────────────────────
+// ─── Raw auction shape returned by the backend ───────────────────────────────
+
+export interface ApiAuctionRaw {
+  id: string;
+  seller_id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  start_price: number;
+  current_bid: number;
+  min_increment: number | null;
+  video_url: string | null;
+  thumbnail_url: string | null;
+  bid_count: number;
+  like_count: number;
+  status: string;
+  starts_at: string | null;
+  ends_at: string;
+  created_at: string;
+  seller: {
+    id: string;
+    display_name: string | null;
+    avatar_url: string | null;
+  } | null;
+}
+
+export interface ApiAuctionBid {
+  id: string;
+  user_id: string;
+  amount: number;
+  created_at: string;
+  bidder: {
+    id: string;
+    display_name: string | null;
+    avatar_url: string | null;
+  } | null;
+}
+
+// ─── Auction list ─────────────────────────────────────────────────────────────
+
+export async function getAuctionsApi(): Promise<ApiAuctionRaw[]> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_BASE}/auctions`, { headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to fetch auctions");
+  }
+  const data = await res.json() as { auctions: ApiAuctionRaw[] };
+  console.log(`[api-client] ✅ GET /auctions → ${data.auctions.length} auctions`);
+  return data.auctions;
+}
+
+// ─── Auction detail ───────────────────────────────────────────────────────────
+
+export async function getAuctionApi(id: string): Promise<{ auction: ApiAuctionRaw; bids: ApiAuctionBid[] }> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_BASE}/auctions/${id}`, { headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Auction not found");
+  }
+  const data = await res.json() as { auction: ApiAuctionRaw; bids: ApiAuctionBid[] };
+  console.log(`[api-client] ✅ GET /auctions/${id} → ${data.bids.length} bids`);
+  return data;
+}
+
+// ─── Place bid ────────────────────────────────────────────────────────────────
+
+/**
+ * Place a bid on an auction.
+ *
+ * Returns the created bid + updated auction on success.
+ * Throws an error with `code` and `message` fields on failure so callers
+ * can distinguish between "too low", "not active", "seller cannot bid", etc.
+ */
+export async function placeBidApi(
+  auctionId: string,
+  amount: number,
+): Promise<PlaceBidResult> {
+  const token = await getToken();
+
+  if (!token) {
+    throw Object.assign(new Error("Not authenticated — API unreachable in dev"), {
+      code: "NO_TOKEN",
+    });
+  }
+
+  console.log(`[api-client] POST /bids auctionId=${auctionId} amount=${amount}`);
+
+  const res = await fetch(`${API_BASE}/bids`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ auctionId, amount }),
+  });
+
+  const data = await res.json() as PlaceBidResult | ApiError;
+
+  if (!res.ok) {
+    const err = data as ApiError;
+    console.error(`[api-client] ❌ POST /bids failed: ${err.error} — ${err.message}`);
+    throw Object.assign(new Error(err.message ?? "Bid failed"), {
+      code: err.error,
+      statusCode: res.status,
+      ...(err as object),
+    });
+  }
+
+  const result = data as PlaceBidResult;
+  console.log(`[api-client] ✅ Bid placed — id=${result.bid.id} amount=${result.bid.amount} new_current=${result.auction.current_bid}`);
+  return result;
+}
+
+// ─── Create auction ───────────────────────────────────────────────────────────
+
+export interface CreateAuctionInput {
+  title: string;
+  description?: string;
+  category: string;
+  startPrice: number;
+  videoUrl: string;
+  thumbnailUrl: string;
+}
+
+export async function createAuctionApi(input: CreateAuctionInput): Promise<{ auction: ApiAuctionRaw }> {
+  const token = await getToken();
+  if (!token) throw new Error("Not authenticated");
+
+  console.log(`[api-client] POST /auctions title="${input.title}" startPrice=${input.startPrice}`);
+
+  const res = await fetch(`${API_BASE}/auctions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    const err = data as ApiError;
+    console.error(`[api-client] ❌ POST /auctions failed: ${err.error} — ${err.message}`);
+    throw Object.assign(new Error(err.message ?? "Failed to create auction"), { code: err.error });
+  }
+
+  const result = data as { auction: ApiAuctionRaw };
+  console.log(`[api-client] ✅ Auction created — id=${result.auction.id}`);
+  return result;
+}
+
+// ─── Media upload ─────────────────────────────────────────────────────────────
+
+export interface UploadUrlResponse {
+  uploadUrl: string;
+  path: string;
+  publicUrl: string;
+  fileType: "video" | "image";
+  expiresInSeconds: number;
+}
+
+/**
+ * Step 1: Get a presigned upload URL from the server.
+ */
+export async function getUploadUrlApi(
+  fileType: "video" | "image",
+  mimeType: string,
+  sizeBytes: number,
+): Promise<UploadUrlResponse> {
+  const token = await getToken();
+  if (!token) throw new Error("Not authenticated");
+
+  console.log(`[api-client] POST /media/upload-url fileType=${fileType} mimeType=${mimeType} size=${(sizeBytes / 1024).toFixed(1)}KB`);
+
+  const res = await fetch(`${API_BASE}/media/upload-url`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ fileType, mimeType, sizeBytes }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    const err = data as ApiError;
+    throw Object.assign(new Error(err.message ?? "Failed to get upload URL"), { code: err.error });
+  }
+
+  const result = data as UploadUrlResponse;
+  console.log(`[api-client] ✅ Upload URL acquired — path=${result.path}`);
+  return result;
+}
+
+/**
+ * Step 2: Upload the file directly to Supabase Storage via the presigned URL.
+ * Uses PUT as required by Supabase Storage presigned uploads.
+ */
+export async function uploadFileToStorage(
+  uploadUrl: string,
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<void> {
+  console.log(`[api-client] PUT file to storage — name=${file.name} size=${(file.size / 1024).toFixed(1)}KB`);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    if (onProgress) {
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          onProgress(pct);
+        }
+      });
+    }
+
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        console.log(`[api-client] ✅ File uploaded to storage successfully`);
+        resolve();
+      } else {
+        console.error(`[api-client] ❌ Storage upload failed: HTTP ${xhr.status}`);
+        reject(new Error(`Storage upload failed: HTTP ${xhr.status}`));
+      }
+    });
+
+    xhr.addEventListener("error", () => {
+      console.error(`[api-client] ❌ Storage upload network error`);
+      reject(new Error("Network error during file upload"));
+    });
+
+    xhr.open("PUT", uploadUrl);
+    xhr.setRequestHeader("Content-Type", file.type);
+    xhr.send(file);
+  });
+}
+
+// ─── Device token ─────────────────────────────────────────────────────────────
 
 /**
  * Register an FCM device token with the server.
@@ -110,46 +360,4 @@ export async function registerDeviceToken(
   } catch {
     console.warn("[api-client] registerDeviceToken failed — server unreachable");
   }
-}
-
-/**
- * Place a bid on an auction.
- *
- * Returns the created bid + updated auction on success.
- * Throws an error with `code` and `message` fields on failure so callers
- * can distinguish between "too low", "not active", "seller cannot bid", etc.
- */
-export async function placeBidApi(
-  auctionId: string,
-  amount: number,
-): Promise<PlaceBidResult> {
-  const token = await getToken();
-
-  if (!token) {
-    throw Object.assign(new Error("Not authenticated — API unreachable in dev"), {
-      code: "NO_TOKEN",
-    });
-  }
-
-  const res = await fetch(`${API_BASE}/bids`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ auctionId, amount }),
-  });
-
-  const data = await res.json() as PlaceBidResult | ApiError;
-
-  if (!res.ok) {
-    const err = data as ApiError;
-    throw Object.assign(new Error(err.message ?? "Bid failed"), {
-      code: err.error,
-      statusCode: res.status,
-      ...(err as object),
-    });
-  }
-
-  return data as PlaceBidResult;
 }

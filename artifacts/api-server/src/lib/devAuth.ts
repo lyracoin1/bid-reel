@@ -1,147 +1,100 @@
 /**
  * devAuth.ts — Development-only authentication helper
  *
- * PURPOSE:
- *   Allows local development and API testing without a real SMS provider.
- *   Given a phone number, creates or retrieves a Supabase user and returns
- *   a real, valid session token — identical in shape to production auth.
- *
- * HOW IT WORKS:
- *   1. Derives a stable per-phone password using HMAC-SHA256 over the phone
- *      number, keyed by the SUPABASE_SERVICE_ROLE_KEY. This password is
- *      deterministic (same phone → same password) but unguessable from outside
- *      without the service role key.
- *
- *   2. Creates the Supabase Auth user (phone confirmed, with derived password)
- *      if they don't exist yet.
- *
- *   3. Signs in with phone + derived password to obtain a real Supabase JWT.
- *      This token is 100% compatible with requireAuth middleware.
- *
- * REQUIREMENTS:
- *   - USE_DEV_AUTH=true environment variable
- *   - NODE_ENV must NOT be "production"
- *   - Supabase project must have Phone auth enabled
- *   - The Supabase project must allow phone + password sign-in
- *     (Supabase Auth → Settings → Enable Phone provider — this is all that
- *     is needed; phone+password sign-in is implicit when a phone user has
- *     a password set via the admin API)
- *
- * SECURITY:
- *   - This module is never imported in production builds because the endpoint
- *     that calls it is guarded by two independent checks:
- *       (a) process.env.USE_DEV_AUTH !== 'true'
- *       (b) process.env.NODE_ENV === 'production'
- *   - The derived password is NOT stored anywhere in our codebase.
- *   - Dev users are real Supabase Auth users; clean up via Supabase dashboard
- *     when no longer needed.
+ * Creates/retrieves a Supabase Auth user keyed by a derived email
+ * (email auth works without any Supabase provider configuration).
+ * The profile row stores the real phone number as usual.
  */
 
 import { createHmac } from "crypto";
 import { supabase, supabaseAdmin } from "./supabase";
 import { upsertProfile } from "./profiles";
-import type { PublicProfile } from "./profiles";
+import type { OwnProfile } from "./profiles";
 
 export interface DevLoginResult {
   token: string;
   isNewUser: boolean;
-  user: PublicProfile;
+  user: OwnProfile;
 }
 
-/**
- * Derives a stable, server-side-only password for a dev phone user.
- * Unguessable without the SUPABASE_SERVICE_ROLE_KEY.
- */
 function deriveDevPassword(phoneNumber: string): string {
-  const secret = process.env["SUPABASE_SERVICE_ROLE_KEY"]!;
+  const secret = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? "bidreel-dev-fallback";
   return createHmac("sha256", secret).update(phoneNumber).digest("hex").slice(0, 32);
 }
 
-/**
- * Creates a Supabase Auth user for the phone number if one doesn't exist.
- * Returns the user's UUID.
- *
- * Strategy:
- *   - Attempt to create the user with `phone_confirm: true` and the derived password.
- *   - If creation fails with "already registered", find the existing user via
- *     listUsers() and refresh their password so subsequent sign-ins succeed.
- */
-async function ensureUser(
-  phoneNumber: string,
+function deriveDevEmail(phoneNumber: string): string {
+  const hash = createHmac("sha256", "bidreel-dev-email")
+    .update(phoneNumber)
+    .digest("hex")
+    .slice(0, 16);
+  return `dev-${hash}@bidreel.internal`;
+}
+
+async function ensureEmailUser(
+  derivedEmail: string,
   derivedPassword: string,
-): Promise<{ userId: string; isNewUser: boolean }> {
-  // Attempt to create the user.
+): Promise<string> {
+  // Try to create a new email user (no phone on auth.user — avoids phone conflicts).
   const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
-    phone: phoneNumber,
-    phone_confirm: true,
+    email: derivedEmail,
+    email_confirm: true,
     password: derivedPassword,
   });
 
   if (!createError && created.user) {
-    return { userId: created.user.id, isNewUser: true };
+    return created.user.id;
   }
 
-  // If user already exists, find them and update their password.
-  // listUsers() is acceptable here — this is a dev-only code path.
+  // Already exists — look up by email.
   const { data: list, error: listError } = await supabaseAdmin.auth.admin.listUsers({
     perPage: 1000,
   });
 
   if (listError) {
-    throw new Error(`Dev auth: failed to list users — ${listError.message}`);
+    throw new Error(`Dev auth: listUsers failed — ${listError.message}`);
   }
 
-  const existing = list.users.find((u) => u.phone === phoneNumber);
+  const existing = list.users.find((u) => u.email === derivedEmail);
 
   if (!existing) {
-    // Re-throw the original creation error if we truly can't find the user.
     throw new Error(
-      `Dev auth: could not create or locate user for ${phoneNumber.slice(0, 4)}**** — ${createError?.message}`,
+      `Dev auth: could not create or find user for derived email. createUser error: ${createError?.message}`,
     );
   }
 
-  // Refresh the derived password in case the service role key changed.
+  // Refresh the password in case the service role key changed.
   await supabaseAdmin.auth.admin.updateUserById(existing.id, {
+    email_confirm: true,
     password: derivedPassword,
-    phone_confirm: true,
   });
 
-  return { userId: existing.id, isNewUser: false };
+  return existing.id;
 }
 
-/**
- * Main dev-login flow.
- * Returns a real Supabase JWT + public profile (no phone exposed).
- */
 export async function devLogin(phoneNumber: string): Promise<DevLoginResult> {
   const derivedPassword = deriveDevPassword(phoneNumber);
+  const derivedEmail = deriveDevEmail(phoneNumber);
 
-  // Step 1: ensure user exists in Supabase Auth.
-  const { isNewUser } = await ensureUser(phoneNumber, derivedPassword);
+  // Step 1: get or create an email-based auth user.
+  const userId = await ensureEmailUser(derivedEmail, derivedPassword);
 
-  // Step 2: sign in with phone + derived password to get a real session.
+  // Step 2: sign in via email+password (works without Phone auth enabled).
   const { data: signIn, error: signInError } = await supabase.auth.signInWithPassword({
-    phone: phoneNumber,
+    email: derivedEmail,
     password: derivedPassword,
   });
 
   if (signInError || !signIn.user || !signIn.session) {
     throw new Error(
-      `Dev auth: sign-in failed for ${phoneNumber.slice(0, 4)}**** — ${signInError?.message ?? "no session returned"}. ` +
-      "Ensure Phone auth is enabled in your Supabase project settings.",
+      `Dev auth: email sign-in failed — ${signInError?.message ?? "no session returned"}`,
     );
   }
 
-  // Step 3: upsert profile — same logic as production OTP flow.
-  const profileResult = await upsertProfile(
-    signIn.user.id,
-    signIn.user.phone ?? phoneNumber,
-  );
+  // Step 3: upsert the profile row with the real phone number.
+  const profileResult = await upsertProfile(userId, phoneNumber);
 
   return {
     token: signIn.session.access_token,
-    // isNewUser reflects profile creation, not just Auth user creation,
-    // to stay consistent with the production verify-otp response shape.
     isNewUser: profileResult.isNewUser,
     user: profileResult.profile,
   };

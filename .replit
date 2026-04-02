@@ -46,13 +46,12 @@ waitForPort = 24694
 name = "API Server"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
-waitForPort = 8080
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "echo 'API Server is managed by the artifact workflow. This stub does nothing.'"
 
 [agent]
 stack = "PNPM_WORKSPACE"

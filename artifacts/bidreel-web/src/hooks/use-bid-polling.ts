@@ -13,8 +13,8 @@ import React from "react";
 import { useEffect, useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
-import { mockAuctions, currentUser } from "@/lib/mock-data";
-import { getAuctions } from "@/hooks/use-auctions";
+import { currentUser } from "@/lib/mock-data";
+import { getAuctions, refreshAuctions } from "@/hooks/use-auctions";
 import { formatCurrency } from "@/lib/utils";
 
 // ── Singleton state ─────────────────────────────────────────────────────────
@@ -25,17 +25,7 @@ const userBids = new Map<string, number>();
 const alreadyNotified = new Set<string>();
 
 let pollIntervalId: ReturnType<typeof setInterval> | null = null;
-const POLL_INTERVAL_MS = 12_000; // 12 s — conservative for MVP
-
-// ── Bootstrap ───────────────────────────────────────────────────────────────
-/** Seed from mock data so we detect outbids on pre-existing bids immediately */
-const seedUserBids = () => {
-  mockAuctions.forEach((auction) => {
-    const myBid = auction.bids.find((b) => b.user.id === currentUser.id);
-    if (myBid) userBids.set(auction.id, myBid.amount);
-  });
-};
-seedUserBids();
+const POLL_INTERVAL_MS = 30_000; // 30 s — matches auction list refresh
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
@@ -128,10 +118,12 @@ export function useBidPolling(): BidPollingResult {
   const refresh = async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
-    // Simulate a short network round-trip
-    await new Promise((r) => setTimeout(r, 900));
-    checkOutbids(); // immediate outbid check on manual refresh
-    setIsRefreshing(false);
+    try {
+      await refreshAuctions(); // real API fetch
+      checkOutbids();
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   return { isRefreshing, refresh };

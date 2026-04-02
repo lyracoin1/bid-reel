@@ -1,8 +1,17 @@
 import { useState, useEffect } from 'react';
-import { mockAuctions, mockUsers, currentUser, type Auction } from '@/lib/mock-data';
-import { placeBidApi } from '@/lib/api-client';
+import { type User, type Auction, type Bid, currentUser } from '@/lib/mock-data';
+import {
+  placeBidApi,
+  getAuctionsApi,
+  getAuctionApi,
+  createAuctionApi,
+  type ApiAuctionRaw,
+  type ApiAuctionBid,
+  type CreateAuctionInput,
+} from '@/lib/api-client';
 
-let globalAuctions = [...mockAuctions];
+// ─── Module-level cache ───────────────────────────────────────────────────────
+let globalAuctions: Auction[] = [];
 type Listeners = Set<() => void>;
 const listeners: Listeners = new Set();
 const notify = () => listeners.forEach(l => l());
@@ -12,102 +21,205 @@ export function getAuctions(): Auction[] {
   return globalAuctions;
 }
 
+// ─── Data mapping helpers ─────────────────────────────────────────────────────
+
+function apiProfileToUser(
+  profile: ApiAuctionRaw['seller'] | ApiAuctionBid['bidder'],
+  fallbackId: string,
+): User {
+  return {
+    id: profile?.id ?? fallbackId,
+    name: profile?.display_name ?? 'Seller',
+    avatar:
+      profile?.avatar_url ??
+      `https://ui-avatars.com/api/?name=User&background=6d28d9&color=fff&size=100`,
+    handle: `@${(profile?.id ?? fallbackId).slice(0, 8)}`,
+    phone: '', // never exposed from API
+  };
+}
+
+function apiBidToFrontend(bid: ApiAuctionBid): Bid {
+  return {
+    id: bid.id,
+    user: apiProfileToUser(bid.bidder, bid.user_id),
+    amount: bid.amount,
+    timestamp: bid.created_at,
+  };
+}
+
+function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Auction {
+  // Handle both old schema (current_price, minimum_increment) and new schema (current_bid, min_increment).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const r = raw as any;
+  const currentBid: number = r.current_bid ?? r.current_price ?? r.start_price ?? 0;
+  const startingBid: number = r.start_price ?? r.starting_bid ?? 0;
+  const videoUrl: string | undefined = r.video_url ?? r.storage_path;
+  const thumbUrl: string | undefined = r.thumbnail_url ?? r.image_paths?.[0];
+  const mediaUrl = videoUrl ?? thumbUrl ?? '';
+
+  return {
+    id: raw.id,
+    title: raw.title,
+    description: raw.description ?? '',
+    currentBid,
+    startingBid,
+    startsAt: raw.starts_at,
+    endsAt: raw.ends_at,
+    mediaUrl,
+    type: videoUrl ? 'video' : 'album',
+    seller: apiProfileToUser(raw.seller, raw.seller_id),
+    likes: r.like_count ?? 0,
+    bidCount: r.bid_count ?? 0,
+    bids: bids.map(apiBidToFrontend),
+    isLikedByMe: false,
+  };
+}
+
+// ─── Global refresh (also used by bid polling) ────────────────────────────────
+
+export async function refreshAuctions(): Promise<void> {
+  try {
+    const auctions = await getAuctionsApi();
+    globalAuctions = auctions.map(a => backendToAuction(a));
+    console.log(`[use-auctions] ✅ Refreshed — ${globalAuctions.length} auctions from DB`);
+    notify();
+  } catch (err) {
+    console.error('[use-auctions] ❌ Failed to refresh auctions:', err);
+  }
+}
+
+// ─── useAuctions ──────────────────────────────────────────────────────────────
+
 export function useAuctions() {
   const [auctions, setAuctions] = useState<Auction[]>(globalAuctions);
+  const [isLoading, setIsLoading] = useState(globalAuctions.length === 0);
 
   useEffect(() => {
     const handler = () => setAuctions([...globalAuctions]);
     listeners.add(handler);
-    return () => { listeners.delete(handler); };
+
+    if (globalAuctions.length === 0) {
+      refreshAuctions().finally(() => setIsLoading(false));
+    }
+
+    const interval = setInterval(refreshAuctions, 30_000);
+
+    return () => {
+      listeners.delete(handler);
+      clearInterval(interval);
+    };
   }, []);
 
-  return { data: auctions, isLoading: false };
+  return { data: auctions, isLoading };
 }
+
+// ─── useAuction ───────────────────────────────────────────────────────────────
 
 export function useAuction(id: string) {
-  const { data: auctions } = useAuctions();
-  return { data: auctions.find(a => a.id === id) || null, isLoading: false };
+  const [auction, setAuction] = useState<Auction | null>(
+    () => globalAuctions.find(a => a.id === id) ?? null,
+  );
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) return;
+
+    const handler = () => {
+      const found = globalAuctions.find(a => a.id === id);
+      if (found) {
+        setAuction(prev => ({ ...found, bids: prev?.bids?.length ? prev.bids : found.bids }));
+      }
+    };
+    listeners.add(handler);
+
+    setIsLoading(true);
+    getAuctionApi(id)
+      .then(({ auction: raw, bids }) => {
+        const mapped = backendToAuction(raw, bids);
+        setAuction(mapped);
+        // Update the global cache so bid polling sees fresh data
+        const idx = globalAuctions.findIndex(a => a.id === id);
+        if (idx >= 0) globalAuctions[idx] = mapped;
+        else globalAuctions = [mapped, ...globalAuctions];
+        notify();
+      })
+      .catch(err => {
+        console.error(`[use-auctions] ❌ Failed to fetch auction ${id}:`, err);
+      })
+      .finally(() => setIsLoading(false));
+
+    return () => { listeners.delete(handler); };
+  }, [id]);
+
+  return { data: auction, isLoading };
 }
 
+// ─── usePlaceBid ──────────────────────────────────────────────────────────────
+
 export type BidError =
-  | "BID_TOO_LOW"
-  | "AUCTION_NOT_ACTIVE"
-  | "SELLER_CANNOT_BID"
-  | "NO_TOKEN"
-  | "UNKNOWN";
+  | 'BID_TOO_LOW'
+  | 'AUCTION_NOT_ACTIVE'
+  | 'SELLER_CANNOT_BID'
+  | 'NO_TOKEN'
+  | 'UNKNOWN';
 
 export interface PlaceBidOptions {
   onSuccess?: () => void;
   onError?: (code: BidError, message: string) => void;
 }
 
-/**
- * Place a bid.
- *
- * Strategy:
- *   1. Try the real API (POST /api/bids).
- *   2. On any network/auth failure, silently fall back to the local mock so
- *      the demo always works even when the DB isn't provisioned yet.
- *   3. On a business-rule failure (too low, not active, seller bid) the error
- *      is surfaced to the caller — no silent fallback.
- */
 export function usePlaceBid(options: PlaceBidOptions = {}) {
   const [isPending, setIsPending] = useState(false);
   const [lastError, setLastError] = useState<{ code: BidError; message: string } | null>(null);
 
-  const applyMockBid = (auctionId: string, amount: number) => {
-    const idx = globalAuctions.findIndex(a => a.id === auctionId);
-    if (idx < 0) return false;
-    const auction = globalAuctions[idx];
-    if (amount <= auction.currentBid) return false;
-    globalAuctions[idx] = {
-      ...auction,
-      currentBid: amount,
-      bidCount: auction.bidCount + 1,
-      bids: [
-        { id: `bid_${Date.now()}`, user: currentUser, amount, timestamp: new Date().toISOString() },
-        ...auction.bids,
-      ],
-    };
-    import('@/hooks/use-bid-polling').then(({ recordUserBid }) => {
-      recordUserBid(auctionId, amount);
-    });
-    notify();
-    return true;
-  };
-
   const mutate = async (auctionId: string, amount: number) => {
     setIsPending(true);
     setLastError(null);
+    console.log(`[usePlaceBid] Submitting bid — auctionId=${auctionId} amount=${amount}`);
 
     try {
-      // ── Try real API ────────────────────────────────────────────────────────
       const result = await placeBidApi(auctionId, amount);
 
-      // Sync the local mock state so the UI reflects the new bid immediately
-      applyMockBid(auctionId, amount);
+      // Update local cache with server-confirmed values
+      const idx = globalAuctions.findIndex(a => a.id === auctionId);
+      if (idx >= 0) {
+        globalAuctions[idx] = {
+          ...globalAuctions[idx],
+          currentBid: result.auction.current_bid,
+          bidCount: result.auction.bid_count,
+          bids: [
+            {
+              id: result.bid.id,
+              user: currentUser,
+              amount: result.bid.amount,
+              timestamp: result.bid.created_at,
+            },
+            ...globalAuctions[idx].bids,
+          ],
+        };
+        notify();
+      }
 
+      import('@/hooks/use-bid-polling').then(({ recordUserBid }) => {
+        recordUserBid(auctionId, amount);
+      });
+
+      console.log(
+        `[usePlaceBid] ✅ Bid written to DB — bid.id=${result.bid.id}` +
+        ` amount=${result.bid.amount} new_current_bid=${result.auction.current_bid}` +
+        ` new_bid_count=${result.auction.bid_count}`,
+      );
       options.onSuccess?.();
       return result;
 
     } catch (err: unknown) {
       const e = err as { code?: string; message?: string; statusCode?: number };
-      const code = (e.code ?? "UNKNOWN") as BidError;
-      const message = e.message ?? "Something went wrong";
+      const code = (e.code ?? 'UNKNOWN') as BidError;
+      const message = e.message ?? 'Something went wrong';
 
-      // ── Business rule errors — surface to UI, no fallback ─────────────────
-      const businessErrors: BidError[] = ["BID_TOO_LOW", "AUCTION_NOT_ACTIVE", "SELLER_CANNOT_BID"];
-      if (businessErrors.includes(code)) {
-        setLastError({ code, message });
-        options.onError?.(code, message);
-        return;
-      }
-
-      // ── Infrastructure errors (no DB, unreachable) — use mock fallback ────
-      console.warn("[usePlaceBid] API unreachable, using mock fallback:", message);
-      await new Promise(r => setTimeout(r, 600)); // simulate latency
-      applyMockBid(auctionId, amount);
-      options.onSuccess?.();
+      console.error(`[usePlaceBid] ❌ Bid failed — code=${code} status=${e.statusCode} message=${message}`);
+      setLastError({ code, message });
+      options.onError?.(code, message);
 
     } finally {
       setIsPending(false);
@@ -117,67 +229,53 @@ export function usePlaceBid(options: PlaceBidOptions = {}) {
   return { mutate, isPending, lastError };
 }
 
+// ─── useCreateAuction ─────────────────────────────────────────────────────────
+
+export type { CreateAuctionInput };
+
 export function useCreateAuction() {
   const [isPending, setIsPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const mutate = async (data: Partial<Auction> & { images?: string[] }) => {
+  const mutate = async (data: CreateAuctionInput): Promise<string> => {
     setIsPending(true);
-    await new Promise(r => setTimeout(r, 1000));
+    setError(null);
+    console.log(`[useCreateAuction] Creating auction — title="${data.title}" startPrice=${data.startPrice}`);
 
-    const newAuction: Auction = {
-      id: `a_${Date.now()}`,
-      title: data.title || "New Item",
-      description: data.description || "",
-      currentBid: data.startingBid || 0,
-      startingBid: data.startingBid || 0,
-      endsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-      mediaUrl: data.mediaUrl || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&h=1400&fit=crop",
-      type: (data as any).type || "video",
-      images: (data as any).images,
-      seller: currentUser,
-      likes: 0,
-      bidCount: 0,
-      bids: [],
-    };
-
-    globalAuctions = [newAuction, ...globalAuctions];
-    notify();
-    setIsPending(false);
-    return newAuction.id;
+    try {
+      const { auction } = await createAuctionApi(data);
+      const mapped = backendToAuction(auction);
+      globalAuctions = [mapped, ...globalAuctions];
+      notify();
+      console.log(`[useCreateAuction] ✅ Auction written to DB — id=${auction.id}`);
+      return auction.id;
+    } catch (err: unknown) {
+      const msg = (err as Error).message ?? 'Failed to create auction';
+      console.error(`[useCreateAuction] ❌ ${msg}`);
+      setError(msg);
+      throw err;
+    } finally {
+      setIsPending(false);
+    }
   };
 
-  return { mutate, isPending };
+  return { mutate, isPending, error };
 }
+
+// ─── useToggleLike ────────────────────────────────────────────────────────────
 
 export function useToggleLike() {
   const mutate = (auctionId: string) => {
     const idx = globalAuctions.findIndex(a => a.id === auctionId);
     if (idx >= 0) {
       const a = globalAuctions[idx];
-      globalAuctions[idx] = { ...a, isLikedByMe: !a.isLikedByMe, likes: a.isLikedByMe ? a.likes - 1 : a.likes + 1 };
+      globalAuctions[idx] = {
+        ...a,
+        isLikedByMe: !a.isLikedByMe,
+        likes: a.isLikedByMe ? a.likes - 1 : a.likes + 1,
+      };
       notify();
     }
   };
   return { mutate };
 }
-
-// ── Demo: simulate a competitor outbidding the current user ─────────────────
-// Fires 10 s after page load to demonstrate the outbid toast.
-// In production, real-time bids arrive via WebSocket or FCM — remove this block.
-setTimeout(() => {
-  const competitor = mockUsers.find(u => u.id === "u3")!; // Marcus Doe
-  const idx = globalAuctions.findIndex(a => a.id === "a4");
-  if (idx < 0) return;
-  const auction = globalAuctions[idx];
-  const demoAmount = auction.currentBid + 600;
-  globalAuctions[idx] = {
-    ...auction,
-    currentBid: demoAmount,
-    bidCount: auction.bidCount + 1,
-    bids: [
-      { id: `demo_${Date.now()}`, user: competitor, amount: demoAmount, timestamp: new Date().toISOString() },
-      ...auction.bids,
-    ],
-  };
-  notify();
-}, 10_000);

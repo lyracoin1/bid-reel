@@ -31,8 +31,18 @@ function isAuctionActive(startsAt: string | null, endsAt: string): boolean {
 
 // ─── GET /api/auctions ────────────────────────────────────────────────────────
 
+const LIST_AUCTION_COLS = [
+  "id", "seller_id", "title", "description", "category",
+  "start_price", "current_bid", "min_increment",
+  "video_url", "thumbnail_url",
+  "bid_count", "like_count", "status",
+  "starts_at", "ends_at", "created_at",
+].join(", ");
+
 router.get("/auctions", async (req, res) => {
-  const { data, error } = await supabaseAdmin
+  // select("*") is intentional — avoids hard-coding column names that may
+  // not yet exist in partially-migrated databases.
+  const { data: auctions, error } = await supabaseAdmin
     .from("auctions")
     .select("*")
     .order("created_at", { ascending: false })
@@ -44,7 +54,24 @@ router.get("/auctions", async (req, res) => {
     return;
   }
 
-  res.json({ auctions: data ?? [] });
+  // Batch-fetch seller profiles so the client can display seller info
+  const sellerIds = [...new Set((auctions ?? []).map((a) => a.seller_id))];
+  const { data: profiles } = sellerIds.length > 0
+    ? await supabaseAdmin
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .in("id", sellerIds)
+    : { data: [] };
+
+  const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+  const auctionsWithSellers = (auctions ?? []).map((a) => ({
+    ...a,
+    seller: profileMap.get(a.seller_id) ?? null,
+  }));
+
+  logger.info({ count: auctionsWithSellers.length }, "GET /auctions → returning auctions");
+  res.json({ auctions: auctionsWithSellers });
 });
 
 // ─── GET /api/auctions/:id ────────────────────────────────────────────────────
@@ -72,9 +99,38 @@ router.get("/auctions/:id", async (req, res) => {
     return;
   }
 
+  const auctionData = auctionResult.data;
+  const bids = bidsResult.data ?? [];
+
+  // Batch-fetch profiles for seller + all bidders in one round-trip
+  const profileIds = [...new Set([
+    auctionData.seller_id,
+    ...bids.map((b) => b.user_id),
+  ])];
+
+  const { data: profiles } = profileIds.length > 0
+    ? await supabaseAdmin
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .in("id", profileIds)
+    : { data: [] };
+
+  const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+  const auctionWithSeller = {
+    ...auctionData,
+    seller: profileMap.get(auctionData.seller_id) ?? null,
+  };
+
+  const bidsWithBidders = bids.map((b) => ({
+    ...b,
+    bidder: profileMap.get(b.user_id) ?? null,
+  }));
+
+  logger.info({ auctionId: id, bidCount: bids.length }, "GET /auctions/:id → returning detail");
   res.json({
-    auction: auctionResult.data,
-    bids: bidsResult.data ?? [],
+    auction: auctionWithSeller,
+    bids: bidsWithBidders,
   });
 });
 
@@ -190,14 +246,16 @@ router.post("/auctions", requireAuth, async (req, res) => {
       description: description ?? null,
       category,
       start_price: startPrice,
+      // New schema column names; migration 009 renames old ones to match.
       current_bid: startPrice,
       min_increment: minIncrement,
       video_url: videoUrl,
       thumbnail_url: thumbnailUrl,
       ends_at: endsAt.toISOString(),
+      // media_purge_after added in migration 009; ignored by DB if column missing.
       media_purge_after: mediaPurgeAfter.toISOString(),
     })
-    .select(AUCTION_SELECT)
+    .select("*")
     .single();
 
   if (error || !auction) {

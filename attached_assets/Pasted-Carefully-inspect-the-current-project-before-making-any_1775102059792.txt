@@ -1,0 +1,65 @@
+Carefully inspect the current project before making any code changes. Do not guess, and do not apply random fixes. I want you to fully understand the existing implementation first, then identify the exact causes of the current problems.
+
+Current issues to investigate:
+1. On the auction publish screen, when trying to submit, the UI shows: "Not authenticated".
+2. Video upload is not working properly and the app does not successfully upload/select/use the video as expected.
+3. We will later require proper admin activation inside the profile, mandatory location permission, and strict publish validation, so you must locate the relevant code areas now.
+
+Your job in this step:
+Perform a full inspection of the current codebase and identify the exact files, functions, components, hooks, routes, middleware, database/schema definitions, and storage/upload logic related to the following:
+
+A. Authentication and session handling
+- Find where login/authentication is implemented.
+- Find how the current authenticated user/session/token is stored and restored.
+- Find how the frontend determines whether the user is logged in.
+- Find how authenticated API requests are made.
+- Find whether the publish request is sending the auth token/session/cookies correctly.
+- Find where the backend/API validates authentication for auction creation.
+- Find the exact reason why the publish screen currently returns "Not authenticated".
+
+B. Auction creation / publish flow
+- Find the frontend page/component for creating or publishing an auction.
+- Trace the full submit flow from button click to API request to backend handler.
+- Identify all validation currently applied before publishing.
+- Identify whether media and location are currently required or optional.
+- Identify what breaks in the current flow and why.
+
+C. Media upload system
+- Find where image upload is implemented.
+- Find where video upload is implemented, if it exists.
+- Check accepted file types, allowed MIME types, extensions, file size limits, upload endpoints, storage buckets, and backend validation.
+- Identify the exact reason video upload is failing:
+  - unsupported type?
+  - frontend validation issue?
+  - backend validation issue?
+  - storage configuration issue?
+  - wrong payload format?
+  - upload succeeds but returned URL is not handled?
+- Determine whether the current system only supports images and not videos.
+
+D. Profile and roles
+- Find the profile page/component.
+- Find where user roles are stored and read.
+- Find whether there is already an admin flag, admin role, or any role system.
+- Find the best place where we can later add admin activation inside the profile.
+
+E. Permissions and location
+- Find whether location permission is currently requested anywhere.
+- Find whether location is currently stored in the auction or profile.
+- Find the best place to later enforce mandatory location permission for auction publishing.
+
+Important rules for this step:
+- Do not start implementing the final fixes yet unless a tiny inspection-only change is absolutely required.
+- Do not refactor unrelated code.
+- Do not remove anything yet.
+- Do not invent missing architecture—inspect the real code and report based only on what actually exists.
+
+At the end of this step, provide a concise but useful summary containing:
+1. The exact cause of the "Not authenticated" error.
+2. The exact cause of the video upload failure.
+3. The specific files that must be changed in the next steps.
+4. A short execution plan for the fixes in the correct order.
+
+Then stop.
+
+Reply only with: DONE

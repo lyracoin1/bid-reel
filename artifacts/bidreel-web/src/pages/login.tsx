@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ShieldCheck, X, Loader2 } from "lucide-react";
 import { useLang } from "@/contexts/LanguageContext";
 import { setToken } from "@/lib/api-client";
+import { clearAdminSession, setAdminSession } from "@/pages/admin/AdminGuard";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
 const API_BASE = `${BASE}/api`;
@@ -58,23 +59,36 @@ export default function Login() {
     return adminPhone.replace(/[\s\-\(\)\.]/g, "").trim();
   }
 
-  // ── Shared post-login handler ────────────────────────────────────────────
-  function handleLoginSuccess(data: LoginResponse) {
+  // ── Normal login handler ─────────────────────────────────────────────────
+  // Called ONLY from the normal phone-login form (POST /api/auth/login).
+  // NEVER reads isAdmin from the response — the redirect destination is fixed:
+  // always /feed or /interests regardless of the user's role in the database.
+  // Also clears any stale admin session from a previous login on the same tab.
+  function afterNormalLogin(data: LoginResponse) {
     setToken(data.token);
+    // Explicitly destroy any leftover admin panel session from a prior login.
+    // Without this, a stale bidreel_admin_ts in sessionStorage could let a
+    // normal user bypass AdminGuard's password gate if they also happen to
+    // have is_admin=true in the DB (e.g. because they were promoted earlier).
+    clearAdminSession();
     console.log(
-      `[auth] ✅ login OK — userId=${data.user?.id} isNew=${data.isNewUser} isAdmin=${data.user?.isAdmin}`
+      `[auth] ✅ normal login OK — userId=${data.user?.id} isNew=${data.isNewUser} → /feed`
     );
-
-    if (data.user?.isAdmin) {
-      // Auto-set the admin panel session so AdminGuard skips the password prompt.
-      // The user already proved identity with the secret admin code during login.
-      sessionStorage.setItem("bidreel_admin_ts", String(Date.now()));
-      setLocation("/admin");
-      return;
-    }
-
     const seen = localStorage.getItem("hasSeenInterests");
     setLocation(seen ? "/feed" : "/interests");
+  }
+
+  // ── Admin login handler ───────────────────────────────────────────────────
+  // Called ONLY from the admin form after POST /api/auth/admin-login succeeds.
+  // Sets the admin panel session (so AdminGuard skips the extra password) and
+  // redirects to /admin. The admin code was already validated server-side.
+  function afterAdminLogin(data: LoginResponse) {
+    setToken(data.token);
+    setAdminSession();
+    console.log(
+      `[auth] ✅ admin login OK — userId=${data.user?.id} isAdmin=${data.user?.isAdmin} → /admin`
+    );
+    setLocation("/admin");
   }
 
   // ── Normal login submit ──────────────────────────────────────────────────
@@ -102,7 +116,7 @@ export default function Login() {
         return;
       }
 
-      handleLoginSuccess(data);
+      afterNormalLogin(data);
     } catch {
       setError(copy.networkErr);
     } finally {
@@ -139,7 +153,7 @@ export default function Login() {
         return;
       }
 
-      handleLoginSuccess(data);
+      afterAdminLogin(data);
     } catch {
       setAdminError(lang === "ar" ? "خطأ في الشبكة، تحقق من اتصالك" : "Network error.");
     } finally {

@@ -1,13 +1,13 @@
-import { useState, useEffect } from "react";
-import { Grid, Gavel, LogOut, RefreshCw } from "lucide-react";
-import { motion } from "framer-motion";
+import { useState, useEffect, useRef } from "react";
+import { Grid, Gavel, LogOut, ShieldCheck, KeyRound, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { HamburgerMenu } from "@/components/HamburgerMenu";
 import { NotificationBell } from "@/components/NotificationBell";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUser, refreshCurrentUser } from "@/hooks/use-current-user";
 import { useAuctions } from "@/hooks/use-auctions";
-import { getUserBidsApi, clearToken, type ApiMyBidEntry } from "@/lib/api-client";
+import { getUserBidsApi, activateAdminApi, clearToken, type ApiMyBidEntry } from "@/lib/api-client";
 import { getTimeRemaining } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -20,6 +20,12 @@ export default function Profile() {
   const [bidsLoading, setBidsLoading] = useState(true);
   const [, setLocation] = useLocation();
   const { t, formatPrice } = useLang();
+
+  const [adminCode, setAdminCode] = useState("");
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminError, setAdminError] = useState<string | null>(null);
+  const [adminSuccess, setAdminSuccess] = useState(false);
+  const codeInputRef = useRef<HTMLInputElement>(null);
 
   const { user, isLoading: userLoading } = useCurrentUser();
   const { data: allAuctions, isLoading: auctionsLoading } = useAuctions();
@@ -35,6 +41,26 @@ export default function Profile() {
       .catch(err => console.error("[profile] Failed to load bids:", err))
       .finally(() => setBidsLoading(false));
   }, []);
+
+  const handleActivateAdmin = async () => {
+    const trimmed = adminCode.trim();
+    if (!trimmed) {
+      setAdminError("يرجى إدخال الكود أولاً");
+      return;
+    }
+    setAdminLoading(true);
+    setAdminError(null);
+    try {
+      await activateAdminApi(trimmed);
+      await refreshCurrentUser();
+      setAdminSuccess(true);
+      setAdminCode("");
+    } catch (err: unknown) {
+      setAdminError(err instanceof Error ? err.message : "حدث خطأ غير متوقع");
+    } finally {
+      setAdminLoading(false);
+    }
+  };
 
   const tabs: { id: Tab; labelKey: "listings" | "my_bids"; icon: typeof Grid; count: number }[] = [
     { id: "listings", labelKey: "listings", icon: Grid,  count: myListings.length },
@@ -81,6 +107,12 @@ export default function Profile() {
                     <p className="text-sm text-muted-foreground mt-1">
                       @{user?.id.slice(0, 8) ?? "…"}
                     </p>
+                    {user?.isAdmin && (
+                      <div className="flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full bg-violet-500/20 border border-violet-500/30 w-fit">
+                        <ShieldCheck size={13} className="text-violet-400" />
+                        <span className="text-[11px] font-bold text-violet-300">أنت أدمن</span>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -236,6 +268,58 @@ export default function Profile() {
             )
           )}
         </div>
+
+        {/* ── Admin activation ── */}
+        {!userLoading && !user?.isAdmin && (
+          <div className="px-5 pb-4">
+            <div className="rounded-2xl border border-white/8 bg-white/3 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <KeyRound size={16} className="text-violet-400 shrink-0" />
+                <span className="text-sm font-semibold text-white/80">تفعيل صلاحيات الأدمن</span>
+              </div>
+
+              <input
+                ref={codeInputRef}
+                type="password"
+                value={adminCode}
+                onChange={e => { setAdminCode(e.target.value); setAdminError(null); }}
+                onKeyDown={e => e.key === "Enter" && handleActivateAdmin()}
+                placeholder="أدخل كود التفعيل"
+                disabled={adminLoading}
+                className="w-full px-4 py-3 rounded-xl bg-white/6 border border-white/10 text-white placeholder:text-white/30 text-sm focus:outline-none focus:border-violet-500/50 focus:bg-white/8 transition mb-3 text-right"
+                dir="rtl"
+              />
+
+              <AnimatePresence>
+                {adminError && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                    className="text-xs text-red-400 mb-3 text-right"
+                  >
+                    {adminError}
+                  </motion.p>
+                )}
+                {adminSuccess && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                    className="text-xs text-emerald-400 mb-3 text-right"
+                  >
+                    تم تفعيل الأدمن بنجاح 🎉
+                  </motion.p>
+                )}
+              </AnimatePresence>
+
+              <button
+                onClick={handleActivateAdmin}
+                disabled={adminLoading || !adminCode.trim()}
+                className="w-full py-3 rounded-xl bg-violet-600 text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-violet-500 active:scale-98 transition"
+              >
+                {adminLoading ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+                {adminLoading ? "جارٍ التحقق…" : "تفعيل الأدمن"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Logout */}
         <div className="px-5 pb-8">

@@ -221,6 +221,65 @@ router.get("/users/me/bids", requireAuth, async (req, res) => {
   res.json({ bids: result });
 });
 
+// ─── POST /api/users/me/activate-admin ───────────────────────────────────────
+// Allows any authenticated user to self-promote to admin by providing the
+// correct activation code. The code is validated server-side against the
+// ADMIN_ACTIVATION_CODE environment variable — never exposed to clients.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const activateAdminSchema = z.object({
+  code: z.string().min(1, "Code is required"),
+});
+
+router.post("/users/me/activate-admin", requireAuth, async (req, res) => {
+  const parsed = activateAdminSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({
+      error: "VALIDATION_ERROR",
+      message: "يرجى إدخال الكود",
+    });
+    return;
+  }
+
+  const expected = process.env["ADMIN_ACTIVATION_CODE"];
+  if (!expected) {
+    logger.warn("ADMIN_ACTIVATION_CODE env var not set");
+    res.status(503).json({
+      error: "NOT_CONFIGURED",
+      message: "خاصية تفعيل الأدمن غير مفعّلة على الخادم",
+    });
+    return;
+  }
+
+  if (parsed.data.code !== expected) {
+    res.status(403).json({
+      error: "INVALID_CODE",
+      message: "الكود غير صحيح، يرجى التحقق والمحاولة مرة أخرى",
+    });
+    return;
+  }
+
+  const userId = req.user!.id;
+
+  const { error: updateError } = await supabaseAdmin
+    .from("profiles")
+    .update({ is_admin: true })
+    .eq("id", userId);
+
+  if (updateError) {
+    logger.error({ err: updateError, userId }, "Failed to set is_admin");
+    res.status(500).json({
+      error: "UPDATE_FAILED",
+      message: "حدث خطأ أثناء تفعيل الصلاحيات، يرجى المحاولة مرة أخرى",
+    });
+    return;
+  }
+
+  const profile = await getOwnProfile(userId);
+  logger.info({ userId }, "User promoted to admin");
+  res.json({ user: profile });
+});
+
 // ─── GET /api/users/:userId ───────────────────────────────────────────────────
 // Returns another user's public profile.
 // Excludes phone, expo_push_token, ban_reason.

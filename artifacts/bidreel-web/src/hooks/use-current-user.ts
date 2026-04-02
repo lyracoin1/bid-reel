@@ -54,6 +54,19 @@ async function loadCurrentUser(): Promise<ApiUserProfile | null> {
   return fetchPromise;
 }
 
+/**
+ * Force-refresh the cached user profile.
+ * Call this after operations that mutate the profile (e.g. admin activation).
+ */
+export async function refreshCurrentUser(): Promise<ApiUserProfile | null> {
+  cachedUser = null;
+  fetchPromise = null;
+  const user = await getUserMeApi().catch(() => null);
+  cachedUser = user;
+  notifyAll();
+  return user;
+}
+
 // ── React hook ────────────────────────────────────────────────────────────────
 
 export interface CurrentUserState {

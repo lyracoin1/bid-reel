@@ -253,6 +253,8 @@ export interface CreateAuctionInput {
   startPrice: number;
   videoUrl: string;
   thumbnailUrl: string;
+  lat: number;
+  lng: number;
 }
 
 export async function createAuctionApi(input: CreateAuctionInput): Promise<{ auction: ApiAuctionRaw }> {

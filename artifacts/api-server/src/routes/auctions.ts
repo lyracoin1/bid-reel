@@ -67,11 +67,34 @@ async function insertAuction(payload: {
   thumbnail_url: string;
   ends_at: string;
   media_purge_after: string;
+  lat?: number;
+  lng?: number;
 }) {
-  const { start_price_value, min_increment_value, media_purge_after, ...base } = payload;
+  const { start_price_value, min_increment_value, media_purge_after, lat, lng, ...base } = payload;
 
-  // Attempt 1: new schema (current_bid, min_increment, media_purge_after)
+  // PostgREST returns PGRST204 for "column not in schema cache"; Postgres returns 42703.
+  const isColErr = (code: string | undefined) =>
+    code === "PGRST204" || code === "42703";
+
+  // Attempt 1: new schema + lat/lng + media_purge_after
   const a1 = await supabaseAdmin
+    .from("auctions")
+    .insert({
+      ...base,
+      current_bid: start_price_value,
+      min_increment: min_increment_value,
+      media_purge_after,
+      ...(lat !== undefined && lng !== undefined ? { lat, lng } : {}),
+    })
+    .select("*")
+    .single();
+
+  if (!a1.error) return a1;
+  if (!isColErr(a1.error.code)) return a1;
+
+  // Fallback A: new column names + media_purge_after, without lat/lng
+  logger.warn({ code: a1.error.code, msg: a1.error.message }, "Schema fallback A: retrying without lat/lng");
+  const a2 = await supabaseAdmin
     .from("auctions")
     .insert({
       ...base,
@@ -82,18 +105,12 @@ async function insertAuction(payload: {
     .select("*")
     .single();
 
-  if (!a1.error) return a1;
+  if (!a2.error) return a2;
+  if (!isColErr(a2.error.code)) return a2;
 
-  // PostgREST returns PGRST204 for "column not in schema cache"; Postgres returns 42703.
-  // Either code indicates we should try alternate column names.
-  const isColErr = (code: string | undefined) =>
-    code === "PGRST204" || code === "42703";
-
-  if (!isColErr(a1.error.code)) return a1; // unexpected error — surface it
-
-  // Fallback A: new column names but without media_purge_after
-  logger.warn({ code: a1.error.code, msg: a1.error.message }, "Schema fallback A: retrying without media_purge_after");
-  const a2 = await supabaseAdmin
+  // Fallback B: new column names but without media_purge_after or lat/lng
+  logger.warn({ code: a2.error.code, msg: a2.error.message }, "Schema fallback B: retrying without media_purge_after");
+  const a3 = await supabaseAdmin
     .from("auctions")
     .insert({
       ...base,
@@ -103,12 +120,11 @@ async function insertAuction(payload: {
     .select("*")
     .single();
 
-  if (!a2.error) return a2;
+  if (!a3.error) return a3;
+  if (!isColErr(a3.error.code)) return a3;
 
-  if (!isColErr(a2.error.code)) return a2;
-
-  // Fallback B: old schema names (current_price, minimum_increment, no media_purge_after)
-  logger.warn({ code: a2.error.code, msg: a2.error.message }, "Schema fallback B: using old column names (current_price, minimum_increment)");
+  // Fallback C: old schema names (current_price, minimum_increment, no lat/lng/media_purge_after)
+  logger.warn({ code: a3.error.code, msg: a3.error.message }, "Schema fallback C: using old column names (current_price, minimum_increment)");
   return supabaseAdmin
     .from("auctions")
     .insert({
@@ -282,6 +298,12 @@ const createAuctionSchema = z.object({
     .default(10),
   videoUrl: z.string().url("videoUrl must be a valid URL"),
   thumbnailUrl: z.string().url("thumbnailUrl must be a valid URL"),
+  lat: z
+    .number({ required_error: "lat is required — location must be granted before publishing" })
+    .min(-90).max(90),
+  lng: z
+    .number({ required_error: "lng is required — location must be granted before publishing" })
+    .min(-180).max(180),
 });
 
 // Columns returned to the client — never expose internal/deleted fields.
@@ -304,7 +326,7 @@ router.post("/auctions", requireAuth, async (req, res) => {
     return;
   }
 
-  const { title, description, category, startPrice, minIncrement, videoUrl, thumbnailUrl } =
+  const { title, description, category, startPrice, minIncrement, videoUrl, thumbnailUrl, lat, lng } =
     parsed.data;
   const sellerId = req.user!.id;
 
@@ -343,6 +365,8 @@ router.post("/auctions", requireAuth, async (req, res) => {
     thumbnail_url: thumbnailUrl,
     ends_at: endsAt.toISOString(),
     media_purge_after: mediaPurgeAfter.toISOString(),
+    lat,
+    lng,
   });
 
   if (error || !auction) {

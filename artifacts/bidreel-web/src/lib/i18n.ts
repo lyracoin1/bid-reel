@@ -46,6 +46,12 @@ export type TKey =
   | "starting_bid" | "description" | "description_placeholder"
   | "publish" | "publishing" | "auction_duration_title" | "auction_duration_body"
   | "authenticity_note"
+  // Video actions
+  | "delete_video" | "change_video"
+  // Location
+  | "location_active" | "location_inactive" | "location_why"
+  | "location_retry" | "location_settings_hint" | "location_detecting"
+  | "location_unavailable"
   // Profile
   | "listings" | "my_bids" | "bids_won" | "rating" | "log_out" | "language"
   | "no_listings" | "create_first" | "settings"
@@ -85,6 +91,12 @@ const en: Translations = {
   auction_duration_title: "3-day auction",
   auction_duration_body: "Your listing runs for exactly 72 hours. The winner contacts you via WhatsApp.",
   authenticity_note: "By listing, you confirm this item is authentic and accurately described.",
+  delete_video: "Delete Video", change_video: "Change",
+  location_active: "Location active", location_inactive: "Location required",
+  location_why: "Location is required to publish an auction — it helps buyers find items near them.",
+  location_retry: "Retry", location_detecting: "Detecting location…",
+  location_settings_hint: "Location is blocked. Open your browser settings and allow location for this site, then retry.",
+  location_unavailable: "Location not available on this device.",
   listings: "Listings", my_bids: "My Bids", bids_won: "Bids Won", rating: "Rating",
   log_out: "Log Out", language: "Language",
   no_listings: "No listings yet.", create_first: "Create your first listing", settings: "Settings",
@@ -119,6 +131,12 @@ const ar: Translations = {
   auction_duration_title: "مزاد لمدة 3 أيام",
   auction_duration_body: "ينتهي إدراجك خلال 72 ساعة بالضبط. الفائز يتواصل معك عبر واتساب.",
   authenticity_note: "بالإدراج تؤكد أن العنصر أصلي وموصوف بدقة.",
+  delete_video: "حذف الفيديو", change_video: "تغيير",
+  location_active: "الموقع مفعّل", location_inactive: "الموقع غير مفعّل",
+  location_why: "يجب تفعيل الموقع لأن نشر المزاد يتطلب تحديد موقع الغرض",
+  location_retry: "إعادة المحاولة", location_detecting: "جارٍ تحديد الموقع…",
+  location_settings_hint: "الموقع محظور. افتح إعدادات المتصفح وامنح صلاحية الموقع لهذا الموقع، ثم أعد المحاولة.",
+  location_unavailable: "الموقع غير متاح على هذا الجهاز.",
   listings: "الإدراجات", my_bids: "مزايداتي", bids_won: "مزايدات فائزة", rating: "التقييم",
   log_out: "تسجيل الخروج", language: "اللغة",
   no_listings: "لا توجد إدراجات بعد.", create_first: "أنشئ إدراجك الأول", settings: "الإعدادات",
@@ -153,6 +171,12 @@ const ru: Translations = {
   auction_duration_title: "Аукцион на 3 дня",
   auction_duration_body: "Лот активен ровно 72 часа. Победитель свяжется с вами через WhatsApp.",
   authenticity_note: "Размещая лот, вы подтверждаете его подлинность и правильность описания.",
+  delete_video: "Удалить видео", change_video: "Изменить",
+  location_active: "Геолокация активна", location_inactive: "Требуется геолокация",
+  location_why: "Для публикации аукциона необходимо разрешение на геолокацию.",
+  location_retry: "Повторить", location_detecting: "Определение местоположения…",
+  location_settings_hint: "Геолокация заблокирована. Разрешите доступ в настройках браузера и повторите.",
+  location_unavailable: "Геолокация недоступна на этом устройстве.",
   listings: "Лоты", my_bids: "Мои ставки", bids_won: "Выиграно", rating: "Рейтинг",
   log_out: "Выйти", language: "Язык",
   no_listings: "Нет лотов.", create_first: "Создать первый лот", settings: "Настройки",
@@ -187,6 +211,12 @@ const es: Translations = {
   auction_duration_title: "Subasta de 3 días",
   auction_duration_body: "Tu anuncio estará activo exactamente 72 horas. El ganador te contacta por WhatsApp.",
   authenticity_note: "Al publicar confirmas que el artículo es auténtico y está bien descrito.",
+  delete_video: "Eliminar vídeo", change_video: "Cambiar",
+  location_active: "Ubicación activa", location_inactive: "Ubicación requerida",
+  location_why: "La ubicación es necesaria para publicar una subasta.",
+  location_retry: "Reintentar", location_detecting: "Detectando ubicación…",
+  location_settings_hint: "Ubicación bloqueada. Actívala en los ajustes del navegador y vuelve a intentarlo.",
+  location_unavailable: "Ubicación no disponible en este dispositivo.",
   listings: "Anuncios", my_bids: "Mis pujas", bids_won: "Pujas ganadas", rating: "Valoración",
   log_out: "Cerrar sesión", language: "Idioma",
   no_listings: "Sin anuncios aún.", create_first: "Crea tu primer anuncio", settings: "Ajustes",
@@ -221,6 +251,12 @@ const fr: Translations = {
   auction_duration_title: "Vente aux enchères 3 jours",
   auction_duration_body: "Votre annonce est active pendant 72 heures. Le gagnant vous contacte par WhatsApp.",
   authenticity_note: "En publiant, vous confirmez que l'article est authentique et correctement décrit.",
+  delete_video: "Supprimer la vidéo", change_video: "Modifier",
+  location_active: "Localisation active", location_inactive: "Localisation requise",
+  location_why: "La localisation est requise pour publier une enchère.",
+  location_retry: "Réessayer", location_detecting: "Détection en cours…",
+  location_settings_hint: "Localisation bloquée. Autorisez-la dans les paramètres du navigateur, puis réessayez.",
+  location_unavailable: "Localisation indisponible sur cet appareil.",
   listings: "Annonces", my_bids: "Mes enchères", bids_won: "Enchères gagnées", rating: "Note",
   log_out: "Se déconnecter", language: "Langue",
   no_listings: "Aucune annonce.", create_first: "Créer votre première annonce", settings: "Paramètres",

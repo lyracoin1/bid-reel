@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import {
   ArrowLeft, ArrowRight, Camera, Upload, CheckCircle2, Clock,
-  Play, Image as ImageIcon, X, AlertCircle, Loader2,
+  Play, Image as ImageIcon, X, AlertCircle, Loader2, Trash2,
+  MapPin, RefreshCw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
@@ -32,6 +33,14 @@ const CATEGORIES = [
 
 type Category = (typeof CATEGORIES)[number]["value"];
 
+// ─── Geolocation state ────────────────────────────────────────────────────────
+type GeoStatus = "idle" | "requesting" | "granted" | "denied" | "unavailable";
+
+interface GeoCoords {
+  lat: number;
+  lng: number;
+}
+
 // ─── Upload a single file: get presigned URL → PUT to storage ─────────────────
 async function uploadFile(
   file: File,
@@ -52,7 +61,7 @@ async function uploadFile(
 export default function CreateAuction() {
   const [, setLocation] = useLocation();
   const { mutate: create, isPending: isCreating } = useCreateAuction();
-  const { t } = useLang();
+  const { t, lang } = useLang();
 
   const videoInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -65,7 +74,6 @@ export default function CreateAuction() {
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
 
-  // Revoke preview object URL on unmount or file change
   useEffect(() => {
     return () => {
       if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
@@ -86,9 +94,38 @@ export default function CreateAuction() {
     category: "other" as Category,
   });
 
-  // ── Upload progress ─────────────────────────────────────────────────────────
+  // ── Upload / submit state ────────────────────────────────────────────────────
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // ── Geolocation state ────────────────────────────────────────────────────────
+  const [geoStatus, setGeoStatus] = useState<GeoStatus>("idle");
+  const [coords, setCoords] = useState<GeoCoords | null>(null);
+
+  const requestLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setGeoStatus("unavailable");
+      return;
+    }
+    setGeoStatus("requesting");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGeoStatus("granted");
+        console.log("[create-auction] Location granted:", pos.coords.latitude, pos.coords.longitude);
+      },
+      (err) => {
+        console.warn("[create-auction] Location denied:", err.message);
+        setGeoStatus("denied");
+      },
+      { timeout: 12000, maximumAge: 300_000 },
+    );
+  }, []);
+
+  // Request location immediately when the page loads
+  useEffect(() => {
+    requestLocation();
+  }, [requestLocation]);
 
   const set = (key: keyof typeof form) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -102,17 +139,27 @@ export default function CreateAuction() {
 
     setVideoError(null);
     if (file.size > MAX_VIDEO_BYTES) {
-      setVideoError(`Video too large: ${(file.size / 1024 / 1024).toFixed(1)} MB. Maximum is 10 MB.`);
+      setVideoError(lang === "ar"
+        ? `الفيديو كبير جداً: ${(file.size / 1024 / 1024).toFixed(1)} ميغابايت. الحد الأقصى 10 ميغابايت.`
+        : `Video too large: ${(file.size / 1024 / 1024).toFixed(1)} MB. Maximum is 10 MB.`);
       e.target.value = "";
       return;
     }
-    // Revoke previous preview URL
     if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
     const objectUrl = URL.createObjectURL(file);
     setVideoFile(file);
     setVideoPreviewUrl(objectUrl);
-    console.log(`[create-auction] Video selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB) preview: ${objectUrl}`);
+    console.log(`[create-auction] Video selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
     e.target.value = "";
+  };
+
+  const clearVideo = () => {
+    if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+    setVideoFile(null);
+    setVideoPreviewUrl(null);
+    setVideoError(null);
+    if (videoInputRef.current) videoInputRef.current.value = "";
+    console.log("[create-auction] Video cleared by user");
   };
 
   const handlePhotosSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -134,7 +181,6 @@ export default function CreateAuction() {
       }
       validFiles.push(file);
       newUrls.push(URL.createObjectURL(file));
-      console.log(`[create-auction] Photo selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
     }
 
     setPhotoErrors(errors);
@@ -154,6 +200,12 @@ export default function CreateAuction() {
 
   const handleSubmit = async () => {
     if (!form.title || !form.startingBid) return;
+    if (!coords) {
+      setSubmitError(lang === "ar"
+        ? "يجب تفعيل الموقع قبل نشر المزاد."
+        : "Location is required to publish an auction.");
+      return;
+    }
     setSubmitError(null);
 
     try {
@@ -162,32 +214,33 @@ export default function CreateAuction() {
 
       if (postType === "video") {
         if (!videoFile) {
-          setSubmitError("Please select a video file.");
+          setSubmitError(lang === "ar" ? "يرجى اختيار ملف فيديو." : "Please select a video file.");
           return;
         }
-        setUploadProgress("Uploading video (this may take a moment)…");
+        setUploadProgress(lang === "ar" ? "جارٍ رفع الفيديو…" : "Uploading video (this may take a moment)…");
         videoUrl = await uploadFile(videoFile, "video", pct => {
-          setUploadProgress(`Uploading video… ${pct}%`);
+          setUploadProgress(lang === "ar" ? `جارٍ رفع الفيديو… ${pct}%` : `Uploading video… ${pct}%`);
         });
-        thumbnailUrl = videoUrl; // Use video URL as thumbnail for MVP
+        thumbnailUrl = videoUrl;
       } else {
         if (photoFiles.length === 0) {
-          setSubmitError("Please add at least one photo.");
+          setSubmitError(lang === "ar" ? "يرجى إضافة صورة واحدة على الأقل." : "Please add at least one photo.");
           return;
         }
 
         const uploadedUrls: string[] = [];
         for (let i = 0; i < photoFiles.length; i++) {
-          setUploadProgress(`Uploading photo ${i + 1} of ${photoFiles.length}…`);
+          setUploadProgress(lang === "ar"
+            ? `جارٍ رفع الصورة ${i + 1} من ${photoFiles.length}…`
+            : `Uploading photo ${i + 1} of ${photoFiles.length}…`);
           const url = await uploadFile(photoFiles[i], "image");
           uploadedUrls.push(url);
-          console.log(`[create-auction] Photo ${i + 1} uploaded: ${url}`);
         }
-        videoUrl = uploadedUrls[0];      // backend requires videoUrl; photos use first image
-        thumbnailUrl = uploadedUrls[0];  // cover photo
+        videoUrl = uploadedUrls[0];
+        thumbnailUrl = uploadedUrls[0];
       }
 
-      setUploadProgress("Publishing your auction…");
+      setUploadProgress(lang === "ar" ? "جارٍ نشر المزاد…" : "Publishing your auction…");
 
       const id = await create({
         title: form.title,
@@ -196,13 +249,15 @@ export default function CreateAuction() {
         startPrice: parseInt(form.startingBid, 10),
         videoUrl,
         thumbnailUrl,
+        lat: coords.lat,
+        lng: coords.lng,
       });
 
       setUploadProgress(null);
       setLocation(`/auction/${id}`);
     } catch (err: unknown) {
       setUploadProgress(null);
-      const msg = (err as Error).message ?? "Something went wrong. Please try again.";
+      const msg = (err as Error).message ?? (lang === "ar" ? "حدث خطأ، يرجى المحاولة مرة أخرى." : "Something went wrong. Please try again.");
       setSubmitError(msg);
       console.error("[create-auction] ❌ Submit failed:", err);
     }
@@ -212,9 +267,22 @@ export default function CreateAuction() {
   const isSubmitting = isUploading || isCreating;
 
   const canProceedFromStep1 =
-    postType === "video"
-      ? !!videoFile
-      : photoFiles.length > 0;
+    postType === "video" ? !!videoFile : photoFiles.length > 0;
+
+  const canPublish =
+    !!form.title &&
+    !!form.startingBid &&
+    geoStatus === "granted" &&
+    !isSubmitting;
+
+  // ── Geo status badge colors ───────────────────────────────────────────────────
+  const geoBadge = {
+    granted:     { bg: "bg-emerald-500/15 border-emerald-500/30", dot: "bg-emerald-400", text: "text-emerald-300", label: t("location_active") },
+    denied:      { bg: "bg-red-500/15 border-red-500/30",         dot: "bg-red-400",     text: "text-red-300",     label: t("location_inactive") },
+    requesting:  { bg: "bg-yellow-500/15 border-yellow-500/30",   dot: "bg-yellow-400",  text: "text-yellow-300",  label: t("location_detecting") },
+    unavailable: { bg: "bg-white/8 border-white/15",              dot: "bg-white/40",    text: "text-white/50",    label: t("location_unavailable") },
+    idle:        { bg: "bg-yellow-500/15 border-yellow-500/30",   dot: "bg-yellow-400",  text: "text-yellow-300",  label: t("location_detecting") },
+  }[geoStatus];
 
   return (
     <MobileLayout showNav={false}>
@@ -230,7 +298,7 @@ export default function CreateAuction() {
           <div className="flex-1">
             <h1 className="text-xl font-bold text-white">{t("new_listing")}</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Step {step} of 2 — {step === 1 ? t("step_1_label") : t("step_2_label")}
+              {lang === "ar" ? `الخطوة ${step} من 2` : `Step ${step} of 2`} — {step === 1 ? t("step_1_label") : t("step_2_label")}
             </p>
           </div>
           <div className="flex gap-1.5">
@@ -268,31 +336,22 @@ export default function CreateAuction() {
               </div>
 
               {/* Hidden inputs */}
-              <input
-                ref={videoInputRef}
-                type="file"
-                accept="video/mp4,video/quicktime,video/webm"
-                className="hidden"
-                onChange={handleVideoSelect}
-              />
-              <input
-                ref={photoInputRef}
-                type="file"
-                accept="image/jpeg,image/jpg,image/png,image/webp"
-                multiple
-                className="hidden"
-                onChange={handlePhotosSelect}
-              />
+              <input ref={videoInputRef} type="file" accept="video/mp4,video/quicktime,video/webm"
+                className="hidden" onChange={handleVideoSelect} />
+              <input ref={photoInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
+                multiple className="hidden" onChange={handlePhotosSelect} />
 
               {/* ── VIDEO MODE ── */}
               {postType === "video" ? (
                 <>
                   <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
-                    Select a video from your device. Max 10 MB — MP4, MOV, or WebM.
+                    {lang === "ar"
+                      ? "اختر مقطع فيديو من جهازك. الحد الأقصى 10 ميغابايت — MP4 أو MOV أو WebM."
+                      : "Select a video from your device. Max 10 MB — MP4, MOV, or WebM."}
                   </p>
 
                   {videoPreviewUrl ? (
-                    /* Video preview — real <video> element */
+                    /* Video preview with clear video controls */
                     <div className="flex-1 min-h-56 rounded-3xl overflow-hidden bg-black border border-emerald-500/30 relative">
                       <video
                         src={videoPreviewUrl}
@@ -302,12 +361,21 @@ export default function CreateAuction() {
                         className="w-full h-full object-contain max-h-72"
                         onError={(e) => console.error("[create-auction] Preview error:", (e.target as HTMLVideoElement).error)}
                       />
-                      <button
-                        onClick={() => videoInputRef.current?.click()}
-                        className="absolute top-2 right-2 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/70 text-white text-xs font-semibold border border-white/20 hover:bg-black/90 transition-colors"
-                      >
-                        <X size={12} /> Change
-                      </button>
+                      {/* Action buttons overlay */}
+                      <div className="absolute top-2 right-2 flex gap-1.5">
+                        <button
+                          onClick={() => videoInputRef.current?.click()}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-black/70 text-white text-xs font-semibold border border-white/20 hover:bg-black/90 transition-colors"
+                        >
+                          <RefreshCw size={11} /> {t("change_video")}
+                        </button>
+                        <button
+                          onClick={clearVideo}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-500/80 text-white text-xs font-semibold border border-red-400/40 hover:bg-red-500 transition-colors"
+                        >
+                          <Trash2 size={11} /> {t("delete_video")}
+                        </button>
+                      </div>
                       <div className="absolute bottom-2 left-2 bg-black/70 rounded-lg px-2.5 py-1 flex items-center gap-1.5">
                         <CheckCircle2 size={12} className="text-emerald-400" />
                         <span className="text-xs text-emerald-300 font-medium truncate max-w-[180px]">{videoFile?.name}</span>
@@ -353,7 +421,9 @@ export default function CreateAuction() {
                 /* ── PHOTOS MODE ── */
                 <>
                   <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
-                    Add up to 6 photos. Max 2 MB each. The first photo is the cover shown in the feed.
+                    {lang === "ar"
+                      ? "أضف حتى 6 صور. الحد الأقصى 2 ميغابايت لكل صورة. الصورة الأولى هي الغلاف."
+                      : "Add up to 6 photos. Max 2 MB each. The first photo is the cover shown in the feed."}
                   </p>
 
                   <div className="grid grid-cols-3 gap-2 mb-4">
@@ -361,7 +431,9 @@ export default function CreateAuction() {
                       <div key={i} className="relative aspect-square rounded-xl overflow-hidden">
                         <img src={src} className="w-full h-full object-cover" alt={`Photo ${i + 1}`} />
                         {i === 0 && (
-                          <div className="absolute top-1 left-1 bg-primary/90 rounded px-1.5 py-0.5 text-[9px] font-bold text-white">COVER</div>
+                          <div className="absolute top-1 left-1 bg-primary/90 rounded px-1.5 py-0.5 text-[9px] font-bold text-white">
+                            {lang === "ar" ? "غلاف" : "COVER"}
+                          </div>
                         )}
                         <button onClick={() => removePhoto(i)}
                           className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center">
@@ -379,7 +451,7 @@ export default function CreateAuction() {
                   </div>
 
                   <p className="text-xs text-muted-foreground text-center mb-3">
-                    {photoFiles.length}/6 photos added
+                    {lang === "ar" ? `${photoFiles.length}/6 صور` : `${photoFiles.length}/6 photos added`}
                   </p>
 
                   {photoErrors.map((err, i) => (
@@ -429,7 +501,9 @@ export default function CreateAuction() {
 
                 {/* Category */}
                 <div>
-                  <label className="block text-xs font-bold text-white/50 uppercase tracking-widest mb-2">Category *</label>
+                  <label className="block text-xs font-bold text-white/50 uppercase tracking-widest mb-2">
+                    {lang === "ar" ? "الفئة *" : "Category *"}
+                  </label>
                   <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
                     {CATEGORIES.map(cat => (
                       <button
@@ -456,6 +530,47 @@ export default function CreateAuction() {
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder:text-white/25 focus:outline-none focus:border-primary/60 focus:bg-white/8 transition-all resize-none text-[15px] leading-relaxed" />
                 </div>
 
+                {/* ── Location status ── */}
+                <div className={cn("rounded-xl border p-4", geoBadge.bg)}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className={cn("w-2 h-2 rounded-full shrink-0", geoBadge.dot,
+                        (geoStatus === "requesting" || geoStatus === "idle") && "animate-pulse")} />
+                      <MapPin size={15} className={geoBadge.text} />
+                      <span className={cn("text-sm font-semibold", geoBadge.text)}>{geoBadge.label}</span>
+                    </div>
+                    {(geoStatus === "denied" || geoStatus === "unavailable") && (
+                      <button
+                        onClick={requestLocation}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white text-xs font-semibold hover:bg-white/15 transition-colors shrink-0">
+                        <RefreshCw size={12} /> {t("location_retry")}
+                      </button>
+                    )}
+                    {geoStatus === "granted" && coords && (
+                      <span className="text-[10px] text-white/30 font-mono shrink-0">
+                        {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Location why / blocked hint */}
+                  {geoStatus === "denied" && (
+                    <p className="mt-2 text-xs text-red-300/80 leading-relaxed">
+                      {t("location_settings_hint")}
+                    </p>
+                  )}
+                  {geoStatus === "unavailable" && (
+                    <p className="mt-2 text-xs text-white/50 leading-relaxed">
+                      {t("location_unavailable")}
+                    </p>
+                  )}
+                  {(geoStatus === "idle" || geoStatus === "requesting") && (
+                    <p className="mt-2 text-xs text-yellow-300/70 leading-relaxed">
+                      {t("location_why")}
+                    </p>
+                  )}
+                </div>
+
                 {/* Duration info */}
                 <div className="flex items-start gap-3 p-4 rounded-xl bg-primary/8 border border-primary/18">
                   <Clock size={18} className="text-primary shrink-0 mt-0.5" />
@@ -480,20 +595,39 @@ export default function CreateAuction() {
                 )}
               </div>
 
+              {/* Publish button */}
               <motion.button whileTap={{ scale: 0.97 }} onClick={handleSubmit}
-                disabled={isSubmitting || !form.title || !form.startingBid}
+                disabled={!canPublish}
                 className="mt-6 w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-lg shadow-primary/30 disabled:opacity-40 disabled:shadow-none flex items-center justify-center gap-2">
                 {isSubmitting ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
-                    <span className="text-sm">{uploadProgress ?? "Publishing…"}</span>
+                    {uploadProgress ?? t("publishing")}
+                  </>
+                ) : geoStatus !== "granted" ? (
+                  <>
+                    <MapPin size={18} />
+                    {t("location_inactive")}
                   </>
                 ) : (
-                  t("publish")
+                  <>
+                    <CheckCircle2 size={18} />
+                    {t("publish")}
+                  </>
                 )}
               </motion.button>
+
+              {/* Location blocking notice below the button */}
+              {geoStatus === "denied" && !isSubmitting && (
+                <p className="mt-3 text-center text-xs text-red-400/80">
+                  {lang === "ar"
+                    ? "لا يمكن نشر المزاد بدون تفعيل الموقع."
+                    : "Location permission is required to publish an auction."}
+                </p>
+              )}
             </motion.div>
           )}
+
         </AnimatePresence>
       </div>
     </MobileLayout>

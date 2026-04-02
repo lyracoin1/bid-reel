@@ -150,6 +150,19 @@ Express 5 API server for BidReel. Uses Supabase for auth, database, and storage.
 - **Schema-agnostic helpers** remain active: `getBidderCol()` + `getBidderUserId()` in `src/lib/dbSchema.ts` handle any future DB variations
 - `insertAuction()` in `auctions.ts` still uses 3-attempt fallback for robustness across schema variants
 
+**Video & Location features (create-auction page):**
+- Video upload: presigned URL → direct PUT to Supabase Storage → URL returned and stored in auction
+- Video preview: shows `<video>` player with green border, file name badge, "Change" and "Delete" buttons
+- Delete video before publish: clears form state (no orphan — video is only uploaded at submit time)
+- Replace video: after deleting, user can pick a new file without issues
+- Geolocation: requested immediately on page load; status machine: idle → requesting → granted/denied/unavailable
+- Location status badge shown in step 2 with animated dot; "Retry" button for denied state
+- Publish button is blocked (greyed out, shows MapPin icon) if location not granted
+- Backend: lat/lng required in `POST /api/auctions` (Zod validated); rejects with 400 if missing
+- Backend: attempts to store lat/lng in DB; gracefully falls back if `lat`/`lng` columns don't exist yet
+- Migration 012 (`012_add_lat_lng_to_auctions.sql`): run via Supabase Dashboard SQL editor to enable persistent lat/lng storage
+- All location/video UI strings available in ar/en/ru/es/fr via i18n system
+
 **Mock data elimination status (frontend):**
 - `mockAuctions`, `mockUsers`, `currentUser` are no longer used in any component or hook
 - `mock-data.ts` retains only the type definitions (`User`, `Auction`, `Bid`) — these are still imported as types

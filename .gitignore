@@ -1,49 +1,104 @@
-# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+# ============================================================
+# SECRETS & ENVIRONMENT — NEVER COMMIT
+# ============================================================
+.env
+.env.local
+.env.development
+.env.staging
+.env.production
+.env.*.local
+*.pem
+*.p12
+*.jks
+*.keystore
+*.key
+secrets/
+.secrets/
 
-# compiled output
-dist
-tmp
-out-tsc
+# ============================================================
+# DEPENDENCIES
+# ============================================================
+node_modules/
+.pnpm-store/
+.yarn/
+
+# ============================================================
+# BUILD OUTPUTS
+# ============================================================
+dist/
+dist-ssr/
+build/
+out/
+out-tsc/
+tmp/
 *.tsbuildinfo
-.expo
-.expo-shared
 
-# dependencies
-node_modules
+# ============================================================
+# ANDROID / CAPACITOR
+# ============================================================
+android/
+ios/
+.expo/
+.expo-shared/
 
-# IDEs and editors
-/.idea
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
+# ============================================================
+# LOGS
+# ============================================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+/libpeerconnection.log
 
-# IDE - VSCode
+# ============================================================
+# TESTING & COVERAGE
+# ============================================================
+/coverage/
+.nyc_output/
+/typings/
+
+# ============================================================
+# IDE & EDITOR
+# ============================================================
+.idea/
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+*.sublime-workspace
+*.launch
+.project
+.classpath
+.c9/
+.settings/
 
-# misc
-/.sass-cache
-/connect.lock
-/coverage
-/libpeerconnection.log
-npm-debug.log
-yarn-error.log
-testem.log
-/typings
-
-# System Files
+# ============================================================
+# SYSTEM FILES
+# ============================================================
 .DS_Store
+.DS_Store?
 Thumbs.db
+ehthumbs.db
+Desktop.ini
 
-.cursor/rules/nx-rules.mdc
-.github/instructions/nx.instructions.md
-
-# Replit
+# ============================================================
+# REPLIT INTERNAL
+# ============================================================
 .cache/
 .local/
+.replit.nix
+replit.nix
+.breakpoints
+
+# ============================================================
+# MISC
+# ============================================================
+/.sass-cache/
+/connect.lock
+/testem.log
+.cursor/
+*.swp
+*.swo
+*~

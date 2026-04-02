@@ -1,0 +1,83 @@
+Execute a full transition from mock data to real backend-driven functionality across the entire app. This is mandatory. Do not skip any step.
+
+STRICT INSTRUCTIONS:
+
+1. REMOVE ALL MOCK DATA
+
+* Delete all hardcoded data, placeholders, and fake images/videos
+* Eliminate any fallback logic that simulates data
+* The app must not display anything unless it comes from the backend
+
+2. IMPLEMENT REAL USER PROFILE
+
+* Add avatar upload using Supabase Storage
+* Allow user to select an image from device
+* Upload the file to the storage bucket
+* Retrieve public URL and store it in users.avatar_url
+* Replace all placeholder avatars with real user avatars
+* Ensure profile screen reads only from database
+
+3. IMPLEMENT REAL MEDIA UPLOAD FOR AUCTIONS
+
+* Enable real file selection (images and video)
+* Upload files to Supabase Storage (no mock behavior)
+* Generate and store public URLs in auction records
+* Support:
+
+  * up to 6 images OR 1 video per auction
+* Validate file size:
+
+  * images ≤ 2MB
+  * videos ≤ 10MB
+* Render media using real URLs only in:
+
+  * feed
+  * auction detail
+  * profile
+
+4. IMPLEMENT REAL BIDDING SYSTEM (CRITICAL)
+
+* Remove any mock bid handling
+* Ensure all bids go through backend API only
+* On bid:
+
+  * insert a row into bids table
+  * update auction current_price
+* Validate:
+
+  * auction must be active
+  * bid must be greater than current_price
+  * user cannot bid on own auction
+* Ensure bid history is loaded from database only
+
+5. UI REQUIREMENTS
+
+* Auction detail must display:
+
+  * current price
+  * minimum increment
+  * quick bid buttons (+10, +20, +50)
+* Bidding must be visible inline (not hidden in modal)
+
+6. VERIFICATION (MANDATORY)
+
+* Log every critical action:
+
+  * successful media upload (file path + URL)
+  * successful bid (amount + auction_id)
+* No silent success allowed
+* If any operation fails, display a clear error
+
+7. STOP CONDITIONS
+
+* Do not implement any additional features
+* Do not work on UI polish
+* Do not work on notifications or lifecycle cleanup
+* Stop only when:
+
+  * real media upload works end-to-end
+  * real bidding works end-to-end
+  * profile avatar is real
+
+GOAL:
+Convert the app from a UI prototype into a fully functional MVP backed by real data and storage.

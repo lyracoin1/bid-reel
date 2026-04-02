@@ -335,6 +335,61 @@ export async function uploadFileToStorage(
   });
 }
 
+// ─── Current user (own profile) ───────────────────────────────────────────────
+
+export interface ApiUserProfile {
+  id: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  bio: string | null;
+  auctionCount: number;
+  totalLikesReceived: number;
+  bidsPlacedCount: number;
+  isAdmin: boolean;
+  createdAt: string;
+}
+
+export async function getUserMeApi(): Promise<ApiUserProfile> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_BASE}/users/me`, { headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to fetch own profile");
+  }
+  const data = await res.json() as { user: ApiUserProfile };
+  console.log(`[api-client] ✅ GET /users/me → id=${data.user.id}`);
+  return data.user;
+}
+
+// ─── My bids (auctions bid on) ────────────────────────────────────────────────
+
+export interface ApiMyBidEntry {
+  auctionId: string;
+  myBidAmount: number;
+  isLeading: boolean;
+  auction: {
+    id: string;
+    title: string;
+    mediaUrl: string | null;
+    currentBid: number;
+    bidCount: number;
+    endsAt: string;
+    startsAt: string | null;
+  };
+}
+
+export async function getUserBidsApi(): Promise<ApiMyBidEntry[]> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_BASE}/users/me/bids`, { headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to fetch my bids");
+  }
+  const data = await res.json() as { bids: ApiMyBidEntry[] };
+  console.log(`[api-client] ✅ GET /users/me/bids → ${data.bids.length} entries`);
+  return data.bids;
+}
+
 // ─── Device token ─────────────────────────────────────────────────────────────
 
 /**

@@ -1,28 +1,48 @@
-import { useState } from "react";
-import { Grid, Gavel, LogOut } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Grid, Gavel, LogOut, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { HamburgerMenu } from "@/components/HamburgerMenu";
 import { NotificationBell } from "@/components/NotificationBell";
-import { currentUser, mockAuctions } from "@/lib/mock-data";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { useAuctions } from "@/hooks/use-auctions";
+import { getUserBidsApi, type ApiMyBidEntry } from "@/lib/api-client";
 import { getTimeRemaining } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 
 type Tab = "listings" | "bids";
 
+const FALLBACK_AVATAR = `https://ui-avatars.com/api/?name=Me&background=6d28d9&color=fff&size=200`;
+
 export default function Profile() {
   const [activeTab, setActiveTab] = useState<Tab>("listings");
+  const [myBids, setMyBids] = useState<ApiMyBidEntry[]>([]);
+  const [bidsLoading, setBidsLoading] = useState(true);
   const [, setLocation] = useLocation();
   const { t, formatPrice } = useLang();
 
-  const myListings = mockAuctions.filter(a => a.seller.id === currentUser.id);
-  const myBids     = mockAuctions.filter(a => a.bids.some(b => b.user.id === currentUser.id));
+  const { user, isLoading: userLoading } = useCurrentUser();
+  const { data: allAuctions, isLoading: auctionsLoading } = useAuctions();
+
+  const myListings = user
+    ? allAuctions.filter(a => a.seller.id === user.id)
+    : [];
+
+  useEffect(() => {
+    setBidsLoading(true);
+    getUserBidsApi()
+      .then(setMyBids)
+      .catch(err => console.error("[profile] Failed to load bids:", err))
+      .finally(() => setBidsLoading(false));
+  }, []);
 
   const tabs: { id: Tab; labelKey: "listings" | "my_bids"; icon: typeof Grid; count: number }[] = [
     { id: "listings", labelKey: "listings", icon: Grid,  count: myListings.length },
     { id: "bids",     labelKey: "my_bids",  icon: Gavel, count: myBids.length },
   ];
+
+  const isLoading = userLoading || auctionsLoading;
 
   return (
     <MobileLayout>
@@ -36,20 +56,37 @@ export default function Profile() {
             {/* Avatar + name */}
             <div className="flex items-center gap-4">
               <div className="relative">
-                <img
-                  src={currentUser.avatar}
-                  alt={currentUser.name}
-                  className="w-20 h-20 rounded-2xl object-cover ring-2 ring-white/10"
-                />
+                {isLoading ? (
+                  <div className="w-20 h-20 rounded-2xl bg-white/10 animate-pulse" />
+                ) : (
+                  <img
+                    src={user?.avatarUrl ?? FALLBACK_AVATAR}
+                    alt={user?.displayName ?? "Me"}
+                    className="w-20 h-20 rounded-2xl object-cover ring-2 ring-white/10"
+                  />
+                )}
                 <div className="absolute -bottom-1.5 -right-1.5 w-5 h-5 rounded-full bg-emerald-400 border-2 border-background" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white leading-none">{currentUser.name}</h1>
-                <p className="text-sm text-muted-foreground mt-1">{currentUser.handle}</p>
+                {isLoading ? (
+                  <>
+                    <div className="h-5 w-28 bg-white/10 rounded animate-pulse mb-2" />
+                    <div className="h-3 w-20 bg-white/8 rounded animate-pulse" />
+                  </>
+                ) : (
+                  <>
+                    <h1 className="text-xl font-bold text-white leading-none">
+                      {user?.displayName ?? "My Profile"}
+                    </h1>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      @{user?.id.slice(0, 8) ?? "…"}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
 
-            {/* Action buttons row — notification bell + settings */}
+            {/* Action buttons row */}
             <div className="flex items-center gap-2">
               <NotificationBell />
               <HamburgerMenu />
@@ -59,12 +96,16 @@ export default function Profile() {
           {/* Stats row */}
           <div className="grid grid-cols-3 gap-3 relative z-10">
             {[
-              { labelKey: "listings" as const, value: myListings.length },
-              { labelKey: "bids_won" as const, value: 4 },
-              { labelKey: "rating" as const,   value: "4.9★" },
+              { labelKey: "listings" as const,  value: user?.auctionCount ?? myListings.length },
+              { labelKey: "bids_won" as const,   value: user?.bidsPlacedCount ?? 0 },
+              { labelKey: "rating" as const,     value: "—" },
             ].map(stat => (
               <div key={stat.labelKey} className="bg-white/5 border border-white/8 rounded-2xl py-3 text-center">
-                <p className="text-xl font-bold text-white leading-none">{stat.value}</p>
+                {isLoading ? (
+                  <div className="h-6 w-8 bg-white/10 rounded animate-pulse mx-auto mb-1" />
+                ) : (
+                  <p className="text-xl font-bold text-white leading-none">{stat.value}</p>
+                )}
                 <p className="text-[11px] text-muted-foreground mt-1 font-medium">{t(stat.labelKey)}</p>
               </div>
             ))}
@@ -97,7 +138,15 @@ export default function Profile() {
         {/* ── Tab content ── */}
         <div className="px-5 pt-3 pb-6">
           {activeTab === "listings" && (
-            myListings.length > 0 ? (
+            auctionsLoading ? (
+              <div className="grid grid-cols-2 gap-3">
+                {[0, 1, 2, 3].map(i => (
+                  <div key={i} className="rounded-2xl bg-white/5 border border-white/8 overflow-hidden">
+                    <div className="aspect-[3/4] bg-white/10 animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            ) : myListings.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
                 {myListings.map(auction => {
                   const timeInfo = getTimeRemaining(auction.endsAt);
@@ -129,35 +178,62 @@ export default function Profile() {
           )}
 
           {activeTab === "bids" && (
-            <div className="space-y-3">
-              {myBids.map(auction => {
-                const timeInfo = getTimeRemaining(auction.endsAt);
-                const myBid = auction.bids.find(b => b.user.id === currentUser.id);
-                const isLeading = auction.bids[0]?.user.id === currentUser.id;
-                return (
-                  <motion.div key={auction.id} whileTap={{ scale: 0.98 }}
-                    onClick={() => setLocation(`/auction/${auction.id}`)}
-                    className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/8 cursor-pointer">
-                    <div className="w-16 h-20 rounded-xl overflow-hidden shrink-0">
-                      <img src={auction.mediaUrl} className="w-full h-full object-cover" alt={auction.title} />
+            bidsLoading ? (
+              <div className="space-y-3">
+                {[0, 1, 2].map(i => (
+                  <div key={i} className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/8">
+                    <div className="w-16 h-20 rounded-xl bg-white/10 animate-pulse shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 w-3/4 bg-white/10 rounded animate-pulse" />
+                      <div className="h-3 w-1/2 bg-white/8 rounded animate-pulse" />
+                      <div className="h-3 w-1/3 bg-white/8 rounded animate-pulse" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-white text-sm line-clamp-1">{auction.title}</h4>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Current: <span className="text-white font-bold">{formatPrice(auction.currentBid)}</span>
-                      </p>
-                      {myBid && <p className="text-xs text-muted-foreground">Your bid: <span className="text-white">{formatPrice(myBid.amount)}</span></p>}
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isLeading ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
-                          {isLeading ? t("leading") : t("outbid")}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">{timeInfo.text}</span>
+                  </div>
+                ))}
+              </div>
+            ) : myBids.length > 0 ? (
+              <div className="space-y-3">
+                {myBids.map(entry => {
+                  if (!entry.auction) return null;
+                  const a = entry.auction;
+                  const timeInfo = getTimeRemaining(a.endsAt);
+                  return (
+                    <motion.div key={entry.auctionId} whileTap={{ scale: 0.98 }}
+                      onClick={() => setLocation(`/auction/${entry.auctionId}`)}
+                      className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/8 cursor-pointer">
+                      <div className="w-16 h-20 rounded-xl overflow-hidden shrink-0 bg-white/8">
+                        {a.mediaUrl && (
+                          <img src={a.mediaUrl} className="w-full h-full object-cover" alt={a.title} />
+                        )}
                       </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-white text-sm line-clamp-1">{a.title}</h4>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Current: <span className="text-white font-bold">{formatPrice(a.currentBid)}</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Your bid: <span className="text-white">{formatPrice(entry.myBidAmount)}</span>
+                        </p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${entry.isLeading ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
+                            {entry.isLeading ? t("leading") : t("outbid")}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">{timeInfo.text}</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="py-16 text-center">
+                <Gavel size={32} className="text-white/20 mx-auto mb-3" />
+                <p className="text-muted-foreground text-sm">No bids placed yet</p>
+                <button onClick={() => setLocation("/feed")} className="mt-4 px-6 py-3 rounded-xl bg-primary text-white text-sm font-bold">
+                  Browse auctions
+                </button>
+              </div>
+            )
           )}
         </div>
 

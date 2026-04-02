@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { type User, type Auction, type Bid, currentUser } from '@/lib/mock-data';
+import { type User, type Auction, type Bid } from '@/lib/mock-data';
 import {
   placeBidApi,
   getAuctionsApi,
@@ -9,6 +9,7 @@ import {
   type ApiAuctionBid,
   type CreateAuctionInput,
 } from '@/lib/api-client';
+import { getCurrentUserId, getCachedCurrentUser } from '@/hooks/use-current-user';
 
 // ─── Module-level cache ───────────────────────────────────────────────────────
 let globalAuctions: Auction[] = [];
@@ -183,6 +184,23 @@ export function usePlaceBid(options: PlaceBidOptions = {}) {
       // Update local cache with server-confirmed values
       const idx = globalAuctions.findIndex(a => a.id === auctionId);
       if (idx >= 0) {
+        const me = getCachedCurrentUser();
+        const meAsUser: User = me
+          ? {
+              id: me.id,
+              name: me.displayName ?? 'You',
+              avatar: me.avatarUrl ?? `https://ui-avatars.com/api/?name=Me&background=6d28d9&color=fff&size=100`,
+              handle: `@${me.id.slice(0, 8)}`,
+              phone: '',
+            }
+          : {
+              id: getCurrentUserId() ?? 'me',
+              name: 'You',
+              avatar: `https://ui-avatars.com/api/?name=Me&background=6d28d9&color=fff&size=100`,
+              handle: '@me',
+              phone: '',
+            };
+
         globalAuctions[idx] = {
           ...globalAuctions[idx],
           currentBid: result.auction.current_bid,
@@ -190,7 +208,7 @@ export function usePlaceBid(options: PlaceBidOptions = {}) {
           bids: [
             {
               id: result.bid.id,
-              user: currentUser,
+              user: meAsUser,
               amount: result.bid.amount,
               timestamp: result.bid.created_at,
             },
@@ -210,7 +228,6 @@ export function usePlaceBid(options: PlaceBidOptions = {}) {
         ` new_bid_count=${result.auction.bid_count}`,
       );
       options.onSuccess?.();
-      return result;
 
     } catch (err: unknown) {
       const e = err as { code?: string; message?: string; statusCode?: number };

@@ -12,7 +12,7 @@ import { useFollow } from "@/hooks/use-follow";
 import { useWatchAuction } from "@/hooks/use-watch";
 import { useBidPolling, getUserBidStatus } from "@/hooks/use-bid-polling";
 import { useRealtimeBids } from "@/hooks/use-realtime-bids";
-import { currentUser } from "@/lib/mock-data";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { getWhatsAppUrl, cn } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
@@ -55,6 +55,7 @@ export default function AuctionDetail() {
   });
 
   // ── Other hooks (must be unconditional — Rules of Hooks) ──────────────────
+  const { user: currentUser } = useCurrentUser();
   const { isFollowing, toggle: toggleFollow } = useFollow();
   const { isWatching, toggle: toggleWatch } = useWatchAuction();
   const { t, formatPrice } = useLang();
@@ -100,7 +101,7 @@ export default function AuctionDetail() {
   const winner = state === "ended" && auction.bids.length > 0 ? auction.bids[0] : null;
   const isAlbum = auction.type === "album" && (auction.images?.length ?? 0) > 1;
   const isVideo = auction.type === "video";
-  const isSeller = auction.seller.id === currentUser.id;
+  const isSeller = !!currentUser && auction.seller.id === currentUser.id;
   const topBidUserId = auction.bids[0]?.user.id;
   const bidStatus = getUserBidStatus(auction.id, topBidUserId);
 

@@ -3,12 +3,14 @@
  *
  * GET    /api/users/me          — own full profile (authenticated)
  * PATCH  /api/users/me          — update own profile fields
+ * GET    /api/users/me/bids     — auctions the caller has bid on (leading/outbid)
  * GET    /api/users/:userId     — another user's public profile
  */
 
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
+import { supabaseAdmin } from "../lib/supabase";
 import {
   getOwnProfile,
   getPublicProfile,
@@ -97,6 +99,87 @@ router.patch("/users/me", requireAuth, async (req, res) => {
   }
 
   res.json({ user: profile });
+});
+
+// ─── GET /api/users/me/bids ───────────────────────────────────────────────────
+// Returns the most recent 30 auctions the caller has bid on, with leading/
+// outbid status and their highest bid amount per auction.
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.get("/users/me/bids", requireAuth, async (req, res) => {
+  const userId = req.user!.id;
+
+  // Fetch distinct auctions this user has bid on, plus their max bid per auction
+  const { data: bidRows, error } = await supabaseAdmin
+    .from("bids")
+    .select("auction_id, amount, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    res.status(500).json({ error: "FETCH_FAILED", message: "Could not fetch bids" });
+    return;
+  }
+
+  // Deduplicate: keep highest bid per auction, preserve recency order
+  const seen = new Map<string, { amount: number; created_at: string }>();
+  for (const row of bidRows ?? []) {
+    const existing = seen.get(row.auction_id);
+    if (!existing || row.amount > existing.amount) {
+      seen.set(row.auction_id, { amount: row.amount, created_at: row.created_at });
+    }
+  }
+  const auctionIds = [...seen.keys()].slice(0, 30);
+
+  if (auctionIds.length === 0) {
+    res.json({ bids: [] });
+    return;
+  }
+
+  // Fetch auction details + current leading bidder
+  const { data: auctions } = await supabaseAdmin
+    .from("auctions")
+    .select("id, title, thumbnail_url, video_url, current_bid, bid_count, ends_at, starts_at")
+    .in("id", auctionIds);
+
+  // Fetch current leader per auction (top bid per auction)
+  const { data: topBids } = await supabaseAdmin
+    .from("bids")
+    .select("auction_id, user_id, amount")
+    .in("auction_id", auctionIds)
+    .order("amount", { ascending: false });
+
+  const leaderMap = new Map<string, string>(); // auctionId → leading user_id
+  for (const b of topBids ?? []) {
+    if (!leaderMap.has(b.auction_id)) leaderMap.set(b.auction_id, b.user_id);
+  }
+
+  const auctionMap = new Map((auctions ?? []).map(a => [a.id, a]));
+
+  const result = auctionIds.map(aId => {
+    const a = auctionMap.get(aId);
+    const myBid = seen.get(aId)!;
+    const isLeading = leaderMap.get(aId) === userId;
+    const mediaUrl = a?.video_url ?? a?.thumbnail_url ?? null;
+    return {
+      auctionId: aId,
+      myBidAmount: myBid.amount,
+      isLeading,
+      auction: a
+        ? {
+            id: a.id,
+            title: a.title,
+            mediaUrl,
+            currentBid: a.current_bid,
+            bidCount: a.bid_count,
+            endsAt: a.ends_at,
+            startsAt: a.starts_at,
+          }
+        : null,
+    };
+  }).filter(r => r.auction !== null);
+
+  res.json({ bids: result });
 });
 
 // ─── GET /api/users/:userId ───────────────────────────────────────────────────

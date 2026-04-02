@@ -15,7 +15,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/utils";
-import { currentUser } from "@/lib/mock-data";
+import { getCurrentUserId } from "@/hooks/use-current-user";
 import { recordUserBid } from "@/hooks/use-bid-polling";
 
 export interface RealtimeBid {
@@ -57,7 +57,7 @@ export function useRealtimeBids(
     setRealtimeCurrentBid(bid.amount);
     setRealtimeBidCount(prev => (prev ?? bidCountRef.current) + 1);
 
-    if (bid.user_id === currentUser.id) {
+    if (bid.user_id === getCurrentUserId()) {
       // Our own bid (confirmation path — normally fired before we get here)
       recordUserBid(bid.auction_id, bid.amount);
     } else {

@@ -130,6 +130,22 @@ Express 5 API server for BidReel. Uses Supabase for auth, database, and storage.
   - `005_complete_mvp_schema.sql` — authoritative schema superseding 001–004 (not yet applied)
   - `006_rls_policies.sql` — complete RLS policy set (not yet applied)
   - `007_user_devices.sql` — FCM device token table (not yet applied)
+  - `009_schema_alignment.sql` — renames `current_price`→`current_bid`, `minimum_increment`→`min_increment`; adds `media_purge_after`, `winner_id`, deletion-tracking cols; fixes bid trigger. **Must be run in Supabase SQL editor before create-auction flow works.**
+
+**User profile routes (`src/routes/users.ts`):**
+- `GET /api/users/me` — own profile (displayName, avatarUrl, bio, auctionCount, bidsPlacedCount, totalLikesReceived)
+- `PATCH /api/users/me` — update own profile (displayName, avatarUrl, bio)
+- `GET /api/users/me/bids` — auctions the caller has bid on with isLeading/outbid status + their highest bid
+- `GET /api/users/:userId` — another user's public profile
+
+**Mock data elimination status (frontend):**
+- `mockAuctions`, `mockUsers`, `currentUser` are no longer used in any component or hook
+- `mock-data.ts` retains only the type definitions (`User`, `Auction`, `Bid`) — these are still imported as types
+- `use-current-user.ts` — new hook with module-level cache; fetches `GET /api/users/me` once on load, exposes `useCurrentUser()` and imperative `getCurrentUserId()` / `getCachedCurrentUser()` helpers
+- `profile.tsx` — fully real: user avatar/name from API, listings from global auction cache filtered by `seller.id === me.id`, bids from `GET /api/users/me/bids`
+- `auction-detail.tsx` — `isSeller` derived from real user ID comparison
+- `use-auctions.ts` `usePlaceBid` — uses `getCachedCurrentUser()` to build the optimistic bid entry in local cache
+- `use-realtime-bids.ts` — uses `getCurrentUserId()` to distinguish own bids from others
 
 **FCM Push Notifications:**
 - Backend: `src/lib/fcm.ts` — Firebase Admin SDK, lazy-initialised, no-op without `FIREBASE_SERVICE_ACCOUNT_JSON`

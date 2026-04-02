@@ -140,16 +140,15 @@ Express 5 API server for BidReel. Uses Supabase for auth, database, and storage.
 - `GET /api/users/me/bids` — auctions the caller has bid on with isLeading/outbid status + their highest bid
 - `GET /api/users/:userId` — another user's public profile
 
-**Live DB schema notes (discovered via E2E testing):**
-- `auctions` table uses OLD column names: `current_price` (not `current_bid`), `minimum_increment` (not `min_increment`)
-- `bids` table: has `bidder_id` (not `user_id`); does NOT have `created_at` column (run migration 011 to add it)
-- `bids` columns confirmed: `id, auction_id, bidder_id, amount` — four columns only
-- API server is fully schema-agnostic: uses `select("*")` everywhere, reads either column via helpers in `src/lib/dbSchema.ts`, and inserts auctions with a 3-attempt fallback (new → no-media_purge_after → old schema)
-- `getBidderCol()` in `src/lib/dbSchema.ts` — probes bids table once per server start to detect `bidder_id` vs `user_id`; result is cached
-- `getBidderUserId(bid)` — safely reads bidder ID from either column regardless of schema
-- All GET auction responses normalize to always include `current_bid` and `min_increment` keys regardless of DB schema
-- The DB's bid insert trigger automatically updates `current_price` on the auctions table (trigger from old schema uses old column name)
-- `media-lifecycle` errors at startup: `video_deleted_at` column does not exist in live auctions table — run migration 009 to fix (non-blocking, app functions normally without it)
+**Live DB schema (fully aligned as of 2026-04-02):**
+- `bids`: `id, auction_id, bidder_id, amount, created_at` — fully aligned with all code
+- `auctions`: uses `current_bid` + `min_increment` (new names); has `video_deleted_at`, `thumbnail_deleted_at`, `media_purge_after`, `winner_id`, `starts_at`
+- `profiles`: has `expo_push_token`; `phone` has UNIQUE constraint (`profiles_phone_unique`)
+- Bid trigger: `fn_bid_placed()` updates `current_bid` + `bid_count` + `updated_at` on each INSERT into bids
+- View `v_auction_feed`: updated to reference `current_bid`, `min_increment`
+- All migrations 009, 010, 011 applied. Media lifecycle runs cleanly at startup.
+- **Schema-agnostic helpers** remain active: `getBidderCol()` + `getBidderUserId()` in `src/lib/dbSchema.ts` handle any future DB variations
+- `insertAuction()` in `auctions.ts` still uses 3-attempt fallback for robustness across schema variants
 
 **Mock data elimination status (frontend):**
 - `mockAuctions`, `mockUsers`, `currentUser` are no longer used in any component or hook

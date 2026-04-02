@@ -47,6 +47,16 @@ interface ProfileRow {
 
 const PROFILE_COLS = "id, display_name, avatar_url, bio, is_admin, is_banned, created_at";
 
+// ─── Typed errors ─────────────────────────────────────────────────────────────
+
+export class PhoneAlreadyRegisteredError extends Error {
+  readonly code = "PHONE_ALREADY_REGISTERED";
+  constructor(phone: string) {
+    super(`A profile with phone ${phone.slice(0, 4)}**** already exists under a different account.`);
+    this.name = "PhoneAlreadyRegisteredError";
+  }
+}
+
 // ─── Stats helpers ────────────────────────────────────────────────────────────
 
 /**
@@ -59,20 +69,17 @@ async function fetchProfileStats(userId: string): Promise<{
   bidsPlacedCount: number;
 }> {
   const [auctionsResult, bidsResult, likesResult] = await Promise.all([
-    // Number of auctions this user has listed
     supabaseAdmin
       .from("auctions")
       .select("id", { count: "exact", head: true })
       .eq("seller_id", userId)
       .neq("status", "removed"),
 
-    // Number of bids this user has placed (across all auctions)
     supabaseAdmin
       .from("bids")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId),
 
-    // Sum of like_count across all of this user's auctions
     supabaseAdmin
       .from("auctions")
       .select("like_count")
@@ -127,6 +134,11 @@ function toPublicProfile(row: ProfileRow, stats: Awaited<ReturnType<typeof fetch
  * First login  → inserts a new row with the user's phone (server use only).
  * Return login → reads and returns the existing row without mutation.
  *
+ * Enforces one account per phone number:
+ * - If a profile already exists for the given userId, returns it.
+ * - If a profile exists for a DIFFERENT userId with the same phone,
+ *   throws PhoneAlreadyRegisteredError (prevents duplicate accounts).
+ *
  * Phone is stored for WhatsApp link generation only.
  * It is NEVER returned in OwnProfile or PublicProfile.
  */
@@ -134,6 +146,7 @@ export async function upsertProfile(
   userId: string,
   phone: string,
 ): Promise<{ isNewUser: boolean; profile: OwnProfile }> {
+  // 1. Fast path — profile already exists for this exact auth user
   const { data: existing } = await supabaseAdmin
     .from("profiles")
     .select(PROFILE_COLS)
@@ -145,16 +158,36 @@ export async function upsertProfile(
     return { isNewUser: false, profile: toOwnProfile(existing, stats) };
   }
 
+  // 2. Phone uniqueness check — reject if another account already owns this number
+  const { data: phoneOwner } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("phone", phone)
+    .maybeSingle();
+
+  if (phoneOwner && phoneOwner.id !== userId) {
+    throw new PhoneAlreadyRegisteredError(phone);
+  }
+
+  // 3. Create the new profile
   const { data: created, error } = await supabaseAdmin
     .from("profiles")
     .insert({ id: userId, phone })
     .select(PROFILE_COLS)
     .single();
 
-  if (error || !created) {
+  if (error) {
+    // Postgres unique violation (code 23505) — DB-level enforcement
+    if (error.code === "23505" && error.message.includes("phone")) {
+      throw new PhoneAlreadyRegisteredError(phone);
+    }
     throw new Error(
-      `Failed to create profile for user ${userId}: ${error?.message ?? "unknown error"}`,
+      `Failed to create profile for user ${userId}: ${error.message}`,
     );
+  }
+
+  if (!created) {
+    throw new Error(`Failed to create profile for user ${userId}: no row returned`);
   }
 
   const stats = await fetchProfileStats(userId);

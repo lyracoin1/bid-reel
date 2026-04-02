@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { supabase } from "../lib/supabase";
-import { upsertProfile, getOwnProfile } from "../lib/profiles";
+import { upsertProfile, getOwnProfile, PhoneAlreadyRegisteredError } from "../lib/profiles";
 import { requireAuth } from "../middlewares/requireAuth";
 import { devLogin } from "../lib/devAuth";
 
@@ -110,6 +110,16 @@ router.post("/auth/verify-otp", async (req, res) => {
   try {
     profileResult = await upsertProfile(user.id, user.phone ?? phoneNumber);
   } catch (err) {
+    if (err instanceof PhoneAlreadyRegisteredError) {
+      // Supabase OTP guarantees one auth user per phone, so this shouldn't
+      // normally happen. Surface it clearly if it does.
+      req.log.warn({ phone: phoneNumber.slice(0, 4) + "****" }, "Phone already registered to another account");
+      res.status(409).json({
+        error: "PHONE_ALREADY_REGISTERED",
+        message: "This phone number is already registered. Please log in with your existing account.",
+      });
+      return;
+    }
     req.log.error({ err }, "Profile upsert failed after successful OTP");
     res.status(500).json({
       error: "PROFILE_SETUP_FAILED",

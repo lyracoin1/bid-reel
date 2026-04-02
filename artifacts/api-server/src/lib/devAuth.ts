@@ -4,11 +4,16 @@
  * Creates/retrieves a Supabase Auth user keyed by a derived email
  * (email auth works without any Supabase provider configuration).
  * The profile row stores the real phone number as usual.
+ *
+ * UNIQUE PHONE ENFORCEMENT:
+ * If a profile with the given phone already exists under a DIFFERENT auth user
+ * (e.g. a legacy OTP-based user), dev-login migrates the profile to the new
+ * email-based auth user so one phone = one account is preserved.
  */
 
 import { createHmac } from "crypto";
 import { supabase, supabaseAdmin } from "./supabase";
-import { upsertProfile } from "./profiles";
+import { upsertProfile, PhoneAlreadyRegisteredError } from "./profiles";
 import type { OwnProfile } from "./profiles";
 
 export interface DevLoginResult {
@@ -71,11 +76,43 @@ async function ensureEmailUser(
   return existing.id;
 }
 
+/**
+ * If a profile for this phone exists under a DIFFERENT auth userId,
+ * migrate it: delete the old profile and let upsertProfile create a fresh one
+ * under the current dev-login auth user.
+ *
+ * This handles the case where a legacy OTP-based account existed for the
+ * same phone number — the dev-login email-based user takes ownership.
+ */
+async function reconcilePhoneOwnership(
+  userId: string,
+  phone: string,
+): Promise<void> {
+  const { data: existingProfile } = await supabaseAdmin
+    .from("profiles")
+    .select("id, is_admin, display_name, avatar_url, bio")
+    .eq("phone", phone)
+    .maybeSingle();
+
+  if (!existingProfile || existingProfile.id === userId) {
+    return; // No conflict
+  }
+
+  // Delete the orphaned legacy profile so the dev-login user can take over
+  await supabaseAdmin
+    .from("profiles")
+    .delete()
+    .eq("id", existingProfile.id);
+
+  // Also try to delete the orphaned auth user (best-effort — may fail if already gone)
+  await supabaseAdmin.auth.admin.deleteUser(existingProfile.id).catch(() => null);
+}
+
 export async function devLogin(phoneNumber: string): Promise<DevLoginResult> {
   const derivedPassword = deriveDevPassword(phoneNumber);
   const derivedEmail = deriveDevEmail(phoneNumber);
 
-  // Step 1: get or create an email-based auth user.
+  // Step 1: get or create an email-based auth user (deterministic per phone).
   const userId = await ensureEmailUser(derivedEmail, derivedPassword);
 
   // Step 2: sign in via email+password (works without Phone auth enabled).
@@ -90,8 +127,23 @@ export async function devLogin(phoneNumber: string): Promise<DevLoginResult> {
     );
   }
 
-  // Step 3: upsert the profile row with the real phone number.
-  const profileResult = await upsertProfile(userId, phoneNumber);
+  // Step 3: resolve any phone ownership conflict from legacy OTP users.
+  await reconcilePhoneOwnership(userId, phoneNumber);
+
+  // Step 4: upsert the profile row with the real phone number.
+  let profileResult;
+  try {
+    profileResult = await upsertProfile(userId, phoneNumber);
+  } catch (err) {
+    if (err instanceof PhoneAlreadyRegisteredError) {
+      // Should not reach here after reconcilePhoneOwnership, but guard anyway.
+      throw new Error(
+        `Dev auth: phone ${phoneNumber.slice(0, 4)}**** is already registered to another account. ` +
+        `This should not happen — check the profiles table for duplicates.`,
+      );
+    }
+    throw err;
+  }
 
   return {
     token: signIn.session.access_token,

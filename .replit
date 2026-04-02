@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-24", "postgresql-16"]
 
 [[artifacts]]
 id = "artifacts/api-server"
@@ -70,3 +70,6 @@ ADMIN_PANEL_PASSWORD = "01207387165shjfm"
 
 [userenv.development]
 USE_DEV_AUTH = "true"
+
+[nix]
+channel = "stable-25_05"

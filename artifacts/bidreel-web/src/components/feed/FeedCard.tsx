@@ -11,6 +11,8 @@ import { useLang } from "@/contexts/LanguageContext";
 import { useLiveAuctionStatus } from "@/hooks/use-countdown";
 import { toast } from "@/hooks/use-toast";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { AuctionMenu } from "@/components/AuctionMenu";
 import type { AuctionState } from "@/lib/utils";
 
 function AlbumIcon({ size = 20 }: { size?: number }) {
@@ -45,6 +47,8 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
   const { isWatching, toggle: toggleWatch } = useWatchAuction();
   const { t, formatPrice } = useLang();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const { user: currentUser } = useCurrentUser();
+  const isOwner = !!currentUser && auction.seller.id === currentUser.id;
 
   // Live countdown — ticks every second and fires callbacks on state transitions
   const onStateChange = useCallback((newState: AuctionState) => {
@@ -163,13 +167,19 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         </div>
       )}
 
-      {/* ── Post type indicator (top-right corner) ── */}
-      <div className="absolute top-14 right-3 z-20 pointer-events-none">
+      {/* ── Post type indicator + three-dot menu (top-right corner) ── */}
+      <div className="absolute top-14 right-3 z-20 flex flex-col items-end gap-2">
         {!isVideo && auction.type === "album" && (auction.images?.length ?? 0) > 1 ? (
-          <div className="w-8 h-8 rounded-lg bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white">
+          <div className="w-8 h-8 rounded-lg bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white pointer-events-none">
             <AlbumIcon size={16} />
           </div>
         ) : null}
+        <AuctionMenu
+          auctionId={auction.id}
+          auctionTitle={auction.title}
+          mediaUrl={auction.mediaUrl}
+          isOwner={isOwner}
+        />
       </div>
 
       {/* ── Top bar: seller pill + Follow + timer ── */}

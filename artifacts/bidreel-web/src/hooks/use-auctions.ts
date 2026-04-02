@@ -22,6 +22,12 @@ export function getAuctions(): Auction[] {
   return globalAuctions;
 }
 
+/** Optimistically remove an auction from the global cache (e.g. after delete). */
+export function removeAuctionFromCache(auctionId: string): void {
+  globalAuctions = globalAuctions.filter(a => a.id !== auctionId);
+  notify();
+}
+
 // ─── Data mapping helpers ─────────────────────────────────────────────────────
 
 function apiProfileToUser(

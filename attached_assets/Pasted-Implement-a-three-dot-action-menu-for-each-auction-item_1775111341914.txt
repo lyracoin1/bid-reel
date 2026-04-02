@@ -1,0 +1,68 @@
+Implement a three-dot action menu for each auction item/card and auction detail view.
+
+I want a small "three dots" menu (⋮) on every auction item, supporting both image-based and video-based auctions.
+
+Requirements:
+
+1. Add a three-dot action button
+- Place it in a clean visible position on each auction card and, if applicable, on the auction detail page
+- Keep the UI mobile-friendly and consistent with the current design
+
+2. Menu actions
+The menu should include:
+- Delete / حذف
+- Share / مشاركة
+- Download / تنزيل
+
+3. Delete behavior
+- Delete must only be visible to the owner of the auction
+- Non-owners must not see the delete action
+- On delete:
+  - show a confirmation prompt in Arabic
+  - if confirmed, delete the auction safely
+  - remove it from the UI immediately after success
+- Do not allow unauthorized deletion
+
+4. Share behavior
+- Share should use the best available method:
+  - navigator.share if supported
+  - otherwise copy the auction URL to clipboard
+- Show a clear Arabic success/fallback message
+
+5. Download behavior
+- Allow downloading the main media of the auction
+- If the auction has an image, download the image
+- If the auction has a video, download the video
+- Use a proper downloadable link/file approach
+- Handle cross-origin/public URL behavior correctly
+- Show a clear Arabic error message if download fails
+
+6. Media compatibility
+- Must work with:
+  - image auctions
+  - video auctions
+
+7. Security and permissions
+- Only the auction owner can delete
+- Share and download can be available to all users unless current business rules say otherwise
+- Enforce delete permissions in the backend, not only in the frontend
+
+8. UI/UX
+- Arabic labels
+- clean dropdown / action sheet design
+- close menu when action is completed or user taps outside
+
+9. Do not break existing flows
+- keep auction listing working
+- keep auction detail working
+- keep video/image rendering working
+
+After implementation:
+1. Test owner can see delete/share/download
+2. Test non-owner cannot see delete
+3. Test share works
+4. Test image download works
+5. Test video download works
+6. List all changed files
+
+Reply only with: DONE

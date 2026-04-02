@@ -382,6 +382,54 @@ router.post("/auctions", requireAuth, async (req, res) => {
   res.status(201).json({ auction });
 });
 
+// ─── DELETE /api/auctions/:id ─────────────────────────────────────────────────
+// Soft-deletes an auction by setting status = 'removed'.
+// Only the auction's seller may call this endpoint.
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.delete("/auctions/:id", requireAuth, async (req, res) => {
+  const auctionId = req.params["id"];
+  const userId = req.user!.id;
+
+  if (!auctionId) {
+    res.status(400).json({ error: "MISSING_ID", message: "Auction ID is required" });
+    return;
+  }
+
+  const { data: auction, error: fetchErr } = await supabaseAdmin
+    .from("auctions")
+    .select("id, seller_id, status")
+    .eq("id", auctionId)
+    .maybeSingle();
+
+  if (fetchErr || !auction) {
+    res.status(404).json({ error: "NOT_FOUND", message: "Auction not found" });
+    return;
+  }
+
+  if (auction.seller_id !== userId) {
+    res.status(403).json({
+      error: "FORBIDDEN",
+      message: "Only the auction owner can delete this listing",
+    });
+    return;
+  }
+
+  const { error: updateErr } = await supabaseAdmin
+    .from("auctions")
+    .update({ status: "removed" })
+    .eq("id", auctionId);
+
+  if (updateErr) {
+    logger.error({ err: updateErr, auctionId, userId }, "Failed to delete auction");
+    res.status(500).json({ error: "DELETE_FAILED", message: "Could not delete auction" });
+    return;
+  }
+
+  logger.info({ auctionId, userId }, "Auction soft-deleted (status=removed)");
+  res.json({ success: true });
+});
+
 // ─── POST /api/bids ───────────────────────────────────────────────────────────
 
 const placeBidSchema = z.object({

@@ -434,6 +434,25 @@ export async function getUserBidsApi(): Promise<ApiMyBidEntry[]> {
   return data.bids;
 }
 
+// ─── Delete auction ───────────────────────────────────────────────────────────
+
+/**
+ * Soft-delete an auction (sets status = 'removed').
+ * Only the auction owner can call this — the backend enforces it.
+ * @throws Error with a message if not authorized or request fails.
+ */
+export async function deleteAuctionApi(auctionId: string): Promise<void> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_BASE}/auctions/${auctionId}`, {
+    method: "DELETE",
+    headers,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(data.message ?? "فشل حذف المزاد");
+  }
+}
+
 // ─── Admin activation ─────────────────────────────────────────────────────────
 
 /**

@@ -1,13 +1,14 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import {
-  ArrowLeft, ArrowDown, Share2, Clock, TrendingUp, Gavel,
+  ArrowLeft, ArrowDown, Clock, TrendingUp, Gavel,
   Bell, Trophy, RefreshCw, ChevronDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { ImageSlider } from "@/components/feed/ImageSlider";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { AuctionMenu } from "@/components/AuctionMenu";
 import { useAuction, usePlaceBid } from "@/hooks/use-auctions";
 import { useFollow } from "@/hooks/use-follow";
 import { useWatchAuction } from "@/hooks/use-watch";
@@ -129,13 +130,6 @@ export default function AuctionDetail() {
   // Bid amount from the selected increment
   const bidAmount = selectedInc !== null ? displayedBid + selectedInc : 0;
 
-  const handleShare = async () => {
-    if (navigator.share) {
-      try { await navigator.share({ title: auction.title, url: window.location.href }); }
-      catch (_) {}
-    }
-  };
-
   const handleScrollToBid = () => {
     bidPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
@@ -211,10 +205,13 @@ export default function AuctionDetail() {
             >
               <RefreshCw size={16} className={isRefreshing ? "animate-spin text-primary" : ""} />
             </motion.button>
-            <motion.button whileTap={{ scale: 0.9 }} onClick={handleShare}
-              className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-md border border-white/12 flex items-center justify-center text-white">
-              <Share2 size={18} />
-            </motion.button>
+            <AuctionMenu
+              auctionId={auction.id}
+              auctionTitle={auction.title}
+              mediaUrl={auction.mediaUrl}
+              isOwner={isSeller}
+              onDeleted={() => setLocation("/feed")}
+            />
           </div>
         </div>
 

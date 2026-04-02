@@ -16,6 +16,8 @@ import {
   getPublicProfile,
   updateProfile,
 } from "../lib/profiles";
+import { getBidderCol, getBidderUserId } from "../lib/dbSchema";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -109,24 +111,27 @@ router.patch("/users/me", requireAuth, async (req, res) => {
 router.get("/users/me/bids", requireAuth, async (req, res) => {
   const userId = req.user!.id;
 
-  // Fetch distinct auctions this user has bid on, plus their max bid per auction
+  // Fetch distinct auctions this user has bid on, plus their max bid per auction.
+  // Use select("*") so we tolerate schema variations (created_at may not exist in older DBs).
+  const bCol = await getBidderCol();
   const { data: bidRows, error } = await supabaseAdmin
     .from("bids")
-    .select("auction_id, amount, created_at")
-    .eq("bidder_id", userId)
-    .order("created_at", { ascending: false });
+    .select("*")
+    .eq(bCol, userId)
+    .order("amount", { ascending: false });
 
   if (error) {
+    logger.error({ err: error, userId, bCol }, "GET /users/me/bids: bids query failed");
     res.status(500).json({ error: "FETCH_FAILED", message: "Could not fetch bids" });
     return;
   }
 
-  // Deduplicate: keep highest bid per auction, preserve recency order
-  const seen = new Map<string, { amount: number; created_at: string }>();
+  // Deduplicate: keep highest bid per auction
+  const seen = new Map<string, { amount: number; created_at: string | null }>();
   for (const row of bidRows ?? []) {
     const existing = seen.get(row.auction_id);
     if (!existing || row.amount > existing.amount) {
-      seen.set(row.auction_id, { amount: row.amount, created_at: row.created_at });
+      seen.set(row.auction_id, { amount: row.amount, created_at: row.created_at ?? null });
     }
   }
   const auctionIds = [...seen.keys()].slice(0, 30);
@@ -146,13 +151,13 @@ router.get("/users/me/bids", requireAuth, async (req, res) => {
   // Fetch current leader per auction (top bid per auction)
   const { data: topBids } = await supabaseAdmin
     .from("bids")
-    .select("auction_id, bidder_id, amount")
+    .select(`auction_id, ${bCol}, amount`)
     .in("auction_id", auctionIds)
     .order("amount", { ascending: false });
 
-  const leaderMap = new Map<string, string>(); // auctionId → leading bidder_id
+  const leaderMap = new Map<string, string>(); // auctionId → leading user id
   for (const b of topBids ?? []) {
-    if (!leaderMap.has(b.auction_id)) leaderMap.set(b.auction_id, b.bidder_id);
+    if (!leaderMap.has(b.auction_id)) leaderMap.set(b.auction_id, getBidderUserId(b));
   }
 
   const auctionMap = new Map((auctions ?? []).map(a => [a.id, a]));

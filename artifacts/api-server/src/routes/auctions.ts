@@ -12,6 +12,7 @@ import { supabaseAdmin } from "../lib/supabase";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
 import { notifyOutbid } from "../lib/notifications";
+import { getBidderCol, getBidderUserId } from "../lib/dbSchema";
 
 const router = Router();
 
@@ -199,7 +200,7 @@ router.get("/auctions/:id", async (req, res) => {
   // Batch-fetch profiles for seller + all bidders in one round-trip
   const profileIds = [...new Set([
     auctionData.seller_id,
-    ...bids.map((b) => b.bidder_id),
+    ...bids.map((b) => getBidderUserId(b)).filter(Boolean),
   ])];
 
   const { data: profiles } = profileIds.length > 0
@@ -218,7 +219,7 @@ router.get("/auctions/:id", async (req, res) => {
 
   const bidsWithBidders = bids.map((b) => ({
     ...b,
-    bidder: profileMap.get(b.bidder_id) ?? null,
+    bidder: profileMap.get(getBidderUserId(b)) ?? null,
   }));
 
   logger.info({ auctionId: id, bidCount: bids.length }, "GET /auctions/:id → returning detail");
@@ -428,19 +429,20 @@ router.post("/bids", requireAuth, async (req, res) => {
   }
 
   // 6. Find the current leading bidder (for outbid notification after insert)
+  const bCol = await getBidderCol();
   const { data: prevLeader } = await supabaseAdmin
     .from("bids")
-    .select("bidder_id")
+    .select(bCol)
     .eq("auction_id", auctionId)
     .order("amount", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  // 7. Insert bid (bids table uses bidder_id; created_at may not exist in older schemas)
+  // 7. Insert bid — use the column name that actually exists in this DB
   const { data: newBid, error: bidErr } = await supabaseAdmin
     .from("bids")
-    .insert({ auction_id: auctionId, bidder_id: userId, amount })
-    .select("id, auction_id, bidder_id, amount")
+    .insert({ auction_id: auctionId, [bCol]: userId, amount })
+    .select(`id, auction_id, ${bCol}, amount`)
     .single();
 
   if (bidErr || !newBid) {
@@ -467,9 +469,10 @@ router.post("/bids", requireAuth, async (req, res) => {
   }
 
   // 9. Fire outbid notification (fire-and-forget, non-fatal)
-  if (prevLeader && prevLeader.bidder_id !== userId) {
+  const prevLeaderUserId = prevLeader ? getBidderUserId(prevLeader) : null;
+  if (prevLeaderUserId && prevLeaderUserId !== userId) {
     void notifyOutbid(
-      prevLeader.bidder_id,
+      prevLeaderUserId,
       auctionId,
       auction.title ?? "this auction",
       amount,
@@ -563,9 +566,10 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
     return;
   }
 
-  const { data: prevLeader } = await supabaseAdmin
+  const bCol2 = await getBidderCol();
+  const { data: prevLeader2 } = await supabaseAdmin
     .from("bids")
-    .select("bidder_id")
+    .select(bCol2)
     .eq("auction_id", auctionId)
     .order("amount", { ascending: false })
     .limit(1)
@@ -573,8 +577,8 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
 
   const { data: newBid, error: bidErr } = await supabaseAdmin
     .from("bids")
-    .insert({ auction_id: auctionId, bidder_id: userId, amount })
-    .select("id, auction_id, bidder_id, amount")
+    .insert({ auction_id: auctionId, [bCol2]: userId, amount })
+    .select(`id, auction_id, ${bCol2}, amount`)
     .single();
 
   if (bidErr || !newBid) {
@@ -595,9 +599,10 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
     .select("*")
     .single();
 
-  if (prevLeader && prevLeader.bidder_id !== userId) {
+  const prevLeaderUserId2 = prevLeader2 ? getBidderUserId(prevLeader2) : null;
+  if (prevLeaderUserId2 && prevLeaderUserId2 !== userId) {
     void notifyOutbid(
-      prevLeader.bidder_id,
+      prevLeaderUserId2,
       auctionId,
       auction.title ?? "this auction",
       amount,

@@ -131,6 +131,8 @@ Express 5 API server for BidReel. Uses Supabase for auth, database, and storage.
   - `006_rls_policies.sql` — complete RLS policy set (not yet applied)
   - `007_user_devices.sql` — FCM device token table (not yet applied)
   - `009_schema_alignment.sql` — renames `current_price`→`current_bid`, `minimum_increment`→`min_increment`; adds `media_purge_after`, `winner_id`, deletion-tracking cols; fixes bid trigger. **Optional — API server now handles both old and new column names automatically.**
+  - `010_unique_phone_constraint.sql` — adds UNIQUE constraint on profiles.phone
+  - `011_bids_created_at.sql` — adds `created_at` column to bids table (optional but recommended)
 
 **User profile routes (`src/routes/users.ts`):**
 - `GET /api/users/me` — own profile (displayName, avatarUrl, bio, auctionCount, bidsPlacedCount, totalLikesReceived)
@@ -140,10 +142,14 @@ Express 5 API server for BidReel. Uses Supabase for auth, database, and storage.
 
 **Live DB schema notes (discovered via E2E testing):**
 - `auctions` table uses OLD column names: `current_price` (not `current_bid`), `minimum_increment` (not `min_increment`)
-- `bids` table uses `bidder_id` (not `user_id`), and does NOT have a `created_at` column
-- API server is fully schema-agnostic: uses `select("*")` everywhere, reads either column via `?? fallback`, and inserts auctions with a 3-attempt fallback (new → no-media_purge_after → old schema)
+- `bids` table: has `bidder_id` (not `user_id`); does NOT have `created_at` column (run migration 011 to add it)
+- `bids` columns confirmed: `id, auction_id, bidder_id, amount` — four columns only
+- API server is fully schema-agnostic: uses `select("*")` everywhere, reads either column via helpers in `src/lib/dbSchema.ts`, and inserts auctions with a 3-attempt fallback (new → no-media_purge_after → old schema)
+- `getBidderCol()` in `src/lib/dbSchema.ts` — probes bids table once per server start to detect `bidder_id` vs `user_id`; result is cached
+- `getBidderUserId(bid)` — safely reads bidder ID from either column regardless of schema
 - All GET auction responses normalize to always include `current_bid` and `min_increment` keys regardless of DB schema
 - The DB's bid insert trigger automatically updates `current_price` on the auctions table (trigger from old schema uses old column name)
+- `media-lifecycle` errors at startup: `video_deleted_at` column does not exist in live auctions table — run migration 009 to fix (non-blocking, app functions normally without it)
 
 **Mock data elimination status (frontend):**
 - `mockAuctions`, `mockUsers`, `currentUser` are no longer used in any component or hook

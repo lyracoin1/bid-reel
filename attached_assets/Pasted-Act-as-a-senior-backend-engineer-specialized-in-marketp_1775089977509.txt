@@ -1,0 +1,85 @@
+Act as a senior backend engineer specialized in marketplaces, auctions, concurrency, and production transaction design.
+
+I have a real auction app with:
+- Node.js + Express backend
+- Supabase PostgreSQL database
+- Real DB-backed bidding already implemented
+- Mobile-first frontend
+- Admin dashboard already exists
+- No mock data
+- Real users will use this app
+
+I need you to redesign and harden the bidding and auction engine for production.
+
+Your task:
+
+1. Design a production-grade auction domain model
+Include:
+- auctions table state model
+- bids table structure
+- auction status lifecycle
+- current price strategy
+- minimum next bid logic
+- reserve price support if needed
+- bid increment rules
+- anti-sniping extension logic if recommended
+
+2. Define strict auction lifecycle states
+For example:
+- draft
+- scheduled
+- live
+- ending
+- ended
+- cancelled
+- hidden/removed
+Explain transitions between states and who can trigger them.
+
+3. Design the full bid placement flow
+From client tap on "Place Bid" to final DB write.
+Include:
+- validation steps
+- ownership checks
+- banned user checks
+- auction status checks
+- bid amount validation
+- duplicate request protection
+- idempotency strategy
+- response contract
+
+4. Prevent race conditions and concurrency issues
+I want a robust strategy for when:
+- two users bid at the same time
+- the same user double taps
+- client has stale current price
+- auction ends while request is in flight
+- realtime UI is delayed
+
+Explain exact DB-safe strategy using transactions and row locking if needed.
+
+5. Decide where bidding logic should live
+Compare:
+- Express server logic
+- PostgreSQL functions / RPC
+- hybrid approach
+Then recommend the best production option for this app.
+
+6. Realtime consistency
+Design how the UI should stay consistent with server truth.
+Include:
+- what should be optimistic
+- what should wait for confirmation
+- what events should be broadcast
+- how outbid should be detected
+
+7. Output format:
+- recommended schema
+- bid engine flow
+- lifecycle rules
+- concurrency protection strategy
+- common failure cases and how to handle them
+- top implementation priorities
+
+Be practical and specific.
+Do not give generic marketplace advice.
+Assume real money-like competitive bidding behavior.

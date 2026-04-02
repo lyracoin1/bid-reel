@@ -1,0 +1,66 @@
+We need to fix the delete behavior because it is currently misleading.
+
+Current problem:
+The app shows a success/confirmation message like "Delete confirmed", but the uploaded video or image is not actually deleted. The media still remains visible or still exists after the supposed delete action.
+
+Your task:
+Audit and fix the full delete flow end-to-end.
+
+First, determine exactly what the current delete action is supposed to do:
+1. Is it deleting the entire auction?
+2. Or is it deleting the uploaded media (image/video) inside the auction?
+3. Or is it only doing a UI confirmation without actual deletion?
+
+Then implement the correct real behavior.
+
+Requirements:
+
+1. Diagnose the current delete flow
+- Trace the delete action from the three-dot menu
+- Identify the exact frontend handler
+- Identify the exact backend/API endpoint it calls
+- Identify whether it deletes:
+  - the auction row
+  - the media URL reference
+  - the storage file
+  - or nothing at all
+
+2. Fix false success states
+- Do NOT show success if the actual deletion did not happen
+- Only show success after the backend/storage/database state is truly updated
+- Show a clear Arabic error message if deletion fails
+
+3. If the intended behavior is deleting the entire auction:
+- Delete the auction for the owner only
+- Remove it from the UI after success
+- Ensure the related media is also handled correctly
+- Do not leave orphaned image/video files if cleanup is expected
+
+4. If the intended behavior is deleting the uploaded media inside the auction:
+- Allow the owner to delete their own image/video
+- Remove the media reference from the auction
+- Remove or mark the media for cleanup in storage according to the existing architecture
+- Ensure the deleted media no longer appears in the UI
+
+5. If soft-delete is the intended design:
+- Make sure the UI respects soft-delete state
+- Deleted media/auctions must no longer display as active content
+
+6. Audit storage cleanup
+- Check whether video_deleted_at / thumbnail_deleted_at / media_purge_after are being used correctly
+- Check whether the storage object is ever actually deleted or queued for deletion
+
+7. Test the full flow
+- Delete video
+- Delete image
+- Refresh the page
+- Confirm the deleted content is really gone
+- Confirm no fake success messages appear
+
+At the end, report:
+1. what the delete action was actually doing before
+2. what was broken
+3. the exact files changed
+4. whether deletion now works for both UI and backend/storage
+
+Reply only with: DONE

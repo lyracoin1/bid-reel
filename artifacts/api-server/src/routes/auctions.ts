@@ -13,6 +13,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
 import { notifyOutbid } from "../lib/notifications";
 import { getBidderCol, getBidderUserId } from "../lib/dbSchema";
+import { deleteMediaFile } from "../lib/media-lifecycle";
 
 const router = Router();
 
@@ -200,9 +201,11 @@ function normalizeAuction(a: any): any {
 router.get("/auctions", async (req, res) => {
   // select("*") is intentional — avoids hard-coding column names that may
   // not yet exist in partially-migrated databases.
+  // Exclude soft-deleted (status = 'removed') auctions from the feed.
   const { data: auctions, error } = await supabaseAdmin
     .from("auctions")
     .select("*")
+    .neq("status", "removed")
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -253,6 +256,12 @@ router.get("/auctions/:id", async (req, res) => {
   ]);
 
   if (auctionResult.error || !auctionResult.data) {
+    res.status(404).json({ error: "NOT_FOUND", message: "Auction not found" });
+    return;
+  }
+
+  // Treat soft-deleted auctions as not found
+  if (auctionResult.data.status === "removed") {
     res.status(404).json({ error: "NOT_FOUND", message: "Auction not found" });
     return;
   }
@@ -434,7 +443,8 @@ router.post("/auctions", requireAuth, async (req, res) => {
 });
 
 // ─── DELETE /api/auctions/:id ─────────────────────────────────────────────────
-// Soft-deletes an auction by setting status = 'removed'.
+// Soft-deletes an auction (status = 'removed') and immediately purges its
+// storage files (video + thumbnail) so they are not left orphaned.
 // Only the auction's seller may call this endpoint.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -447,13 +457,19 @@ router.delete("/auctions/:id", requireAuth, async (req, res) => {
     return;
   }
 
+  // Fetch full row so we have video_url and thumbnail_url for storage cleanup
   const { data: auction, error: fetchErr } = await supabaseAdmin
     .from("auctions")
-    .select("id, seller_id, status")
+    .select("id, seller_id, status, video_url, thumbnail_url")
     .eq("id", auctionId)
     .maybeSingle();
 
   if (fetchErr || !auction) {
+    res.status(404).json({ error: "NOT_FOUND", message: "Auction not found" });
+    return;
+  }
+
+  if (auction.status === "removed") {
     res.status(404).json({ error: "NOT_FOUND", message: "Auction not found" });
     return;
   }
@@ -466,18 +482,53 @@ router.delete("/auctions/:id", requireAuth, async (req, res) => {
     return;
   }
 
+  // ── 1. Soft-delete the auction row ─────────────────────────────────────────
   const { error: updateErr } = await supabaseAdmin
     .from("auctions")
     .update({ status: "removed" })
     .eq("id", auctionId);
 
   if (updateErr) {
-    logger.error({ err: updateErr, auctionId, userId }, "Failed to delete auction");
+    logger.error({ err: updateErr, auctionId, userId }, "Failed to soft-delete auction");
     res.status(500).json({ error: "DELETE_FAILED", message: "Could not delete auction" });
     return;
   }
 
   logger.info({ auctionId, userId }, "Auction soft-deleted (status=removed)");
+
+  // ── 2. Immediately purge storage files (best-effort, non-fatal) ────────────
+  // We delete both video and thumbnail right away so files are not left
+  // orphaned until the 7-day media-lifecycle scheduler runs.
+  const now = new Date().toISOString();
+  const storageUpdates: Record<string, string> = {};
+
+  try {
+    const videoDeleted = await deleteMediaFile(auction.video_url ?? null);
+    if (videoDeleted) storageUpdates.video_deleted_at = now;
+    logger.info({ auctionId, deleted: videoDeleted }, "Owner-delete: video storage cleanup");
+  } catch (err) {
+    logger.warn({ auctionId, err }, "Owner-delete: video storage cleanup failed (non-fatal)");
+  }
+
+  try {
+    const thumbDeleted = await deleteMediaFile(auction.thumbnail_url ?? null);
+    if (thumbDeleted) storageUpdates.thumbnail_deleted_at = now;
+    logger.info({ auctionId, deleted: thumbDeleted }, "Owner-delete: thumbnail storage cleanup");
+  } catch (err) {
+    logger.warn({ auctionId, err }, "Owner-delete: thumbnail storage cleanup failed (non-fatal)");
+  }
+
+  // Stamp cleanup timestamps if any files were actually deleted
+  if (Object.keys(storageUpdates).length > 0) {
+    await supabaseAdmin
+      .from("auctions")
+      .update(storageUpdates)
+      .eq("id", auctionId)
+      .then(({ error }) => {
+        if (error) logger.warn({ auctionId, err: error }, "Owner-delete: failed to stamp cleanup timestamps");
+      });
+  }
+
   res.json({ success: true });
 });
 

@@ -59,7 +59,7 @@ function extractStoragePath(url: string, bucket: string): string | null {
  * Delete a single object from the auction-media bucket.
  * Returns true on success, false if the path was invalid or deletion failed.
  */
-async function deleteMediaFile(url: string | null): Promise<boolean> {
+export async function deleteMediaFile(url: string | null): Promise<boolean> {
   if (!url) return false;
 
   const path = extractStoragePath(url, BUCKET);

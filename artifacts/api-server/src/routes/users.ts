@@ -113,7 +113,7 @@ router.get("/users/me/bids", requireAuth, async (req, res) => {
   const { data: bidRows, error } = await supabaseAdmin
     .from("bids")
     .select("auction_id, amount, created_at")
-    .eq("user_id", userId)
+    .eq("bidder_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -137,21 +137,22 @@ router.get("/users/me/bids", requireAuth, async (req, res) => {
   }
 
   // Fetch auction details + current leading bidder
+  // select("*") works with both old schema (current_price) and new schema (current_bid)
   const { data: auctions } = await supabaseAdmin
     .from("auctions")
-    .select("id, title, thumbnail_url, video_url, current_bid, bid_count, ends_at, starts_at")
+    .select("*")
     .in("id", auctionIds);
 
   // Fetch current leader per auction (top bid per auction)
   const { data: topBids } = await supabaseAdmin
     .from("bids")
-    .select("auction_id, user_id, amount")
+    .select("auction_id, bidder_id, amount")
     .in("auction_id", auctionIds)
     .order("amount", { ascending: false });
 
-  const leaderMap = new Map<string, string>(); // auctionId → leading user_id
+  const leaderMap = new Map<string, string>(); // auctionId → leading bidder_id
   for (const b of topBids ?? []) {
-    if (!leaderMap.has(b.auction_id)) leaderMap.set(b.auction_id, b.user_id);
+    if (!leaderMap.has(b.auction_id)) leaderMap.set(b.auction_id, b.bidder_id);
   }
 
   const auctionMap = new Map((auctions ?? []).map(a => [a.id, a]));
@@ -170,7 +171,7 @@ router.get("/users/me/bids", requireAuth, async (req, res) => {
             id: a.id,
             title: a.title,
             mediaUrl,
-            currentBid: a.current_bid,
+            currentBid: a.current_bid ?? (a as any).current_price ?? 0,
             bidCount: a.bid_count,
             endsAt: a.ends_at,
             startsAt: a.starts_at,

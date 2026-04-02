@@ -29,15 +29,109 @@ function isAuctionActive(startsAt: string | null, endsAt: string): boolean {
   return true;
 }
 
+// ─── Schema-agnostic helpers (handles both old and new column names) ───────────
+// The live DB may have either:
+//   OLD: current_price / minimum_increment
+//   NEW: current_bid  / min_increment        (after migration 009)
+// All bid/auction logic goes through these helpers so it works with both.
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getCurrentBid(a: any): number {
+  return a.current_bid ?? a.current_price ?? 0;
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getMinIncrement(a: any): number {
+  return a.min_increment ?? a.minimum_increment ?? 10;
+}
+/** Returns the correct column name for the price field in this DB row */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function priceColName(a: any): string {
+  return "current_bid" in a ? "current_bid" : "current_price";
+}
+
+/**
+ * Insert an auction row — tries new column names (current_bid, min_increment)
+ * first; if the DB returns a "column does not exist" (42703) error it retries
+ * with the old names (current_price, minimum_increment).
+ */
+async function insertAuction(payload: {
+  seller_id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  start_price: number;
+  start_price_value: number;
+  min_increment_value: number;
+  video_url: string;
+  thumbnail_url: string;
+  ends_at: string;
+  media_purge_after: string;
+}) {
+  const { start_price_value, min_increment_value, media_purge_after, ...base } = payload;
+
+  // Attempt 1: new schema (current_bid, min_increment, media_purge_after)
+  const a1 = await supabaseAdmin
+    .from("auctions")
+    .insert({
+      ...base,
+      current_bid: start_price_value,
+      min_increment: min_increment_value,
+      media_purge_after,
+    })
+    .select("*")
+    .single();
+
+  if (!a1.error) return a1;
+
+  // PostgREST returns PGRST204 for "column not in schema cache"; Postgres returns 42703.
+  // Either code indicates we should try alternate column names.
+  const isColErr = (code: string | undefined) =>
+    code === "PGRST204" || code === "42703";
+
+  if (!isColErr(a1.error.code)) return a1; // unexpected error — surface it
+
+  // Fallback A: new column names but without media_purge_after
+  logger.warn({ code: a1.error.code, msg: a1.error.message }, "Schema fallback A: retrying without media_purge_after");
+  const a2 = await supabaseAdmin
+    .from("auctions")
+    .insert({
+      ...base,
+      current_bid: start_price_value,
+      min_increment: min_increment_value,
+    })
+    .select("*")
+    .single();
+
+  if (!a2.error) return a2;
+
+  if (!isColErr(a2.error.code)) return a2;
+
+  // Fallback B: old schema names (current_price, minimum_increment, no media_purge_after)
+  logger.warn({ code: a2.error.code, msg: a2.error.message }, "Schema fallback B: using old column names (current_price, minimum_increment)");
+  return supabaseAdmin
+    .from("auctions")
+    .insert({
+      ...base,
+      current_price: start_price_value,
+      minimum_increment: min_increment_value,
+    })
+    .select("*")
+    .single();
+}
+
 // ─── GET /api/auctions ────────────────────────────────────────────────────────
 
-const LIST_AUCTION_COLS = [
-  "id", "seller_id", "title", "description", "category",
-  "start_price", "current_bid", "min_increment",
-  "video_url", "thumbnail_url",
-  "bid_count", "like_count", "status",
-  "starts_at", "ends_at", "created_at",
-].join(", ");
+/** Normalize a raw auction DB row so the API always returns consistent field names */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeAuction(a: any): any {
+  const currentBid = getCurrentBid(a);
+  const minInc = getMinIncrement(a);
+  return {
+    ...a,
+    current_bid: currentBid,
+    min_increment: minInc,
+  };
+}
 
 router.get("/auctions", async (req, res) => {
   // select("*") is intentional — avoids hard-coding column names that may
@@ -66,7 +160,7 @@ router.get("/auctions", async (req, res) => {
   const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
 
   const auctionsWithSellers = (auctions ?? []).map((a) => ({
-    ...a,
+    ...normalizeAuction(a),
     seller: profileMap.get(a.seller_id) ?? null,
   }));
 
@@ -88,7 +182,7 @@ router.get("/auctions/:id", async (req, res) => {
 
     supabaseAdmin
       .from("bids")
-      .select("id, user_id, amount, created_at")
+      .select("*")
       .eq("auction_id", id)
       .order("amount", { ascending: false })
       .limit(20),
@@ -105,7 +199,7 @@ router.get("/auctions/:id", async (req, res) => {
   // Batch-fetch profiles for seller + all bidders in one round-trip
   const profileIds = [...new Set([
     auctionData.seller_id,
-    ...bids.map((b) => b.user_id),
+    ...bids.map((b) => b.bidder_id),
   ])];
 
   const { data: profiles } = profileIds.length > 0
@@ -118,13 +212,13 @@ router.get("/auctions/:id", async (req, res) => {
   const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
 
   const auctionWithSeller = {
-    ...auctionData,
+    ...normalizeAuction(auctionData),
     seller: profileMap.get(auctionData.seller_id) ?? null,
   };
 
   const bidsWithBidders = bids.map((b) => ({
     ...b,
-    bidder: profileMap.get(b.user_id) ?? null,
+    bidder: profileMap.get(b.bidder_id) ?? null,
   }));
 
   logger.info({ auctionId: id, bidCount: bids.length }, "GET /auctions/:id → returning detail");
@@ -234,29 +328,21 @@ router.post("/auctions", requireAuth, async (req, res) => {
 
   // ── Timestamps ─────────────────────────────────────────────────────────────
   const endsAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-  // Media purge starts 7 days after auction ends (video), 14 days (thumbnail).
-  // media_purge_after is the Phase-1 threshold; Phase-2 = purge_after + 7d.
   const mediaPurgeAfter = new Date(endsAt.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  const { data: auction, error } = await supabaseAdmin
-    .from("auctions")
-    .insert({
-      seller_id: sellerId,
-      title,
-      description: description ?? null,
-      category,
-      start_price: startPrice,
-      // New schema column names; migration 009 renames old ones to match.
-      current_bid: startPrice,
-      min_increment: minIncrement,
-      video_url: videoUrl,
-      thumbnail_url: thumbnailUrl,
-      ends_at: endsAt.toISOString(),
-      // media_purge_after added in migration 009; ignored by DB if column missing.
-      media_purge_after: mediaPurgeAfter.toISOString(),
-    })
-    .select("*")
-    .single();
+  const { data: auction, error } = await insertAuction({
+    seller_id: sellerId,
+    title,
+    description: description ?? null,
+    category,
+    start_price: startPrice,
+    start_price_value: startPrice,
+    min_increment_value: minIncrement,
+    video_url: videoUrl,
+    thumbnail_url: thumbnailUrl,
+    ends_at: endsAt.toISOString(),
+    media_purge_after: mediaPurgeAfter.toISOString(),
+  });
 
   if (error || !auction) {
     logger.error({ err: error }, "POST /auctions failed");
@@ -295,10 +381,10 @@ router.post("/bids", requireAuth, async (req, res) => {
   const { auctionId, amount } = parsed.data;
   const userId = req.user!.id;
 
-  // 2. Fetch auction (include title for notification message)
+  // 2. Fetch auction using select("*") so it works with old and new schema
   const { data: auction, error: auctionErr } = await supabaseAdmin
     .from("auctions")
-    .select("id, seller_id, current_bid, min_increment, starts_at, ends_at, bid_count, title")
+    .select("*")
     .eq("id", auctionId)
     .single();
 
@@ -325,16 +411,17 @@ router.post("/bids", requireAuth, async (req, res) => {
     return;
   }
 
-  // 5. Bid must be strictly greater than current price
-  const minIncrement = auction.min_increment ?? 10;
-  const minimumBid = auction.current_bid + minIncrement;
+  // 5. Bid must be strictly greater than current price (schema-agnostic)
+  const curBid = getCurrentBid(auction);
+  const minIncrement = getMinIncrement(auction);
+  const minimumBid = curBid + minIncrement;
 
   if (amount < minimumBid) {
     res.status(422).json({
       error: "BID_TOO_LOW",
-      message: `Bid must be at least ${minimumBid} cents (current: ${auction.current_bid}, increment: ${minIncrement})`,
+      message: `Bid must be at least ${minimumBid} (current: ${curBid}, increment: ${minIncrement})`,
       minimumBid,
-      currentBid: auction.current_bid,
+      currentBid: curBid,
       minIncrement,
     });
     return;
@@ -343,17 +430,17 @@ router.post("/bids", requireAuth, async (req, res) => {
   // 6. Find the current leading bidder (for outbid notification after insert)
   const { data: prevLeader } = await supabaseAdmin
     .from("bids")
-    .select("user_id")
+    .select("bidder_id")
     .eq("auction_id", auctionId)
     .order("amount", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  // 7. Insert bid
+  // 7. Insert bid (bids table uses bidder_id; created_at may not exist in older schemas)
   const { data: newBid, error: bidErr } = await supabaseAdmin
     .from("bids")
-    .insert({ auction_id: auctionId, user_id: userId, amount })
-    .select("id, auction_id, user_id, amount, created_at")
+    .insert({ auction_id: auctionId, bidder_id: userId, amount })
+    .select("id, auction_id, bidder_id, amount")
     .single();
 
   if (bidErr || !newBid) {
@@ -362,37 +449,49 @@ router.post("/bids", requireAuth, async (req, res) => {
     return;
   }
 
-  // 8. Update auction current_bid and bid_count atomically
+  // 8. Update the price counter using the column name that actually exists in this DB
+  const priceCol = priceColName(auction);
   const { data: updatedAuction, error: updateErr } = await supabaseAdmin
     .from("auctions")
     .update({
-      current_bid: amount,
+      [priceCol]: amount,
       bid_count: auction.bid_count + 1,
       updated_at: new Date().toISOString(),
     })
     .eq("id", auctionId)
-    .select("id, current_bid, bid_count, min_increment, ends_at")
+    .select("*")
     .single();
 
   if (updateErr || !updatedAuction) {
-    logger.error({ err: updateErr, auctionId }, "Auction current_bid update failed after bid insert");
+    logger.error({ err: updateErr, auctionId }, "Auction price update failed after bid insert");
   }
 
   // 9. Fire outbid notification (fire-and-forget, non-fatal)
-  if (prevLeader && prevLeader.user_id !== userId) {
+  if (prevLeader && prevLeader.bidder_id !== userId) {
     void notifyOutbid(
-      prevLeader.user_id,
+      prevLeader.bidder_id,
       auctionId,
-      (auction as any).title ?? "this auction",
+      auction.title ?? "this auction",
       amount,
     );
   }
+
+  const returnedAuction = updatedAuction ?? {
+    id: auctionId,
+    current_bid: amount,
+    bid_count: auction.bid_count + 1,
+  };
 
   logger.info({ bidId: newBid.id, auctionId, userId, amount }, "Bid placed successfully");
 
   res.status(201).json({
     bid: newBid,
-    auction: updatedAuction ?? { id: auctionId, current_bid: amount, bid_count: auction.bid_count + 1 },
+    auction: {
+      ...returnedAuction,
+      // Always expose as current_bid for the frontend regardless of schema
+      current_bid: getCurrentBid(returnedAuction),
+      bid_count: returnedAuction.bid_count,
+    },
   });
 });
 
@@ -421,9 +520,10 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
 
   const { amount } = parsed.data;
 
+  // select("*") works with both old and new schema column names
   const { data: auction, error: auctionErr } = await supabaseAdmin
     .from("auctions")
-    .select("id, seller_id, current_bid, min_increment, starts_at, ends_at, bid_count, title")
+    .select("*")
     .eq("id", auctionId)
     .single();
 
@@ -448,23 +548,24 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
     return;
   }
 
-  const minIncrement = auction.min_increment ?? 10;
-  const minimumBid = auction.current_bid + minIncrement;
+  const curBid2 = getCurrentBid(auction);
+  const minIncrement2 = getMinIncrement(auction);
+  const minimumBid2 = curBid2 + minIncrement2;
 
-  if (amount < minimumBid) {
+  if (amount < minimumBid2) {
     res.status(422).json({
       error: "BID_TOO_LOW",
-      message: `Bid must be at least ${minimumBid} (current: ${auction.current_bid}, increment: ${minIncrement})`,
-      minimumBid,
-      currentBid: auction.current_bid,
-      minIncrement,
+      message: `Bid must be at least ${minimumBid2} (current: ${curBid2}, increment: ${minIncrement2})`,
+      minimumBid: minimumBid2,
+      currentBid: curBid2,
+      minIncrement: minIncrement2,
     });
     return;
   }
 
   const { data: prevLeader } = await supabaseAdmin
     .from("bids")
-    .select("user_id")
+    .select("bidder_id")
     .eq("auction_id", auctionId)
     .order("amount", { ascending: false })
     .limit(1)
@@ -472,8 +573,8 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
 
   const { data: newBid, error: bidErr } = await supabaseAdmin
     .from("bids")
-    .insert({ auction_id: auctionId, user_id: userId, amount })
-    .select("id, auction_id, user_id, amount, created_at")
+    .insert({ auction_id: auctionId, bidder_id: userId, amount })
+    .select("id, auction_id, bidder_id, amount")
     .single();
 
   if (bidErr || !newBid) {
@@ -482,34 +583,36 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
     return;
   }
 
-  const { data: updatedAuction } = await supabaseAdmin
+  const priceCol2 = priceColName(auction);
+  const { data: updatedAuction2 } = await supabaseAdmin
     .from("auctions")
     .update({
-      current_bid: amount,
+      [priceCol2]: amount,
       bid_count: auction.bid_count + 1,
       updated_at: new Date().toISOString(),
     })
     .eq("id", auctionId)
-    .select("id, current_bid, bid_count, ends_at")
+    .select("*")
     .single();
 
-  if (prevLeader && prevLeader.user_id !== userId) {
+  if (prevLeader && prevLeader.bidder_id !== userId) {
     void notifyOutbid(
-      prevLeader.user_id,
+      prevLeader.bidder_id,
       auctionId,
-      (auction as any).title ?? "this auction",
+      auction.title ?? "this auction",
       amount,
     );
   }
 
   logger.info({ bidId: newBid.id, auctionId, userId, amount }, "Bid placed via /auctions/:id/bids");
 
+  const returned2 = updatedAuction2 ?? { id: auctionId, bid_count: auction.bid_count + 1 };
   res.status(201).json({
     bid: newBid,
-    auction: updatedAuction ?? {
-      id: auctionId,
-      current_bid: amount,
-      bid_count: auction.bid_count + 1,
+    auction: {
+      ...returned2,
+      current_bid: getCurrentBid(returned2) || amount,
+      bid_count: returned2.bid_count,
     },
   });
 });

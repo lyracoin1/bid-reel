@@ -1,0 +1,50 @@
+Execute the final cleanup from mock/demo content immediately. This is mandatory.
+
+STRICT INSTRUCTIONS:
+
+1. REMOVE ALL FAKE PROFILE IMAGES
+
+* Delete every placeholder avatar, fallback avatar image, demo avatar, and hardcoded profile picture from the app
+* Do not render any fake user image anywhere
+* If a real avatar_url does not exist, show a clean initials/avatar placeholder generated in UI only — not a fake photo
+
+2. REMOVE ALL FAKE / DEMO VIDEOS
+
+* Delete every mock video, demo video, placeholder video, static sample media URL, and hardcoded media source
+* Do not keep any fallback fake media in feed, auction detail, or profile
+* If an auction has no real uploaded media, show an explicit empty media state — do not substitute fake content
+
+3. REMOVE ALL MOCK DATA REMAINING IN THE APP
+
+* Eliminate all demo auctions, sample IDs like a1/a2, fake bid history, demo competitor timers, and any mock global state
+* The app must render only real backend data from the API and Supabase Storage
+
+4. ENFORCE REAL DATA ONLY
+
+* Feed must show only real auctions from the database
+* Auction detail must show only real media URLs and real bids
+* Profile must show only real user data from backend
+* No hardcoded fallback photos or videos are allowed
+
+5. VERIFICATION (MANDATORY)
+
+* Log and confirm:
+
+  * total real auctions loaded from DB
+  * which auctions have real image URLs
+  * which auctions have real video URLs
+  * that no mock media source remains in code
+* If no real avatar exists, confirm that only a non-photo UI placeholder is shown
+* If no real media exists, confirm that an empty media state is shown
+
+6. STOP CONDITIONS
+
+* Do not continue to any new feature
+* Stop only when:
+
+  * fake profile pictures are fully removed
+  * fake/demo videos are fully removed
+  * no mock media remains anywhere in the app
+
+GOAL:
+Make the app fully real. Remove every fake photo, fake video, and demo media path so the UI shows only real backend-driven content.

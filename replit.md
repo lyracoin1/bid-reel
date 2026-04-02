@@ -130,13 +130,20 @@ Express 5 API server for BidReel. Uses Supabase for auth, database, and storage.
   - `005_complete_mvp_schema.sql` — authoritative schema superseding 001–004 (not yet applied)
   - `006_rls_policies.sql` — complete RLS policy set (not yet applied)
   - `007_user_devices.sql` — FCM device token table (not yet applied)
-  - `009_schema_alignment.sql` — renames `current_price`→`current_bid`, `minimum_increment`→`min_increment`; adds `media_purge_after`, `winner_id`, deletion-tracking cols; fixes bid trigger. **Must be run in Supabase SQL editor before create-auction flow works.**
+  - `009_schema_alignment.sql` — renames `current_price`→`current_bid`, `minimum_increment`→`min_increment`; adds `media_purge_after`, `winner_id`, deletion-tracking cols; fixes bid trigger. **Optional — API server now handles both old and new column names automatically.**
 
 **User profile routes (`src/routes/users.ts`):**
 - `GET /api/users/me` — own profile (displayName, avatarUrl, bio, auctionCount, bidsPlacedCount, totalLikesReceived)
 - `PATCH /api/users/me` — update own profile (displayName, avatarUrl, bio)
 - `GET /api/users/me/bids` — auctions the caller has bid on with isLeading/outbid status + their highest bid
 - `GET /api/users/:userId` — another user's public profile
+
+**Live DB schema notes (discovered via E2E testing):**
+- `auctions` table uses OLD column names: `current_price` (not `current_bid`), `minimum_increment` (not `min_increment`)
+- `bids` table uses `bidder_id` (not `user_id`), and does NOT have a `created_at` column
+- API server is fully schema-agnostic: uses `select("*")` everywhere, reads either column via `?? fallback`, and inserts auctions with a 3-attempt fallback (new → no-media_purge_after → old schema)
+- All GET auction responses normalize to always include `current_bid` and `min_increment` keys regardless of DB schema
+- The DB's bid insert trigger automatically updates `current_price` on the auctions table (trigger from old schema uses old column name)
 
 **Mock data elimination status (frontend):**
 - `mockAuctions`, `mockUsers`, `currentUser` are no longer used in any component or hook

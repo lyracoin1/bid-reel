@@ -10,6 +10,7 @@ const API_BASE = `${BASE}/api`;
 interface LoginResponse {
   token: string;
   isNewUser: boolean;
+  user: { id: string; isAdmin: boolean };
 }
 interface ApiError {
   error: string;
@@ -68,6 +69,10 @@ export default function Login() {
       }
 
       setToken(data.token);
+      const maskedPhone = cleaned.length > 4 ? cleaned.slice(0, 4) + "****" : "****";
+      console.log(
+        `[auth] ✅ login OK — phone=${maskedPhone} userId=${data.user?.id} isNew=${data.isNewUser} isAdmin=${data.user?.isAdmin}`
+      );
       const seen = localStorage.getItem("hasSeenInterests");
       setLocation(seen ? "/feed" : "/interests");
     } catch {

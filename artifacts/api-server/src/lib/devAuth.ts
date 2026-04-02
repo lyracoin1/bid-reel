@@ -109,6 +109,9 @@ async function reconcilePhoneOwnership(
 }
 
 export async function devLogin(phoneNumber: string): Promise<DevLoginResult> {
+  const maskedPhone = phoneNumber.length > 4 ? phoneNumber.slice(0, 4) + "****" : "****";
+  console.log(`[devAuth] login attempt — phone=${maskedPhone}`);
+
   const derivedPassword = deriveDevPassword(phoneNumber);
   const derivedEmail = deriveDevEmail(phoneNumber);
 
@@ -145,9 +148,16 @@ export async function devLogin(phoneNumber: string): Promise<DevLoginResult> {
     throw err;
   }
 
-  return {
+  const result = {
     token: signIn.session.access_token,
     isNewUser: profileResult.isNewUser,
     user: profileResult.profile,
   };
+
+  console.log(
+    `[devAuth] ✅ resolved — phone=${maskedPhone} userId=${userId} ` +
+    `isNew=${result.isNewUser} isAdmin=${result.user.isAdmin}`
+  );
+
+  return result;
 }

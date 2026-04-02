@@ -4,11 +4,13 @@
  * Thin HTTP client for the BidReel API server.
  *
  * Auth strategy:
- *   1. Check localStorage for a valid (non-expired) session token — used in
- *      production after the user completes phone OTP login.
- *   2. If no stored token, attempt dev-login (only works when the API server
- *      has USE_DEV_AUTH=true set, i.e. the development environment).
- *   3. If both fail, return null — the caller must redirect to /login.
+ *   1. Check in-memory cache (fast path for the current page session).
+ *   2. Check localStorage for a valid (non-expired) session token — persisted
+ *      after the user completes phone login.
+ *   3. Return null — the caller must redirect to /login.
+ *
+ * There is NO automatic fallback login. Every user must enter their own phone
+ * number on the login page. Different phones always produce different accounts.
  */
 
 import { getValidSessionToken, setSessionToken, clearSessionToken } from "./session";
@@ -19,18 +21,19 @@ const API_BASE = `${BASE}/api`;
 // ─── Token management ─────────────────────────────────────────────────────────
 
 let cachedToken: string | null = null;
-let tokenPromise: Promise<string | null> | null = null;
 
-/** Stores a token received from the OTP login flow into memory + localStorage. */
+/** Stores a token received from the phone login flow into memory + localStorage. */
 export function setToken(token: string): void {
   cachedToken = token;
   setSessionToken(token);
+  console.log("[auth] token stored — user is now authenticated");
 }
 
 /** Clears the in-memory and persisted token (called on logout / 401). */
 export function clearToken(): void {
   cachedToken = null;
   clearSessionToken();
+  console.log("[auth] token cleared — user is logged out");
 }
 
 /** Redirects to the login page and clears the stale session. */
@@ -42,53 +45,31 @@ export function redirectToLogin(): void {
 }
 
 /**
- * Returns a valid Bearer token.
+ * Returns a valid Bearer token, or null if the user is not authenticated.
+ *
  * Order of precedence:
  *   1. In-memory cache (fast path)
- *   2. localStorage (persisted production session)
- *   3. Dev-login endpoint (development only — returns null in production)
+ *   2. localStorage (persisted session from phone login)
+ *   3. null — the user must log in via /login
+ *
+ * NOTE: There is intentionally NO automatic fallback login here.
+ * Every user must authenticate with their own phone number.
+ * Different phone numbers always produce different user accounts.
  */
 export async function getToken(): Promise<string | null> {
   // 1. In-memory cache
   if (cachedToken) return cachedToken;
 
-  // 2. localStorage session (production OTP login)
+  // 2. localStorage session (persisted after phone login)
   const stored = getValidSessionToken();
   if (stored) {
     cachedToken = stored;
-    console.log("[api-client] ✅ session token loaded from localStorage");
+    console.log("[auth] ✅ session restored from localStorage");
     return cachedToken;
   }
 
-  // 3. Dev-login fallback (only works when USE_DEV_AUTH=true on the server)
-  if (tokenPromise) return tokenPromise;
-
-  tokenPromise = (async () => {
-    try {
-      const res = await fetch(`${API_BASE}/auth/dev-login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber: "+14155550001" }),
-      });
-
-      if (!res.ok) {
-        console.warn("[api-client] dev-login not available (production?) — please log in");
-        return null;
-      }
-
-      const data = await res.json() as { token: string };
-      cachedToken = data.token;
-      console.log("[api-client] ✅ dev-login OK — JWT acquired");
-      return cachedToken;
-    } catch {
-      console.warn("[api-client] dev-login network error — API unreachable");
-      return null;
-    } finally {
-      tokenPromise = null;
-    }
-  })();
-
-  return tokenPromise;
+  // 3. No token — user must authenticate
+  return null;
 }
 
 // ─── Shared fetch helper ──────────────────────────────────────────────────────

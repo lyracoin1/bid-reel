@@ -160,18 +160,19 @@ Express 5 API server for BidReel. Uses Supabase for auth, database, and storage.
 - Publish button is blocked (greyed out, shows MapPin icon) if location not granted
 - Backend: lat/lng required in `POST /api/auctions` (Zod validated); rejects with 400 if missing
 - Backend: attempts to store lat/lng in DB; gracefully falls back if `lat`/`lng` columns don't exist yet
-- Migration 012 (`012_add_lat_lng_to_auctions.sql`): run via Supabase Dashboard SQL editor to enable persistent lat/lng storage
+- Migration 012 (`012_add_lat_lng_to_auctions.sql`): **APPLIED** — `lat DOUBLE PRECISION` + `lng DOUBLE PRECISION` columns exist on auctions table
 - All location/video UI strings available in ar/en/ru/es/fr via i18n system
 
 **Distance + Currency features:**
 - `src/lib/geo.ts`: Haversine distance calc, `formatDistance(metres, lang)`, country→currency map (40+ countries incl. Arab world), Nominatim reverse-geocoding (`reverseGeocode`), `formatAuctionPrice(amount, currencyCode)` for locale-aware price display
 - `src/hooks/use-viewer-location.ts`: singleton hook — fetches once per session via `navigator.geolocation`, cached at module level, returns `{lat, lng} | null`
-- Currency stored at auction creation time in creator's currency (no conversion ever)
-- `POST /api/auctions` accepts `currency_code` + `currency_label`; stored in DB (migration 013)
+- Currency stored at auction creation time in creator's currency — **no conversion ever**
+- `POST /api/auctions` accepts `currencyCode` + `currencyLabel`; persisted in DB via `insertAuction()`
 - Create-auction step 2: currency selector (USD vs Local), auto-detected from geolocation + reverse-geocoding
 - FeedCard: distance badge (e.g. "2.3 km") shown if viewer location + auction lat/lng available; price uses `formatAuctionPrice` with stored `currencyCode`
 - auction-detail: distance badge + all price/bid displays use stored currency via `fmtPrice(amount)`
-- Migration 013 (`013_add_currency_to_auctions.sql`): adds `currency_code VARCHAR(10)` + `currency_label VARCHAR(50)` to auctions — **PENDING MANUAL EXECUTION** in Supabase Dashboard
+- Migration 013 (`013_add_currency_to_auctions.sql`): **APPLIED** — `currency_code TEXT NOT NULL DEFAULT 'USD'` + `currency_label TEXT NOT NULL DEFAULT 'US Dollar'` on auctions table
+- `insertAuction()` fallback chain fixed: Fallback A tries without lat/lng (keeps currency); Fallback B tries without currency (keeps lat/lng); Fallback C drops both — so currency is never silently lost
 
 **Admin activation:**
 - `POST /api/users/me/activate-admin` — validates secret code (`ADMIN_ACTIVATION_CODE` env var) server-side; sets `is_admin=true` in profiles table

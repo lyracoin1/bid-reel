@@ -105,9 +105,26 @@ async function insertAuction(payload: {
   if (!a1.error) return a1;
   if (!isColErr(a1.error.code)) return a1;
 
-  // Fallback A: without currency (column not yet migrated)
-  logger.warn({ code: a1.error.code, msg: a1.error.message }, "Schema fallback A: retrying without currency fields");
+  // Fallback A: without lat/lng (currency columns exist but lat/lng may not)
+  logger.warn({ code: a1.error.code, msg: a1.error.message }, "Schema fallback A: retrying without lat/lng (keeping currency)");
   const a2 = await supabaseAdmin
+    .from("auctions")
+    .insert({
+      ...base,
+      current_bid: start_price_value,
+      min_increment: min_increment_value,
+      media_purge_after,
+      ...currencyFields,
+    })
+    .select("*")
+    .single();
+
+  if (!a2.error) return a2;
+  if (!isColErr(a2.error.code)) return a2;
+
+  // Fallback B: without currency (currency columns not yet migrated) — keep lat/lng
+  logger.warn({ code: a2.error.code, msg: a2.error.message }, "Schema fallback B: retrying without currency fields (keeping lat/lng)");
+  const a2b = await supabaseAdmin
     .from("auctions")
     .insert({
       ...base,
@@ -119,11 +136,11 @@ async function insertAuction(payload: {
     .select("*")
     .single();
 
-  if (!a2.error) return a2;
-  if (!isColErr(a2.error.code)) return a2;
+  if (!a2b.error) return a2b;
+  if (!isColErr(a2b.error.code)) return a2b;
 
-  // Fallback B: without lat/lng or currency
-  logger.warn({ code: a2.error.code, msg: a2.error.message }, "Schema fallback B: retrying without lat/lng");
+  // Fallback C: without lat/lng or currency
+  logger.warn({ code: a2b.error.code, msg: a2b.error.message }, "Schema fallback C: retrying without lat/lng or currency");
   const a3 = await supabaseAdmin
     .from("auctions")
     .insert({

@@ -1,0 +1,94 @@
+Act as a senior Supabase security architect and PostgreSQL access-control expert.
+
+I have a production auction app built with:
+- Node.js + Express
+- Supabase PostgreSQL
+- Supabase Auth
+- Supabase Storage
+- React frontend
+- Real users
+- Real bidding
+- Admin dashboard
+- Phone OTP auth is being added
+- Production bidding engine is being redesigned
+
+I need a complete production-grade database and storage security design.
+
+Your task:
+
+1. Design Row Level Security (RLS) for all key tables
+Include at minimum:
+- profiles
+- auctions
+- bids
+- notifications
+- reports
+- admin_audit_logs
+- any supporting tables you think are required
+
+For each table, define:
+- who can SELECT
+- who can INSERT
+- who can UPDATE
+- who can DELETE
+- what must only be done by service_role/backend
+
+2. Define policy strategy clearly
+I want practical policy rules, not theory.
+Explain:
+- owner access
+- admin access
+- public read rules
+- hidden/removed auction behavior
+- banned user restrictions
+- notification privacy
+- audit log immutability
+
+3. Storage security design
+Design a secure bucket strategy for:
+- auction videos
+- auction images
+- thumbnails/posters
+- profile avatars
+- temporary uploads if needed
+
+For each bucket, explain:
+- public or private
+- who can upload
+- who can read
+- signed URL vs public URL vs proxy download
+- delete/update permissions
+- abuse controls
+
+4. Upload hardening
+Explain how to protect uploads:
+- MIME validation
+- file size limits
+- video duration limits
+- allowed extensions
+- antivirus/moderation considerations
+- orphaned file cleanup
+- failed upload cleanup
+
+5. Media lifecycle and cost control
+Design a practical lifecycle for uploaded media:
+- raw upload
+- processed asset
+- thumbnail/poster generation
+- archive/delete strategy
+- replacing auction media
+- ended/removed auction cleanup rules
+
+6. Service role boundaries
+Explain exactly what should only be done from backend/service role and never from the client.
+
+7. Output format:
+- table-by-table security matrix
+- recommended RLS policy plan
+- storage bucket architecture
+- upload validation checklist
+- top security mistakes to avoid
+
+Be very specific to an auction marketplace.
+Avoid generic Supabase advice.
+Assume malicious users will test access boundaries.

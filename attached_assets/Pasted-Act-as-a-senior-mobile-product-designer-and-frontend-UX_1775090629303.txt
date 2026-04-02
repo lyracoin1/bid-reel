@@ -1,0 +1,79 @@
+Act as a senior mobile product designer and frontend UX architect specialized in short-video apps, auction interfaces, and high-conversion mobile flows.
+
+I have a mobile-first auction app with:
+- React frontend
+- TikTok-style vertical feed
+- Auctions with short videos and image albums
+- Real bidding system already working
+- Realtime partially implemented
+- Admin dashboard exists
+- Backend and data are real (not mock)
+
+I need a production-grade UX redesign plan focused on real user behavior.
+
+Your task:
+
+1. Redesign the auction interaction flow
+From feed discovery to auction detail to placing a bid.
+Explain:
+- best flow
+- CTA placement
+- information hierarchy
+- how to reduce hesitation before bidding
+- how to make auction state clear
+
+2. Redesign the bidding experience
+Include:
+- bid button behavior
+- quick bid vs custom bid
+- minimum next bid display
+- highest bidder state
+- outbid state
+- pending state
+- success/failure feedback
+- anti-double tap UX
+
+3. Redesign the media experience
+For short videos and image albums:
+- autoplay behavior
+- mute/unmute logic
+- preload strategy
+- poster strategy
+- handling slow network
+- switching between video and image gallery
+- how feed should behave while scrolling
+
+4. Mobile-first UX rules
+Define:
+- thumb-friendly controls
+- bottom sheet usage
+- sticky actions
+- haptics/feedback if relevant
+- gesture rules
+- accessibility considerations
+- RTL considerations for Arabic
+
+5. Screen/state design
+List the most important UI states that must exist for:
+- feed card
+- auction detail
+- bidding modal or bottom sheet
+- upload screen
+- notification center
+- profile
+- empty/error/loading/offline states
+
+6. Performance-aware UX
+Recommend UX decisions that reduce rendering cost and bandwidth usage.
+I want design choices that are realistic for mobile and heavy media feeds.
+
+7. Output format:
+- ideal user flow
+- component-level UX recommendations
+- state checklist
+- mobile interaction rules
+- top UX mistakes to avoid
+
+Be highly practical.
+Avoid generic design advice.
+Assume this app should feel premium, fast, and trustworthy.

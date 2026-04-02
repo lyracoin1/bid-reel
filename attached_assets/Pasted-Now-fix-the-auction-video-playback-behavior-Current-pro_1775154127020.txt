@@ -1,0 +1,63 @@
+Now fix the auction video playback behavior.
+
+Current problem:
+Video does not autoplay when it becomes visible / active on screen. It should start automatically as soon as the user stops on it, similar to TikTok-style behavior. I also need a mute/unmute button.
+
+Requirements:
+
+1. Autoplay on visibility
+- If an auction card contains a video, it must start playing automatically when it becomes the active/visible item on screen
+- Use a visibility-based solution such as IntersectionObserver
+- No manual play click should be required in the normal browsing flow
+
+2. Pause when not visible
+- If the user scrolls away and the video is no longer the active visible item, pause it automatically
+- If another video becomes active, the previous one must pause
+
+3. Muted autoplay by default
+- To satisfy browser/mobile autoplay policies, autoplay should start muted by default
+- Then provide a clear mute/unmute button
+
+4. Add a mute/unmute control
+- Add a visible, mobile-friendly mute button on video auctions
+- User should be able to toggle sound on/off easily
+- Make sure this control is not blocked by overlay/layering issues
+
+5. Add play/pause control if needed
+- Manual pause/play control can exist as an extra convenience
+- But autoplay must work without needing the user to start playback first
+
+6. Apply this in both places
+- auction feed / cards
+- auction detail page
+
+7. Do not affect image-only auctions
+- Images must remain unchanged
+
+8. Performance and UX
+- Only the currently active/visible video should play
+- Prevent multiple videos from playing at the same time
+- Keep scrolling smooth on mobile
+
+9. Keep existing features working
+- three-dot menu must still work
+- video delete/replace flow must still work
+- auction cards and detail page must still work
+- no new overlap bugs
+
+10. Testing
+After implementation, verify:
+- video autoplay works in feed
+- video pauses when scrolled away
+- switching between videos works
+- mute/unmute works
+- detail page video autoplays
+- no image regressions
+
+At the end, report:
+1. root cause of why autoplay was not working
+2. exact files changed
+3. how visibility detection is implemented
+4. confirmation that mute/unmute is working
+
+Reply only with: DONE

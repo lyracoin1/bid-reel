@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { Share2, Gavel, Bell, MapPin } from "lucide-react";
+import { Share2, Gavel, Bell, MapPin, Volume2, VolumeX } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type Auction } from "@/lib/mock-data";
 import { getWhatsAppUrl, cn } from "@/lib/utils";
@@ -82,32 +82,25 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
   const following = isFollowing(auction.seller.id);
   const watching = isWatching(auction.id);
   const isVideo = auction.type === "video";
+  const [isMuted, setIsMuted] = useState(true);
 
-  // ── Video debug logging ────────────────────────────────────────────────────
+  // ── Sync muted state with the video element ────────────────────────────────
   useEffect(() => {
-    if (!isVideo) return;
-    console.log(`[FeedCard] Video URL for auction "${auction.id}":`, auction.mediaUrl);
+    if (!videoRef.current) return;
+    videoRef.current.muted = isMuted;
+  }, [isMuted]);
 
+  // ── Autoplay (muted) when card becomes active, pause when not ─────────────
+  useEffect(() => {
     const el = videoRef.current;
-    if (!el) return;
-    console.log(`[FeedCard] Video element mounted for auction "${auction.id}"`);
-
-    const handleError = () => {
-      console.error(`[FeedCard] Video playback error for auction "${auction.id}":`, el.error);
-    };
-    el.addEventListener("error", handleError);
-    return () => el.removeEventListener("error", handleError);
-  }, [isVideo, auction.id, auction.mediaUrl]);
-
-  // ── Autoplay (muted) when card becomes active ──────────────────────────────
-  useEffect(() => {
-    if (!isVideo || !videoRef.current) return;
+    if (!isVideo || !el) return;
     if (isActive) {
-      videoRef.current.play().catch(() => {/* blocked by browser policy — user must tap play */});
+      el.muted = isMuted;
+      el.play().catch(() => {});
     } else {
-      videoRef.current.pause();
+      el.pause();
     }
-  }, [isActive, isVideo]);
+  }, [isActive, isVideo]); // isMuted intentionally excluded — muted syncs separately
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -147,13 +140,12 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
 
       {/* ── Full-bleed media ─────────────────────────────────────────────── */}
       {isVideo ? (
-        /* Video: no click-to-navigate wrapper — controls must be interactive */
+        /* Video: custom controls only — no browser native chrome */
         <div className="absolute inset-0">
           <video
             ref={videoRef}
             src={auction.mediaUrl}
             className={cn("w-full h-full object-cover transition-transform duration-700", isActive ? "scale-100" : "scale-105")}
-            controls
             playsInline
             preload="metadata"
             loop
@@ -179,13 +171,22 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         </div>
       )}
 
-      {/* ── Post type indicator + three-dot menu (top-right corner) ── */}
+      {/* ── Post type indicator + mute + three-dot menu (top-right corner) ── */}
       <div className="absolute top-14 right-3 z-20 flex flex-col items-end gap-2">
         {!isVideo && auction.type === "album" && (auction.images?.length ?? 0) > 1 ? (
           <div className="w-8 h-8 rounded-lg bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white pointer-events-none">
             <AlbumIcon size={16} />
           </div>
         ) : null}
+        {isVideo && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setIsMuted((m) => !m); }}
+            className="w-8 h-8 rounded-lg bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white active:scale-90 transition-transform"
+            aria-label={isMuted ? "Unmute" : "Mute"}
+          >
+            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+          </button>
+        )}
         <AuctionMenu
           auctionId={auction.id}
           auctionTitle={auction.title}

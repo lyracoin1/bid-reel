@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import {
   ArrowLeft, ArrowDown, Clock, TrendingUp, Gavel,
-  Bell, Trophy, RefreshCw, ChevronDown, MapPin,
+  Bell, Trophy, RefreshCw, ChevronDown, MapPin, Volume2, VolumeX,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
@@ -73,18 +73,27 @@ export default function AuctionDetail() {
   const { realtimeCurrentBid, realtimeBidCount, isConnected } =
     useRealtimeBids(id ?? "", auction?.bidCount ?? 0);
 
-  // ── Video debug logging (unconditional — Rules of Hooks) ─────────────────
+  // ── Video: mute state + autoplay on mount ────────────────────────────────
+  const [isMuted, setIsMuted] = useState(true);
+
   useEffect(() => {
-    if (!auction || auction.type !== "video") return;
-    console.log(`[AuctionDetail] Video URL for "${auction.id}":`, auction.mediaUrl);
     const el = videoRef.current;
     if (!el) return;
-    console.log(`[AuctionDetail] Video element mounted for "${auction.id}"`);
+    el.muted = isMuted;
+  }, [isMuted]);
+
+  useEffect(() => {
+    if (!auction || auction.type !== "video") return;
+    const el = videoRef.current;
+    if (!el) return;
+    el.muted = true;
+    el.play().catch(() => {});
+
     const handleError = () =>
       console.error(`[AuctionDetail] Video error for "${auction.id}":`, el.error);
     el.addEventListener("error", handleError);
     return () => el.removeEventListener("error", handleError);
-  }, [auction?.id, auction?.type, auction?.mediaUrl]);
+  }, [auction?.id, auction?.type]);
 
   // ── Live state + countdown (must be unconditional) ────────────────────────
   // Fallback to epoch when auction is null so the hook always receives valid strings
@@ -233,14 +242,25 @@ export default function AuctionDetail() {
           {isAlbum ? (
             <ImageSlider images={auction.images!} alt={auction.title} className="w-full h-full" />
           ) : isVideo ? (
-            <video
-              ref={videoRef}
-              src={auction.mediaUrl}
-              className={cn("w-full h-full object-cover", state !== "active" && "opacity-80")}
-              controls
-              playsInline
-              preload="metadata"
-            />
+            <>
+              <video
+                ref={videoRef}
+                src={auction.mediaUrl}
+                className={cn("w-full h-full object-cover", state !== "active" && "opacity-80")}
+                playsInline
+                preload="metadata"
+                loop
+                muted
+              />
+              {/* Mute / unmute control */}
+              <button
+                onClick={() => setIsMuted((m) => !m)}
+                className="absolute bottom-4 right-4 z-30 w-10 h-10 rounded-full bg-black/55 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white active:scale-90 transition-transform"
+                aria-label={isMuted ? "Unmute" : "Mute"}
+              >
+                {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+              </button>
+            </>
           ) : (
             <img
               src={auction.mediaUrl} alt={auction.title}

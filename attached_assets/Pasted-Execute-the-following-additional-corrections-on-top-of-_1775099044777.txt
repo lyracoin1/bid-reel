@@ -1,0 +1,152 @@
+Execute the following additional corrections on top of the existing implementation. Do not repeat previous phases. Only fix the gaps below.
+
+GAP 1 — HARD DATA RESET (STRICT)
+
+1. Ensure full relational cleanup:
+
+* Delete all auctions → must also remove related bids automatically or manually
+* Delete all bids explicitly if cascade is not configured
+* Delete all reports linked to removed entities
+* Ensure no orphan records remain in any table
+
+2. Storage cleanup:
+
+* Delete ALL files inside Supabase Storage bucket used for:
+
+  * auction videos
+  * auction images
+  * avatars
+* Confirm bucket is empty after cleanup
+
+3. Verification:
+
+* Log remaining row counts for:
+
+  * users
+  * auctions
+  * bids
+  * reports
+* All must be zero or expected minimal system rows
+
+GAP 2 — ADMIN PASSWORD FLOW (STRICT UX)
+
+1. Implement a real admin password screen:
+
+* When admin clicks "Admin Panel":
+
+  * show a password input screen (not inline prompt)
+  * full-screen or modal
+
+2. Validation:
+
+* Compare entered password with ADMIN_PANEL_PASSWORD from env
+* If correct:
+
+  * grant temporary admin session (memory or secure storage)
+* If incorrect:
+
+  * show clear error message
+
+3. Session behavior:
+
+* Admin session expires after:
+
+  * logout OR
+  * page refresh OR
+  * defined timeout (e.g. 15 minutes)
+
+4. Do not:
+
+* store password in localStorage
+* expose password in frontend code
+
+GAP 3 — VIDEO INTEGRATION WITH CREATE AUCTION
+
+1. Ensure auction creation requires media:
+
+* Do not allow creating an auction without:
+
+  * at least 1 image OR
+  * 1 video
+
+2. When creating auction:
+
+* If video selected:
+
+  * upload video first
+  * wait for URL
+  * attach video_url to auction payload
+
+3. Ensure:
+
+* Feed uses same stored video_url
+* Detail page uses same video_url
+
+GAP 4 — STRICT MEDIA VALIDATION
+
+1. Reject invalid media:
+
+* Block non-video files for video upload
+* Block large files above defined limit
+
+2. Validate URL before render:
+
+* Only allow:
+
+  * Supabase Storage URLs
+* Reject:
+
+  * example.com
+  * Unsplash
+  * any external placeholder
+
+GAP 5 — REMOVE ALL DEV / SEED BEHAVIOR
+
+1. Remove any of the following if still present:
+
+* seed functions
+* setTimeout demo bids
+* fake notifications
+* auto-generated auctions
+* fallback mock arrays
+
+2. Ensure:
+
+* App starts EMPTY
+* Only real user actions create data
+
+GAP 6 — STRICT EMPTY STATE UX
+
+1. When no data exists:
+
+* Feed must show:
+
+  * "No auctions yet"
+* Profile must show:
+
+  * "No activity yet"
+* Admin pages must show:
+
+  * empty tables (not fake rows)
+
+2. Do not:
+
+* auto-fill demo content
+* show placeholder listings
+
+GAP 7 — FINAL SYSTEM VERIFICATION
+
+After applying all fixes, confirm:
+
+* database is clean (no old test data)
+* storage bucket is empty
+* no mock logic exists in code
+* admin password flow works correctly
+* auctions cannot be created without media
+* uploaded videos are playable end-to-end
+
+Stop only when all checks pass.
+
+GOAL
+
+Ensure the system is not only functional, but clean, secure, and production-ready with zero leftover test data or mock behavior.

@@ -8,7 +8,7 @@ import { useBidPolling } from "@/hooks/use-bid-polling";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 
 export default function Feed() {
-  const { data: auctions } = useAuctions();
+  const { data: auctions, isLoading } = useAuctions();
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -103,6 +103,12 @@ export default function Feed() {
           transition: isPulling ? "none" : "transform 0.35s cubic-bezier(0.25,0.1,0.25,1)",
         }}
       >
+        {isLoading && auctions.length === 0 && (
+          <div className="w-full h-[100dvh] snap-always flex items-center justify-center bg-black">
+            <RefreshCw size={28} className="text-primary animate-spin" />
+          </div>
+        )}
+
         {auctions.map((auction, index) => (
           <div key={auction.id} data-index={index} className="feed-card w-full h-[100dvh]">
             <FeedCard auction={auction} isActive={activeIndex === index} />
@@ -110,7 +116,7 @@ export default function Feed() {
         ))}
 
         {/* ── End-of-feed card ─────────────────────────────────────────────── */}
-        <div className="w-full h-[100dvh] snap-always flex flex-col items-center justify-center bg-background px-6 text-center">
+        {!isLoading && <div className="w-full h-[100dvh] snap-always flex flex-col items-center justify-center bg-background px-6 text-center">
           <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-6">
             <span className="text-2xl">🎉</span>
           </div>
@@ -125,7 +131,7 @@ export default function Feed() {
             <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
             {isRefreshing ? "Refreshing…" : "Refresh feed"}
           </motion.button>
-        </div>
+        </div>}
       </div>
     </MobileLayout>
   );

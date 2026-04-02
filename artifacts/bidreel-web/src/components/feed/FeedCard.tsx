@@ -1,6 +1,6 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { Share2, MessageCircle, Gavel, Play, Bell } from "lucide-react";
+import { Share2, Gavel, Bell } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type Auction } from "@/lib/mock-data";
 import { getWhatsAppUrl, cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ import { useWatchAuction } from "@/hooks/use-watch";
 import { useLang } from "@/contexts/LanguageContext";
 import { useLiveAuctionStatus } from "@/hooks/use-countdown";
 import { toast } from "@/hooks/use-toast";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import type { AuctionState } from "@/lib/utils";
 
 function AlbumIcon({ size = 20 }: { size?: number }) {
@@ -43,6 +44,7 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
   const { isFollowing, toggle: toggleFollow } = useFollow();
   const { isWatching, toggle: toggleWatch } = useWatchAuction();
   const { t, formatPrice } = useLang();
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   // Live countdown — ticks every second and fires callbacks on state transitions
   const onStateChange = useCallback((newState: AuctionState) => {
@@ -63,6 +65,33 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
   const whatsappUrl = getWhatsAppUrl(auction.seller.phone, auction.title);
   const following = isFollowing(auction.seller.id);
   const watching = isWatching(auction.id);
+  const isVideo = auction.type === "video";
+
+  // ── Video debug logging ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isVideo) return;
+    console.log(`[FeedCard] Video URL for auction "${auction.id}":`, auction.mediaUrl);
+
+    const el = videoRef.current;
+    if (!el) return;
+    console.log(`[FeedCard] Video element mounted for auction "${auction.id}"`);
+
+    const handleError = () => {
+      console.error(`[FeedCard] Video playback error for auction "${auction.id}":`, el.error);
+    };
+    el.addEventListener("error", handleError);
+    return () => el.removeEventListener("error", handleError);
+  }, [isVideo, auction.id, auction.mediaUrl]);
+
+  // ── Autoplay (muted) when card becomes active ──────────────────────────────
+  useEffect(() => {
+    if (!isVideo || !videoRef.current) return;
+    if (isActive) {
+      videoRef.current.play().catch(() => {/* blocked by browser policy — user must tap play */});
+    } else {
+      videoRef.current.pause();
+    }
+  }, [isActive, isVideo]);
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -88,7 +117,6 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         label: t("time_ended"),
       };
     }
-    // active
     return {
       className: timeInfo.isUrgent
         ? "bg-red-500/20 text-red-400 border-red-500/30"
@@ -101,27 +129,43 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
   return (
     <div className="relative w-full h-[100dvh] snap-always bg-black flex flex-col overflow-hidden">
 
-      {/* Full-bleed image */}
-      <div className="absolute inset-0 cursor-pointer" onClick={() => setLocation(`/auction/${auction.id}`)}>
-        <img
-          src={auction.mediaUrl}
-          alt={auction.title}
-          className={cn("w-full h-full object-cover transition-transform duration-700", isActive ? "scale-100" : "scale-105")}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent via-40% to-black/95 pointer-events-none" />
-        {/* Subtle overlay for ended/upcoming to visually dim */}
-        {state !== "active" && (
-          <div className="absolute inset-0 bg-black/25 pointer-events-none" />
-        )}
-      </div>
+      {/* ── Full-bleed media ─────────────────────────────────────────────── */}
+      {isVideo ? (
+        /* Video: no click-to-navigate wrapper — controls must be interactive */
+        <div className="absolute inset-0">
+          <video
+            ref={videoRef}
+            src={auction.mediaUrl}
+            className={cn("w-full h-full object-cover transition-transform duration-700", isActive ? "scale-100" : "scale-105")}
+            controls
+            playsInline
+            preload="metadata"
+            loop
+            muted
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent via-40% to-black/95 pointer-events-none" />
+          {state !== "active" && (
+            <div className="absolute inset-0 bg-black/25 pointer-events-none" />
+          )}
+        </div>
+      ) : (
+        /* Album / image: full area is clickable to open detail */
+        <div className="absolute inset-0 cursor-pointer" onClick={() => setLocation(`/auction/${auction.id}`)}>
+          <img
+            src={auction.mediaUrl}
+            alt={auction.title}
+            className={cn("w-full h-full object-cover transition-transform duration-700", isActive ? "scale-100" : "scale-105")}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent via-40% to-black/95 pointer-events-none" />
+          {state !== "active" && (
+            <div className="absolute inset-0 bg-black/25 pointer-events-none" />
+          )}
+        </div>
+      )}
 
-      {/* ── Post type indicator (top-right corner of image) ── */}
-      <div className="absolute top-14 right-3 z-20">
-        {auction.type === "video" ? (
-          <div className="w-8 h-8 rounded-lg bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white">
-            <Play size={14} fill="white" />
-          </div>
-        ) : auction.type === "album" && (auction.images?.length ?? 0) > 1 ? (
+      {/* ── Post type indicator (top-right corner) ── */}
+      <div className="absolute top-14 right-3 z-20 pointer-events-none">
+        {!isVideo && auction.type === "album" && (auction.images?.length ?? 0) > 1 ? (
           <div className="w-8 h-8 rounded-lg bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white">
             <AlbumIcon size={16} />
           </div>
@@ -135,7 +179,7 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
             className="flex items-center gap-2.5 bg-black/40 backdrop-blur-md border border-white/10 rounded-full pl-1 pr-3 py-1 active:scale-95 transition-transform shrink-0"
             onClick={(e) => { e.stopPropagation(); setLocation(`/auction/${auction.id}`); }}
           >
-            <img src={auction.seller.avatar} alt={auction.seller.name} className="w-7 h-7 rounded-full object-cover" />
+            <UserAvatar src={auction.seller.avatar || null} name={auction.seller.name} size={28} />
             <span className="text-sm font-semibold text-white leading-none">{auction.seller.handle}</span>
           </button>
 
@@ -224,7 +268,6 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
 
         {/* Primary action — changes by state */}
         {state === "upcoming" ? (
-          // Bell: remind me
           <motion.button
             whileTap={{ scale: 0.88 }}
             className="flex flex-col items-center gap-1.5 mt-1"
@@ -244,7 +287,6 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
             </span>
           </motion.button>
         ) : (
-          // Gavel: bid (active = pulsing, ended = dimmed)
           <motion.button
             whileTap={state === "active" ? { scale: 0.88 } : {}}
             className="flex flex-col items-center gap-1.5 mt-1"
@@ -267,7 +309,7 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         )}
       </div>
 
-      {/* ── Bottom info ── */}
+      {/* ── Bottom info (click-to-detail, always interactive) ── */}
       <div
         className="absolute bottom-28 left-4 right-20 z-10 flex flex-col gap-2 cursor-pointer"
         onClick={() => setLocation(`/auction/${auction.id}`)}

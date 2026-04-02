@@ -1,0 +1,258 @@
+Execute the next implementation phase exactly in the following order. Do not skip steps. Do not switch priorities. Do not add secondary features until all items below are complete.
+
+PHASE 1 — COMPLETE REAL VIDEO EXPERIENCE
+
+1. Fix video flow end-to-end.
+
+* Ensure every real uploaded video supports:
+
+  * upload
+  * preview before submit
+  * render after submit
+  * playback inside feed
+  * playback inside auction detail
+* Use real Supabase Storage URLs only.
+* Do not use any mock video, placeholder video, or fallback media source.
+
+2. Upload flow.
+
+* Support selecting a real video file from device.
+* Validate file type and file size before upload.
+* Upload the file to Supabase Storage.
+* Save the real public video URL into the auction record.
+* Log successful upload path and public URL for verification.
+
+3. Preview flow.
+
+* Before creating the auction, show a real local preview of the selected video.
+* Allow the user to remove and reselect the video before submit.
+* Do not fake preview using an image placeholder.
+
+4. Playback flow.
+
+* In the feed:
+
+  * render real videos using <video>
+  * autoplay only when the card is active
+  * pause when the card is not active
+  * use muted + playsInline + loop for feed cards
+* In auction detail:
+
+  * render a real interactive <video controls playsInline>
+  * ensure play button is clickable
+  * ensure no overlay blocks the controls
+* Add playback error logging using video.onerror.
+
+5. Empty state rules.
+
+* If there is no real uploaded video or image:
+
+  * show a clean empty-media state
+  * do not inject fake media
+
+6. Verification.
+
+* Confirm with logs:
+
+  * selected file name
+  * upload success
+  * public URL
+  * video render source
+  * playback mount
+  * playback error if any
+* Stop only when real uploaded videos can be previewed and played normally.
+
+PHASE 2 — ADMIN ROLE IN DATABASE
+
+1. Add a role field to the users table.
+
+* type: text
+* allowed values: 'user' | 'admin'
+* default: 'user'
+
+2. Ensure my account can be assigned role='admin'.
+
+3. Expose the role in the authenticated user response so frontend can read it safely.
+
+PHASE 3 — PROTECT /admin
+
+1. Create protected admin routing.
+
+* Add /admin route protection in frontend.
+* If current user is not admin:
+
+  * block access
+  * redirect away from /admin
+  * show a forbidden/unauthorized state if needed
+
+2. Protect admin APIs on backend.
+
+* Every /api/admin/* route must verify role='admin'
+* Return 403 for non-admin users
+
+3. Do not use any login hacks.
+
+* Do not use "admin/phone"
+* Do not use hidden prefixes
+* Use database role only
+
+PHASE 4 — SIMPLE /admin HOME WITH 4 CARDS
+
+Create /admin as the dashboard landing page.
+
+Show 4 real summary cards loaded from backend:
+
+* total users
+* total auctions
+* active auctions
+* open reports
+
+Requirements:
+
+* real backend data only
+* loading state
+* empty state if needed
+* clean desktop-friendly admin layout
+* do not reuse the mobile consumer app layout
+
+PHASE 5 — USERS PAGE
+
+Create /admin/users.
+
+Show a real users table from the database with:
+
+* avatar or initials
+* display name / username
+* phone
+* role
+* status
+* created_at
+
+Add admin actions:
+
+* promote to admin
+* demote to user
+* ban user
+* unban user
+
+Requirements:
+
+* confirmation dialog for destructive actions
+* success/error toast
+* no mock rows
+* real backend-driven pagination or limit if needed
+
+PHASE 6 — AUCTIONS PAGE
+
+Create /admin/auctions.
+
+Show a real auctions table from the database with:
+
+* title
+* seller
+* current_price
+* status
+* created_at
+* start_time
+* end_time
+
+Add admin actions:
+
+* hide auction
+* delete auction
+* feature auction
+
+Requirements:
+
+* confirmation before delete
+* use real IDs
+* reflect updates in UI immediately after success
+
+PHASE 7 — REPORTS PAGE
+
+Create /admin/reports.
+
+Show a real reports table with:
+
+* report type
+* reporter
+* target
+* reason
+* status
+* created_at
+
+Add admin actions:
+
+* mark reviewed
+* dismiss report
+* take action
+
+Requirements:
+
+* real backend data only
+* real moderation actions only
+* no placeholder report content
+
+PHASE 8 — STATS PAGE
+
+Create /admin/stats.
+
+Show real metrics from backend:
+
+* total users
+* total auctions
+* active auctions
+* total bids
+* reports pending review
+
+Requirements:
+
+* clean chart/card layout if available
+* if charts are not ready, use metric cards and tables first
+* no fake analytics
+
+GLOBAL RULES
+
+1. Do not use mock data anywhere.
+2. Do not use fake avatars, fake videos, fake reports, or fake stats.
+3. Do not proceed to polish, animations, or secondary UX until all above phases are complete.
+4. Keep admin code separated logically:
+
+* /admin routes
+* admin layout
+* admin components
+* admin API endpoints
+
+5. Keep user app and admin app visually and structurally separated, even inside the same repository.
+
+MANDATORY VERIFICATION OUTPUT
+
+After implementation, provide proof for each phase:
+
+* video upload + preview + playback working
+* role field exists and my account is admin
+* /admin blocked for non-admin users
+* /admin summary loads real counts
+* /admin/users loads real users
+* /admin/auctions loads real auctions
+* /admin/reports loads real reports
+* /admin/stats loads real metrics
+
+STOP CONDITIONS
+
+Do not claim completion until:
+
+* real video flow is working end-to-end
+* admin role exists and works
+* /admin is protected
+* all five admin pages exist and load real backend data
+
+GOAL
+
+Turn the app into a real operational MVP:
+
+* real media experience for users
+* real role-based admin control for operators
+* no mock data
+* no fake content
+* no login hacks

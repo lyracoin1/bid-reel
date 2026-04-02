@@ -10,10 +10,9 @@ import { useAuctions } from "@/hooks/use-auctions";
 import { getUserBidsApi, type ApiMyBidEntry } from "@/lib/api-client";
 import { getTimeRemaining } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
+import { UserAvatar } from "@/components/ui/user-avatar";
 
 type Tab = "listings" | "bids";
-
-const FALLBACK_AVATAR = `https://ui-avatars.com/api/?name=Me&background=6d28d9&color=fff&size=200`;
 
 export default function Profile() {
   const [activeTab, setActiveTab] = useState<Tab>("listings");
@@ -59,10 +58,11 @@ export default function Profile() {
                 {isLoading ? (
                   <div className="w-20 h-20 rounded-2xl bg-white/10 animate-pulse" />
                 ) : (
-                  <img
-                    src={user?.avatarUrl ?? FALLBACK_AVATAR}
-                    alt={user?.displayName ?? "Me"}
-                    className="w-20 h-20 rounded-2xl object-cover ring-2 ring-white/10"
+                  <UserAvatar
+                    src={user?.avatarUrl ?? null}
+                    name={user?.displayName ?? "Me"}
+                    size={80}
+                    className="rounded-2xl ring-2 ring-white/10"
                   />
                 )}
                 <div className="absolute -bottom-1.5 -right-1.5 w-5 h-5 rounded-full bg-emerald-400 border-2 border-background" />

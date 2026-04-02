@@ -1,0 +1,168 @@
+Implement a real admin dashboard inside the existing project using role-based access control. Execute this exactly.
+
+ARCHITECTURE RULES
+
+1. Keep the admin dashboard inside the same project for now.
+2. Separate it logically from the user app.
+3. Use dedicated admin routes under /admin.
+4. Do not use any login hack such as "admin/phone" or special login prefixes.
+5. Use a real role system from the database.
+
+DATABASE CHANGES
+
+1. Add a role field to the users table.
+
+* type: text
+* allowed values: 'user' | 'admin'
+* default: 'user'
+
+2. Ensure my account can be marked as role='admin'.
+
+AUTHORIZATION RULES
+
+1. After login, fetch the real current user from the backend.
+2. Read the user's role from the database.
+3. If role='admin', allow access to /admin routes.
+4. If role!='admin', block access and redirect away from /admin.
+5. Protect all admin API endpoints on the backend as well.
+6. Return 403 Forbidden for any non-admin access attempt.
+
+ADMIN ROUTING
+
+Create these routes:
+
+* /admin
+* /admin/users
+* /admin/auctions
+* /admin/reports
+* /admin/stats
+
+ADMIN UI STRUCTURE
+
+1. Build a dedicated admin layout.
+2. Do not reuse the user-facing mobile UI layout.
+3. Add:
+
+* sidebar
+* top header
+* content area
+
+4. Keep the design clean, professional, and desktop-friendly.
+
+ADMIN PAGES
+
+1. Admin Home (/admin)
+   Show summary cards:
+
+* total users
+* total auctions
+* active auctions
+* total bids
+* open reports
+
+2. Users Page (/admin/users)
+   Show a real table from database:
+
+* avatar or initials
+* username
+* phone
+* role
+* status
+* created_at
+
+Add actions:
+
+* ban user
+* unban user
+* promote to admin
+* demote to user
+
+3. Auctions Page (/admin/auctions)
+   Show a real table from database:
+
+* title
+* seller
+* current_price
+* status
+* start_time
+* end_time
+* created_at
+
+Add actions:
+
+* hide auction
+* delete auction
+* feature auction
+
+4. Reports Page (/admin/reports)
+   Show a real table from database:
+
+* report type
+* reporter
+* target
+* reason
+* status
+* created_at
+
+Add actions:
+
+* mark reviewed
+* dismiss report
+* take action
+
+5. Stats Page (/admin/stats)
+   Show real metrics from the backend:
+
+* total users
+* total auctions
+* active auctions
+* total bids
+* reports pending review
+
+BACKEND REQUIREMENTS
+
+Create protected admin endpoints under /api/admin for:
+
+* dashboard summary
+* users list
+* update user role
+* ban/unban user
+* auctions list
+* hide/delete/feature auction
+* reports list
+* report moderation
+* stats summary
+
+Every admin endpoint must verify role='admin' on the server before performing any action.
+
+UX REQUIREMENTS
+
+1. Show loading states for all admin pages.
+2. Show empty states if tables are empty.
+3. Show clear success/error toasts after each admin action.
+4. Use confirmation dialogs for destructive actions:
+
+* delete auction
+* ban user
+* demote admin
+
+DATA RULES
+
+1. Use real backend data only.
+2. Do not use mock data, placeholders, or demo rows.
+3. Do not hardcode any admin user in frontend logic.
+4. Everything must be driven by the authenticated user's database role.
+
+STOP CONDITIONS
+
+Do not move to extra polish or secondary features until these are complete:
+
+* role field added
+* admin route protection working
+* backend admin authorization working
+* admin layout created
+* users, auctions, reports, and stats pages loading real data
+
+GOAL
+
+Create a real, secure, scalable admin dashboard inside the current project, using a proper database role system and protected admin routes.

@@ -33,7 +33,7 @@ function apiProfileToUser(
     name: profile?.display_name ?? 'Seller',
     avatar:
       profile?.avatar_url ??
-      `https://ui-avatars.com/api/?name=User&background=6d28d9&color=fff&size=100`,
+      '',
     handle: `@${(profile?.id ?? fallbackId).slice(0, 8)}`,
     phone: '', // never exposed from API
   };
@@ -44,7 +44,8 @@ function apiBidToFrontend(bid: ApiAuctionBid): Bid {
     id: bid.id,
     user: apiProfileToUser(bid.bidder, bid.user_id),
     amount: bid.amount,
-    timestamp: bid.created_at,
+    // created_at does not exist in the live bids table — fall back to epoch string
+    timestamp: (bid as unknown as Record<string, unknown>).created_at as string ?? new Date(0).toISOString(),
   };
 }
 
@@ -189,14 +190,14 @@ export function usePlaceBid(options: PlaceBidOptions = {}) {
           ? {
               id: me.id,
               name: me.displayName ?? 'You',
-              avatar: me.avatarUrl ?? `https://ui-avatars.com/api/?name=Me&background=6d28d9&color=fff&size=100`,
+              avatar: me.avatarUrl ?? '',
               handle: `@${me.id.slice(0, 8)}`,
               phone: '',
             }
           : {
               id: getCurrentUserId() ?? 'me',
               name: 'You',
-              avatar: `https://ui-avatars.com/api/?name=Me&background=6d28d9&color=fff&size=100`,
+              avatar: '',
               handle: '@me',
               phone: '',
             };

@@ -13,7 +13,7 @@ import React from "react";
 import { useEffect, useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
-import { currentUser } from "@/lib/mock-data";
+import { getCurrentUserId } from "@/hooks/use-current-user";
 import { getAuctions, refreshAuctions } from "@/hooks/use-auctions";
 import { formatCurrency } from "@/lib/utils";
 
@@ -50,7 +50,8 @@ function checkOutbids() {
     const topBid = auction.bids[0];
 
     // Still leading — no notification
-    if (topBid.user.id === currentUser.id) return;
+    const myId = getCurrentUserId();
+    if (myId && topBid.user.id === myId) return;
 
     // Outbid and not yet notified for this event
     if (topBid.amount > myBid && !alreadyNotified.has(auctionId)) {
@@ -102,7 +103,8 @@ export function getUserBidStatus(
 ): BidStatus {
   const myBid = userBids.get(auctionId);
   if (!myBid) return "not_bidding";
-  if (topBidUserId === currentUser.id) return "leading";
+  const myId = getCurrentUserId();
+  if (myId && topBidUserId === myId) return "leading";
   return "outbid";
 }
 

@@ -1,12 +1,13 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import {
   ArrowLeft, ArrowDown, Share2, Clock, TrendingUp, Gavel,
-  Play, Bell, Trophy, RefreshCw, ChevronDown,
+  Bell, Trophy, RefreshCw, ChevronDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { ImageSlider } from "@/components/feed/ImageSlider";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { useAuction, usePlaceBid } from "@/hooks/use-auctions";
 import { useFollow } from "@/hooks/use-follow";
 import { useWatchAuction } from "@/hooks/use-watch";
@@ -60,12 +61,26 @@ export default function AuctionDetail() {
   const { isWatching, toggle: toggleWatch } = useWatchAuction();
   const { t, formatPrice } = useLang();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const { isRefreshing, refresh } = useBidPolling();
   const { pullDistance, pullProgress, isRefreshing: isPulling } =
     usePullToRefresh(scrollRef, refresh);
   const showPullIndicator = pullDistance > 4 || isPulling;
   const { realtimeCurrentBid, realtimeBidCount, isConnected } =
     useRealtimeBids(id ?? "", auction?.bidCount ?? 0);
+
+  // ── Video debug logging (unconditional — Rules of Hooks) ─────────────────
+  useEffect(() => {
+    if (!auction || auction.type !== "video") return;
+    console.log(`[AuctionDetail] Video URL for "${auction.id}":`, auction.mediaUrl);
+    const el = videoRef.current;
+    if (!el) return;
+    console.log(`[AuctionDetail] Video element mounted for "${auction.id}"`);
+    const handleError = () =>
+      console.error(`[AuctionDetail] Video error for "${auction.id}":`, el.error);
+    el.addEventListener("error", handleError);
+    return () => el.removeEventListener("error", handleError);
+  }, [auction?.id, auction?.type, auction?.mediaUrl]);
 
   // ── Live state + countdown (must be unconditional) ────────────────────────
   // Fallback to epoch when auction is null so the hook always receives valid strings
@@ -207,18 +222,20 @@ export default function AuctionDetail() {
         <div className="w-full h-[55vh] relative bg-black">
           {isAlbum ? (
             <ImageSlider images={auction.images!} alt={auction.title} className="w-full h-full" />
+          ) : isVideo ? (
+            <video
+              ref={videoRef}
+              src={auction.mediaUrl}
+              className={cn("w-full h-full object-cover", state !== "active" && "opacity-80")}
+              controls
+              playsInline
+              preload="metadata"
+            />
           ) : (
-            <div className="relative w-full h-full">
-              <img
-                src={auction.mediaUrl} alt={auction.title}
-                className={cn("w-full h-full object-cover", state !== "active" && "opacity-80")}
-              />
-              {isVideo && (
-                <div className="absolute top-4 right-4 w-8 h-8 rounded-lg bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white z-10">
-                  <Play size={14} fill="white" />
-                </div>
-              )}
-            </div>
+            <img
+              src={auction.mediaUrl} alt={auction.title}
+              className={cn("w-full h-full object-cover", state !== "active" && "opacity-80")}
+            />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent pointer-events-none" />
 
@@ -461,14 +478,14 @@ export default function AuctionDetail() {
                 <p className="text-[10px] font-bold text-amber-400/70 uppercase tracking-widest">{t("winner")}</p>
                 <p className="text-sm font-bold text-white leading-tight">{winner.user.name}</p>
               </div>
-              <img src={winner.user.avatar} alt={winner.user.name} className="w-9 h-9 rounded-full object-cover ring-2 ring-amber-500/40 shrink-0" />
+              <UserAvatar src={winner.user.avatar || null} name={winner.user.name} size={36} className="ring-2 ring-amber-500/40 shrink-0" />
             </motion.div>
           )}
 
           {/* Seller card + WhatsApp */}
           <div className="rounded-2xl bg-white/5 border border-white/8 overflow-hidden">
             <div className="flex items-center gap-3 p-4">
-              <img src={auction.seller.avatar} alt={auction.seller.name} className="w-11 h-11 rounded-full object-cover ring-2 ring-white/10" />
+              <UserAvatar src={auction.seller.avatar || null} name={auction.seller.name} size={44} className="ring-2 ring-white/10" />
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-white text-sm leading-none">{auction.seller.name}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">{auction.seller.handle}</p>
@@ -521,10 +538,14 @@ export default function AuctionDetail() {
               <div className="space-y-3">
                 {auction.bids.map((bid, i) => (
                   <div key={bid.id} className="flex items-center gap-3">
-                    <img src={bid.user.avatar} alt={bid.user.name} className="w-9 h-9 rounded-full object-cover" />
+                    <UserAvatar src={bid.user.avatar || null} name={bid.user.name} size={36} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-white leading-none">{bid.user.name}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{formatDistanceToNow(new Date(bid.timestamp))} ago</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {bid.timestamp && new Date(bid.timestamp).getFullYear() > 2000
+                          ? `${formatDistanceToNow(new Date(bid.timestamp))} ago`
+                          : "recently"}
+                      </p>
                     </div>
                     <div className="flex flex-col items-end gap-0.5">
                       <span className="text-sm font-bold text-white">{formatPrice(bid.amount)}</span>

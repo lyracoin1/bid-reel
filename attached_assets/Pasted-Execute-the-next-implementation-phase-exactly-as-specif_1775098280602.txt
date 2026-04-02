@@ -1,0 +1,360 @@
+Execute the next implementation phase exactly as specified below. This is a mandatory full reset + admin control build. Do not skip steps. Do not reorder phases. Do not add secondary features until all required items are complete.
+
+CRITICAL SECURITY RULE
+
+Do not hardcode the admin password in frontend source code.
+Use an environment variable instead:
+
+* ADMIN_PANEL_PASSWORD=01207387165shjfm
+
+Use this password only for admin access flow.
+Keep the real database role system in place as the primary authorization layer.
+
+PHASE 0 — FULL RESET OF EXISTING DATA (DESTRUCTIVE, REQUIRED)
+
+1. Delete all existing user-generated data from the database and storage.
+
+* Delete all existing auctions
+* Delete all existing bids
+* Delete all existing reports if they are only test/demo data
+* Delete all existing user-uploaded images
+* Delete all existing user-uploaded videos
+* Delete all existing auction media files from Supabase Storage
+
+2. Remove all non-essential users.
+
+* Delete all existing test/demo users
+* Keep only the minimum required authentication account if deletion would break the system
+* If one admin/dev account must remain for access, keep only that account and remove the rest
+
+3. Clean the application to an empty operational state.
+
+* After reset, the app must open with:
+
+  * zero fake data
+  * zero old media
+  * zero demo auctions
+  * zero demo bids
+* The app must remain fully connected to the backend and ready for real usage
+
+4. Verification for reset.
+
+* Log how many users were deleted
+* Log how many auctions were deleted
+* Log how many bids were deleted
+* Log how many reports were deleted
+* Log how many storage files were deleted
+* Confirm that no mock/demo content remains
+
+PHASE 1 — COMPLETE REAL VIDEO EXPERIENCE
+
+1. Fix video flow end-to-end.
+
+* Ensure every real uploaded video supports:
+
+  * upload
+  * preview before submit
+  * render after submit
+  * playback inside feed
+  * playback inside auction detail
+* Use real Supabase Storage URLs only
+* Do not use any mock video, placeholder video, or fallback media source
+
+2. Upload flow.
+
+* Support selecting a real video file from device
+* Validate file type and file size before upload
+* Upload the file to Supabase Storage
+* Save the real public video URL into the auction record
+* Log successful upload path and public URL for verification
+
+3. Preview flow.
+
+* Before creating the auction, show a real local preview of the selected video
+* Allow the user to remove and reselect the video before submit
+* Do not fake preview using an image placeholder
+
+4. Playback flow.
+
+* In the feed:
+
+  * render real videos using <video>
+  * autoplay only when the card is active
+  * pause when the card is not active
+  * use muted + playsInline + loop for feed cards
+* In auction detail:
+
+  * render a real interactive <video controls playsInline>
+  * ensure play button is clickable
+  * ensure no overlay blocks the controls
+* Add playback error logging using video.onerror
+
+5. Empty state rules.
+
+* If there is no real uploaded video or image:
+
+  * show a clean empty-media state
+  * do not inject fake media
+
+6. Verification.
+
+* Confirm with logs:
+
+  * selected file name
+  * upload success
+  * public URL
+  * video render source
+  * playback mount
+  * playback error if any
+* Stop only when real uploaded videos can be previewed and played normally
+
+PHASE 2 — ADMIN ROLE IN DATABASE
+
+1. Add a role field to the users table.
+
+* type: text
+* allowed values: 'user' | 'admin'
+* default: 'user'
+
+2. Ensure my account can be assigned role='admin'.
+
+3. Expose the role in the authenticated user response so frontend can read it safely.
+
+4. Keep role-based authorization as the core admin permission model.
+
+* Password alone must not replace the DB role
+* A user must be both:
+
+  * authenticated
+  * role='admin'
+
+PHASE 3 — ADMIN PASSWORD GATE
+
+1. Add an admin password gate on top of role-based admin access.
+
+* Require the correct admin password before entering the admin panel
+* Read the password from environment variable:
+
+  * ADMIN_PANEL_PASSWORD
+* Use the exact value configured in the environment
+
+2. Access flow.
+
+* User logs in normally
+* System checks role='admin'
+* If role='admin', show Admin Panel entry point
+* Before opening /admin, require the admin password
+* If password is correct, allow access
+* If password is incorrect, block access
+
+3. Security requirements.
+
+* Do not hardcode the password in UI source
+* Do not expose the password in logs
+* Do not store the password in local mock files
+* Use a secure temporary session flag after successful password entry
+
+4. Result.
+
+* Admin access requires:
+
+  * authenticated user
+  * role='admin'
+  * correct admin password
+
+PHASE 4 — PROTECT /admin
+
+1. Create protected admin routing.
+
+* Add /admin route protection in frontend
+* If current user is not admin:
+
+  * block access
+  * redirect away from /admin
+  * show a forbidden/unauthorized state if needed
+
+2. Protect admin APIs on backend.
+
+* Every /api/admin/* route must verify role='admin'
+* Return 403 for non-admin users
+
+3. Do not use login hacks.
+
+* Do not use "admin/phone"
+* Do not use hidden prefixes
+* Use database role + admin password gate only
+
+PHASE 5 — SIMPLE /admin HOME WITH 4 CARDS
+
+Create /admin as the dashboard landing page.
+
+Show 4 real summary cards loaded from backend:
+
+* total users
+* total auctions
+* active auctions
+* open reports
+
+Requirements:
+
+* real backend data only
+* loading state
+* empty state if needed
+* clean desktop-friendly admin layout
+* do not reuse the mobile consumer app layout
+
+PHASE 6 — USERS PAGE
+
+Create /admin/users.
+
+Show a real users table from the database with:
+
+* avatar or initials
+* display name / username
+* phone
+* role
+* status
+* created_at
+
+Add admin actions:
+
+* promote to admin
+* demote to user
+* ban user
+* unban user
+
+Requirements:
+
+* confirmation dialog for destructive actions
+* success/error toast
+* no mock rows
+* real backend-driven pagination or limit if needed
+
+PHASE 7 — AUCTIONS PAGE
+
+Create /admin/auctions.
+
+Show a real auctions table from the database with:
+
+* title
+* seller
+* current_price
+* status
+* created_at
+* start_time
+* end_time
+
+Add admin actions:
+
+* hide auction
+* delete auction
+* feature auction
+
+Requirements:
+
+* confirmation before delete
+* use real IDs
+* reflect updates in UI immediately after success
+
+PHASE 8 — REPORTS PAGE
+
+Create /admin/reports.
+
+Show a real reports table with:
+
+* report type
+* reporter
+* target
+* reason
+* status
+* created_at
+
+Add admin actions:
+
+* mark reviewed
+* dismiss report
+* take action
+
+Requirements:
+
+* real backend data only
+* real moderation actions only
+* no placeholder report content
+
+PHASE 9 — STATS PAGE
+
+Create /admin/stats.
+
+Show real metrics from backend:
+
+* total users
+* total auctions
+* active auctions
+* total bids
+* reports pending review
+
+Requirements:
+
+* clean chart/card layout if available
+* if charts are not ready, use metric cards and tables first
+* no fake analytics
+
+GLOBAL RULES
+
+1. Do not use mock data anywhere.
+2. Do not use fake avatars, fake videos, fake reports, or fake stats.
+3. Do not proceed to polish, animations, or secondary UX until all above phases are complete.
+4. Keep admin code separated logically:
+
+* /admin routes
+* admin layout
+* admin components
+* admin API endpoints
+
+5. Keep user app and admin app visually and structurally separated, even inside the same repository.
+6. Keep the application empty-but-real after reset:
+
+* no demo content
+* no seeded public content
+* backend still fully working
+* upload, bidding, profile, and admin flows still connected
+
+MANDATORY VERIFICATION OUTPUT
+
+After implementation, provide proof for each phase:
+
+* reset completed and all old data/media removed
+* real video upload + preview + playback working
+* role field exists and my account is admin
+* admin password gate works with the configured environment variable
+* /admin blocked for non-admin users
+* /admin summary loads real counts
+* /admin/users loads real users
+* /admin/auctions loads real auctions
+* /admin/reports loads real reports
+* /admin/stats loads real metrics
+
+STOP CONDITIONS
+
+Do not claim completion until:
+
+* old data is fully cleared
+* storage media is fully cleared
+* the app is empty and ready
+* real video flow is working end-to-end
+* admin role exists and works
+* admin password gate works
+* /admin is protected
+* all five admin pages exist and load real backend data
+
+GOAL
+
+Turn the app into a clean, empty, backend-connected operational MVP:
+
+* no old users
+* no old media
+* no demo data
+* real media support
+* real role-based admin control
+* admin password gate
+* secure admin dashboard

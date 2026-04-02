@@ -13,6 +13,7 @@
  * DELETE /api/admin/auctions/:id    — delete auction
  * GET  /api/admin/reports           — all reports list
  * PATCH /api/admin/reports/:id      — update report status
+ * GET  /api/admin/actions           — admin action log
  *
  * Legacy media-lifecycle routes kept at the bottom (secret-based).
  */
@@ -28,6 +29,26 @@ const adminRouter = Router();
 
 // ─── All admin routes require auth + admin role ───────────────────────────────
 adminRouter.use(requireAuth, requireAdmin);
+
+// ─── Helper: log an admin action to the audit table ──────────────────────────
+
+type AdminActionType = "ban_user" | "unban_user" | "remove_auction" | "dismiss_report" | "resolve_report";
+type AdminTargetType = "user" | "auction" | "report";
+
+async function logAdminAction(
+  adminId: string,
+  actionType: AdminActionType,
+  targetType: AdminTargetType,
+  targetId: string,
+  note?: string,
+) {
+  const { error } = await supabaseAdmin
+    .from("admin_actions")
+    .insert({ admin_id: adminId, action_type: actionType, target_type: targetType, target_id: targetId, note: note ?? null });
+  if (error) {
+    logger.warn({ error, adminId, actionType, targetId }, "logAdminAction: insert failed (non-fatal)");
+  }
+}
 
 // ─── POST /verify-password ────────────────────────────────────────────────────
 
@@ -52,20 +73,35 @@ adminRouter.post("/verify-password", (req, res) => {
 
 adminRouter.get("/stats", async (_req, res) => {
   try {
-    const [usersResult, auctionsResult, activeResult, bidsResult, reportsResult] = await Promise.all([
+    const [
+      usersResult,
+      auctionsResult,
+      activeResult,
+      removedResult,
+      bidsResult,
+      reportsResult,
+      bannedResult,
+      adminCountResult,
+    ] = await Promise.all([
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }),
       supabaseAdmin.from("auctions").select("id", { count: "exact", head: true }),
       supabaseAdmin.from("auctions").select("id", { count: "exact", head: true }).eq("status", "active"),
+      supabaseAdmin.from("auctions").select("id", { count: "exact", head: true }).eq("status", "removed"),
       supabaseAdmin.from("bids").select("id", { count: "exact", head: true }),
       supabaseAdmin.from("reports").select("id", { count: "exact", head: true }).eq("status", "pending"),
+      supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).eq("is_banned", true),
+      supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).eq("is_admin", true),
     ]);
 
     res.json({
       totalUsers: usersResult.count ?? 0,
       totalAuctions: auctionsResult.count ?? 0,
       activeAuctions: activeResult.count ?? 0,
+      removedAuctions: removedResult.count ?? 0,
       totalBids: bidsResult.count ?? 0,
       openReports: reportsResult.count ?? 0,
+      bannedUsers: bannedResult.count ?? 0,
+      totalAdmins: adminCountResult.count ?? 0,
     });
   } catch (err) {
     logger.error({ err }, "GET /admin/stats failed");
@@ -135,6 +171,13 @@ adminRouter.patch("/users/:id", async (req, res) => {
     if (error) throw error;
 
     logger.info({ targetId: id, patch, adminId: req.user!.id }, "Admin updated user");
+
+    // Log auditable actions
+    if (isBanned === true) {
+      await logAdminAction(req.user!.id, "ban_user", "user", id, banReason ?? undefined);
+    } else if (isBanned === false) {
+      await logAdminAction(req.user!.id, "unban_user", "user", id);
+    }
 
     res.json({
       user: {
@@ -215,12 +258,18 @@ adminRouter.patch("/auctions/:id", async (req, res) => {
       .from("auctions")
       .update(patch)
       .eq("id", id)
-      .select("id, title, status, featured")
+      .select("id, title, status")
       .single();
 
     if (error) throw error;
 
     logger.info({ auctionId: id, patch, adminId: req.user!.id }, "Admin updated auction");
+
+    // Log remove action
+    if (status === "removed") {
+      await logAdminAction(req.user!.id, "remove_auction", "auction", id);
+    }
+
     res.json({ auction: data });
   } catch (err) {
     logger.error({ err, auctionId: id }, "PATCH /admin/auctions/:id failed");
@@ -246,6 +295,8 @@ adminRouter.delete("/auctions/:id", async (req, res) => {
     if (error) throw error;
 
     logger.info({ auctionId: id, adminId: req.user!.id }, "Admin deleted auction");
+    await logAdminAction(req.user!.id, "remove_auction", "auction", id, "Permanently deleted");
+
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err, auctionId: id }, "DELETE /admin/auctions/:id failed");
@@ -311,6 +362,14 @@ adminRouter.patch("/reports/:id", async (req, res) => {
     if (error) throw error;
 
     logger.info({ reportId: id, status, adminId: req.user!.id }, "Admin updated report");
+
+    // Log dismiss / resolve
+    if (status === "dismissed") {
+      await logAdminAction(req.user!.id, "dismiss_report", "report", id);
+    } else if (status === "actioned") {
+      await logAdminAction(req.user!.id, "resolve_report", "report", id);
+    }
+
     res.json({ report: data });
   } catch (err) {
     logger.error({ err, reportId: id }, "PATCH /admin/reports/:id failed");
@@ -318,18 +377,44 @@ adminRouter.patch("/reports/:id", async (req, res) => {
   }
 });
 
-// ─── Legacy media-lifecycle routes (secret-based, kept for backward compat) ───
+// ─── GET /actions ─────────────────────────────────────────────────────────────
 
-function requireAdminSecret(
-  req: Parameters<Parameters<typeof adminRouter.use>[0]>[0],
-  res: Parameters<Parameters<typeof adminRouter.use>[0]>[1],
-  next: Parameters<Parameters<typeof adminRouter.use>[0]>[2],
-) {
-  // Already protected by requireAuth + requireAdmin above
-  next();
-}
+adminRouter.get("/actions", async (_req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("admin_actions")
+      .select(`
+        id, action_type, target_type, target_id, note, created_at,
+        admin:profiles!admin_id(id, display_name, phone)
+      `)
+      .order("created_at", { ascending: false })
+      .limit(200);
 
-adminRouter.post("/cleanup-media", requireAdminSecret, async (_req, res) => {
+    if (error) throw error;
+
+    const actions = (data ?? []).map((row: Record<string, unknown>) => {
+      const admin = row["admin"] as { id: string; display_name: string | null; phone: string | null } | null;
+      return {
+        id: row["id"],
+        actionType: row["action_type"],
+        targetType: row["target_type"],
+        targetId: row["target_id"],
+        note: row["note"],
+        createdAt: row["created_at"],
+        admin: admin ? { id: admin.id, displayName: admin.display_name, phone: admin.phone } : null,
+      };
+    });
+
+    res.json({ actions });
+  } catch (err) {
+    logger.error({ err }, "GET /admin/actions failed");
+    res.status(500).json({ error: "ACTIONS_FAILED", message: "Failed to fetch action log" });
+  }
+});
+
+// ─── Legacy media-lifecycle routes (kept for backward compat) ─────────────────
+
+adminRouter.post("/cleanup-media", async (_req, res) => {
   logger.info("admin: manual media cleanup triggered");
   try {
     const result = await runMediaCleanup();
@@ -340,7 +425,7 @@ adminRouter.post("/cleanup-media", requireAdminSecret, async (_req, res) => {
   }
 });
 
-adminRouter.get("/media-lifecycle-status", requireAdminSecret, async (_req, res) => {
+adminRouter.get("/media-lifecycle-status", async (_req, res) => {
   try {
     const now = new Date().toISOString();
     const { count: ended } = await supabaseAdmin

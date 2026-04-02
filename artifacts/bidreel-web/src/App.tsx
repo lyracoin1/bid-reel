@@ -23,6 +23,7 @@ import AdminUsers from "@/pages/admin/Users";
 import AdminAuctions from "@/pages/admin/Auctions";
 import AdminReports from "@/pages/admin/Reports";
 import AdminStats from "@/pages/admin/Stats";
+import AdminActions from "@/pages/admin/AdminActions";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +57,9 @@ function Router() {
       </Route>
       <Route path="/admin/stats">
         {() => <AdminGuard><AdminStats /></AdminGuard>}
+      </Route>
+      <Route path="/admin/actions">
+        {() => <AdminGuard><AdminActions /></AdminGuard>}
       </Route>
 
       <Route component={NotFound} />

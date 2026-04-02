@@ -54,8 +54,11 @@ export interface AdminStats {
   totalUsers: number;
   totalAuctions: number;
   activeAuctions: number;
+  removedAuctions: number;
   totalBids: number;
   openReports: number;
+  bannedUsers: number;
+  totalAdmins: number;
 }
 
 export async function adminGetStats(): Promise<AdminStats> {
@@ -151,4 +154,21 @@ export async function adminUpdateReport(
     method: "PATCH",
     body: JSON.stringify({ status }),
   });
+}
+
+// ─── Action log ────────────────────────────────────────────────────────────────
+
+export interface AdminAction {
+  id: string;
+  actionType: string;
+  targetType: string;
+  targetId: string;
+  note: string | null;
+  createdAt: string;
+  admin: { id: string; displayName: string | null; phone: string | null } | null;
+}
+
+export async function adminGetActions(): Promise<AdminAction[]> {
+  const data = await adminFetch<{ actions: AdminAction[] }>("/actions");
+  return data.actions;
 }

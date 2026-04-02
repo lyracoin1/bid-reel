@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Loader2, AlertCircle, Shield, User, Ban, MoreHorizontal, CheckCircle } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { Loader2, AlertCircle, Shield, User, Ban, MoreHorizontal, CheckCircle, Search, X } from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
 import {
   adminGetUsers, adminUpdateUser, type AdminUser,
@@ -12,6 +12,9 @@ interface ConfirmAction {
   variant: "danger" | "warning";
   onConfirm: () => Promise<void>;
 }
+
+type RoleFilter = "all" | "admin" | "user";
+type StatusFilter = "all" | "active" | "banned";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -26,6 +29,11 @@ export default function AdminUsers() {
   const [confirming, setConfirming] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
 
+  // ── Filters ──────────────────────────────────────────────────────────────
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 3000);
@@ -37,6 +45,22 @@ export default function AdminUsers() {
       .catch(err => setError((err as Error).message))
       .finally(() => setLoading(false));
   }, []);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return users.filter(u => {
+      if (q) {
+        const nameMatch = (u.displayName ?? "").toLowerCase().includes(q);
+        const phoneMatch = (u.phone ?? "").includes(q);
+        const idMatch = u.id.toLowerCase().includes(q);
+        if (!nameMatch && !phoneMatch && !idMatch) return false;
+      }
+      if (roleFilter !== "all" && u.role !== roleFilter) return false;
+      if (statusFilter === "active" && u.isBanned) return false;
+      if (statusFilter === "banned" && !u.isBanned) return false;
+      return true;
+    });
+  }, [users, search, roleFilter, statusFilter]);
 
   async function applyUpdate(id: string, patch: Parameters<typeof adminUpdateUser>[1]) {
     const updated = await adminUpdateUser(id, patch);
@@ -53,7 +77,7 @@ export default function AdminUsers() {
     setConfirming(true);
     try {
       await confirm.onConfirm();
-      showToast("Action completed successfully");
+      showToast("تم تنفيذ الإجراء بنجاح");
     } catch (err) {
       showToast((err as Error).message, false);
     } finally {
@@ -62,8 +86,10 @@ export default function AdminUsers() {
     }
   }
 
+  const hasFilters = search.trim() || roleFilter !== "all" || statusFilter !== "all";
+
   return (
-    <AdminLayout title="Users">
+    <AdminLayout title="المستخدمون">
 
       {/* Toast */}
       {toast && (
@@ -82,15 +108,73 @@ export default function AdminUsers() {
             <div className="flex gap-3">
               <button onClick={() => setConfirm(null)}
                 className="flex-1 py-2.5 rounded-xl border border-gray-700 text-gray-300 text-sm font-medium hover:bg-gray-800 transition-colors">
-                Cancel
+                إلغاء
               </button>
               <button onClick={handleConfirm} disabled={confirming}
                 className={`flex-1 py-2.5 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${confirm.variant === "danger" ? "bg-red-600 hover:bg-red-500" : "bg-amber-600 hover:bg-amber-500"} disabled:opacity-50`}>
                 {confirming && <Loader2 size={14} className="animate-spin" />}
-                Confirm
+                تأكيد
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Search + Filters */}
+      {!loading && !error && (
+        <div className="flex flex-wrap items-center gap-3 mb-5">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="بحث بالاسم أو رقم الهاتف…"
+              dir="rtl"
+              className="w-full pl-9 pr-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-violet-500 transition"
+            />
+            {search && (
+              <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Role filter */}
+          <select
+            value={roleFilter}
+            onChange={e => setRoleFilter(e.target.value as RoleFilter)}
+            className="px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-sm text-white focus:outline-none focus:border-violet-500 transition"
+            dir="rtl"
+          >
+            <option value="all">كل الأدوار</option>
+            <option value="admin">أدمن فقط</option>
+            <option value="user">مستخدمون فقط</option>
+          </select>
+
+          {/* Status filter */}
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value as StatusFilter)}
+            className="px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-sm text-white focus:outline-none focus:border-violet-500 transition"
+            dir="rtl"
+          >
+            <option value="all">كل الحالات</option>
+            <option value="active">نشط</option>
+            <option value="banned">محظور</option>
+          </select>
+
+          {hasFilters && (
+            <button
+              onClick={() => { setSearch(""); setRoleFilter("all"); setStatusFilter("all"); }}
+              className="text-xs text-gray-500 hover:text-white transition flex items-center gap-1"
+            >
+              <X size={12} /> إلغاء الفلاتر
+            </button>
+          )}
+
+          <span className="text-xs text-gray-500 mr-auto">{filtered.length} مستخدم</span>
         </div>
       )}
 
@@ -102,26 +186,26 @@ export default function AdminUsers() {
         <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">
           <AlertCircle size={18} /><span className="text-sm">{error}</span>
         </div>
-      ) : users.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-500">
           <User size={40} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm">No users yet</p>
+          <p className="text-sm">{users.length === 0 ? "لا مستخدمين بعد" : "لا نتائج تطابق البحث"}</p>
         </div>
       ) : (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden overflow-x-auto">
+          <table className="w-full text-sm min-w-[700px]">
             <thead>
               <tr className="border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wider">
-                <th className="text-left px-5 py-3 font-semibold">User</th>
-                <th className="text-left px-4 py-3 font-semibold">Phone</th>
-                <th className="text-left px-4 py-3 font-semibold">Role</th>
-                <th className="text-left px-4 py-3 font-semibold">Status</th>
-                <th className="text-left px-4 py-3 font-semibold">Joined</th>
+                <th className="text-left px-5 py-3 font-semibold">المستخدم</th>
+                <th className="text-left px-4 py-3 font-semibold">الهاتف</th>
+                <th className="text-left px-4 py-3 font-semibold">الدور</th>
+                <th className="text-left px-4 py-3 font-semibold">الحالة</th>
+                <th className="text-left px-4 py-3 font-semibold">تاريخ الإنشاء</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {users.map(u => (
+              {filtered.map(u => (
                 <tr key={u.id} className="hover:bg-gray-800/50 transition-colors">
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
@@ -136,22 +220,22 @@ export default function AdminUsers() {
                   <td className="px-4 py-3.5">
                     {u.role === "admin" ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-600/20 text-violet-300 text-xs font-semibold border border-violet-600/30">
-                        <Shield size={10} /> Admin
+                        <Shield size={10} /> أدمن
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-700 text-gray-300 text-xs font-medium">
-                        <User size={10} /> User
+                        <User size={10} /> مستخدم
                       </span>
                     )}
                   </td>
                   <td className="px-4 py-3.5">
                     {u.isBanned ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600/20 text-red-400 text-xs font-semibold border border-red-600/30">
-                        <Ban size={10} /> Banned
+                        <Ban size={10} /> محظور
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-600/20 text-emerald-400 text-xs font-medium border border-emerald-600/30">
-                        <CheckCircle size={10} /> Active
+                        <CheckCircle size={10} /> نشط
                       </span>
                     )}
                   </td>
@@ -165,48 +249,48 @@ export default function AdminUsers() {
                         <MoreHorizontal size={16} />
                       </button>
                       {openMenu === u.id && (
-                        <div className="absolute right-0 top-8 z-20 w-44 bg-gray-800 border border-gray-700 rounded-xl shadow-xl overflow-hidden">
+                        <div className="absolute right-0 top-8 z-20 w-48 bg-gray-800 border border-gray-700 rounded-xl shadow-xl overflow-hidden" dir="rtl">
                           {u.role !== "admin" ? (
                             <button onClick={() => runConfirm({
-                              label: "Promote to Admin",
-                              description: `Grant admin access to this user?`,
+                              label: "ترقية إلى أدمن",
+                              description: "هل تريد منح صلاحيات الأدمن لهذا المستخدم؟",
                               variant: "warning",
                               onConfirm: () => applyUpdate(u.id, { role: "admin" }),
                             })}
-                              className="w-full text-left px-4 py-2.5 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2">
-                              <Shield size={14} className="text-violet-400" /> Promote to Admin
+                              className="w-full text-right px-4 py-2.5 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2">
+                              <Shield size={14} className="text-violet-400" /> ترقية إلى أدمن
                             </button>
                           ) : (
                             <button onClick={() => runConfirm({
-                              label: "Demote to User",
-                              description: `Remove admin access from this user?`,
+                              label: "تخفيض الدور إلى مستخدم",
+                              description: "هل تريد إزالة صلاحيات الأدمن من هذا المستخدم؟",
                               variant: "danger",
                               onConfirm: () => applyUpdate(u.id, { role: "user" }),
                             })}
-                              className="w-full text-left px-4 py-2.5 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2">
-                              <User size={14} className="text-amber-400" /> Demote to User
+                              className="w-full text-right px-4 py-2.5 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2">
+                              <User size={14} className="text-amber-400" /> إزالة الأدمن
                             </button>
                           )}
                           {!u.isBanned ? (
                             <button onClick={() => runConfirm({
-                              label: "Ban User",
-                              description: `This will block the user from the platform.`,
+                              label: "حظر المستخدم",
+                              description: "سيتم منع هذا المستخدم من الوصول إلى المنصة.",
                               variant: "danger",
                               onConfirm: () => applyUpdate(u.id, { isBanned: true }),
                             })}
-                              className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2">
-                              <Ban size={14} /> Ban User
+                              className="w-full text-right px-4 py-2.5 text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2">
+                              <Ban size={14} /> حظر المستخدم
                             </button>
                           ) : (
                             <button onClick={async () => {
                               setOpenMenu(null);
                               try {
                                 await applyUpdate(u.id, { isBanned: false });
-                                showToast("User unbanned");
+                                showToast("تم رفع الحظر عن المستخدم");
                               } catch (err) { showToast((err as Error).message, false); }
                             }}
-                              className="w-full text-left px-4 py-2.5 text-sm text-emerald-400 hover:bg-gray-700 flex items-center gap-2">
-                              <CheckCircle size={14} /> Unban User
+                              className="w-full text-right px-4 py-2.5 text-sm text-emerald-400 hover:bg-gray-700 flex items-center gap-2">
+                              <CheckCircle size={14} /> رفع الحظر
                             </button>
                           )}
                         </div>

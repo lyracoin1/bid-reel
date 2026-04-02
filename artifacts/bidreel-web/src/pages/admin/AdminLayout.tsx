@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import {
-  LayoutDashboard, Users, Gavel, Flag, BarChart3, LogOut, Shield,
+  LayoutDashboard, Users, Gavel, Flag, BarChart3, LogOut, Shield, History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { clearAdminSession } from "./AdminGuard";
@@ -12,11 +12,12 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { label: "Dashboard",  path: "/admin",           icon: <LayoutDashboard size={18} /> },
-  { label: "Users",      path: "/admin/users",      icon: <Users size={18} /> },
-  { label: "Auctions",   path: "/admin/auctions",   icon: <Gavel size={18} /> },
-  { label: "Reports",    path: "/admin/reports",    icon: <Flag size={18} /> },
-  { label: "Stats",      path: "/admin/stats",      icon: <BarChart3 size={18} /> },
+  { label: "لوحة التحكم",  path: "/admin",           icon: <LayoutDashboard size={18} /> },
+  { label: "المستخدمون",   path: "/admin/users",      icon: <Users size={18} /> },
+  { label: "المزادات",     path: "/admin/auctions",   icon: <Gavel size={18} /> },
+  { label: "البلاغات",     path: "/admin/reports",    icon: <Flag size={18} /> },
+  { label: "الإحصائيات",   path: "/admin/stats",      icon: <BarChart3 size={18} /> },
+  { label: "سجل الأحداث",  path: "/admin/actions",    icon: <History size={18} /> },
 ];
 
 interface AdminLayoutProps {
@@ -50,7 +51,7 @@ export function AdminLayout({ children, title }: AdminLayoutProps) {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto" dir="rtl">
           {NAV.map((item) => {
             const isActive = item.path === "/admin"
               ? location === "/admin"
@@ -60,7 +61,7 @@ export function AdminLayout({ children, title }: AdminLayoutProps) {
                 key={item.path}
                 onClick={() => setLocation(item.path)}
                 className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left",
+                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-right",
                   isActive
                     ? "bg-violet-600/20 text-violet-300 border border-violet-600/30"
                     : "text-gray-400 hover:text-gray-200 hover:bg-gray-800",
@@ -74,13 +75,13 @@ export function AdminLayout({ children, title }: AdminLayoutProps) {
         </nav>
 
         {/* Footer */}
-        <div className="p-3 border-t border-gray-800">
+        <div className="p-3 border-t border-gray-800" dir="rtl">
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
           >
             <LogOut size={18} />
-            Exit Admin
+            خروج من لوحة الأدمن
           </button>
         </div>
       </aside>

@@ -1,0 +1,237 @@
+Implement a dedicated Admin Login flow and a separate full Admin Panel for managing the entire project.
+
+This must be a separate admin experience, not just a small badge or minor controls inside the normal user app.
+
+==================================================
+PART 1 — ADMIN LOGIN ENTRY POINT
+==================================================
+
+1. Add a dedicated "Admin Login" button below the normal login button on the login page.
+- Arabic label:
+  "دخول الأدمن"
+
+2. This admin button must NOT simply enter the normal user app.
+- It must start a dedicated admin login flow.
+
+3. Admin authentication:
+- Validate admin access securely on the backend
+- Do not expose the real admin code or sensitive logic in the frontend
+- Do not allow anonymous admin access
+- Do not allow non-admin users to enter the admin panel
+
+4. After successful admin login:
+- redirect the user to a completely separate admin route
+- for example:
+  /admin
+
+5. If admin login fails:
+- show clear Arabic error messages
+- do not enter the admin area
+
+==================================================
+PART 2 — COMPLETELY SEPARATE ADMIN PANEL
+==================================================
+
+After admin login, the user must enter a dedicated admin interface separate from the normal marketplace app.
+
+This admin panel should feel like a real management dashboard for the whole project.
+
+Suggested route structure:
+- /admin
+- /admin/users
+- /admin/auctions
+- /admin/reports
+- /admin/moderation
+- /admin/actions
+
+Use a clean admin layout with sidebar, tabs, or top navigation.
+
+==================================================
+PART 3 — ADMIN DASHBOARD HOME
+==================================================
+
+Create an admin dashboard homepage showing high-level project stats, such as:
+- total users
+- total active auctions
+- total removed auctions
+- total bids
+- total reports
+- total banned users
+- total admins
+- recent admin actions
+- recent reported auctions
+
+Keep it visually clear and mobile-friendly.
+
+==================================================
+PART 4 — USER MANAGEMENT
+==================================================
+
+Create a full users management section for admins.
+
+Admin must be able to:
+1. View all users
+2. Search users
+3. Filter users
+- admin / non-admin
+- banned / active
+- recently created
+4. View user details:
+- phone
+- display name
+- avatar
+- bio
+- is_admin
+- is_banned
+- created_at
+5. Perform actions:
+- ban user
+- unban user
+- promote to admin
+- remove admin
+- optionally delete user if allowed
+
+All dangerous actions must require confirmation.
+
+==================================================
+PART 5 — AUCTION MANAGEMENT
+==================================================
+
+Create a full auctions management section.
+
+Admin must be able to:
+1. View all auctions
+2. Search auctions
+3. Filter auctions by:
+- active
+- removed
+- ended
+- category
+- seller
+4. Open auction details
+5. See:
+- title
+- seller
+- category
+- price
+- currency
+- media type
+- created_at
+- status
+6. Perform actions:
+- remove auction
+- restore auction if supported
+- inspect auction details
+- inspect seller profile
+
+==================================================
+PART 6 — REPORTS / MODERATION
+==================================================
+
+If the app has reports or moderation queue, build an admin view for them.
+
+Admin must be able to:
+1. View all reports
+2. See:
+- reporter
+- auction
+- reason
+- details
+- status
+- created_at
+3. Mark report as reviewed
+4. Resolve report
+5. Reject report
+6. Take action on the related auction or user if needed
+
+If moderation_queue exists, expose it in a dedicated moderation view too.
+
+==================================================
+PART 7 — ADMIN ACTION LOG
+==================================================
+
+Use the existing admin_actions table if available.
+
+Create an admin actions page where admins can see:
+- which admin performed an action
+- action type
+- target type
+- target id
+- note
+- created_at
+
+Also ensure new admin actions are logged when admins:
+- ban/unban users
+- remove auctions
+- promote/remove admin
+- resolve reports
+
+==================================================
+PART 8 — SECURITY
+==================================================
+
+This is critical:
+
+1. Frontend admin routes must be protected
+- non-admin users must not be able to access /admin pages
+
+2. Backend admin endpoints must also be protected
+- do not rely only on frontend hiding
+- use server-side admin checks
+
+3. If a normal user manually opens /admin:
+- redirect them away or show 403
+- do not expose admin data
+
+4. Admin login/session must remain isolated per user
+- no shared admin session
+- no dev fallback user
+- no leaked admin state across accounts
+
+==================================================
+PART 9 — UI / UX REQUIREMENTS
+==================================================
+
+1. Use Arabic labels/messages where appropriate
+2. Keep the admin UI clean and practical
+3. Make it responsive/mobile-friendly
+4. Add confirmation dialogs for destructive actions
+5. Add loading states and empty states
+6. Add clear success/error messages
+
+==================================================
+PART 10 — DO NOT BREAK EXISTING APP
+==================================================
+
+Do not break:
+- normal phone login
+- normal user app routes
+- profile page
+- auction creation
+- admin activation logic already implemented
+- existing auth/session behavior
+
+This admin panel should be an addition, not a regression.
+
+==================================================
+PART 11 — TESTING
+==================================================
+
+After implementation, test all of the following:
+
+1. Normal user cannot access admin panel
+2. Admin can access admin panel
+3. Admin dashboard loads correctly
+4. User management actions work
+5. Auction management actions work
+6. Report/moderation views work
+7. Admin action logs are recorded
+8. Normal user app still works correctly
+
+At the end:
+1. List all changed files
+2. Explain the admin route structure
+3. Explain how admin protection works in frontend and backend
+4. Explain which admin features are fully implemented and which are placeholders (if any)
+
+Reply only with: DONE

@@ -61,10 +61,18 @@ export default function Login() {
   // ── Shared post-login handler ────────────────────────────────────────────
   function handleLoginSuccess(data: LoginResponse) {
     setToken(data.token);
-    const maskedPhone = (data.user?.id ?? "").slice(0, 8) + "…";
     console.log(
       `[auth] ✅ login OK — userId=${data.user?.id} isNew=${data.isNewUser} isAdmin=${data.user?.isAdmin}`
     );
+
+    if (data.user?.isAdmin) {
+      // Auto-set the admin panel session so AdminGuard skips the password prompt.
+      // The user already proved identity with the secret admin code during login.
+      sessionStorage.setItem("bidreel_admin_ts", String(Date.now()));
+      setLocation("/admin");
+      return;
+    }
+
     const seen = localStorage.getItem("hasSeenInterests");
     setLocation(seen ? "/feed" : "/interests");
   }

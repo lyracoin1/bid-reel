@@ -51,7 +51,8 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "echo 'API Server is managed by the artifact workflow. This stub does nothing.'"
+args = "PORT=3001 pnpm --filter @workspace/api-server run dev"
+waitForPort = 3001
 
 [agent]
 stack = "PNPM_WORKSPACE"

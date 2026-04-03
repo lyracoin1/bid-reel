@@ -1,0 +1,64 @@
+Do not make more structural changes yet unless a browser test fails.
+
+Now perform a strict browser-level verification pass for the BidReel admin panel using the live running app and real Supabase-backed data.
+
+I need visual and functional verification, not only API-level checks.
+
+Verify these sections in the browser:
+
+1. /admin/dashboard
+
+* confirm the stat cards render correctly
+* confirm values are real and not placeholders
+* confirm no broken widgets
+* confirm honest empty states where data is missing
+
+2. /admin/users
+
+* confirm the users table renders correctly
+* test search
+* test role filter
+* test ban user
+* test unban user
+* test promote to admin
+* test remove admin
+* confirm each action updates UI correctly
+* confirm each action is logged in admin actions
+
+3. /admin/auctions
+
+* confirm the auctions page no longer shows "Failed to fetch auctions"
+* confirm rows render with title, seller, prices, currency, status, and any available location info
+* test delete/remove auction if available
+* test restore auction if supported
+* confirm the UI updates correctly after action
+* confirm the action is logged
+
+4. /admin/reports
+
+* confirm reports page renders correctly
+* confirm there is no broken "reviewed" action anymore
+* confirm pending / dismissed / actioned states behave correctly
+* confirm admin_note and resolved_at are visible when applicable
+* test dismiss/action workflow if data exists
+* confirm logs are written if applicable
+
+5. /admin/actions
+
+* confirm the action log page renders correctly
+* confirm promote_admin and demote_admin entries appear correctly
+* confirm remove auction / ban / unban / report actions appear correctly
+* confirm labels, colors, and timestamps render correctly
+
+6. Admin session/security behavior
+
+* confirm non-admin cannot access admin pages
+* confirm admin can access all admin pages after dedicated admin login only
+* confirm logout exits admin correctly
+
+Return:
+
+* PASS/FAIL per admin page
+* screenshots or visual confirmation notes for each section
+* any remaining UI bug, mapping bug, or action-flow inconsistency
+* only if a browser test fails, then patch the minimal required code and explain it clearly

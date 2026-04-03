@@ -10,6 +10,7 @@ import { useCurrentUser, clearCurrentUserCache } from "@/hooks/use-current-user"
 import { useAuctions } from "@/hooks/use-auctions";
 import { getUserBidsApi, clearToken, deleteAccountApi, type ApiMyBidEntry } from "@/lib/api-client";
 import { clearAdminSession } from "@/pages/admin/admin-session";
+import { deleteNativeFcmToken } from "@/lib/native-fcm";
 import { getTimeRemaining } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -36,6 +37,7 @@ export default function Profile() {
     setDeleteError(null);
     try {
       await deleteAccountApi();
+      await deleteNativeFcmToken();
       clearCurrentUserCache();
       clearAdminSession();
       clearToken();
@@ -293,7 +295,7 @@ export default function Profile() {
 
         {/* Logout + settings footer */}
         <div className="px-5 pb-8 space-y-3">
-          <button onClick={() => { clearCurrentUserCache(); clearAdminSession(); clearToken(); setLocation("/login"); }}
+          <button onClick={() => { void deleteNativeFcmToken(); clearCurrentUserCache(); clearAdminSession(); clearToken(); setLocation("/login"); }}
             className="w-full py-3.5 rounded-2xl border border-white/8 bg-white/3 flex items-center justify-center gap-2 text-sm font-semibold text-white/50 hover:text-white/80 hover:bg-white/6 transition">
             <LogOut size={16} />{t("log_out")}
           </button>

@@ -227,6 +227,9 @@ importers:
 
   artifacts/bidreel-web:
     dependencies:
+      '@capacitor-firebase/messaging':
+        specifier: ^8.2.0
+        version: 8.2.0(@capacitor/core@8.3.0)(firebase@12.11.0)
       '@capacitor/core':
         specifier: ^8.3.0
         version: 8.3.0
@@ -759,6 +762,15 @@ packages:
   '@babel/types@7.29.0':
     resolution: {integrity: sha512-LwdZHpScM4Qz8Xw2iKSzS+cfglZzJGvofQICy7W7v4caru4EaAmyUuO6BGrbyQ2mYV11W0U8j5mBhd14dd3B0A==}
     engines: {node: '>=6.9.0'}
+
+  '@capacitor-firebase/messaging@8.2.0':
+    resolution: {integrity: sha512-zjgvBuJSFfaLVL1sU2zwg68J1nCl+wLvjCNUo5tQJyO8XilUXA0z99BKJx6S6/iSB3+zznxNeoX1Kx54bVpCtg==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+      firebase: ^12.6.0
+    peerDependenciesMeta:
+      firebase:
+        optional: true
 
   '@capacitor/android@8.3.0':
     resolution: {integrity: sha512-EQy6ByUuKayQBJmMm/e0byJiHavqsQHrvW23BuT2GNVQvenAvipqwaePiJHzrv2PZr7A0T0+se4kgDCeROj0mQ==}
@@ -4317,6 +4329,12 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
+
+  '@capacitor-firebase/messaging@8.2.0(@capacitor/core@8.3.0)(firebase@12.11.0)':
+    dependencies:
+      '@capacitor/core': 8.3.0
+    optionalDependencies:
+      firebase: 12.11.0
 
   '@capacitor/android@8.3.0(@capacitor/core@8.3.0)':
     dependencies:

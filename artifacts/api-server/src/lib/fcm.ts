@@ -57,8 +57,21 @@ export async function sendFcmPush(token: string, payload: FcmPayload): Promise<v
   try {
     await m.send({
       token,
+      // Top-level notification shown on all platforms (Android, iOS, web)
       notification: { title: payload.title, body: payload.body },
+      // Arbitrary key/value pairs forwarded to the app for deep-link navigation.
+      // All values must be strings (FCM requirement).
       data: payload.data,
+      // Android-specific overrides
+      android: {
+        priority: "high",
+        notification: {
+          icon: "ic_launcher",   // must match a drawable in the Android project
+          color: "#6d28d9",      // BidReel violet
+          clickAction: "FLUTTER_NOTIFICATION_CLICK", // standard Capacitor tap intent
+        },
+      },
+      // Web push (browser service worker) config — no-op on native Android
       webpush: {
         notification: {
           title: payload.title,

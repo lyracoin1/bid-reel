@@ -441,6 +441,29 @@ export async function registerDeviceToken(
   }
 }
 
+/**
+ * Unregister an FCM device token from the backend.
+ * Call on logout or when push permission is revoked so the device stops
+ * receiving push notifications.  Non-throwing.
+ */
+export async function unregisterDeviceToken(token: string): Promise<void> {
+  const authToken = await getToken();
+  if (!authToken) return;
+
+  try {
+    await fetch(`${API_BASE}/notifications/unregister-device`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ token }),
+    });
+  } catch {
+    console.warn("[api-client] unregisterDeviceToken failed — server unreachable");
+  }
+}
+
 // ─── Follow system ────────────────────────────────────────────────────────────
 
 export interface ApiFollowUser {

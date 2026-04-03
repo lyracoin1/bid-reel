@@ -1,0 +1,231 @@
+Rebuild and harden the BidReel admin control panel into a complete, production-grade admin system that uses real live Supabase-backed data for everything.
+
+This is not a cosmetic tweak. I want a full structural admin-panel audit and implementation pass.
+
+CORE REQUIREMENT
+The admin panel must become a real operational control center for the whole app, with every section powered by real backend/Supabase data only.
+
+Do not use fake values.
+Do not use placeholder counters.
+Do not show empty widgets pretending to be connected.
+Do not rely on guessed frontend-only state for admin metrics.
+Every admin page must fetch real data from the backend, and the backend must read authoritative live data from Supabase/database tables.
+
+FIRST: AUDIT THE CURRENT ADMIN PANEL
+Inspect all current admin routes, pages, components, APIs, and DB queries, including but not limited to:
+
+* /admin
+* /admin/users
+* /admin/auctions
+* /admin/reports
+* /admin/stats
+* /admin/actions
+* any admin dashboard widgets/cards/charts/tables
+* admin route guards
+* admin API endpoints
+* DB queries behind each page
+* any broken fetch paths causing errors like "Failed to fetch auctions"
+
+Identify:
+
+1. which admin sections are fully connected to real data
+2. which sections are partially connected
+3. which sections are fake / placeholder / incomplete
+4. which pages fail because of bad endpoints, bad auth, bad response mapping, or missing backend logic
+5. any inconsistency between frontend field names and backend response fields
+6. any places where the frontend should not be calculating admin truth by itself
+
+SECOND: ENFORCE A CLEAN ADMIN PANEL STRUCTURE
+Refactor the admin panel into a clear, complete structure with these sections:
+
+1. Dashboard
+   Must show real live summary data such as:
+
+* total users
+* total admins
+* total auctions
+* active auctions
+* ended auctions
+* deleted/removed auctions
+* total bids
+* total reports
+* pending reports
+* resolved reports
+* total revenue-related metrics if available
+* latest platform activity
+* latest admin actions
+* recent signups
+* recent auctions
+* recent reports
+
+2. Users Management
+   Must support:
+
+* list all users
+* search by phone / name / id
+* filter by role (admin/user)
+* filter by status if available
+* view user details
+* promote to admin
+* remove admin
+* ban user
+* unban user
+* inspect user auction count / bid count / report count if possible
+* show created date and last activity if available
+
+3. Auctions Management
+   Must support:
+
+* list all auctions
+* search by title / seller / id
+* filter by status:
+
+  * active
+  * ended
+  * deleted/removed
+  * reported
+* view auction details
+* show seller info
+* show current price / start price / currency
+* show location info if available
+* show media existence/count
+* remove/delete auction
+* restore auction if the system supports soft delete
+* clearly indicate whether deletion is hard delete or soft delete
+
+4. Reports / Moderation
+   Must support:
+
+* list all reports
+* filter pending / resolved / dismissed
+* show reporter
+* show target auction or target entity
+* show reason/details
+* resolve report
+* dismiss report
+* remove offending auction from report flow if applicable
+
+5. Statistics / Insights
+   Must use real data only:
+
+* user growth
+* auction creation trend
+* bidding activity trend
+* report trend
+* top active sellers if possible
+* top bid volume if possible
+* summary by day/week if the schema supports it
+
+6. Admin Actions Log
+   Must show real admin_actions data and verify the logging is complete for:
+
+* ban user
+* unban user
+* promote admin
+* remove admin
+* remove auction
+* restore auction
+* dismiss report
+* resolve report
+* any other moderation action
+  If logging is incomplete anywhere, fix it.
+
+THIRD: DATA SOURCE RULES
+The admin panel must be powered by real backend APIs that in turn use real Supabase/database queries.
+
+Rules:
+
+* frontend admin pages must not directly invent numbers
+* backend must be the source of truth
+* backend queries must map correctly to actual live schema
+* if any page currently breaks because schema/column names changed, fix the query and response mapping
+* verify actual DB columns before assuming names
+* if migrations are missing or schema mismatches exist, report them clearly and fix only what is required safely
+* all counts must come from actual tables
+* all lists must come from actual records
+* all filters/searches must work against real data
+
+FOURTH: FIX THE CURRENT BROKEN ADMIN AUCTIONS PAGE
+The screenshot shows the admin auctions page currently displays:
+"Failed to fetch auctions"
+
+You must investigate this end-to-end and fix it completely:
+
+* inspect the frontend fetch call
+* inspect the exact API endpoint used
+* inspect request headers/auth headers
+* inspect backend admin route
+* inspect DB query
+* inspect response shape
+* inspect field mapping on the frontend
+* inspect whether the route requires server admin validation and whether the current admin flow satisfies it
+* inspect any Arabic/English routing mismatch or path mismatch
+  Then make the page fully functional with real data.
+
+FIFTH: UX / INFORMATION ARCHITECTURE
+Improve the admin panel UX so it feels like a real control center:
+
+* clear sidebar grouping
+* consistent page titles
+* real empty states
+* real loading states
+* real error states with useful messages
+* counts/cards that match actual data
+* no dead buttons
+* no fake charts
+* no duplicate navigation items
+* no confusing role logic
+* no hidden/admin-only sections that are unreachable
+* make the layout coherent on desktop first
+* preserve current styling direction unless a fix is needed for usability
+
+SIXTH: SECURITY / PERMISSIONS
+Do not weaken security.
+Keep these rules:
+
+* only dedicated admin login should open admin
+* all admin APIs must require verified admin authorization
+* frontend guard is not enough; backend must still enforce admin checks
+* non-admin users must never receive admin data
+* if a request fails due to auth/session problems, handle it clearly instead of silent failure
+
+SEVENTH: FINAL DELIVERABLE
+After implementation, return a structured report with:
+
+1. Admin panel audit results
+
+* what was already real
+* what was fake/incomplete
+* what was broken
+* what was fixed
+
+2. Exact files changed
+
+* frontend pages/components
+* backend routes/controllers
+* DB query helpers
+* schema/migration files if any
+
+3. Supabase/live data usage confirmation
+   For each admin section, state exactly which backend endpoint and which DB tables/queries power it.
+
+4. Final admin panel map
+   List each admin page and exactly what it now shows and what actions it supports.
+
+5. Remaining gaps
+   Be honest and explicit if anything still depends on schema limitations or missing data.
+
+6. Manual QA checklist
+   Include:
+
+* dashboard loads real counts
+* auctions page loads real auctions
+* users page loads real users
+* reports page loads real reports
+* actions log loads real actions
+* promote/remove admin gets logged
+* delete/restore auction works and gets logged
+* non-admin blocked from all admin routes and APIs
+
+Do not give me a shallow summary.
+I want a real, fully connected, comprehensive admin control panel using authoritative live Supabase-backed data.

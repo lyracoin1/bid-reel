@@ -1,0 +1,95 @@
+Enforce the final and only allowed admin access model for BidReel. Remove every other admin-entry path or legacy admin activation behavior.
+
+This is the required final admin logic and it must become the single source of truth:
+
+ADMIN ACCESS RULES
+
+1. There must be exactly one admin access path in the app
+2. That path is the dedicated Admin Login flow only
+3. Admin login must require:
+
+   * an existing phone/account already present in the system
+   * the admin secret/code: 01207387165shjzfm
+4. Only after both are valid should the user enter the full admin control panel at /admin
+5. Normal user login must never enter admin, even if the account has any old stale frontend state
+6. No other flow may grant admin access
+7. No legacy admin activation path, no alternate admin promotion entry from profile/login flow, no fallback admin unlock, and no hidden client-side admin bypass may remain
+
+Your task:
+Do a full audit and then enforce this model strictly across frontend, backend, and persisted session behavior.
+
+FRONTEND REQUIREMENTS
+
+* keep a separate visible admin login entry/button/tab
+* normal login form must always remain normal-user login only
+* admin login form must be the only place that can open /admin
+* remove or disable any old frontend code that:
+
+  * auto-redirects to /admin from normal login
+  * derives admin entry from user.isAdmin during normal login
+  * keeps stale admin mode after logout
+  * allows any profile-based or cached admin activation
+* ensure logout fully clears:
+
+  * token
+  * current-user cache
+  * any admin session key
+  * any persisted admin flag
+* ensure direct navigation to /admin without valid admin login flow does not open the panel
+
+BACKEND REQUIREMENTS
+
+* keep backend admin protection strict
+* require the admin login endpoint to validate:
+
+  * existing account/phone
+  * correct admin code
+* do not allow normal login endpoint to function as an admin entry point
+* remove or disable any old backend/admin activation path that is not part of the dedicated admin login flow
+* if there are old routes/helpers that can elevate or unlock admin outside the dedicated admin login path, remove them or make them unreachable
+* admin APIs must still require true server-side admin authorization
+
+DATABASE / ROLE REQUIREMENTS
+
+* clearly identify which account(s) are intended real admin accounts
+* do not treat random test accounts as admin
+* remove any mistaken admin assignment from accounts that are not intentionally admin
+* keep only the intended admin accounts marked as admin in the database
+* report exactly which phone numbers remain admin after cleanup
+
+IMPORTANT HARD CONSTRAINTS
+
+* keep phone-only login for normal users
+* do not add OTP
+* do not reintroduce dev fallback login
+* do not allow normal login to open admin under any condition
+* do not leave any alternate admin-entry logic in profile flow, settings, or any hidden component
+* the only valid admin entry logic must be:
+  existing admin account + correct admin code -> /admin
+
+ALSO CLEAN UP ANY CONFUSING OR UNSAFE ADMIN UX
+
+* remove any misleading test/example admin account behavior
+* remove any leftover UI or text that implies a user becomes admin from normal login
+* keep the admin login behavior explicit and isolated
+* if there are multiple admin-related flows in the UI, consolidate them into the single dedicated admin login flow
+
+AFTER IMPLEMENTATION, RETURN A CLEAR REPORT
+I need:
+
+1. exact root logic now implemented
+2. exact files changed
+3. every legacy admin path removed or disabled
+4. which phone numbers remain true admins in the database
+5. confirmation that normal login can never open admin
+6. confirmation that only dedicated admin login with the correct code opens the admin control panel
+7. a short manual QA checklist covering:
+
+   * normal user login
+   * wrong admin code
+   * correct admin code
+   * logout then re-login
+   * direct /admin access attempt
+   * stale browser/session case
+
+Do not give me a vague summary. Make the admin logic explicit, final, and locked down.

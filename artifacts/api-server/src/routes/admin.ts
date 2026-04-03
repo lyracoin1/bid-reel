@@ -4,16 +4,19 @@
  * Every route checks that the authenticated user has is_admin = true
  * in the profiles table. No secret headers, no login hacks.
  *
- * POST /api/admin/verify-password   — verify the admin panel password
- * GET  /api/admin/stats             — dashboard summary counts
- * GET  /api/admin/users             — all users list
- * PATCH /api/admin/users/:id        — update role / ban status
- * GET  /api/admin/auctions          — all auctions list
- * PATCH /api/admin/auctions/:id     — hide / feature auction
+ * GET    /api/admin/stats           — dashboard summary counts
+ * GET    /api/admin/users           — all users list
+ * PATCH  /api/admin/users/:id       — update role / ban status
+ * GET    /api/admin/auctions        — all auctions list
+ * PATCH  /api/admin/auctions/:id    — hide / feature auction
  * DELETE /api/admin/auctions/:id    — delete auction
- * GET  /api/admin/reports           — all reports list
- * PATCH /api/admin/reports/:id      — update report status
- * GET  /api/admin/actions           — admin action log
+ * GET    /api/admin/reports         — all reports list
+ * PATCH  /api/admin/reports/:id     — update report status
+ * GET    /api/admin/actions         — admin action log
+ *
+ * NOTE: The former POST /api/admin/verify-password endpoint has been
+ * permanently removed. Admin panel access is granted exclusively through
+ * the dedicated admin login flow (POST /api/auth/admin-login).
  *
  * Legacy media-lifecycle routes kept at the bottom (secret-based).
  */
@@ -49,25 +52,6 @@ async function logAdminAction(
     logger.warn({ error, adminId, actionType, targetId }, "logAdminAction: insert failed (non-fatal)");
   }
 }
-
-// ─── POST /verify-password ────────────────────────────────────────────────────
-
-adminRouter.post("/verify-password", (req, res) => {
-  const { password } = req.body as { password?: string };
-  const expected = process.env["ADMIN_PANEL_PASSWORD"];
-
-  if (!expected) {
-    res.status(503).json({ error: "NOT_CONFIGURED", message: "Admin password is not configured on the server" });
-    return;
-  }
-
-  if (!password || password !== expected) {
-    res.status(403).json({ error: "WRONG_PASSWORD", message: "Incorrect admin password" });
-    return;
-  }
-
-  res.json({ ok: true });
-});
 
 // ─── GET /stats ───────────────────────────────────────────────────────────────
 

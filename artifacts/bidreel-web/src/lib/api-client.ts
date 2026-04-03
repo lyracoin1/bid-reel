@@ -441,30 +441,6 @@ export async function deleteAuctionApi(auctionId: string): Promise<void> {
   }
 }
 
-// ─── Admin activation ─────────────────────────────────────────────────────────
-
-/**
- * Activate admin status for the current user by providing the secret code.
- * The code is validated entirely on the backend — never stored or checked
- * in client-side logic.
- *
- * @throws Error with an Arabic message on failure (wrong code, server error).
- */
-export async function activateAdminApi(code: string): Promise<ApiUserProfile> {
-  const headers = await authHeaders();
-  const res = await fetch(`${API_BASE}/users/me/activate-admin`, {
-    method: "POST",
-    headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify({ code }),
-  });
-  const data = await res.json() as { user?: ApiUserProfile; error?: string; message?: string };
-  if (!res.ok) {
-    throw new Error(data.message ?? "حدث خطأ غير متوقع");
-  }
-  console.log(`[api-client] ✅ POST /users/me/activate-admin → isAdmin=${data.user?.isAdmin}`);
-  return data.user!;
-}
-
 // ─── Device token ─────────────────────────────────────────────────────────────
 
 /**

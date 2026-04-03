@@ -54,7 +54,7 @@ async function loadCurrentUser(): Promise<ApiUserProfile | null> {
       const user = await getUserMeApi();
       cachedUser = user;
       fetchPromise = null;
-      console.log(`[auth] ✅ user resolved — id=${user.id} isAdmin=${user.is_admin}`);
+      console.log(`[auth] ✅ user resolved — id=${user.id} isAdmin=${user.isAdmin}`);
       notifyAll();
       return user;
     } catch (err) {

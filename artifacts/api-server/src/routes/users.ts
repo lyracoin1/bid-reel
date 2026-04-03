@@ -5,6 +5,10 @@
  * PATCH  /api/users/me          — update own profile fields
  * GET    /api/users/me/bids     — auctions the caller has bid on (leading/outbid)
  * GET    /api/users/:userId     — another user's public profile
+ *
+ * NOTE: The former POST /api/users/me/activate-admin endpoint has been
+ * permanently removed. Admin access is granted exclusively through
+ * POST /api/auth/admin-login with the correct admin code.
  */
 
 import { Router, type IRouter } from "express";
@@ -219,65 +223,6 @@ router.get("/users/me/bids", requireAuth, async (req, res) => {
   }).filter(r => r.auction !== null);
 
   res.json({ bids: result });
-});
-
-// ─── POST /api/users/me/activate-admin ───────────────────────────────────────
-// Allows any authenticated user to self-promote to admin by providing the
-// correct activation code. The code is validated server-side against the
-// ADMIN_ACTIVATION_CODE environment variable — never exposed to clients.
-// ─────────────────────────────────────────────────────────────────────────────
-
-const activateAdminSchema = z.object({
-  code: z.string().min(1, "Code is required"),
-});
-
-router.post("/users/me/activate-admin", requireAuth, async (req, res) => {
-  const parsed = activateAdminSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({
-      error: "VALIDATION_ERROR",
-      message: "يرجى إدخال الكود",
-    });
-    return;
-  }
-
-  const expected = process.env["ADMIN_ACTIVATION_CODE"];
-  if (!expected) {
-    logger.warn("ADMIN_ACTIVATION_CODE env var not set");
-    res.status(503).json({
-      error: "NOT_CONFIGURED",
-      message: "خاصية تفعيل الأدمن غير مفعّلة على الخادم",
-    });
-    return;
-  }
-
-  if (parsed.data.code !== expected) {
-    res.status(403).json({
-      error: "INVALID_CODE",
-      message: "الكود غير صحيح، يرجى التحقق والمحاولة مرة أخرى",
-    });
-    return;
-  }
-
-  const userId = req.user!.id;
-
-  const { error: updateError } = await supabaseAdmin
-    .from("profiles")
-    .update({ is_admin: true })
-    .eq("id", userId);
-
-  if (updateError) {
-    logger.error({ err: updateError, userId }, "Failed to set is_admin");
-    res.status(500).json({
-      error: "UPDATE_FAILED",
-      message: "حدث خطأ أثناء تفعيل الصلاحيات، يرجى المحاولة مرة أخرى",
-    });
-    return;
-  }
-
-  const profile = await getOwnProfile(userId);
-  logger.info({ userId }, "User promoted to admin");
-  res.json({ user: profile });
 });
 
 // ─── GET /api/users/:userId ───────────────────────────────────────────────────

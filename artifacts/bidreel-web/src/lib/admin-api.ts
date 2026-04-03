@@ -39,15 +39,6 @@ async function adminFetch<T>(
   return res.json() as Promise<T>;
 }
 
-// ─── Password verification ─────────────────────────────────────────────────────
-
-export async function adminVerifyPassword(password: string): Promise<void> {
-  await adminFetch<{ ok: boolean }>("/verify-password", {
-    method: "POST",
-    body: JSON.stringify({ password }),
-  });
-}
-
 // ─── Stats ─────────────────────────────────────────────────────────────────────
 
 export interface AdminStats {

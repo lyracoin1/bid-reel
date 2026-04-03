@@ -1,0 +1,153 @@
+I want you to perform a complete technical audit of my current project and clearly tell me what is missing to convert this website into an Android app that can be published on Google Play.
+
+Analyze the actual project files step by step and provide a structured, detailed report based only on what you can verify from the codebase and current app setup.
+
+IMPORTANT RULES
+
+* Do NOT give generic advice
+* Base your analysis on the actual project files
+* If you cannot verify something, explicitly say: "Unable to verify"
+* If something is missing, provide the exact file/code needed
+* If something is misconfigured, provide the corrected version
+* If a recommendation depends on the current architecture, explain that dependency clearly
+
+1. PWA READINESS CHECK
+   Check whether the project includes and correctly configures:
+
+* manifest.json / web manifest
+* service worker
+* app icons in required sizes
+* name and short_name
+* start_url
+* display
+* theme_color
+* background_color
+* offline/fallback behavior if any
+
+For each item, state:
+
+* present and correct
+* present but misconfigured
+* missing
+* exact fix needed
+
+2. ANDROID CONVERSION STRATEGY
+   Evaluate whether this project is best suited for:
+
+* Trusted Web Activity (TWA)
+* WebView wrapper
+* Capacitor
+
+For each option:
+
+* explain whether it is technically suitable for this project
+* explain its pros/cons for this exact codebase
+* identify blockers if any
+
+Then recommend the single best approach for this project and explain why it is the most practical path.
+
+If TWA is suitable:
+
+* list all remaining technical requirements
+* include assetlinks.json, PWA installability, domain trust requirements, and service worker needs
+
+If Capacitor is more suitable:
+
+* list exact steps/files needed to integrate it
+* identify any likely issues with auth, media uploads, notifications, permissions, and navigation
+
+3. GOOGLE PLAY READINESS
+   Assess whether the project currently meets the basic requirements for Play Store publishing.
+
+Check for missing or incomplete items such as:
+
+* privacy policy page
+* account deletion page / account deletion flow
+* authentication policy implications
+* app icon
+* splash screen
+* screenshots
+* feature graphic
+* package/app naming considerations
+* permissions handling
+* notifications setup
+* deep linking / app links if relevant
+
+Give a clean checklist of everything required before publishing.
+
+4. DOMAIN & HOSTING VERIFICATION
+   I already have a custom domain connected.
+
+Check whether the project and hosting are properly configured for:
+
+* HTTPS
+* .well-known/assetlinks.json
+* Digital Asset Links requirements
+* production-safe routing for Android/TWA
+* domain accessibility assumptions based on project structure
+
+If you cannot verify a live configuration from files alone, say so clearly and specify what should be checked manually.
+
+5. MOBILE UX & RESPONSIVENESS
+   Evaluate the app in mobile context:
+
+* responsiveness across screen sizes
+* mobile layout issues
+* navigation issues
+* scaling problems
+* modal/popup behavior
+* auth flow issues inside an Android wrapper
+* keyboard/input UX issues
+* safe-area issues
+* browser-only assumptions that may break in app context
+
+For every issue found:
+
+* explain the problem
+* explain its impact in Android app usage
+* provide an actionable fix
+
+6. PERFORMANCE & OPTIMIZATION
+   Evaluate:
+
+* initial load performance
+* bundle size risks
+* asset/image/video weight
+* caching strategy
+* code splitting/lazy loading opportunities
+* low-end Android device performance risks
+
+Provide concrete recommendations tied to the current codebase.
+
+7. BUILD / PACKAGING FEASIBILITY
+   Check whether the project appears ready to be wrapped/built as an Android app from a technical perspective.
+
+Specifically assess:
+
+* environment variable handling
+* routing approach compatibility
+* auth/session persistence behavior
+* media upload behavior on mobile
+* notification architecture
+* whether browser APIs currently used may cause issues inside Android app containers
+
+8. FINAL STRUCTURED REPORT
+   Provide the final output strictly in this format:
+
+* What is already implemented
+* What is missing
+* Existing issues
+* Critical priorities before app conversion
+* Critical priorities before publishing on Google Play
+* Recommended conversion method
+* Step-by-step execution plan
+
+9. FINAL CHECKLIST
+   Use this format:
+
+* ✅ Completed
+* ⚠️ Needs improvement
+* ❌ Missing
+
+10. FINAL GOAL
+    At the end, give me the fastest and most practical path to go from the current project to a published Android app on Google Play, based on the actual current state of the codebase.

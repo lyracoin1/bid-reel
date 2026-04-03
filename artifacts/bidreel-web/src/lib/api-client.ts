@@ -46,29 +46,15 @@ export function redirectToLogin(): void {
 
 /**
  * Returns a valid Bearer token, or null if the user is not authenticated.
- *
- * Order of precedence:
- *   1. In-memory cache (fast path)
- *   2. localStorage (persisted session from phone login)
- *   3. null — the user must log in via /login
- *
- * NOTE: There is intentionally NO automatic fallback login here.
- * Every user must authenticate with their own phone number.
- * Different phone numbers always produce different user accounts.
  */
 export async function getToken(): Promise<string | null> {
-  // 1. In-memory cache
   if (cachedToken) return cachedToken;
-
-  // 2. localStorage session (persisted after phone login)
   const stored = getValidSessionToken();
   if (stored) {
     cachedToken = stored;
     console.log("[auth] ✅ session restored from localStorage");
     return cachedToken;
   }
-
-  // 3. No token — user must authenticate
   return null;
 }
 
@@ -109,8 +95,6 @@ export interface PlaceBidResult {
   bid: ApiBid;
   auction: ApiAuction;
 }
-
-// ─── Raw auction shape returned by the backend ───────────────────────────────
 
 export interface ApiAuctionRaw {
   id: string;
@@ -182,13 +166,6 @@ export async function getAuctionApi(id: string): Promise<{ auction: ApiAuctionRa
 
 // ─── Place bid ────────────────────────────────────────────────────────────────
 
-/**
- * Place a bid on an auction.
- *
- * Returns the created bid + updated auction on success.
- * Throws an error with `code` and `message` fields on failure so callers
- * can distinguish between "too low", "not active", "seller cannot bid", etc.
- */
 export async function placeBidApi(
   auctionId: string,
   amount: number,
@@ -200,8 +177,6 @@ export async function placeBidApi(
       code: "NO_TOKEN",
     });
   }
-
-  console.log(`[api-client] POST /bids auctionId=${auctionId} amount=${amount}`);
 
   const res = await fetch(`${API_BASE}/bids`, {
     method: "POST",
@@ -216,7 +191,6 @@ export async function placeBidApi(
 
   if (!res.ok) {
     const err = data as ApiError;
-    console.error(`[api-client] ❌ POST /bids failed: ${err.error} — ${err.message}`);
     throw Object.assign(new Error(err.message ?? "Bid failed"), {
       code: err.error,
       statusCode: res.status,
@@ -224,9 +198,7 @@ export async function placeBidApi(
     });
   }
 
-  const result = data as PlaceBidResult;
-  console.log(`[api-client] ✅ Bid placed — id=${result.bid.id} amount=${result.bid.amount} new_current=${result.auction.current_bid}`);
-  return result;
+  return data as PlaceBidResult;
 }
 
 // ─── Create auction ───────────────────────────────────────────────────────────
@@ -248,8 +220,6 @@ export async function createAuctionApi(input: CreateAuctionInput): Promise<{ auc
   const token = await getToken();
   if (!token) { redirectToLogin(); throw new Error("Not authenticated"); }
 
-  console.log(`[api-client] POST /auctions title="${input.title}" startPrice=${input.startPrice}`);
-
   const res = await fetch(`${API_BASE}/auctions`, {
     method: "POST",
     headers: {
@@ -264,13 +234,10 @@ export async function createAuctionApi(input: CreateAuctionInput): Promise<{ auc
   const data = await res.json();
   if (!res.ok) {
     const err = data as ApiError;
-    console.error(`[api-client] ❌ POST /auctions failed: ${err.error} — ${err.message}`);
     throw Object.assign(new Error(err.message ?? "Failed to create auction"), { code: err.error });
   }
 
-  const result = data as { auction: ApiAuctionRaw };
-  console.log(`[api-client] ✅ Auction created — id=${result.auction.id}`);
-  return result;
+  return data as { auction: ApiAuctionRaw };
 }
 
 // ─── Media upload ─────────────────────────────────────────────────────────────
@@ -283,9 +250,6 @@ export interface UploadUrlResponse {
   expiresInSeconds: number;
 }
 
-/**
- * Step 1: Get a presigned upload URL from the server.
- */
 export async function getUploadUrlApi(
   fileType: "video" | "image",
   mimeType: string,
@@ -293,8 +257,6 @@ export async function getUploadUrlApi(
 ): Promise<UploadUrlResponse> {
   const token = await getToken();
   if (!token) { redirectToLogin(); throw new Error("Not authenticated"); }
-
-  console.log(`[api-client] POST /media/upload-url fileType=${fileType} mimeType=${mimeType} size=${(sizeBytes / 1024).toFixed(1)}KB`);
 
   const res = await fetch(`${API_BASE}/media/upload-url`, {
     method: "POST",
@@ -313,48 +275,31 @@ export async function getUploadUrlApi(
     throw Object.assign(new Error(err.message ?? "Failed to get upload URL"), { code: err.error });
   }
 
-  const result = data as UploadUrlResponse;
-  console.log(`[api-client] ✅ Upload URL acquired — path=${result.path}`);
-  return result;
+  return data as UploadUrlResponse;
 }
 
-/**
- * Step 2: Upload the file directly to Supabase Storage via the presigned URL.
- * Uses PUT as required by Supabase Storage presigned uploads.
- */
 export async function uploadFileToStorage(
   uploadUrl: string,
   file: File,
   onProgress?: (pct: number) => void,
 ): Promise<void> {
-  console.log(`[api-client] PUT file to storage — name=${file.name} size=${(file.size / 1024).toFixed(1)}KB`);
-
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
 
     if (onProgress) {
       xhr.upload.addEventListener("progress", (e) => {
         if (e.lengthComputable) {
-          const pct = Math.round((e.loaded / e.total) * 100);
-          onProgress(pct);
+          onProgress(Math.round((e.loaded / e.total) * 100));
         }
       });
     }
 
     xhr.addEventListener("load", () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        console.log(`[api-client] ✅ File uploaded to storage successfully`);
-        resolve();
-      } else {
-        console.error(`[api-client] ❌ Storage upload failed: HTTP ${xhr.status}`);
-        reject(new Error(`Storage upload failed: HTTP ${xhr.status}`));
-      }
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error(`Storage upload failed: HTTP ${xhr.status}`));
     });
 
-    xhr.addEventListener("error", () => {
-      console.error(`[api-client] ❌ Storage upload network error`);
-      reject(new Error("Network error during file upload"));
-    });
+    xhr.addEventListener("error", () => reject(new Error("Network error during file upload")));
 
     xhr.open("PUT", uploadUrl);
     xhr.setRequestHeader("Content-Type", file.type);
@@ -372,6 +317,8 @@ export interface ApiUserProfile {
   auctionCount: number;
   totalLikesReceived: number;
   bidsPlacedCount: number;
+  followersCount: number;
+  followingCount: number;
   isAdmin: boolean;
   createdAt: string;
 }
@@ -388,7 +335,32 @@ export async function getUserMeApi(): Promise<ApiUserProfile> {
     throw new Error(err.message ?? "Failed to fetch own profile");
   }
   const data = await res.json() as { user: ApiUserProfile };
-  console.log(`[api-client] ✅ GET /users/me → id=${data.user.id}`);
+  return data.user;
+}
+
+// ─── Public user profile ──────────────────────────────────────────────────────
+
+export interface ApiPublicProfile {
+  id: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  bio: string | null;
+  auctionCount: number;
+  totalLikesReceived: number;
+  followersCount: number;
+  followingCount: number;
+  isBanned: boolean;
+  createdAt: string;
+}
+
+export async function getUserPublicProfileApi(userId: string): Promise<ApiPublicProfile> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_BASE}/users/${userId}`, { headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to fetch user profile");
+  }
+  const data = await res.json() as { user: ApiPublicProfile };
   return data.user;
 }
 
@@ -418,17 +390,11 @@ export async function getUserBidsApi(): Promise<ApiMyBidEntry[]> {
     throw new Error(err.message ?? "Failed to fetch my bids");
   }
   const data = await res.json() as { bids: ApiMyBidEntry[] };
-  console.log(`[api-client] ✅ GET /users/me/bids → ${data.bids.length} entries`);
   return data.bids;
 }
 
 // ─── Delete auction ───────────────────────────────────────────────────────────
 
-/**
- * Soft-delete an auction (sets status = 'removed').
- * Only the auction owner can call this — the backend enforces it.
- * @throws Error with a message if not authorized or request fails.
- */
 export async function deleteAuctionApi(auctionId: string): Promise<void> {
   const headers = await authHeaders();
   const res = await fetch(`${API_BASE}/auctions/${auctionId}`, {
@@ -443,10 +409,6 @@ export async function deleteAuctionApi(auctionId: string): Promise<void> {
 
 // ─── Device token ─────────────────────────────────────────────────────────────
 
-/**
- * Register an FCM device token with the server.
- * Safe to call on every app load — the server upserts idempotently.
- */
 export async function registerDeviceToken(
   token: string,
   platform: "web" | "ios" | "android" = "web",
@@ -466,4 +428,77 @@ export async function registerDeviceToken(
   } catch {
     console.warn("[api-client] registerDeviceToken failed — server unreachable");
   }
+}
+
+// ─── Follow system ────────────────────────────────────────────────────────────
+
+export interface ApiFollowUser {
+  id: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  isFollowing: boolean;
+  isSelf: boolean;
+}
+
+export interface ApiFollowResult {
+  isFollowing: boolean;
+  followersCount: number;
+  followingCount: number;
+}
+
+/** Fetch the flat list of profile IDs the current user follows. */
+export async function getFollowingIdsApi(): Promise<string[]> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_BASE}/users/me/following-ids`, { headers });
+  if (!res.ok) return [];
+  const data = await res.json() as { followingIds: string[] };
+  return data.followingIds ?? [];
+}
+
+/** Follow a user. Returns updated follow counts + isFollowing. */
+export async function followUserApi(userId: string): Promise<ApiFollowResult> {
+  const token = await getToken();
+  if (!token) throw new Error("Not authenticated");
+  const res = await fetch(`${API_BASE}/users/${userId}/follow`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to follow user");
+  }
+  return res.json() as Promise<ApiFollowResult>;
+}
+
+/** Unfollow a user. Returns updated follow counts + isFollowing. */
+export async function unfollowUserApi(userId: string): Promise<ApiFollowResult> {
+  const token = await getToken();
+  if (!token) throw new Error("Not authenticated");
+  const res = await fetch(`${API_BASE}/users/${userId}/follow`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to unfollow user");
+  }
+  return res.json() as Promise<ApiFollowResult>;
+}
+
+/** Fetch a user's followers list. */
+export async function getFollowersApi(userId: string): Promise<ApiFollowUser[]> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_BASE}/users/${userId}/followers`, { headers });
+  if (!res.ok) return [];
+  const data = await res.json() as { followers: ApiFollowUser[] };
+  return data.followers ?? [];
+}
+
+/** Fetch the list of users someone follows. */
+export async function getFollowingApi(userId: string): Promise<ApiFollowUser[]> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_BASE}/users/${userId}/following`, { headers });
+  if (!res.ok) return [];
+  const data = await res.json() as { following: ApiFollowUser[] };
+  return data.following ?? [];
 }

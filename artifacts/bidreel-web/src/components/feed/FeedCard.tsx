@@ -169,31 +169,33 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         <div className="flex items-center gap-2 min-w-0">
           <button
             className="flex items-center gap-2 bg-black/40 backdrop-blur-md border border-white/10 rounded-full pl-1 pr-3 py-1 active:scale-95 transition-transform shrink-0"
-            onClick={(e) => { e.stopPropagation(); setLocation(`/auction/${auction.id}`); }}
+            onClick={(e) => { e.stopPropagation(); setLocation(`/users/${auction.seller.id}`); }}
           >
             <UserAvatar src={auction.seller.avatar || null} name={auction.seller.name} size={30} />
             <span className="text-[13px] font-semibold text-white leading-none">{auction.seller.handle}</span>
           </button>
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={(e) => { e.stopPropagation(); toggleFollow(auction.seller.id); }}
-            className={cn(
-              "px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-md transition-all duration-200 shrink-0",
-              following
-                ? "bg-[#0ea5e9]/15 border-[#0ea5e9]/45 text-[#7dd3fc]"
-                : "bg-black/40 border-white/20 text-white"
-            )}
-          >
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.span
-                key={following ? "following" : "follow"}
-                initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }}
-                transition={{ duration: 0.15 }} className="block"
-              >
-                {following ? `✓ ${t("following")}` : `+ ${t("follow")}`}
-              </motion.span>
-            </AnimatePresence>
-          </motion.button>
+          {!isOwner && (
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={(e) => { e.stopPropagation(); toggleFollow(auction.seller.id); }}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-md transition-all duration-200 shrink-0",
+                following
+                  ? "bg-[#0ea5e9]/15 border-[#0ea5e9]/45 text-[#7dd3fc]"
+                  : "bg-black/40 border-white/20 text-white"
+              )}
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={following ? "following" : "follow"}
+                  initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }}
+                  transition={{ duration: 0.15 }} className="block"
+                >
+                  {following ? `✓ ${t("following")}` : `+ ${t("follow")}`}
+                </motion.span>
+              </AnimatePresence>
+            </motion.button>
+          )}
         </div>
 
         {/* Right: timer pill */}

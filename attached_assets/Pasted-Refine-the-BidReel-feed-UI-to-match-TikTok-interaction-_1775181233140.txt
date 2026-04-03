@@ -1,0 +1,76 @@
+Refine the BidReel feed UI to match TikTok interaction patterns more precisely. This is a strict UI alignment task.
+
+STEP 1 — FORCE LEFT-SIDE ACTION STACK
+Move the entire vertical action stack (Like, WhatsApp, Save, Share, Bid) to the LEFT side of the screen.
+
+Requirements:
+
+* must ALWAYS stay on the left side
+* must NOT flip based on RTL or language direction
+* explicitly disable any direction-based mirroring
+* ensure spacing and alignment are consistent on all screen sizes
+
+STEP 2 — REPLACE SHARE ICON
+Replace the current share icon with a TikTok-style arrow.
+
+Requirements:
+
+* use an upward/right arrow (upload-style arrow)
+* not a generic share icon
+* create a custom SVG if needed
+* match TikTok visual style (thin, clean, minimal)
+
+STEP 3 — FOLLOW BUTTON (TIKTOK STYLE)
+Replace the current follow button with a TikTok-style avatar follow control.
+
+Requirements:
+
+* show a circular avatar (publisher profile image)
+* overlay a small "+" badge on the avatar (bottom-right or center overlay)
+* the "+" must be clearly visible and clickable
+* when user taps follow:
+
+  * change state to "following"
+  * remove "+" badge
+  * optionally change border or color to indicate following
+
+Rules:
+
+* if current user is the same as publisher → hide follow button entirely
+* must be part of the vertical action stack
+* must not overlap or break layout
+
+STEP 4 — FINAL ACTION ORDER (TOP → BOTTOM)
+On the LEFT side:
+
+1. Avatar + Follow (+ badge)
+2. Like (heart)
+3. WhatsApp (chat button)
+4. Save (bookmark)
+5. Share (new arrow icon)
+6. Bid (main CTA)
+
+Remove any comment button completely.
+
+STEP 5 — TOUCH & UX
+
+* all buttons must be minimum touch size (44px+)
+* no click overlap
+* no event propagation bugs
+* ensure smooth tap feedback
+
+STEP 6 — CLEAN IMPLEMENTATION
+
+* update FeedCard component
+* update any shared icon components
+* remove old follow button logic if duplicated
+* ensure z-index is correct
+* ensure no layout shift occurs
+
+RETURN:
+
+* exact files changed
+* confirmation that buttons are fixed to left side only
+* confirmation share icon replaced
+* confirmation follow avatar + "+" works correctly
+* any edge case found

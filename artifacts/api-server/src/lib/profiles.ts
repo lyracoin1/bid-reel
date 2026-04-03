@@ -14,6 +14,8 @@ export interface OwnProfile {
   auctionCount: number;
   totalLikesReceived: number;
   bidsPlacedCount: number;
+  followersCount: number;
+  followingCount: number;
   isAdmin: boolean;
   createdAt: string;
 }
@@ -29,6 +31,8 @@ export interface PublicProfile {
   bio: string | null;
   auctionCount: number;
   totalLikesReceived: number;
+  followersCount: number;
+  followingCount: number;
   isBanned: boolean;
   createdAt: string;
 }
@@ -62,13 +66,16 @@ export class PhoneAlreadyRegisteredError extends Error {
 /**
  * Fetch aggregate stats for a user in parallel.
  * Returns counts derived from live table data (not cached).
+ * All queries are safe if tables don't exist (42P01 → 0).
  */
 async function fetchProfileStats(userId: string): Promise<{
   auctionCount: number;
   totalLikesReceived: number;
   bidsPlacedCount: number;
+  followersCount: number;
+  followingCount: number;
 }> {
-  const [auctionsResult, bidsResult, likesResult] = await Promise.all([
+  const [auctionsResult, bidsResult, likesResult, followersResult, followingResult] = await Promise.all([
     supabaseAdmin
       .from("auctions")
       .select("id", { count: "exact", head: true })
@@ -85,6 +92,18 @@ async function fetchProfileStats(userId: string): Promise<{
       .select("like_count")
       .eq("seller_id", userId)
       .neq("status", "removed"),
+
+    // How many people follow this user
+    supabaseAdmin
+      .from("user_follows")
+      .select("id", { count: "exact", head: true })
+      .eq("following_id", userId),
+
+    // How many people this user follows
+    supabaseAdmin
+      .from("user_follows")
+      .select("id", { count: "exact", head: true })
+      .eq("follower_id", userId),
   ]);
 
   const totalLikesReceived =
@@ -97,6 +116,8 @@ async function fetchProfileStats(userId: string): Promise<{
     auctionCount: auctionsResult.count ?? 0,
     bidsPlacedCount: bidsResult.count ?? 0,
     totalLikesReceived,
+    followersCount: followersResult.count ?? 0,
+    followingCount: followingResult.count ?? 0,
   };
 }
 
@@ -130,23 +151,11 @@ function toPublicProfile(row: ProfileRow, stats: Awaited<ReturnType<typeof fetch
 
 /**
  * Upserts a profile row on login.
- *
- * First login  → inserts a new row with the user's phone (server use only).
- * Return login → reads and returns the existing row without mutation.
- *
- * Enforces one account per phone number:
- * - If a profile already exists for the given userId, returns it.
- * - If a profile exists for a DIFFERENT userId with the same phone,
- *   throws PhoneAlreadyRegisteredError (prevents duplicate accounts).
- *
- * Phone is stored for WhatsApp link generation only.
- * It is NEVER returned in OwnProfile or PublicProfile.
  */
 export async function upsertProfile(
   userId: string,
   phone: string,
 ): Promise<{ isNewUser: boolean; profile: OwnProfile }> {
-  // 1. Fast path — profile already exists for this exact auth user
   const { data: existing } = await supabaseAdmin
     .from("profiles")
     .select(PROFILE_COLS)
@@ -158,7 +167,6 @@ export async function upsertProfile(
     return { isNewUser: false, profile: toOwnProfile(existing, stats) };
   }
 
-  // 2. Phone uniqueness check — reject if another account already owns this number
   const { data: phoneOwner } = await supabaseAdmin
     .from("profiles")
     .select("id")
@@ -169,7 +177,6 @@ export async function upsertProfile(
     throw new PhoneAlreadyRegisteredError(phone);
   }
 
-  // 3. Create the new profile
   const { data: created, error } = await supabaseAdmin
     .from("profiles")
     .insert({ id: userId, phone })
@@ -177,7 +184,6 @@ export async function upsertProfile(
     .single();
 
   if (error) {
-    // Postgres unique violation (code 23505) — DB-level enforcement
     if (error.code === "23505" && error.message.includes("phone")) {
       throw new PhoneAlreadyRegisteredError(phone);
     }
@@ -231,7 +237,6 @@ export async function getPublicProfile(userId: string): Promise<PublicProfile | 
 /**
  * Update the authenticated user's own profile.
  * Only allows safe fields: display_name, avatar_url, bio.
- * Ignores any attempt to set is_admin, is_banned, phone, etc.
  */
 export interface UpdateProfileInput {
   displayName?: string;
@@ -270,7 +275,6 @@ export async function updateProfile(
 
 /**
  * Check whether a user account is banned.
- * Used by requireAuth middleware to block banned users early.
  */
 export async function isUserBanned(userId: string): Promise<boolean> {
   const { data } = await supabaseAdmin
@@ -284,7 +288,6 @@ export async function isUserBanned(userId: string): Promise<boolean> {
 
 /**
  * @deprecated Use getOwnProfile() instead.
- * Kept for backward compatibility with routes that still call getProfileById().
  */
 export async function getProfileById(userId: string): Promise<OwnProfile | null> {
   return getOwnProfile(userId);

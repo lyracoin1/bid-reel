@@ -13,13 +13,16 @@ import { clearAdminSession } from "@/pages/admin/AdminGuard";
 import { getTimeRemaining } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { FollowListModal } from "@/components/FollowListModal";
 
 type Tab = "listings" | "bids";
+type FollowModal = "followers" | "following" | null;
 
 export default function Profile() {
   const [activeTab, setActiveTab] = useState<Tab>("listings");
   const [myBids, setMyBids] = useState<ApiMyBidEntry[]>([]);
   const [bidsLoading, setBidsLoading] = useState(true);
+  const [followModal, setFollowModal] = useState<FollowModal>(null);
   const [, setLocation] = useLocation();
   const { t } = useLang();
 
@@ -101,22 +104,47 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* Stats row */}
+          {/* Stats row — Listings | Followers | Following */}
           <div className="grid grid-cols-3 gap-3 relative z-10">
-            {[
-              { labelKey: "listings" as const,  value: user?.auctionCount ?? myListings.length },
-              { labelKey: "bids_won" as const,   value: user?.bidsPlacedCount ?? 0 },
-              { labelKey: "rating" as const,     value: "—" },
-            ].map(stat => (
-              <div key={stat.labelKey} className="bg-white/5 border border-white/8 rounded-2xl py-3 text-center">
-                {isLoading ? (
-                  <div className="h-6 w-8 bg-white/10 rounded animate-pulse mx-auto mb-1" />
-                ) : (
-                  <p className="text-xl font-bold text-white leading-none">{stat.value}</p>
-                )}
-                <p className="text-[11px] text-muted-foreground mt-1 font-medium">{t(stat.labelKey)}</p>
-              </div>
-            ))}
+            {/* Listings */}
+            <div className="bg-white/5 border border-white/8 rounded-2xl py-3 text-center">
+              {isLoading ? (
+                <div className="h-6 w-8 bg-white/10 rounded animate-pulse mx-auto mb-1" />
+              ) : (
+                <p className="text-xl font-bold text-white leading-none">
+                  {user?.auctionCount ?? myListings.length}
+                </p>
+              )}
+              <p className="text-[11px] text-muted-foreground mt-1 font-medium">{t("listings")}</p>
+            </div>
+
+            {/* Followers — clickable */}
+            <button
+              className="bg-white/5 border border-white/8 rounded-2xl py-3 text-center active:bg-white/8 transition-colors"
+              onClick={() => user && setFollowModal("followers")}
+              disabled={isLoading || !user}
+            >
+              {isLoading ? (
+                <div className="h-6 w-8 bg-white/10 rounded animate-pulse mx-auto mb-1" />
+              ) : (
+                <p className="text-xl font-bold text-white leading-none">{user?.followersCount ?? 0}</p>
+              )}
+              <p className="text-[11px] text-muted-foreground mt-1 font-medium">{t("followers")}</p>
+            </button>
+
+            {/* Following — clickable */}
+            <button
+              className="bg-white/5 border border-white/8 rounded-2xl py-3 text-center active:bg-white/8 transition-colors"
+              onClick={() => user && setFollowModal("following")}
+              disabled={isLoading || !user}
+            >
+              {isLoading ? (
+                <div className="h-6 w-8 bg-white/10 rounded animate-pulse mx-auto mb-1" />
+              ) : (
+                <p className="text-xl font-bold text-white leading-none">{user?.followingCount ?? 0}</p>
+              )}
+              <p className="text-[11px] text-muted-foreground mt-1 font-medium">{t("following")}</p>
+            </button>
           </div>
         </div>
 
@@ -253,6 +281,15 @@ export default function Profile() {
           </button>
         </div>
       </div>
+
+      {/* Follow list modals */}
+      {followModal && user && (
+        <FollowListModal
+          userId={user.id}
+          mode={followModal}
+          onClose={() => setFollowModal(null)}
+        />
+      )}
     </MobileLayout>
   );
 }

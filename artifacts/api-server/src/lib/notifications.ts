@@ -6,6 +6,9 @@
  *   1. Inserts a row into the `notifications` table (in-app inbox)
  *   2. Looks up the user's FCM device tokens and fires push notifications
  *      via Firebase Cloud Messaging (no-op when FCM is not configured)
+ *
+ * NOTE: The notifications table may not exist in all environments.
+ * All functions are non-throwing — they log errors but never bubble up.
  */
 
 import { supabaseAdmin } from "./supabase";
@@ -18,13 +21,15 @@ export type NotificationType =
   | "auction_won"
   | "new_bid_received"
   | "auction_ending_soon"
-  | "auction_removed";
+  | "auction_removed"
+  | "new_follower";
 
 export interface CreateNotificationInput {
   userId: string;
   type: NotificationType;
   message: string;
   auctionId?: string;
+  actorId?: string;
   fcm?: {
     title: string;
     body: string;
@@ -58,22 +63,24 @@ async function getUserFcmTokens(userId: string): Promise<string[]> {
  * Non-throwing — logs errors but does not bubble them up.
  */
 export async function createNotification(input: CreateNotificationInput): Promise<void> {
-  // 1. Insert in-app notification
   const { error } = await supabaseAdmin.from("notifications").insert({
     user_id: input.userId,
     type: input.type,
     message: input.message,
     auction_id: input.auctionId ?? null,
+    actor_id: input.actorId ?? null,
     read: false,
   });
 
   if (error) {
-    logger.warn({ err: error.message, input }, "notifications: insert failed");
+    // 42P01 = table does not exist — silent, expected in some environments
+    if ((error as { code?: string }).code !== "42P01") {
+      logger.warn({ err: error.message, input }, "notifications: insert failed");
+    }
   } else {
     logger.debug({ userId: input.userId, type: input.type }, "notifications: created");
   }
 
-  // 2. Fire FCM push if payload provided
   if (!input.fcm) return;
 
   const tokens = await getUserFcmTokens(input.userId);
@@ -142,4 +149,28 @@ export async function notifyAuctionStarted(
       })
     )
   );
+}
+
+/**
+ * Notify user B that user A started following them.
+ * Non-blocking — failure is logged but does not affect the follow action.
+ */
+export async function notifyNewFollower(
+  followedUserId: string,
+  followerUserId: string,
+  followerName: string,
+): Promise<void> {
+  const message = `${followerName} started following you`;
+
+  await createNotification({
+    userId: followedUserId,
+    type: "new_follower",
+    message,
+    actorId: followerUserId,
+    fcm: {
+      title: "New follower 🎉",
+      body: message,
+      data: { actorId: followerUserId, type: "new_follower" },
+    },
+  });
 }

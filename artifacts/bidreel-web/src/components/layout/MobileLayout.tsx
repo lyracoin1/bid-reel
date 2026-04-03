@@ -18,7 +18,12 @@ export function MobileLayout({
       */}
       <div className="relative w-full max-w-md h-[100dvh] bg-background shadow-2xl overflow-hidden flex flex-col border-x border-white/5">
         
-        <main className={`flex-1 overflow-y-auto hide-scrollbar ${noPadding ? '' : 'pb-24'}`}>
+        <main
+          className={`flex-1 overflow-y-auto hide-scrollbar`}
+          style={noPadding ? undefined : {
+            paddingBottom: "max(96px, calc(68px + env(safe-area-inset-bottom, 0px)))"
+          }}
+        >
           {children}
         </main>
         

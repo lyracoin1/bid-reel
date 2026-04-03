@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Gavel, Bell, MapPin, Volume2, VolumeX, Bookmark } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type Auction } from "@/lib/mock-data";
-import { getWhatsAppUrl, cn } from "@/lib/utils";
+import { getWhatsAppUrl, cn, getPublicBaseUrl } from "@/lib/utils";
 import { useToggleLike } from "@/hooks/use-auctions";
 import { useFollow } from "@/hooks/use-follow";
 import { useWatchAuction } from "@/hooks/use-watch";
@@ -118,7 +118,7 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (navigator.share) {
-      try { await navigator.share({ title: auction.title, url: window.location.href }); }
+      try { await navigator.share({ title: auction.title, url: `${getPublicBaseUrl()}/auction/${auction.id}` }); }
       catch (_) {}
     }
   };

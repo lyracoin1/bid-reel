@@ -68,7 +68,9 @@ export async function sendFcmPush(token: string, payload: FcmPayload): Promise<v
         notification: {
           icon: "ic_launcher",   // must match a drawable in the Android project
           color: "#6d28d9",      // BidReel violet
-          clickAction: "FLUTTER_NOTIFICATION_CLICK", // standard Capacitor tap intent
+          // No clickAction — Capacitor Firebase Messaging handles tap routing
+          // through the notificationActionPerformed listener in native-fcm.ts.
+          // Setting clickAction to a Flutter-specific intent would break taps.
         },
       },
       // Web push (browser service worker) config — no-op on native Android

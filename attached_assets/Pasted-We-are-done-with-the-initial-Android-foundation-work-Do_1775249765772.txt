@@ -1,0 +1,54 @@
+We are done with the initial Android foundation work. Do not focus on local Android Studio testing right now.
+
+Now I want you to focus only on the remaining project work needed inside the codebase before BidReel is truly ready to become a publishable Android app for Google Play.
+
+Use the current project state and continue from everything already completed.
+
+PHASE 4 — FINAL APP CONVERSION READINESS
+
+I need you to identify and complete the most important remaining code-level tasks inside the project itself.
+
+Focus on these areas:
+
+1. Firebase / Push Notifications end-to-end
+
+* verify that the native Firebase FCM setup is fully wired, not just configured
+* confirm whether the app can actually request notification permission, obtain an FCM token, and send that token to the backend
+* inspect whether /api/notifications/register-device exists and works correctly
+* if backend token registration or storage is incomplete, implement it
+* define the exact DB structure used to store device tokens
+* make the notification pipeline production-safe
+* do not introduce Firebase Auth / Firestore / Storage
+* Firebase must be used only for FCM
+
+2. Cloudflare R2 media migration readiness
+
+* continue the planned migration from Supabase Storage to Cloudflare R2
+* inspect the real current media flow and identify exactly what is still incomplete
+* prepare the project so new media uploads can use R2 safely without breaking old media
+* keep Supabase for auth, database, and metadata only
+
+3. Saved auctions migration readiness
+
+* inspect the saved_auctions feature and verify what depends on the pending 015_saved_auctions.sql migration
+* tell me exactly what manual Supabase SQL step I still need to do
+* make sure the app code is ready once the migration is applied
+
+4. Release-readiness audit inside code
+
+* verify there are no remaining dev-only URLs, relative API assumptions, or Replit-only runtime dependencies that would break a release app
+* verify VITE_API_URL usage is fully unified across the project
+* verify Android-safe behavior for login, uploads, geolocation, WhatsApp, video playback, and notifications
+* identify any remaining code-level blocker before Play Store submission
+
+5. Final output
+   Return strictly:
+
+* What is already complete
+* What is still incomplete
+* What manual step I must do outside Replit
+* What remaining code work you completed now
+* What the single highest-priority next step should be after this phase
+
+Do not send me a generic summary.
+I want the real remaining conversion blockers closed inside the codebase.

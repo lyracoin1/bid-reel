@@ -17,6 +17,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { deleteAuctionApi } from "@/lib/api-client";
 import { removeAuctionFromCache } from "@/hooks/use-auctions";
 import { toast } from "@/hooks/use-toast";
+import { getPublicBaseUrl } from "@/lib/utils";
 
 interface AuctionMenuProps {
   auctionId: string;
@@ -61,7 +62,7 @@ export function AuctionMenu({
 
   const handleShare = async () => {
     setSheet("closed");
-    const url = `${window.location.origin}/auction/${auctionId}`;
+    const url = `${getPublicBaseUrl()}/auction/${auctionId}`;
     if (navigator.share) {
       try {
         await navigator.share({ title: auctionTitle, url });

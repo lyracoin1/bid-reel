@@ -67,3 +67,24 @@ export function getWhatsAppUrl(phone: string, itemTitle: string): string {
   const msg = `Hi! I saw your listing on BidReel: "${itemTitle}". I'm interested — can we talk?`;
   return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
 }
+
+/**
+ * Returns the public-facing base URL to use when generating shareable links.
+ *
+ * On web: `window.location.origin` (e.g. https://bidreel.app)
+ * On Android Capacitor: `window.location.origin` returns `https://localhost`
+ * which is meaningless when shared externally.
+ *
+ * Set VITE_PUBLIC_BASE_URL in your .env (and as a Replit Secret for builds)
+ * to your deployed web domain, e.g. https://bidreel.app  or
+ * https://your-replit-project.replit.app
+ *
+ * That value will be baked into the Android APK at build time and used
+ * whenever the app generates a link to share via WhatsApp / system share.
+ */
+export function getPublicBaseUrl(): string {
+  const configured = (import.meta.env["VITE_PUBLIC_BASE_URL"] as string | undefined)?.replace(/\/$/, "");
+  if (configured) return configured;
+  // Fallback — works correctly on web but will be https://localhost on Android
+  return window.location.origin;
+}

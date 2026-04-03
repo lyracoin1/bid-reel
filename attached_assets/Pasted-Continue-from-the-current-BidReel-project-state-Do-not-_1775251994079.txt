@@ -1,0 +1,72 @@
+Continue from the current BidReel project state. Do not restart from scratch.
+
+Important constraints:
+- Do NOT introduce any paid Firebase services.
+- Firebase must be used ONLY for FCM (push notifications).
+- Do NOT use Firestore, Firebase Storage, or any Firebase paid features.
+- Do NOT add any billing-dependent features.
+- Keep the system fully functional without requiring a credit card.
+
+Context:
+- FCM pipeline is already implemented (native + backend)
+- FIREBASE_SERVICE_ACCOUNT_JSON will be added manually as a secret
+- Supabase remains the only database and auth provider
+- Supabase Storage remains the media storage (no Cloudflare R2 for now)
+
+Goal:
+Finish the project to a production-ready state without adding cost.
+
+Tasks:
+1. Verify Firebase usage is strictly limited to FCM:
+   - Ensure no Firestore, Storage, or other Firebase SDKs are imported or used
+   - Ensure all push logic goes through Firebase Admin SDK only
+
+2. Verify FCM backend behavior:
+   - If FIREBASE_SERVICE_ACCOUNT_JSON is missing → log warning only, do NOT crash
+   - If present → fully enable push notifications
+
+3. Verify device token lifecycle:
+   - Token registration works
+   - Token refresh is handled
+   - Token deletion on logout works
+
+4. Verify notification triggers:
+   - outbid
+   - auction_started
+   - new_follower
+   Ensure they all call sendFcmPush correctly
+
+5. Ensure zero-cost-safe behavior:
+   - No background jobs that spam notifications
+   - No excessive retries
+   - No unnecessary FCM calls
+
+6. Verify saved auctions:
+   - Confirm migration 015 dependency
+   - Ensure API behavior is correct after migration
+
+7. Verify environment variables:
+   - FIREBASE_SERVICE_ACCOUNT_JSON → backend only
+   - VITE_API_URL → frontend API calls
+   - VITE_PUBLIC_BASE_URL → share links
+
+8. Do NOT:
+   - start Cloudflare R2 migration
+   - refactor unrelated systems
+   - modify auth logic
+
+Output required:
+- What Firebase components are used (must be FCM only)
+- Confirmation that no paid Firebase services are used
+- Any code fixes made (if necessary)
+- Final verification checklist for:
+  - push notifications
+  - save/unsave
+  - share links
+  - API calls
+
+Rules:
+- Keep everything minimal and cost-safe
+- Do not introduce new services
+- Inspect before changing anything
+- Prioritize stability over new features

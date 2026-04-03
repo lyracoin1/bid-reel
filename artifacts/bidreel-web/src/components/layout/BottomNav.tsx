@@ -16,7 +16,7 @@ export function BottomNav() {
   ];
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 z-50 px-4 pb-5">
+    <div className="absolute bottom-0 left-0 right-0 z-50 px-4" style={{ paddingBottom: "max(20px, env(safe-area-inset-bottom, 20px))" }}>
       <div className="relative flex items-center justify-between bg-[#0e0e14]/95 backdrop-blur-xl border border-white/8 rounded-2xl px-6 py-3 shadow-2xl shadow-black/60">
         {navItems.map((item) => {
           const isActive = location.startsWith(item.path);

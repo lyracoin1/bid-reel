@@ -548,3 +548,17 @@ export async function unsaveAuctionApi(auctionId: string): Promise<ApiSaveResult
   }
   return res.json() as Promise<ApiSaveResult>;
 }
+
+/** Permanently delete the authenticated user's account and all associated data. */
+export async function deleteAccountApi(): Promise<void> {
+  const token = await getToken();
+  if (!token) throw new Error("Not authenticated");
+  const res = await fetch(`${API_BASE}/users/me`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to delete account");
+  }
+}

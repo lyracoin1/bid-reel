@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -6,7 +7,7 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import { NotificationBannerProvider } from "@/contexts/NotificationBannerContext";
 import { useFcmToken } from "@/hooks/use-fcm-token";
 
-// User pages
+// Core user pages — loaded eagerly (always needed)
 import Splash from "@/pages/splash";
 import Login from "@/pages/login";
 import Feed from "@/pages/feed";
@@ -17,17 +18,30 @@ import Profile from "@/pages/profile";
 import PublicProfilePage from "@/pages/public-profile";
 import Interests from "@/pages/interests";
 import NotFound from "@/pages/not-found";
+import PrivacyPolicy from "@/pages/privacy";
 
-// Admin pages
+// Admin pages — lazy loaded (most users never access these)
+const AdminDashboard = lazy(() => import("@/pages/admin/Dashboard"));
+const AdminUsers     = lazy(() => import("@/pages/admin/Users"));
+const AdminAuctions  = lazy(() => import("@/pages/admin/Auctions"));
+const AdminReports   = lazy(() => import("@/pages/admin/Reports"));
+const AdminStats     = lazy(() => import("@/pages/admin/Stats"));
+const AdminActions   = lazy(() => import("@/pages/admin/AdminActions"));
+
+// AdminGuard stays eagerly loaded — it's a small auth wrapper
 import { AdminGuard } from "@/pages/admin/AdminGuard";
-import AdminDashboard from "@/pages/admin/Dashboard";
-import AdminUsers from "@/pages/admin/Users";
-import AdminAuctions from "@/pages/admin/Auctions";
-import AdminReports from "@/pages/admin/Reports";
-import AdminStats from "@/pages/admin/Stats";
-import AdminActions from "@/pages/admin/AdminActions";
 
 const queryClient = new QueryClient();
+
+function AdminPage({ children }: { children: React.ReactNode }) {
+  return (
+    <AdminGuard>
+      <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+        {children}
+      </Suspense>
+    </AdminGuard>
+  );
+}
 
 function Router() {
   return (
@@ -41,24 +55,25 @@ function Router() {
       <Route path="/profile" component={Profile} />
       <Route path="/users/:userId" component={PublicProfilePage} />
       <Route path="/interests" component={Interests} />
+      <Route path="/privacy" component={PrivacyPolicy} />
 
       <Route path="/admin">
-        {() => <AdminGuard><AdminDashboard /></AdminGuard>}
+        {() => <AdminPage><AdminDashboard /></AdminPage>}
       </Route>
       <Route path="/admin/users">
-        {() => <AdminGuard><AdminUsers /></AdminGuard>}
+        {() => <AdminPage><AdminUsers /></AdminPage>}
       </Route>
       <Route path="/admin/auctions">
-        {() => <AdminGuard><AdminAuctions /></AdminGuard>}
+        {() => <AdminPage><AdminAuctions /></AdminPage>}
       </Route>
       <Route path="/admin/reports">
-        {() => <AdminGuard><AdminReports /></AdminGuard>}
+        {() => <AdminPage><AdminReports /></AdminPage>}
       </Route>
       <Route path="/admin/stats">
-        {() => <AdminGuard><AdminStats /></AdminGuard>}
+        {() => <AdminPage><AdminStats /></AdminPage>}
       </Route>
       <Route path="/admin/actions">
-        {() => <AdminGuard><AdminActions /></AdminGuard>}
+        {() => <AdminPage><AdminActions /></AdminPage>}
       </Route>
 
       <Route component={NotFound} />

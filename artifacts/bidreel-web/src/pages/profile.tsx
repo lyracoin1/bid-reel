@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Grid, Gavel, LogOut, ShieldCheck } from "lucide-react";
+import { Grid, Gavel, LogOut, ShieldCheck, Trash2, Shield } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import { MobileLayout } from "@/components/layout/MobileLayout";
@@ -8,7 +8,7 @@ import { HamburgerMenu } from "@/components/HamburgerMenu";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useCurrentUser, clearCurrentUserCache } from "@/hooks/use-current-user";
 import { useAuctions } from "@/hooks/use-auctions";
-import { getUserBidsApi, clearToken, type ApiMyBidEntry } from "@/lib/api-client";
+import { getUserBidsApi, clearToken, deleteAccountApi, type ApiMyBidEntry } from "@/lib/api-client";
 import { clearAdminSession } from "@/pages/admin/AdminGuard";
 import { getTimeRemaining } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
@@ -23,10 +23,28 @@ export default function Profile() {
   const [myBids, setMyBids] = useState<ApiMyBidEntry[]>([]);
   const [bidsLoading, setBidsLoading] = useState(true);
   const [followModal, setFollowModal] = useState<FollowModal>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [, setLocation] = useLocation();
   const { t } = useLang();
 
   const { user, isLoading: userLoading } = useCurrentUser();
+
+  async function handleDeleteAccount() {
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteAccountApi();
+      clearCurrentUserCache();
+      clearAdminSession();
+      clearToken();
+      setLocation("/login");
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete account. Please try again.");
+      setIsDeleting(false);
+    }
+  }
   const { data: allAuctions, isLoading: auctionsLoading } = useAuctions();
 
   const myListings = user
@@ -273,12 +291,29 @@ export default function Profile() {
           )}
         </div>
 
-        {/* Logout */}
-        <div className="px-5 pb-8">
+        {/* Logout + settings footer */}
+        <div className="px-5 pb-8 space-y-3">
           <button onClick={() => { clearCurrentUserCache(); clearAdminSession(); clearToken(); setLocation("/login"); }}
             className="w-full py-3.5 rounded-2xl border border-white/8 bg-white/3 flex items-center justify-center gap-2 text-sm font-semibold text-white/50 hover:text-white/80 hover:bg-white/6 transition">
             <LogOut size={16} />{t("log_out")}
           </button>
+
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setLocation("/privacy")}
+              className="flex items-center gap-1.5 text-xs text-white/30 hover:text-white/50 transition py-1"
+            >
+              <Shield size={11} />
+              Privacy Policy
+            </button>
+            <button
+              onClick={() => { setDeleteError(null); setShowDeleteConfirm(true); }}
+              className="flex items-center gap-1.5 text-xs text-red-500/50 hover:text-red-400 transition py-1"
+            >
+              <Trash2 size={11} />
+              Delete Account
+            </button>
+          </div>
         </div>
       </div>
 
@@ -290,6 +325,72 @@ export default function Profile() {
           onClose={() => setFollowModal(null)}
         />
       )}
+
+      {/* Delete Account confirmation modal */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-end justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={(e) => { if (e.target === e.currentTarget && !isDeleting) setShowDeleteConfirm(false); }}
+          >
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: "spring", damping: 26, stiffness: 320 }}
+              className="w-full max-w-sm bg-[#0e0e14] border border-red-500/20 rounded-3xl p-6 space-y-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-red-500/15 flex items-center justify-center shrink-0">
+                  <Trash2 size={18} className="text-red-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-base">Delete Account</h3>
+                  <p className="text-xs text-white/40">This cannot be undone</p>
+                </div>
+              </div>
+
+              <p className="text-sm text-white/60 leading-relaxed">
+                This will permanently delete your account, profile, bids, follows, and saved auctions.
+                Your auction listings will be anonymised. <span className="text-red-400 font-semibold">This action is irreversible.</span>
+              </p>
+
+              {deleteError && (
+                <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
+                  {deleteError}
+                </p>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={isDeleting}
+                  className="flex-1 py-3 rounded-2xl border border-white/10 bg-white/5 text-sm font-semibold text-white/60 hover:text-white transition disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={isDeleting}
+                  className="flex-1 py-3 rounded-2xl bg-red-500/20 border border-red-500/30 text-sm font-bold text-red-400 hover:bg-red-500/30 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isDeleting ? (
+                    <span className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Trash2 size={14} />
+                      Delete Forever
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </MobileLayout>
   );
 }

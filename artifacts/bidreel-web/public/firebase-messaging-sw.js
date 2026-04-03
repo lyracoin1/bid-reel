@@ -6,8 +6,8 @@
  * hardcoding credentials in a public file.
  */
 
-importScripts("https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js");
-importScripts("https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/12.0.0/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/12.0.0/firebase-messaging-compat.js");
 
 let messagingReady = false;
 

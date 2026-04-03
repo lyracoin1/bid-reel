@@ -225,6 +225,47 @@ router.get("/users/me/bids", requireAuth, async (req, res) => {
   res.json({ bids: result });
 });
 
+// ─── DELETE /api/users/me ─────────────────────────────────────────────────────
+// Permanently deletes the authenticated user's account.
+// Deletes: auth record, profile row, bids, follows, saves, device tokens.
+// Auction listings are anonymised (seller_id set to null) to preserve history.
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.delete("/users/me", requireAuth, async (req, res) => {
+  const userId = req.user!.id;
+
+  try {
+    // 1. Anonymise auctions (preserve auction integrity — set seller to null)
+    await supabaseAdmin
+      .from("auctions")
+      .update({ seller_id: null } as any)
+      .eq("seller_id", userId);
+
+    // 2. Delete profile row (cascades: follows, saves, device tokens via FK)
+    await supabaseAdmin.from("profiles").delete().eq("id", userId);
+
+    // 3. Delete the Supabase Auth user — this is irreversible
+    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+    if (authError) {
+      logger.error({ err: authError, userId }, "DELETE /users/me: auth deletion failed");
+      res.status(500).json({
+        error: "DELETE_FAILED",
+        message: "Could not delete account. Please try again or contact support.",
+      });
+      return;
+    }
+
+    req.log.info({ userId }, "Account permanently deleted");
+    res.status(200).json({ success: true, message: "Account permanently deleted." });
+  } catch (err) {
+    logger.error({ err, userId }, "DELETE /users/me: unexpected error");
+    res.status(500).json({
+      error: "DELETE_FAILED",
+      message: "Could not delete account. Please try again or contact support.",
+    });
+  }
+});
+
 // ─── GET /api/users/:userId ───────────────────────────────────────────────────
 // Returns another user's public profile.
 // Excludes phone, expo_push_token, ban_reason.

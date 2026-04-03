@@ -47,12 +47,12 @@ function WhatsAppIcon() {
   );
 }
 
-function ShareArrowIcon() {
+/* TikTok-style send/share arrow — paper-plane silhouette, thin & clean */
+function TikTokShareIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.95)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-      <polyline points="16 6 12 2 8 6" />
-      <line x1="12" y1="2" x2="12" y2="15" />
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.95)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="22" y1="2" x2="11" y2="13" />
+      <polygon points="22 2 15 22 11 13 2 9 22 2" />
     </svg>
   );
 }
@@ -163,40 +163,16 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         </div>
       )}
 
-      {/* ── Top: seller info + follow + timer ─────────────────────────────── */}
+      {/* ── Top: seller pill + timer ───────────────────────────────────────── */}
       <div className="absolute top-0 left-0 right-0 z-20 pt-12 px-4 flex items-center justify-between gap-2">
-        {/* Left: avatar pill + follow */}
-        <div className="flex items-center gap-2 min-w-0">
-          <button
-            className="flex items-center gap-2 bg-black/40 backdrop-blur-md border border-white/10 rounded-full pl-1 pr-3 py-1 active:scale-95 transition-transform shrink-0"
-            onClick={(e) => { e.stopPropagation(); setLocation(`/users/${auction.seller.id}`); }}
-          >
-            <UserAvatar src={auction.seller.avatar || null} name={auction.seller.name} size={30} />
-            <span className="text-[13px] font-semibold text-white leading-none">{auction.seller.handle}</span>
-          </button>
-          {!isOwner && (
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={(e) => { e.stopPropagation(); toggleFollow(auction.seller.id); }}
-              className={cn(
-                "px-3 py-1.5 rounded-full text-xs font-bold border backdrop-blur-md transition-all duration-200 shrink-0",
-                following
-                  ? "bg-[#0ea5e9]/15 border-[#0ea5e9]/45 text-[#7dd3fc]"
-                  : "bg-black/40 border-white/20 text-white"
-              )}
-            >
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.span
-                  key={following ? "following" : "follow"}
-                  initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }}
-                  transition={{ duration: 0.15 }} className="block"
-                >
-                  {following ? `✓ ${t("following")}` : `+ ${t("follow")}`}
-                </motion.span>
-              </AnimatePresence>
-            </motion.button>
-          )}
-        </div>
+        {/* Left: avatar pill (tap → profile) */}
+        <button
+          className="flex items-center gap-2 bg-black/40 backdrop-blur-md border border-white/10 rounded-full pl-1 pr-3 py-1 active:scale-95 transition-transform shrink-0"
+          onClick={(e) => { e.stopPropagation(); setLocation(`/users/${auction.seller.id}`); }}
+        >
+          <UserAvatar src={auction.seller.avatar || null} name={auction.seller.name} size={30} />
+          <span className="text-[13px] font-semibold text-white leading-none">{auction.seller.handle}</span>
+        </button>
 
         {/* Right: timer pill */}
         <div className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-md border shrink-0", timerPill.className)}>
@@ -224,13 +200,54 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         <AuctionMenu auctionId={auction.id} auctionTitle={auction.title} mediaUrl={auction.mediaUrl} isOwner={isOwner} />
       </div>
 
-      {/* ── Right action stack (TikTok style) ─────────────────────────────── */}
-      <div className="absolute right-3 bottom-32 z-20 flex flex-col items-center gap-4">
+      {/* ── LEFT action stack (TikTok style) ──────────────────────────────── */}
+      {/*   direction: ltr is explicit — never mirrors on RTL layouts          */}
+      <div
+        className="absolute left-3 bottom-32 z-20 flex flex-col items-center gap-4"
+        style={{ direction: "ltr" }}
+      >
 
-        {/* 1. Like */}
+        {/* 1. Avatar + Follow ("+" badge) — hidden when viewer is owner */}
+        {!isOwner && (
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            className="relative flex flex-col items-center gap-1"
+            style={{ minWidth: 44, minHeight: 44 }}
+            onClick={(e) => { e.stopPropagation(); toggleFollow(auction.seller.id); }}
+            aria-label={following ? "Following" : "Follow"}
+          >
+            {/* circular avatar */}
+            <div className={cn(
+              "w-12 h-12 rounded-full overflow-hidden border-2 transition-all duration-200",
+              following ? "border-[#0ea5e9]" : "border-white/60"
+            )}>
+              <UserAvatar src={auction.seller.avatar || null} name={auction.seller.name} size={48} />
+            </div>
+            {/* "+" badge — shown only when not following */}
+            <AnimatePresence>
+              {!following && (
+                <motion.div
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-[#fe2c55] border-2 border-black flex items-center justify-center z-10"
+                >
+                  <span className="text-white font-bold leading-none" style={{ fontSize: 12 }}>+</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <span className="text-[11px] font-semibold text-white/80 mt-0.5">
+              {following ? "✓" : t("follow")}
+            </span>
+          </motion.button>
+        )}
+
+        {/* 2. Like */}
         <motion.button
           whileTap={{ scale: 0.75 }}
           className="flex flex-col items-center gap-1"
+          style={{ minWidth: 44, minHeight: 44 }}
           onClick={(e) => { e.stopPropagation(); toggleLike(auction.id); }}
         >
           <motion.div
@@ -246,10 +263,12 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
           <span className="text-[11px] font-semibold text-white/80">{auction.likes}</span>
         </motion.button>
 
-        {/* 2. WhatsApp */}
+        {/* 3. WhatsApp */}
         <motion.a
           href={whatsappUrl} target="_blank" rel="noopener noreferrer"
-          whileTap={{ scale: 0.8 }} className="flex flex-col items-center gap-1"
+          whileTap={{ scale: 0.8 }}
+          className="flex flex-col items-center gap-1"
+          style={{ minWidth: 44, minHeight: 44 }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="w-12 h-12 rounded-full bg-[#25D366]/15 backdrop-blur-md border border-[#25D366]/50 flex items-center justify-center shadow-[0_0_14px_rgba(37,211,102,0.3)]">
@@ -258,10 +277,11 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
           <span className="text-[11px] font-semibold text-white/80">{t("chat")}</span>
         </motion.a>
 
-        {/* 3. Save / Bookmark */}
+        {/* 4. Save / Bookmark */}
         <motion.button
           whileTap={{ scale: 0.8 }}
           className="flex flex-col items-center gap-1"
+          style={{ minWidth: 44, minHeight: 44 }}
           onClick={(e) => { e.stopPropagation(); toggleSave(auction.id); }}
         >
           <motion.div
@@ -279,19 +299,25 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
           </span>
         </motion.button>
 
-        {/* 4. Share */}
-        <motion.button whileTap={{ scale: 0.8 }} className="flex flex-col items-center gap-1" onClick={handleShare}>
+        {/* 5. Share — TikTok paper-plane arrow */}
+        <motion.button
+          whileTap={{ scale: 0.8 }}
+          className="flex flex-col items-center gap-1"
+          style={{ minWidth: 44, minHeight: 44 }}
+          onClick={handleShare}
+        >
           <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white">
-            <ShareArrowIcon />
+            <TikTokShareIcon />
           </div>
           <span className="text-[11px] font-semibold text-white/80">{t("share")}</span>
         </motion.button>
 
-        {/* 5. Primary CTA — Bid or Bell (remind me) */}
+        {/* 6. Primary CTA — Bid or Bell (remind me) */}
         {state === "upcoming" ? (
           <motion.button
             whileTap={{ scale: 0.88 }}
             className="flex flex-col items-center gap-1 mt-1"
+            style={{ minWidth: 44, minHeight: 44 }}
             onClick={(e) => { e.stopPropagation(); toggleWatch(auction.id); }}
           >
             <div className={cn(
@@ -311,6 +337,7 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
           <motion.button
             whileTap={state === "active" ? { scale: 0.88 } : {}}
             className="flex flex-col items-center gap-1 mt-1"
+            style={{ minWidth: 44, minHeight: 44 }}
             onClick={(e) => { e.stopPropagation(); if (state === "active") setLocation(`/auction/${auction.id}`); }}
             disabled={state === "ended"}
           >
@@ -329,8 +356,9 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
       </div>
 
       {/* ── Bottom info area ───────────────────────────────────────────────── */}
+      {/* left-[76px] leaves room for the 48px action stack at left-3 + gap   */}
       <div
-        className="absolute bottom-[7.5rem] left-4 right-20 z-10 flex flex-col gap-2 cursor-pointer"
+        className="absolute bottom-[7.5rem] left-[76px] right-4 z-10 flex flex-col gap-2 cursor-pointer"
         onClick={() => setLocation(`/auction/${auction.id}`)}
       >
         <h2 className="text-[21px] font-bold text-white leading-snug line-clamp-2 drop-shadow-sm">

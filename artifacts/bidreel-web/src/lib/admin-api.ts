@@ -135,6 +135,8 @@ export interface AdminReport {
   reason: string;
   details: string | null;
   status: string;
+  adminNote: string | null;
+  resolvedAt: string | null;
   createdAt: string;
   reporter: { id: string; displayName: string | null } | null;
   auction: { id: string; title: string } | null;
@@ -145,9 +147,10 @@ export async function adminGetReports(): Promise<AdminReport[]> {
   return data.reports;
 }
 
+// DB enum report_status only supports: pending | dismissed | actioned
 export async function adminUpdateReport(
   id: string,
-  status: "pending" | "reviewed" | "dismissed" | "actioned",
+  status: "pending" | "dismissed" | "actioned",
 ): Promise<void> {
   await adminFetch(`/reports/${id}`, {
     method: "PATCH",

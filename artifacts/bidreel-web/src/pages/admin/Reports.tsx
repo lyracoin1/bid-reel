@@ -21,15 +21,15 @@ const REASON_LABELS: Record<string, string> = {
   other:              "أخرى",
 };
 
+// DB enum report_status: pending | dismissed | actioned  (no "reviewed")
 const STATUS_META: Record<string, { label: string; style: string }> = {
-  pending:   { label: "معلّق",    style: "bg-amber-600/20 text-amber-400 border-amber-600/30" },
-  reviewed:  { label: "تمت المراجعة", style: "bg-blue-600/20 text-blue-400 border-blue-600/30" },
-  dismissed: { label: "مرفوض",   style: "bg-gray-600/20 text-gray-400 border-gray-600/30" },
+  pending:   { label: "معلّق",       style: "bg-amber-600/20 text-amber-400 border-amber-600/30" },
+  dismissed: { label: "مرفوض",      style: "bg-gray-600/20 text-gray-400 border-gray-600/30" },
   actioned:  { label: "تم الإجراء", style: "bg-emerald-600/20 text-emerald-400 border-emerald-600/30" },
 };
 
-type StatusFilter = "all" | "pending" | "reviewed" | "dismissed" | "actioned";
-type ReportStatus = "pending" | "reviewed" | "dismissed" | "actioned";
+type StatusFilter = "all" | "pending" | "dismissed" | "actioned";
+type ReportStatus = "pending" | "dismissed" | "actioned";
 
 export default function AdminReports() {
   const [reports, setReports] = useState<AdminReport[]>([]);
@@ -58,13 +58,7 @@ export default function AdminReports() {
   }, [reports, statusFilter]);
 
   const counts = useMemo(() => {
-    const out: Record<StatusFilter, number> = {
-      all: reports.length,
-      pending: 0,
-      reviewed: 0,
-      dismissed: 0,
-      actioned: 0,
-    };
+    const out: Record<StatusFilter, number> = { all: reports.length, pending: 0, dismissed: 0, actioned: 0 };
     reports.forEach(r => {
       const s = r.status as StatusFilter;
       if (s in out) out[s]++;
@@ -87,10 +81,9 @@ export default function AdminReports() {
   }
 
   const FILTER_TABS: { key: StatusFilter; label: string }[] = [
-    { key: "all",      label: "الكل" },
-    { key: "pending",  label: "معلّق" },
-    { key: "reviewed", label: "تمت المراجعة" },
-    { key: "actioned", label: "تم الإجراء" },
+    { key: "all",       label: "الكل" },
+    { key: "pending",   label: "معلّق" },
+    { key: "actioned",  label: "تم الإجراء" },
     { key: "dismissed", label: "مرفوض" },
   ];
 
@@ -168,6 +161,11 @@ export default function AdminReports() {
                       {r.details && (
                         <div className="text-xs text-gray-400 mt-0.5 max-w-[220px] truncate" dir="rtl">{r.details}</div>
                       )}
+                      {r.adminNote && (
+                        <div className="text-xs text-violet-400 mt-0.5 max-w-[220px] truncate" dir="rtl">
+                          ملاحظة: {r.adminNote}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3.5 text-gray-300 text-xs">
                       {r.reporter?.displayName ?? r.reporter?.id.slice(0, 8) ?? "—"}
@@ -177,7 +175,7 @@ export default function AdminReports() {
                     </td>
                     <td className="px-4 py-3.5">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${statusMeta.style}`}>
-                        {r.status === "pending" && <Clock size={10} />}
+                        {r.status === "pending"  && <Clock size={10} />}
                         {r.status === "actioned" && <CheckCircle size={10} />}
                         {r.status === "dismissed" && <XCircle size={10} />}
                         {statusMeta.label}
@@ -198,12 +196,6 @@ export default function AdminReports() {
                         )}
                         {openMenu === r.id && (
                           <div className="absolute left-0 top-8 z-20 w-48 bg-gray-800 border border-gray-700 rounded-xl shadow-xl overflow-hidden" dir="rtl">
-                            {r.status !== "reviewed" && (
-                              <button onClick={() => updateStatus(r.id, "reviewed")}
-                                className="w-full text-right px-4 py-2.5 text-sm text-blue-400 hover:bg-gray-700 flex items-center gap-2">
-                                <CheckCircle size={14} /> تمت المراجعة
-                              </button>
-                            )}
                             {r.status !== "actioned" && (
                               <button onClick={() => updateStatus(r.id, "actioned")}
                                 className="w-full text-right px-4 py-2.5 text-sm text-emerald-400 hover:bg-gray-700 flex items-center gap-2">
@@ -214,6 +206,12 @@ export default function AdminReports() {
                               <button onClick={() => updateStatus(r.id, "dismissed")}
                                 className="w-full text-right px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2">
                                 <XCircle size={14} /> رفض البلاغ
+                              </button>
+                            )}
+                            {r.status !== "pending" && (
+                              <button onClick={() => updateStatus(r.id, "pending")}
+                                className="w-full text-right px-4 py-2.5 text-sm text-amber-400 hover:bg-gray-700 flex items-center gap-2">
+                                <Clock size={14} /> إعادة للمراجعة
                               </button>
                             )}
                           </div>

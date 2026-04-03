@@ -79,7 +79,7 @@ adminRouter.get("/stats", async (_req, res) => {
       supabaseAdmin.from("bids").select("id", { count: "exact", head: true }),
       supabaseAdmin.from("reports").select("id", { count: "exact", head: true }),
       supabaseAdmin.from("reports").select("id", { count: "exact", head: true }).eq("status", "pending"),
-      supabaseAdmin.from("reports").select("id", { count: "exact", head: true }).in("status", ["reviewed", "actioned"]),
+      supabaseAdmin.from("reports").select("id", { count: "exact", head: true }).eq("status", "actioned"),
       supabaseAdmin.from("reports").select("id", { count: "exact", head: true }).eq("status", "dismissed"),
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).eq("is_banned", true),
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).eq("is_admin", true),
@@ -318,7 +318,7 @@ adminRouter.get("/reports", async (_req, res) => {
     const { data, error } = await supabaseAdmin
       .from("reports")
       .select(`
-        id, reason, details, status, created_at,
+        id, reason, details, status, admin_note, resolved_at, created_at,
         reporter:profiles!reporter_id(id, display_name),
         auction:auctions!auction_id(id, title, seller_id)
       `)
@@ -334,6 +334,8 @@ adminRouter.get("/reports", async (_req, res) => {
         reason: row["reason"],
         details: row["details"],
         status: row["status"],
+        adminNote: (row["admin_note"] as string | null) ?? null,
+        resolvedAt: (row["resolved_at"] as string | null) ?? null,
         createdAt: row["created_at"],
         reporter: reporter ? { id: reporter.id, displayName: reporter.display_name } : null,
         auction: auction ? { id: auction.id, title: auction.title } : null,
@@ -351,10 +353,17 @@ adminRouter.get("/reports", async (_req, res) => {
 
 adminRouter.patch("/reports/:id", async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body as { status?: "pending" | "reviewed" | "dismissed" | "actioned" };
+  // DB enum report_status: pending | dismissed | actioned  (no "reviewed")
+  const { status } = req.body as { status?: "pending" | "dismissed" | "actioned" };
 
   if (!status) {
     res.status(400).json({ error: "MISSING_STATUS", message: "status is required" });
+    return;
+  }
+
+  const ALLOWED = ["pending", "dismissed", "actioned"] as const;
+  if (!(ALLOWED as readonly string[]).includes(status)) {
+    res.status(400).json({ error: "INVALID_STATUS", message: `status must be one of: ${ALLOWED.join(", ")}` });
     return;
   }
 
@@ -439,7 +448,7 @@ adminRouter.get("/media-lifecycle-status", async (_req, res) => {
       .from("auctions")
       .select("id", { count: "exact", head: true })
       .lte("ends_at", now)
-      .is("deleted_at", null);
+      .is("video_deleted_at", null);
 
     res.json({ totalEnded: ended ?? 0 });
   } catch (err) {

@@ -47,6 +47,8 @@ export type TKey =
   | "no_listings" | "create_first" | "settings"
   // Follow
   | "follow" | "following"
+  // Save / bookmark
+  | "save" | "saved"
   // Auction states
   | "starts_in" | "upcoming_badge" | "final_price" | "remind_me" | "reminded"
   | "bid_opens_soon" | "winner" | "starting_at"
@@ -90,6 +92,7 @@ const en: Translations = {
   no_listings: "No listings yet.", create_first: "Create your first listing", settings: "Settings",
   time_ended: "Ended", time_s: "s", time_m: "m left", time_h: "h left", time_d: "d left",
   follow: "Follow", following: "Following",
+  save: "Save", saved: "Saved",
   starts_in: "Starts in", upcoming_badge: "Upcoming", final_price: "Final Price",
   remind_me: "Remind Me", reminded: "Reminded ✓", bid_opens_soon: "Bidding opens soon",
   winner: "Winner", starting_at: "Starting at",
@@ -129,6 +132,7 @@ const ar: Translations = {
   no_listings: "لا توجد إدراجات بعد.", create_first: "أنشئ إدراجك الأول", settings: "الإعدادات",
   time_ended: "انتهى", time_s: "ث", time_m: "د متبقية", time_h: "س متبقية", time_d: "ي متبقية",
   follow: "متابعة", following: "تتابعه",
+  save: "حفظ", saved: "محفوظ",
   starts_in: "يبدأ في", upcoming_badge: "قادم", final_price: "السعر النهائي",
   remind_me: "ذكّرني", reminded: "تم التذكير ✓", bid_opens_soon: "المزايدة تفتح قريباً",
   winner: "الفائز", starting_at: "يبدأ من",
@@ -168,6 +172,7 @@ const ru: Translations = {
   no_listings: "Нет лотов.", create_first: "Создать первый лот", settings: "Настройки",
   time_ended: "Завершён", time_s: "с", time_m: "м осталось", time_h: "ч осталось", time_d: "д осталось",
   follow: "Подписаться", following: "Подписан",
+  save: "Сохранить", saved: "Сохранено",
   starts_in: "Начнётся через", upcoming_badge: "Скоро", final_price: "Финальная цена",
   remind_me: "Напомнить", reminded: "Напомнено ✓", bid_opens_soon: "Торги откроются скоро",
   winner: "Победитель", starting_at: "Старт от",
@@ -207,6 +212,7 @@ const es: Translations = {
   no_listings: "Sin anuncios aún.", create_first: "Crea tu primer anuncio", settings: "Ajustes",
   time_ended: "Finalizado", time_s: "s", time_m: "m restante", time_h: "h restante", time_d: "d restante",
   follow: "Seguir", following: "Siguiendo",
+  save: "Guardar", saved: "Guardado",
   starts_in: "Empieza en", upcoming_badge: "Próximamente", final_price: "Precio final",
   remind_me: "Recuérdame", reminded: "Recordado ✓", bid_opens_soon: "Las pujas abren pronto",
   winner: "Ganador", starting_at: "Sale desde",
@@ -246,6 +252,7 @@ const fr: Translations = {
   no_listings: "Aucune annonce.", create_first: "Créer votre première annonce", settings: "Paramètres",
   time_ended: "Terminé", time_s: "s", time_m: "m restant", time_h: "h restant", time_d: "j restant",
   follow: "Suivre", following: "Abonné",
+  save: "Enregistrer", saved: "Enregistré",
   starts_in: "Débute dans", upcoming_badge: "À venir", final_price: "Prix final",
   remind_me: "Me rappeler", reminded: "Rappelé ✓", bid_opens_soon: "Les enchères ouvrent bientôt",
   winner: "Gagnant", starting_at: "Départ à",

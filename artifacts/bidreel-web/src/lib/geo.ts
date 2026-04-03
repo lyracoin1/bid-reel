@@ -113,6 +113,5 @@ export async function reverseGeocodeCountry(lat: number, lng: number): Promise<s
  */
 export function formatAuctionPrice(amount: number, currencyCode = "USD"): string {
   const formatted = new Intl.NumberFormat("en-US").format(Math.round(amount));
-  if (currencyCode === "USD") return `$${formatted}`;
   return `${formatted} ${currencyCode}`;
 }

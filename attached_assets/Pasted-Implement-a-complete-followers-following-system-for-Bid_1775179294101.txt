@@ -1,0 +1,180 @@
+Implement a complete followers / following system for BidReel end-to-end, using real database-backed logic only.
+
+This is not just a Follow button. Build the full social follow system properly across database, backend, and frontend.
+
+CORE REQUIREMENTS
+Add a full follow graph between users with real persistence and real counts.
+
+Users must be able to:
+
+* follow another user
+* unfollow another user
+* see followers count
+* see following count
+* open followers list
+* open following list
+* know whether they already follow a user
+* see follow state update instantly in the UI
+
+Do not use mock data.
+Do not use fake counts.
+Use real database-backed logic only.
+
+STEP 1 — DATABASE / SCHEMA
+Audit the current live schema first, then implement the follow system safely.
+
+Requirements:
+
+* create a dedicated table for user follows if it does not already exist
+* use a clear schema such as:
+
+  * id
+  * follower_id
+  * following_id
+  * created_at
+* enforce uniqueness for follower_id + following_id
+* prevent self-follow at DB level if possible
+* add proper foreign keys to profiles.id
+* add indexes for fast lookup on both follower_id and following_id
+
+Also ensure:
+
+* deleting a user or profile does not leave broken follow rows
+* schema is compatible with existing profiles/auth model
+
+STEP 2 — BACKEND API
+Build secure backend endpoints for the follow system.
+
+Implement endpoints for:
+
+1. follow a user
+2. unfollow a user
+3. get a user’s followers list
+4. get a user’s following list
+5. get follow counts for a user
+6. check whether current authenticated user follows a target user
+
+Hard rules:
+
+* authentication required for follow/unfollow
+* user cannot follow themselves
+* duplicate follow must not create duplicate rows
+* unfollow on non-existing relation should be safe/idempotent
+* blocked/banned logic should be respected if relevant in the app
+* backend must be source of truth for counts and relation status
+
+Return clean response fields for frontend use, for example:
+
+* followersCount
+* followingCount
+* isFollowing
+
+STEP 3 — FRONTEND INTEGRATION
+Integrate the follow system into the existing BidReel UI.
+
+Add follow behavior to:
+
+* feed cards / reel overlay (the Follow button near avatar/username)
+* profile page
+* user public profile if there is a separate profile view
+
+Requirements:
+
+* if current user is viewing someone else, show Follow / Following button
+* if current user is viewing their own profile, do not show Follow button
+* update button state optimistically but keep it consistent with backend
+* refresh counts after follow/unfollow
+* prevent double taps / duplicate requests
+* show proper loading and error states
+
+STEP 4 — PROFILE COUNTS
+On user profile pages, add:
+
+* followers count
+* following count
+
+Requirements:
+
+* counts must come from backend/database
+* clicking followers opens followers list
+* clicking following opens following list
+
+For each list:
+
+* show avatar
+* display name
+* phone/handle if that is the available identifier
+* follow/unfollow action where appropriate
+* allow navigating to that user’s profile if supported
+
+STEP 5 — FEED / TIKTOK-STYLE OVERLAY
+Integrate follow state into the feed overlay.
+
+Requirements:
+
+* near the avatar/username overlay, show:
+
+  * username/display name
+  * follow button
+* follow button must reflect real state:
+
+  * Follow
+  * Following
+* if already following, style it differently
+* if this is the current user’s own auction/post, hide follow button
+
+STEP 6 — NOTIFICATIONS (IF THE APP HAS NOTIFICATION INFRASTRUCTURE)
+If a notification system already exists or is partially implemented, add follow notifications safely:
+
+* when user A follows user B, create a notification for user B
+* notification text should clearly indicate the new follow
+* do not block the follow action if notification creation fails
+  If notification infrastructure does not exist yet, report that clearly instead of faking it.
+
+STEP 7 — ADMIN / MODERATION AWARENESS
+Make sure the follow system behaves safely with existing moderation logic.
+
+Requirements:
+
+* banned users should not be able to abuse follow actions if the app already blocks their interaction flows
+* blocked relationships should be respected if the existing block system is active
+* follow APIs must not expose private admin-only data
+* admin panel does not need full follow management unless trivial, but counts should not break admin user views
+
+STEP 8 — PERFORMANCE / QUERY QUALITY
+Make sure the implementation is efficient:
+
+* indexed follow lookups
+* efficient counts
+* avoid N+1 queries where possible
+* frontend should not repeatedly re-fetch the same follow state unnecessarily
+
+STEP 9 — FINAL VERIFICATION
+After implementation, verify all of the following with real data:
+
+1. follow another user successfully
+2. unfollow successfully
+3. followers count increments/decrements correctly
+4. following count increments/decrements correctly
+5. follow button reflects current state correctly
+6. self-follow is blocked
+7. duplicate follow is blocked
+8. followers list loads correctly
+9. following list loads correctly
+10. feed follow button works correctly
+11. own profile does not show Follow button
+12. no fake/mock data anywhere
+
+RETURN
+After finishing, give me:
+
+1. exact database changes
+2. exact files changed
+3. API endpoints added/updated
+4. UI locations where follow system was integrated
+5. whether follow notifications were added or not
+6. manual QA checklist
+7. any remaining limitation or edge case honestly
+
+Do not give me a partial follow button.
+I want the full followers / following system implemented properly and connected to real data.

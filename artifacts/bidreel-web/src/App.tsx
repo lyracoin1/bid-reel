@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { NotificationBannerProvider } from "@/contexts/NotificationBannerContext";
 import { useFcmToken } from "@/hooks/use-fcm-token";
 
 // User pages
@@ -30,10 +31,7 @@ const queryClient = new QueryClient();
 function Router() {
   return (
     <Switch>
-      {/* Auth routes */}
       <Route path="/login" component={Login} />
-
-      {/* User routes */}
       <Route path="/" component={Splash} />
       <Route path="/feed" component={Feed} />
       <Route path="/explore" component={Explore} />
@@ -42,7 +40,6 @@ function Router() {
       <Route path="/profile" component={Profile} />
       <Route path="/interests" component={Interests} />
 
-      {/* Admin routes — all guarded */}
       <Route path="/admin">
         {() => <AdminGuard><AdminDashboard /></AdminGuard>}
       </Route>
@@ -77,11 +74,13 @@ function App() {
     <LanguageProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <FcmInit />
-            <Router />
-          </WouterRouter>
-          <Toaster />
+          <NotificationBannerProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <FcmInit />
+              <Router />
+            </WouterRouter>
+            <Toaster />
+          </NotificationBannerProvider>
         </TooltipProvider>
       </QueryClientProvider>
     </LanguageProvider>

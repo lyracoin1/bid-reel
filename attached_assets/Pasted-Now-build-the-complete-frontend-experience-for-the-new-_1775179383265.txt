@@ -1,0 +1,143 @@
+Now build the complete frontend experience for the new followers / following system in BidReel and connect it to the real backend implementation.
+
+This is the UI/UX continuation of the follow system. Do not use fake data. Use the real API and real database-backed state only.
+
+GOAL
+Make following feel like a real social feature across:
+
+* feed
+* profile
+* followers list
+* following list
+* top notification/banner behavior if supported
+
+STEP 1 — PROFILE HEADER UPGRADE
+Upgrade the profile page so it shows a proper social header.
+
+Requirements:
+
+* show user avatar
+* show display name / username / fallback identifier
+* show followers count
+* show following count
+* make both counts clickable
+* clicking followers opens followers list
+* clicking following opens following list
+* if viewing own profile:
+
+  * do not show Follow button
+* if viewing another user:
+
+  * show Follow / Following button with real state
+
+STEP 2 — FOLLOWERS / FOLLOWING MODAL OR PAGE
+Create a clean UI for both:
+
+* Followers list
+* Following list
+
+Requirements:
+
+* each row should show:
+
+  * avatar
+  * display name
+  * secondary identifier if available
+  * Follow / Following button where appropriate
+* if the listed user is the current user, hide follow button
+* allow opening that user’s profile if profile navigation exists
+* support loading state
+* support empty state
+* support error state
+* support long lists cleanly on mobile
+
+You may implement this as:
+
+* modal sheets
+* full pages
+* or drawers
+  Choose the option that fits the current app structure best, but keep it mobile-friendly.
+
+STEP 3 — FEED FOLLOW UX
+Integrate follow state into the feed overlay in a clean TikTok-style way.
+
+Requirements:
+
+* show avatar + username/display name
+* show Follow button near the publisher identity
+* if current user already follows them, show Following state
+* if the auction belongs to the current user, hide the Follow button
+* follow/unfollow must update immediately in the UI
+* avoid duplicate requests on repeated taps
+
+STEP 4 — TOP FOLLOW NOTIFICATION BANNER
+If the app already has notification infrastructure, add a top banner experience for follow notifications.
+
+Requirements:
+
+* when user A follows user B, create a notification for user B
+* when user B opens the app/feed, show a top transient banner if there is a new follow notification
+* banner should include:
+
+  * follower avatar
+  * follower name
+  * message like "started following you"
+* banner appears from top and auto-dismisses
+* should not block taps on the feed
+* should feel similar to the style discussed earlier
+
+If full notification persistence is not ready yet:
+
+* implement the UI layer cleanly
+* connect it to whatever real notification source currently exists
+* do not fake permanent data
+* clearly report any infrastructure limitation
+
+STEP 5 — FOLLOW BUTTON DESIGN CONSISTENCY
+Make Follow / Following buttons consistent across:
+
+* feed
+* profile
+* followers list
+* following list
+
+Requirements:
+
+* Follow = clear action style
+* Following = distinct confirmed style
+* loading state while request is pending
+* disabled during request
+* no flicker
+* no stale state after navigation or refresh
+
+STEP 6 — MOBILE POLISH
+Optimize the whole follow UI for mobile:
+
+* touch-friendly targets
+* no overlap with bottom nav
+* no overlap with right-side reel action buttons
+* no clipping on small screens
+* clean Arabic/English text rendering
+
+STEP 7 — VERIFY REAL BEHAVIOR
+After implementation, verify with real data:
+
+1. follow from feed
+2. unfollow from feed
+3. follow from profile
+4. unfollow from profile
+5. followers list count updates
+6. following list count updates
+7. own profile hides follow button
+8. top follow notification appears if supported
+9. refresh keeps correct follow state
+10. no fake/mock count anywhere
+
+RETURN
+After finishing, give me:
+
+1. exact files changed
+2. where followers/following UI was added
+3. whether follow notifications are fully implemented or partially implemented
+4. how the top notification banner currently works
+5. any remaining limitation honestly

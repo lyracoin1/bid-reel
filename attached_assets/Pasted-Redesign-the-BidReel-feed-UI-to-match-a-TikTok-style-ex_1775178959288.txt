@@ -1,0 +1,100 @@
+Redesign the BidReel feed UI to match a TikTok-style experience while preserving all existing business logic.
+
+This is a full UI/UX transformation, not a small tweak.
+
+CORE GOAL:
+Make the feed behave and feel like TikTok:
+
+* full-screen vertical video/cards
+* overlay UI
+* minimal distraction
+* strong action buttons
+
+STEP 1 — TOP NOTIFICATION SYSTEM (GLOBAL)
+Implement a global notification banner system:
+
+* appears at the top of the screen
+* shows:
+
+  * user avatar
+  * username
+  * message text
+* slides in and auto-dismisses after a few seconds
+* must not block interactions
+* must be reusable across the app
+
+STEP 2 — PROFILE + FOLLOW OVERLAY
+On each feed item:
+
+* show user avatar
+* show username
+* show "+ Follow" button
+* position this near the top of the video (TikTok style)
+* ensure proper z-index so it’s always clickable
+
+STEP 3 — RIGHT-SIDE ACTION STACK
+Replace the current action layout with a vertical stack on the right side:
+
+Top to bottom:
+
+1. Like button (heart) with count
+2. WhatsApp button (replace comment completely)
+
+   * opens WhatsApp/chat with seller
+3. Save button (keep existing logic)
+4. Share button
+
+   * use arrow-style icon like TikTok
+
+Remove:
+
+* comment button completely
+
+Ensure:
+
+* spacing is clean
+* icons are large and tappable
+* animations are smooth
+
+STEP 4 — BOTTOM NAVIGATION
+
+* keep bottom navigation
+* move the "Create Auction" (+) button to the center
+* make it visually dominant (TikTok style)
+
+STEP 5 — NOTIFICATION ICON PLACEMENT
+
+* place the notification bell icon next to the profile/avatar
+* do NOT keep it floating separately
+
+STEP 6 — FIX CURRENCY DISPLAY (CRITICAL)
+Fix the current bug:
+
+* auction labeled EGP must NOT display $
+* ensure:
+
+  * price is displayed using auction.currency_code
+  * no hardcoded "$" anywhere
+  * no currency conversion
+  * always show stored value exactly
+
+STEP 7 — CLEAN UI DETAILS
+
+* remove unused or overlapping UI
+* fix alignment issues
+* ensure no click-blocking layers
+* ensure overlays are rendered using portals if needed
+
+STEP 8 — MOBILE-FIRST EXPERIENCE
+
+* optimize for mobile screen
+* ensure touch interactions feel smooth
+* no layout breaking on smaller screens
+
+RETURN:
+
+* exact files changed (feed, components, layout)
+* confirmation of currency fix
+* confirmation that WhatsApp replaces comments
+* confirmation that notification system works
+* short video or description of UI behavior after changes

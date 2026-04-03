@@ -6,15 +6,18 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 const rawPort = process.env.PORT;
 
-if (!rawPort) {
+// PORT is only required when running the dev/preview server.
+// During `vite build` (e.g. Capacitor Android build) it is optional.
+const isBuild = process.argv.includes("build");
+if (!rawPort && !isBuild) {
   throw new Error(
     "PORT environment variable is required but was not provided.",
   );
 }
 
-const port = Number(rawPort);
+const port = rawPort ? Number(rawPort) : 8080;
 
-if (Number.isNaN(port) || port <= 0) {
+if (!Number.isNaN(port) && (port <= 0 || !Number.isInteger(port))) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 

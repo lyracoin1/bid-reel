@@ -1,0 +1,77 @@
+Start Phase 2 — Capacitor Android setup for BidReel.
+
+Use the current project state as the base. Do not undo any Phase 1 work.
+
+PHASE 2 GOAL
+Create the real Android foundation for the app and prepare the project for the first successful debug Android build.
+
+TASKS
+
+1. Install and initialize Capacitor properly
+
+* install all required Capacitor packages
+* include:
+
+  * @capacitor/core
+  * @capacitor/cli
+  * @capacitor/android
+  * @capacitor/splash-screen
+* verify capacitor.config.ts is correct and production-safe
+
+2. Add Android platform
+
+* run the necessary commands to add Android
+* generate the native Android project
+* confirm the Android project structure was created successfully
+
+3. Configure Android app basics
+
+* verify appId and appName
+* configure Android manifest requirements for this project
+* identify required permissions for:
+
+  * internet
+  * geolocation
+  * notifications
+  * media/file picking if needed
+* do not over-request permissions
+
+4. Verify routing inside Capacitor
+
+* confirm the current path-based routing actually works correctly in the Capacitor Android environment
+* if any adjustment is needed, implement the safest option
+* explain clearly why
+
+5. Audit core feature compatibility in Android context
+   Check and report the expected Android behavior for:
+
+* login and session persistence
+* phone-based auth
+* video/image upload
+* video playback
+* share functionality
+* WhatsApp opening
+* geolocation
+* notifications architecture
+
+6. Prepare Firebase native requirements
+
+* tell me exactly what Firebase Android files/values you still need from me
+* especially:
+
+  * google-services.json
+  * Android package/app registration requirements
+* do not fake this part; list exact steps
+
+7. Output
+   Return:
+
+* exact packages installed
+* exact files added
+* exact files changed
+* whether Android platform was added successfully
+* whether the project is ready for a first Android debug build
+* exact next step after this phase
+* anything blocked by files/credentials I must provide
+
+Do this as Phase 2 only.

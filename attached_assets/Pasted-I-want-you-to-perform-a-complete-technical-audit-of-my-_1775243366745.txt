@@ -1,0 +1,140 @@
+I want you to perform a **complete technical audit of my current project** and clearly tell me what is missing to convert this website into an **Android app** that can be published on **Google Play**.
+
+Please analyze the actual project files step by step and provide a **structured, detailed report** including:
+
+---
+
+### 1. PWA Readiness Check
+
+* Check whether the project includes:
+
+  * `manifest.json`
+  * Service Worker
+  * App icons (all required sizes)
+  * `name` and `short_name`
+  * `start_url`
+  * `display`
+  * `theme_color`
+  * `background_color`
+* Clearly state:
+
+  * What is present
+  * What is missing
+  * What exists but is incorrectly configured (and how to fix it)
+
+---
+
+### 2. Android Conversion Strategy
+
+* Evaluate whether the project is suitable for:
+
+  * Trusted Web Activity (TWA)
+  * WebView
+  * Capacitor
+* Recommend the **best approach** for this specific project
+* Explain *why* this option is the most appropriate
+* If TWA is suitable, list all remaining requirements
+* If not suitable, explain the technical reasons
+
+---
+
+### 3. Google Play Readiness
+
+* Assess whether the project meets basic Google Play requirements
+* Identify missing elements such as:
+
+  * Privacy Policy page
+  * Account deletion page (if authentication exists)
+  * Permissions handling
+  * Notifications setup
+  * Splash screen
+  * App icon
+  * Feature graphic
+  * Screenshots
+* Provide a clear checklist of everything required before publishing
+
+---
+
+### 4. Domain & Hosting Verification
+
+* I already connected a custom domain (active for 1 year)
+* Check if the project is properly configured for:
+
+  * HTTPS
+  * `.well-known/assetlinks.json`
+  * Digital Asset Links (for TWA)
+* Identify any missing or incorrect configurations
+
+---
+
+### 5. Mobile UX & Responsiveness
+
+* Evaluate:
+
+  * Responsiveness across screen sizes
+  * UI/UX issues on mobile
+  * Navigation problems
+  * Layout or scaling issues
+* Identify potential problems inside an Android app context:
+
+  * Popups
+  * Authentication flows
+  * Navigation
+* Provide actionable fixes for each issue
+
+---
+
+### 6. Performance & Optimization
+
+* Evaluate:
+
+  * Load speed
+  * Asset sizes
+  * Code efficiency
+* Suggest improvements for:
+
+  * Initial load performance
+  * Image optimization
+  * Caching strategies
+  * Code splitting
+  * Low-end device performance
+
+---
+
+### 7. Final Structured Report (IMPORTANT)
+
+Provide the final output strictly in this format:
+
+* **What is already implemented**
+* **What is missing**
+* **Existing issues**
+* **Critical priorities before app conversion**
+* **Critical priorities before publishing on Google Play**
+* **Recommended conversion method**
+* **Step-by-step execution plan**
+
+---
+
+### 8. Important Instructions
+
+* Do NOT give generic advice
+* Base your analysis on the actual project files
+* If you cannot verify something, say: "Unable to verify"
+* If something is missing, provide the exact file/code needed
+* If something is misconfigured, provide the corrected version
+
+---
+
+### 9. Final Checklist
+
+Provide a checklist using:
+
+* ✅ Completed
+* ⚠️ Needs improvement
+* ❌ Missing
+
+---
+
+### 10. Final Goal
+
+At the end, give me the **fastest and most practical path** to go from my current project to a **published Android app on Google Play**.

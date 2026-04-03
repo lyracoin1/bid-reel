@@ -502,3 +502,49 @@ export async function getFollowingApi(userId: string): Promise<ApiFollowUser[]> 
   const data = await res.json() as { following: ApiFollowUser[] };
   return data.following ?? [];
 }
+
+// ─── Save / Bookmark system ───────────────────────────────────────────────────
+
+export interface ApiSaveResult {
+  isSaved: boolean;
+  savedCount: number;
+}
+
+/** Fetch the flat list of auction IDs the current user has saved. */
+export async function getSavedIdsApi(): Promise<string[]> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_BASE}/users/me/saved-ids`, { headers });
+  if (!res.ok) return [];
+  const data = await res.json() as { savedIds: string[] };
+  return data.savedIds ?? [];
+}
+
+/** Save (bookmark) an auction. */
+export async function saveAuctionApi(auctionId: string): Promise<ApiSaveResult> {
+  const token = await getToken();
+  if (!token) throw new Error("Not authenticated");
+  const res = await fetch(`${API_BASE}/auctions/${auctionId}/save`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to save auction");
+  }
+  return res.json() as Promise<ApiSaveResult>;
+}
+
+/** Unsave (remove bookmark) an auction. */
+export async function unsaveAuctionApi(auctionId: string): Promise<ApiSaveResult> {
+  const token = await getToken();
+  if (!token) throw new Error("Not authenticated");
+  const res = await fetch(`${API_BASE}/auctions/${auctionId}/save`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to unsave auction");
+  }
+  return res.json() as Promise<ApiSaveResult>;
+}

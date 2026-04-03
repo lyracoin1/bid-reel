@@ -22,6 +22,19 @@ function parseAuctionId(raw: string) {
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * Returns true when the Postgres error code indicates the table doesn't exist.
+ * This happens when migration 015_saved_auctions.sql has not been run yet.
+ */
+function isMissingTableError(error: { code?: string }): boolean {
+  return error.code === "42P01";
+}
+
+const TABLE_NOT_READY_RESPONSE = {
+  error: "TABLE_NOT_READY",
+  message: "The saved_auctions table has not been created yet. Run migration 015_saved_auctions.sql in Supabase.",
+} as const;
+
 // ─── GET /api/users/me/saved-ids ─────────────────────────────────────────────
 // Returns a flat list of auction IDs the caller has saved.
 // Used by the frontend to seed its local save-state cache on load.
@@ -36,6 +49,12 @@ router.get("/users/me/saved-ids", requireAuth, async (req, res) => {
     .eq("user_id", callerId);
 
   if (error) {
+    if (isMissingTableError(error)) {
+      // Migration 015 not yet applied — return empty list so the app still loads.
+      logger.warn({ callerId }, "GET saved-ids: saved_auctions table missing — run migration 015");
+      res.json({ savedIds: [] });
+      return;
+    }
     logger.error({ err: error.message, callerId }, "GET saved-ids: query failed");
     res.status(500).json({ error: "FETCH_FAILED", message: "Could not fetch saved auctions." });
     return;
@@ -59,6 +78,11 @@ router.get("/users/me/saved", requireAuth, async (req, res) => {
     .order("created_at", { ascending: false });
 
   if (error) {
+    if (isMissingTableError(error)) {
+      logger.warn({ callerId }, "GET saved: saved_auctions table missing — run migration 015");
+      res.json({ auctions: [] });
+      return;
+    }
     logger.error({ err: error.message, callerId }, "GET saved: query failed");
     res.status(500).json({ error: "FETCH_FAILED", message: "Could not fetch saved auctions." });
     return;
@@ -122,6 +146,11 @@ router.post("/auctions/:auctionId/save", requireAuth, async (req, res) => {
     );
 
   if (error) {
+    if (isMissingTableError(error)) {
+      logger.warn({ callerId, auctionId }, "POST save: saved_auctions table missing — run migration 015");
+      res.status(503).json(TABLE_NOT_READY_RESPONSE);
+      return;
+    }
     logger.error({ err: error.message, callerId, auctionId }, "POST save: upsert failed");
     res.status(500).json({ error: "SAVE_FAILED", message: "Could not save auction." });
     return;
@@ -155,6 +184,11 @@ router.delete("/auctions/:auctionId/save", requireAuth, async (req, res) => {
     .eq("auction_id", auctionId);
 
   if (error) {
+    if (isMissingTableError(error)) {
+      logger.warn({ callerId, auctionId }, "DELETE save: saved_auctions table missing — run migration 015");
+      res.status(503).json(TABLE_NOT_READY_RESPONSE);
+      return;
+    }
     logger.error({ err: error.message, callerId, auctionId }, "DELETE save: delete failed");
     res.status(500).json({ error: "UNSAVE_FAILED", message: "Could not unsave auction." });
     return;

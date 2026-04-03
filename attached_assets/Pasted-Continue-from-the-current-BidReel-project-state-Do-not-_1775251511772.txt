@@ -1,0 +1,84 @@
+Continue from the current BidReel project state. Do not restart from scratch and do not re-audit the whole project from zero.
+
+Context:
+The recent audit already confirmed the following:
+- FCM native pipeline is already wired
+- FCM backend routes already exist
+- user_devices migration already exists
+- google-services.json is already placed correctly
+- saved auctions routes already exist
+- API base was unified
+- media cleanup is already production-safe on Supabase Storage
+- share URL bug was fixed
+- Flutter-only clickAction was removed
+- FIREBASE_SERVICE_ACCOUNT_JSON was documented in env examples
+
+Important:
+Do NOT switch focus to Cloudflare R2 right now.
+R2 migration is postponed for later.
+The priority now is to complete the remaining operational blockers and verify them end-to-end.
+
+Current blockers to finish now:
+1. FIREBASE_SERVICE_ACCOUNT_JSON must be properly supported and verified
+2. saved_auctions migration 015 must be confirmed and made production-safe
+3. VITE_PUBLIC_BASE_URL must be verified for Android share links
+4. VITE_API_URL must be verified for APK API calls
+
+Your task:
+Handle ONLY this phase now.
+
+Tasks:
+1. Inspect the current codebase and confirm the exact expected environment variables for:
+   - FIREBASE_SERVICE_ACCOUNT_JSON
+   - VITE_PUBLIC_BASE_URL
+   - VITE_API_URL
+
+2. Verify that all code paths actually consume those env vars correctly:
+   - push notification sending
+   - native/app API requests
+   - auction share URLs
+
+3. Inspect migration 015_saved_auctions.sql and verify:
+   - whether it is present
+   - whether the backend depends on it exactly as expected
+   - what table/index/policies/functions it creates
+   - whether save/unsave endpoints will fail if it is missing
+
+4. Produce an exact operator checklist for me with:
+   - which Replit Secrets I must add
+   - exact secret names
+   - exact example values/placeholders
+   - whether each one requires rebuilding the web app or restarting the API server
+
+5. Produce an exact Supabase checklist with:
+   - the exact SQL file/migration to run
+   - what success should look like after running it
+   - what DB objects should exist afterward
+
+6. Verify end-to-end readiness for these four flows:
+   - save auction
+   - unsave auction
+   - send push notification
+   - share auction link from Android app
+
+7. If anything is still incomplete in code, fix it directly.
+8. If code is already correct, do not refactor unnecessarily.
+9. Do not touch auth logic.
+10. Do not begin Cloudflare R2 migration yet.
+
+Output format required:
+At the end, give me exactly these sections:
+
+A. What you verified
+B. What code you changed
+C. What I must do manually in Replit
+D. What I must do manually in Supabase
+E. Exact test steps
+F. What is fully complete vs still pending
+
+Rules:
+- Be precise and production-safe
+- Do not speculate; inspect first
+- Do not re-open old architecture debates
+- Do not start R2 work in this phase
+- Minimize unnecessary changes

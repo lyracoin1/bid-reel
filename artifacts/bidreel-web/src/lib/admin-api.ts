@@ -5,11 +5,7 @@
  * All requests require the authenticated user to have is_admin=true.
  */
 
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
-const API_BASE = `${BASE}/api`;
-
-// Re-use the getToken helper from api-client
-import { getToken } from "./api-client";
+import { getToken, API_BASE } from "./api-client";
 
 async function adminHeaders(): Promise<Record<string, string>> {
   const token = await getToken();

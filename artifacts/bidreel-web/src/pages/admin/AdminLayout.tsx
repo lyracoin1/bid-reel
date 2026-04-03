@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, Gavel, Flag, BarChart3, LogOut, Shield, History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { clearAdminSession } from "./AdminGuard";
+import { clearAdminSession } from "./admin-session";
 
 interface NavItem {
   label: string;

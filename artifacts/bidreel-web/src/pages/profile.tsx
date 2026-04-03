@@ -9,7 +9,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { useCurrentUser, clearCurrentUserCache } from "@/hooks/use-current-user";
 import { useAuctions } from "@/hooks/use-auctions";
 import { getUserBidsApi, clearToken, deleteAccountApi, type ApiMyBidEntry } from "@/lib/api-client";
-import { clearAdminSession } from "@/pages/admin/AdminGuard";
+import { clearAdminSession } from "@/pages/admin/admin-session";
 import { getTimeRemaining } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { UserAvatar } from "@/components/ui/user-avatar";

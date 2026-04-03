@@ -3,11 +3,8 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShieldCheck, X, Loader2 } from "lucide-react";
 import { useLang } from "@/contexts/LanguageContext";
-import { setToken } from "@/lib/api-client";
-import { clearAdminSession, setAdminSession } from "@/pages/admin/AdminGuard";
-
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
-const API_BASE = `${BASE}/api`;
+import { setToken, API_BASE } from "@/lib/api-client";
+import { clearAdminSession, setAdminSession } from "@/pages/admin/admin-session";
 
 interface LoginResponse {
   token: string;

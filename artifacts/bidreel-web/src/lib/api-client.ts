@@ -16,7 +16,18 @@
 import { getValidSessionToken, setSessionToken, clearSessionToken } from "./session";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
-const API_BASE = `${BASE}/api`;
+
+/**
+ * API_BASE resolution order:
+ *  1. VITE_API_URL build-time env var — used for standalone Android/iOS APK builds
+ *     where there is no Replit proxy.  Set to the full base URL of the API server
+ *     (e.g. https://your-api.replit.app/api) when running `pnpm run android:build`.
+ *  2. Relative path `<BASE>/api` — used in the web app where the Replit proxy routes
+ *     /api/* to the Express server on the same domain.
+ */
+export const API_BASE: string =
+  (import.meta.env["VITE_API_URL"] as string | undefined)?.replace(/\/$/, "") ??
+  `${BASE}/api`;
 
 // ─── Token management ─────────────────────────────────────────────────────────
 

@@ -21,25 +21,7 @@ import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
-
-const SESSION_KEY = "bidreel_admin_ts";
-const SESSION_DURATION_MS = 15 * 60 * 1000;
-
-export function isAdminSessionValid(): boolean {
-  const raw = sessionStorage.getItem(SESSION_KEY);
-  if (!raw) return false;
-  const ts = Number(raw);
-  if (Number.isNaN(ts)) return false;
-  return Date.now() - ts < SESSION_DURATION_MS;
-}
-
-export function setAdminSession(): void {
-  sessionStorage.setItem(SESSION_KEY, String(Date.now()));
-}
-
-export function clearAdminSession(): void {
-  sessionStorage.removeItem(SESSION_KEY);
-}
+import { isAdminSessionValid } from "./admin-session";
 
 interface AdminGuardProps {
   children: React.ReactNode;

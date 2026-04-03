@@ -1,0 +1,101 @@
+Fix and align the BidReel backend and admin panel with the actual live Supabase database schema. Use the real schema as the source of truth.
+
+From the current database inspection, enforce correctness across all layers.
+
+CRITICAL TASK: Fix "Failed to fetch auctions" and all schema mismatches.
+
+STEP 1 — ALIGN FIELD NAMING
+
+* Ensure backend uses exact DB column names:
+
+  * seller_id (not sellerId)
+  * current_bid
+  * start_price
+  * min_increment
+  * currency_code
+  * currency_label
+  * lat / lng
+* Ensure frontend correctly maps API response fields (camelCase vs snake_case)
+
+STEP 2 — FIX ADMIN AUCTIONS FETCH
+Trace the full chain:
+frontend → API → DB
+
+Check:
+
+* API endpoint used by /admin/auctions
+* auth headers
+* admin middleware
+* SQL query used
+* response shape
+* frontend mapping
+
+Fix:
+
+* any broken query
+* any join issue
+* any missing field mapping
+* any error handling
+
+Ensure auctions load correctly with:
+
+* seller info (via profiles)
+* price fields
+* status
+* currency
+* location
+
+STEP 3 — VERIFY RLS / PERMISSIONS
+
+* check if Supabase RLS is enabled
+* ensure admin requests can read auctions, profiles, bids, reports
+* if needed, adjust policies safely (do not expose to non-admins)
+
+STEP 4 — ADD OR VERIFY FOREIGN KEY RELATIONS
+Ensure proper relationships:
+
+* bids.auction_id → auctions.id
+* bids.bidder_id → profiles.id
+* auctions.seller_id → profiles.id
+* reports.auction_id → auctions.id
+* reports.reporter_id → profiles.id
+
+If missing:
+
+* add constraints safely
+* do not break existing data
+
+STEP 5 — HARDEN ADMIN DATA FLOW
+
+* all admin pages must fetch real data from backend
+* backend must query Supabase directly
+* no mock data
+* no empty placeholders
+
+STEP 6 — VALIDATE CURRENCY LOGIC IN DB
+
+* ensure currency_code is stored correctly
+* ensure no conversion logic exists in backend
+* ensure API returns stored values only
+
+STEP 7 — VERIFY LOCATION FIELDS
+
+* ensure lat/lng always returned
+* ensure no null issues break UI
+* ensure admin panel displays them if needed
+
+STEP 8 — FINAL VERIFICATION
+After fixes:
+
+* /admin/auctions must load real auctions
+* no "Failed to fetch auctions"
+* data must match DB exactly
+* no missing fields
+* no undefined values
+
+RETURN:
+
+* exact root cause of fetch failure
+* exact files changed
+* SQL queries used
+* confirmation that admin panel now reads directly from Supabase-backed data

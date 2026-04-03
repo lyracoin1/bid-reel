@@ -45,9 +45,13 @@ export interface AdminStats {
   totalUsers: number;
   totalAuctions: number;
   activeAuctions: number;
+  endedAuctions: number;
   removedAuctions: number;
   totalBids: number;
+  totalReports: number;
   openReports: number;
+  resolvedReports: number;
+  dismissedReports: number;
   bannedUsers: number;
   totalAdmins: number;
 }
@@ -98,6 +102,10 @@ export interface AdminAuction {
   startsAt: string | null;
   endsAt: string;
   createdAt: string;
+  currencyCode: string;
+  currencyLabel: string;
+  lat: number | null;
+  lng: number | null;
   seller: { id: string; displayName: string | null } | null;
 }
 

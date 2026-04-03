@@ -11,11 +11,13 @@ function formatDate(iso: string) {
 }
 
 const ACTION_LABELS: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  ban_user:        { label: "حظر مستخدم",     color: "text-red-400",    bg: "bg-red-500/15",    border: "border-red-500/30" },
-  unban_user:      { label: "رفع الحظر",       color: "text-emerald-400", bg: "bg-emerald-500/15", border: "border-emerald-500/30" },
-  remove_auction:  { label: "إزالة مزاد",      color: "text-amber-400",  bg: "bg-amber-500/15",  border: "border-amber-500/30" },
-  dismiss_report:  { label: "رفض بلاغ",        color: "text-gray-400",   bg: "bg-gray-500/15",   border: "border-gray-500/30" },
-  resolve_report:  { label: "حل بلاغ",         color: "text-blue-400",   bg: "bg-blue-500/15",   border: "border-blue-500/30" },
+  ban_user:        { label: "حظر مستخدم",     color: "text-red-400",      bg: "bg-red-500/15",      border: "border-red-500/30" },
+  unban_user:      { label: "رفع الحظر",       color: "text-emerald-400",  bg: "bg-emerald-500/15",  border: "border-emerald-500/30" },
+  remove_auction:  { label: "إزالة مزاد",      color: "text-amber-400",    bg: "bg-amber-500/15",    border: "border-amber-500/30" },
+  dismiss_report:  { label: "رفض بلاغ",        color: "text-gray-400",     bg: "bg-gray-500/15",     border: "border-gray-500/30" },
+  resolve_report:  { label: "حل بلاغ",         color: "text-blue-400",     bg: "bg-blue-500/15",     border: "border-blue-500/30" },
+  promote_admin:   { label: "ترقية أدمن",      color: "text-violet-400",   bg: "bg-violet-500/15",   border: "border-violet-500/30" },
+  demote_admin:    { label: "إزالة صلاحيات",   color: "text-orange-400",   bg: "bg-orange-500/15",   border: "border-orange-500/30" },
 };
 
 const TARGET_ICONS: Record<string, React.ReactNode> = {

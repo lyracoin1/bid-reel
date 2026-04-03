@@ -35,7 +35,7 @@ adminRouter.use(requireAuth, requireAdmin);
 
 // ─── Helper: log an admin action to the audit table ──────────────────────────
 
-type AdminActionType = "ban_user" | "unban_user" | "remove_auction" | "dismiss_report" | "resolve_report";
+type AdminActionType = "ban_user" | "unban_user" | "remove_auction" | "dismiss_report" | "resolve_report" | "promote_admin" | "demote_admin";
 type AdminTargetType = "user" | "auction" | "report";
 
 async function logAdminAction(
@@ -61,18 +61,26 @@ adminRouter.get("/stats", async (_req, res) => {
       usersResult,
       auctionsResult,
       activeResult,
+      endedResult,
       removedResult,
       bidsResult,
-      reportsResult,
+      totalReportsResult,
+      openReportsResult,
+      resolvedReportsResult,
+      dismissedReportsResult,
       bannedResult,
       adminCountResult,
     ] = await Promise.all([
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }),
       supabaseAdmin.from("auctions").select("id", { count: "exact", head: true }),
       supabaseAdmin.from("auctions").select("id", { count: "exact", head: true }).eq("status", "active"),
+      supabaseAdmin.from("auctions").select("id", { count: "exact", head: true }).eq("status", "ended"),
       supabaseAdmin.from("auctions").select("id", { count: "exact", head: true }).eq("status", "removed"),
       supabaseAdmin.from("bids").select("id", { count: "exact", head: true }),
+      supabaseAdmin.from("reports").select("id", { count: "exact", head: true }),
       supabaseAdmin.from("reports").select("id", { count: "exact", head: true }).eq("status", "pending"),
+      supabaseAdmin.from("reports").select("id", { count: "exact", head: true }).in("status", ["reviewed", "actioned"]),
+      supabaseAdmin.from("reports").select("id", { count: "exact", head: true }).eq("status", "dismissed"),
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).eq("is_banned", true),
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).eq("is_admin", true),
     ]);
@@ -81,9 +89,13 @@ adminRouter.get("/stats", async (_req, res) => {
       totalUsers: usersResult.count ?? 0,
       totalAuctions: auctionsResult.count ?? 0,
       activeAuctions: activeResult.count ?? 0,
+      endedAuctions: endedResult.count ?? 0,
       removedAuctions: removedResult.count ?? 0,
       totalBids: bidsResult.count ?? 0,
-      openReports: reportsResult.count ?? 0,
+      totalReports: totalReportsResult.count ?? 0,
+      openReports: openReportsResult.count ?? 0,
+      resolvedReports: resolvedReportsResult.count ?? 0,
+      dismissedReports: dismissedReportsResult.count ?? 0,
       bannedUsers: bannedResult.count ?? 0,
       totalAdmins: adminCountResult.count ?? 0,
     });
@@ -162,6 +174,11 @@ adminRouter.patch("/users/:id", async (req, res) => {
     } else if (isBanned === false) {
       await logAdminAction(req.user!.id, "unban_user", "user", id);
     }
+    if (role === "admin") {
+      await logAdminAction(req.user!.id, "promote_admin", "user", id);
+    } else if (role === "user") {
+      await logAdminAction(req.user!.id, "demote_admin", "user", id);
+    }
 
     res.json({
       user: {
@@ -184,20 +201,22 @@ adminRouter.patch("/users/:id", async (req, res) => {
 
 adminRouter.get("/auctions", async (_req, res) => {
   try {
+    // Use select("*") to avoid hard-coding column names that differ between
+    // schema versions (current_bid vs current_price after migration 009).
+    // Seller is fetched via a separate join alias.
     const { data, error } = await supabaseAdmin
       .from("auctions")
-      .select(`
-        id, title, category, status, start_price,
-        current_price, bid_count,
-        starts_at, ends_at, created_at,
-        seller:profiles!seller_id(id, display_name)
-      `)
+      .select("*, seller:profiles!seller_id(id, display_name)")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
 
     const auctions = (data ?? []).map((row: Record<string, unknown>) => {
-      const currentBid = (row["current_price"] as number | null) ?? 0;
+      // Normalize price column — supports both pre- and post-migration 009 schemas
+      const currentBid =
+        (row["current_bid"] as number | null) ??
+        (row["current_price"] as number | null) ??
+        0;
       const seller = row["seller"] as { id: string; display_name: string | null } | null;
       return {
         id: row["id"],
@@ -206,10 +225,14 @@ adminRouter.get("/auctions", async (_req, res) => {
         status: row["status"],
         startPrice: row["start_price"],
         currentBid,
-        bidCount: row["bid_count"],
+        bidCount: row["bid_count"] ?? 0,
         startsAt: row["starts_at"],
         endsAt: row["ends_at"],
         createdAt: row["created_at"],
+        currencyCode: (row["currency_code"] as string | null) ?? "USD",
+        currencyLabel: (row["currency_label"] as string | null) ?? "US Dollar",
+        lat: row["lat"] ?? null,
+        lng: row["lng"] ?? null,
         seller: seller ? { id: seller.id, displayName: seller.display_name } : null,
       };
     });

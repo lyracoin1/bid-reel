@@ -30,7 +30,7 @@ export function AdminLayout({ children, title }: AdminLayoutProps) {
 
   function handleLogout() {
     clearAdminSession();
-    setLocation("/feed");
+    setLocation("/login");
   }
 
   return (

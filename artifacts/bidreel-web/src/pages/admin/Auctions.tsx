@@ -21,8 +21,17 @@ function formatDate(iso: string | null) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function formatPrice(n: number) {
-  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+function formatPrice(n: number, currencyCode = "USD") {
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currencyCode,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(n);
+  } catch {
+    return `${currencyCode} ${n.toLocaleString("en-US")}`;
+  }
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -207,7 +216,7 @@ export default function AdminAuctions() {
                     <div className="text-xs text-gray-500">{a.category} · {a.bidCount} مزايدة</div>
                   </td>
                   <td className="px-4 py-3.5 text-gray-300 text-xs">{a.seller?.displayName ?? "—"}</td>
-                  <td className="px-4 py-3.5 text-white font-semibold">{formatPrice(a.currentBid)}</td>
+                  <td className="px-4 py-3.5 text-white font-semibold">{formatPrice(a.currentBid, a.currencyCode)}</td>
                   <td className="px-4 py-3.5">
                     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold border ${STATUS_STYLES[a.status] ?? "bg-gray-700 text-gray-300"}`}>
                       {STATUS_LABELS[a.status] ?? a.status}

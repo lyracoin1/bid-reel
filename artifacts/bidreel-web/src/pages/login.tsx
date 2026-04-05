@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { ShieldCheck, X, Loader2 } from "lucide-react";
+import { ShieldCheck, X, Loader2, HelpCircle } from "lucide-react";
 import { useLang } from "@/contexts/LanguageContext";
 import { setToken, API_BASE } from "@/lib/api-client";
 import { clearAdminSession, setAdminSession } from "@/pages/admin/admin-session";
@@ -237,16 +237,6 @@ export default function Login() {
               >
                 {loading ? copy.submitting : copy.submit}
               </button>
-
-              {/* Admin login entry point */}
-              <button
-                type="button"
-                onClick={() => { setShowAdmin(true); setError(null); }}
-                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-white/8 bg-white/3 text-sm font-semibold text-white/40 hover:text-white/65 hover:bg-white/5 hover:border-white/15 transition-all"
-              >
-                <ShieldCheck size={15} className="opacity-70" />
-                دخول الأدمن
-              </button>
             </motion.form>
 
           ) : (
@@ -356,6 +346,27 @@ export default function Login() {
           )}
         </AnimatePresence>
       </div>
+
+      {/*
+        ── Hidden admin access trigger ──────────────────────────────────────────
+        Styled as a standard support/help floating widget so it blends into the
+        UI without drawing attention. No text, no "Admin" label, no role hint.
+        Single tap opens the admin login panel directly.
+        Fixed bottom-right with safe-area inset so it clears the home indicator
+        on modern Android/iOS devices.
+      */}
+      <motion.button
+        type="button"
+        aria-label="Support"
+        onClick={() => { setShowAdmin(true); setError(null); }}
+        whileTap={{ scale: 0.88 }}
+        className="fixed z-50 right-5 bottom-8 w-12 h-12 rounded-full flex items-center justify-center
+          bg-white/5 border border-white/10 text-white/25
+          active:bg-white/10 active:text-white/40 transition-colors"
+        style={{ bottom: "max(32px, calc(env(safe-area-inset-bottom, 0px) + 20px))" }}
+      >
+        <HelpCircle size={20} strokeWidth={1.5} />
+      </motion.button>
     </div>
   );
 }

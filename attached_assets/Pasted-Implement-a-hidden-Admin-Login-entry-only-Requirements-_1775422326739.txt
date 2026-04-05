@@ -1,0 +1,52 @@
+Implement a **hidden Admin Login entry only**.
+
+Requirements:
+
+* Create a small floating trigger in the **bottom-right corner** of the screen.
+* It should behave visually like a support/help/chat widget button fixed in the lower-right corner.
+* This trigger is **for Admin Login only**.
+* Do not create access for normal users.
+* Do not show any visible text such as “Admin”, “Login”, “Dashboard”, or “Control Panel”.
+* Make it discreet and minimal.
+* Keep it always aligned properly on mobile screens.
+* Make sure it does not break the existing UI layout.
+
+Behavior:
+
+* When the bottom-right floating trigger is pressed, open the **Admin Login page only**.
+* Do not route to user login.
+* Do not show extra options or role selection.
+* Do not ask whether the user is admin or normal user.
+* Directly open the Admin Login screen.
+
+Design constraints:
+
+* Place it exactly in the lower-right corner with proper mobile spacing.
+* Make it feel like a floating support widget.
+* Keep the size suitable for mobile touch.
+* Do not let it overlap important navigation or core content.
+* It must work with mobile-first layout as the default.
+* Web adaptation is secondary.
+
+Technical constraints:
+
+* Preserve all existing brand colors and logo.
+* Do not redesign the app.
+* Do not modify user login flow.
+* Do not remove existing admin authentication logic.
+* Only add or connect this floating hidden access point to the Admin Login page.
+
+Implementation instructions:
+
+* Add the floating button component.
+* Fix its position to the bottom-right corner.
+* Ensure proper z-index / layering so it stays accessible.
+* Connect its click action directly to the Admin Login page.
+* Keep the implementation clean and production-ready.
+* Make sure this applies across the app wherever appropriate for the mobile interface.
+
+Final output:
+
+* Implement the floating bottom-right Admin Login trigger.
+* Confirm that pressing it opens **Admin Login only**.
+* Confirm that no normal-user login is attached to this floating entry.

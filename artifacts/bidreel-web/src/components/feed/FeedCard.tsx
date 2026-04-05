@@ -47,7 +47,6 @@ function WhatsAppIcon() {
   );
 }
 
-/* TikTok-style send/share arrow — paper-plane silhouette, thin & clean */
 function TikTokShareIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.95)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -163,9 +162,13 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         </div>
       )}
 
-      {/* ── Top: seller pill + timer ───────────────────────────────────────── */}
-      <div className="absolute top-0 left-0 right-0 z-20 pt-12 px-4 flex items-center justify-between gap-2">
-        {/* Left: avatar pill (tap → profile) */}
+      {/* ── Top bar: seller pill (left) + timer pill (right) ─────────────── */}
+      {/* paddingTop respects Android status bar / notch via safe-area-inset-top */}
+      <div
+        className="absolute top-0 left-0 right-0 z-20 px-4 flex items-center justify-between gap-2"
+        style={{ paddingTop: "max(48px, calc(env(safe-area-inset-top, 0px) + 12px))" }}
+      >
+        {/* Left: avatar pill (tap → seller profile) */}
         <button
           className="flex items-center gap-2 bg-black/40 backdrop-blur-md border border-white/10 rounded-full pl-1 pr-3 py-1 active:scale-95 transition-transform shrink-0"
           onClick={(e) => { e.stopPropagation(); setLocation(`/users/${auction.seller.id}`); }}
@@ -181,29 +184,38 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         </div>
       </div>
 
-      {/* ── Top-right utility controls: album badge / mute / menu ─────────── */}
-      <div className="absolute top-14 right-3 z-20 flex flex-col items-end gap-2">
+      {/* ── Top-right utility row: album badge / mute / menu ──────────────── */}
+      {/* Minimum 44dp (w-11 h-11) touch targets on all interactive controls. */}
+      <div
+        className="absolute right-3 z-20 flex flex-col items-end gap-2"
+        style={{ top: "max(104px, calc(env(safe-area-inset-top, 0px) + 68px))" }}
+      >
         {!isVideo && auction.type === "album" && (auction.images?.length ?? 0) > 1 && (
+          /* Album badge — non-interactive, 32dp visual size is fine */
           <div className="w-8 h-8 rounded-lg bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white pointer-events-none">
             <AlbumIcon size={16} />
           </div>
         )}
         {isVideo && (
+          /* Mute — 44dp touch target, 18dp icon */
           <button
             onClick={(e) => { e.stopPropagation(); setIsMuted((m) => !m); }}
-            className="w-8 h-8 rounded-lg bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white active:scale-90 transition-transform"
+            className="w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white active:scale-90 transition-transform"
             aria-label={isMuted ? "Unmute" : "Mute"}
           >
-            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
           </button>
         )}
+        {/* 3-dot menu — 44dp touch target */}
         <AuctionMenu auctionId={auction.id} auctionTitle={auction.title} mediaUrl={auction.mediaUrl} isOwner={isOwner} />
       </div>
 
-      {/* ── LEFT action stack (TikTok style) ──────────────────────────────── */}
-      {/*   direction: ltr is explicit — never mirrors on RTL layouts          */}
+      {/* ── RIGHT action stack (TikTok/Reels convention) ──────────────────── */}
+      {/*   Placed on the right side — the natural thumb zone for right-handed  */}
+      {/*   users (90 % of population). LTR direction is explicit so it never   */}
+      {/*   mirrors on Arabic / RTL layouts.                                    */}
       <div
-        className="absolute left-3 bottom-32 z-20 flex flex-col items-center gap-4"
+        className="absolute right-3 bottom-36 z-20 flex flex-col items-center gap-4"
         style={{ direction: "ltr" }}
       >
 
@@ -216,14 +228,12 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
             onClick={(e) => { e.stopPropagation(); toggleFollow(auction.seller.id); }}
             aria-label={following ? "Following" : "Follow"}
           >
-            {/* circular avatar */}
             <div className={cn(
               "w-12 h-12 rounded-full overflow-hidden border-2 transition-all duration-200",
               following ? "border-[#0ea5e9]" : "border-white/60"
             )}>
               <UserAvatar src={auction.seller.avatar || null} name={auction.seller.name} size={48} />
             </div>
-            {/* "+" badge — shown only when not following */}
             <AnimatePresence>
               {!following && (
                 <motion.div
@@ -312,7 +322,7 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
           <span className="text-[11px] font-semibold text-white/80">{t("share")}</span>
         </motion.button>
 
-        {/* 6. Primary CTA — Bid or Bell (remind me) */}
+        {/* 6. Primary CTA — Bid (active) or Bell (upcoming) */}
         {state === "upcoming" ? (
           <motion.button
             whileTap={{ scale: 0.88 }}
@@ -356,9 +366,9 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
       </div>
 
       {/* ── Bottom info area ───────────────────────────────────────────────── */}
-      {/* left-[76px] leaves room for the 48px action stack at left-3 + gap   */}
+      {/* right-[76px] leaves room for the 48px action stack at right-3 + gap  */}
       <div
-        className="absolute bottom-[7.5rem] left-[76px] right-4 z-10 flex flex-col gap-2 cursor-pointer"
+        className="absolute bottom-36 left-4 right-[76px] z-10 flex flex-col gap-2 cursor-pointer"
         onClick={() => setLocation(`/auction/${auction.id}`)}
       >
         <h2 className="text-[21px] font-bold text-white leading-snug line-clamp-2 drop-shadow-sm">

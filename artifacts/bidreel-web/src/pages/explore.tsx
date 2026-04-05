@@ -311,18 +311,22 @@ export default function Explore() {
                           animate={{ opacity: 1, x: 0 }}
                           exit={{ opacity: 0, x: -8 }}
                           onClick={() => handleTagClick(term)}
-                          className="flex items-center justify-between w-full px-4 py-3 rounded-xl bg-white/5 border border-white/8 hover:bg-white/8 transition-colors group"
+                          className="flex items-center justify-between w-full px-4 py-3 rounded-xl bg-white/5 border border-white/8 active:bg-white/8 transition-colors"
                         >
                           <div className="flex items-center gap-3">
                             <Clock size={13} className="text-white/30 shrink-0" />
                             <span className="text-sm text-white/70 font-medium capitalize">{term}</span>
                           </div>
-                          <button
+                          {/*
+                            Always visible on touch screens — no hover state on mobile.
+                            44dp touch target (w-11 h-11) wraps the small X icon.
+                          */}
+                          <div
                             onClick={(e) => removeRecent(term, e)}
-                            className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-white/15 transition opacity-0 group-hover:opacity-100 shrink-0"
+                            className="w-11 h-11 flex items-center justify-center rounded-full active:bg-white/15 transition shrink-0 -mr-3"
                           >
-                            <X size={10} className="text-white/50" />
-                          </button>
+                            <X size={14} className="text-white/40" />
+                          </div>
                         </motion.button>
                       ))}
                     </div>

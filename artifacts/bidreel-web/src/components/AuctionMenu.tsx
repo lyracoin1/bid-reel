@@ -276,9 +276,14 @@ export function AuctionMenu({
   return (
     <>
       {/* ── Trigger button — stays in component tree ── */}
+      {/*
+        Touch target: 44dp (w-11 h-11) — Android minimum for comfortable tapping.
+        Icon stays at 17dp for visual proportion; the larger button area absorbs
+        off-centre touches without triggering adjacent controls.
+      */}
       <button
         onClick={(e) => { e.stopPropagation(); setSheet("menu"); }}
-        className="w-9 h-9 rounded-full bg-black/50 backdrop-blur-md border border-white/15 flex items-center justify-center text-white active:scale-90 transition-transform"
+        className="w-11 h-11 rounded-full bg-black/50 backdrop-blur-md border border-white/15 flex items-center justify-center text-white active:scale-90 transition-transform"
         aria-label="خيارات"
       >
         <MoreVertical size={17} />

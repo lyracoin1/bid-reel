@@ -38,10 +38,10 @@ export default function Login() {
     title:      lang === "ar" ? "مرحباً بك في BidReel" : "Welcome to BidReel",
     subtitle:   lang === "ar" ? "أدخل رقم هاتفك لتسجيل الدخول" : "Enter your phone number to sign in",
     phoneLbl:   lang === "ar" ? "رقم الهاتف" : "Phone number",
-    phonePh:    lang === "ar" ? "مثال: 01060088141" : "e.g. 01060088141 or +14155550001",
+    phonePh:    lang === "ar" ? "رقم الهاتف" : "Phone number",
     phoneHint:  lang === "ar"
-      ? "أدخل الرقم المحلي أو الدولي — لا حاجة لكود البلد إذا كنت في مصر"
-      : "Local or international format. Egyptian numbers (01…) are accepted as-is.",
+      ? "أدخل رقم هاتفك المحلي أو الدولي"
+      : "Enter your local or international phone number.",
     submit:     lang === "ar" ? "دخول" : "Sign in",
     submitting: lang === "ar" ? "جارٍ الدخول…" : "Signing in…",
     tooShort:   lang === "ar" ? "رقم الهاتف قصير جداً" : "Phone number is too short",
@@ -286,7 +286,7 @@ export default function Login() {
                   inputMode="tel"
                   value={adminPhone}
                   onChange={e => { setAdminPhone(e.target.value); setAdminError(null); }}
-                  placeholder="مثال: 01060088141"
+                  placeholder="رقم الهاتف"
                   autoFocus
                   autoComplete="tel"
                   className="w-full bg-muted/40 border border-border rounded-xl px-4 py-3.5 text-white text-base placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition"

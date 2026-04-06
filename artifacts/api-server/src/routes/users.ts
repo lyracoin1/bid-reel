@@ -1,10 +1,11 @@
 /**
  * User profile routes
  *
- * GET    /api/users/me          — own full profile (authenticated)
- * PATCH  /api/users/me          — update own profile fields
- * GET    /api/users/me/bids     — auctions the caller has bid on (leading/outbid)
- * GET    /api/users/:userId     — another user's public profile
+ * GET    /api/users/me                — own full profile (authenticated)
+ * PATCH  /api/users/me                — update own profile fields
+ * GET    /api/users/me/bids           — auctions the caller has bid on
+ * GET    /api/users/check-username    — check username availability (authenticated)
+ * GET    /api/users/:userId           — another user's public profile
  *
  * NOTE: The former POST /api/users/me/activate-admin endpoint has been
  * permanently removed. Admin access is granted exclusively through
@@ -19,9 +20,22 @@ import {
   getOwnProfile,
   getPublicProfile,
   updateProfile,
+  UsernameTakenError,
 } from "../lib/profiles";
 import { getBidderCol, getBidderUserId } from "../lib/dbSchema";
 import { logger } from "../lib/logger";
+
+// ─── Shared username schema ────────────────────────────────────────────────────
+// 3–30 characters; lowercase letters, digits, underscores.
+// No leading/trailing underscores.  Examples: john_doe, bidder99
+const usernameSchema = z
+  .string()
+  .min(3, "Username must be at least 3 characters")
+  .max(30, "Username must be 30 characters or fewer")
+  .regex(
+    /^[a-z0-9][a-z0-9_]{1,28}[a-z0-9]$|^[a-z0-9]{3}$/,
+    "Username may only contain lowercase letters, numbers, and underscores, and cannot start or end with an underscore",
+  );
 
 const router: IRouter = Router();
 
@@ -45,15 +59,20 @@ router.get("/users/me", requireAuth, async (req, res) => {
 });
 
 // ─── PATCH /api/users/me ──────────────────────────────────────────────────────
-// Update safe profile fields: displayName, avatarUrl, bio.
+// Update safe profile fields: username, displayName, avatarUrl, bio.
 // Protected fields (is_admin, is_banned, phone) are silently stripped.
+// Username uniqueness is enforced: 409 is returned if already taken.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const updateProfileSchema = z.object({
+  username: usernameSchema
+    .transform(v => v.toLowerCase().trim())
+    .optional(),
   displayName: z
     .string()
     .min(2, "Display name must be at least 2 characters")
     .max(50, "Display name must be 50 characters or fewer")
+    .trim()
     .optional(),
   avatarUrl: z
     .string()
@@ -62,6 +81,7 @@ const updateProfileSchema = z.object({
   bio: z
     .string()
     .max(300, "Bio must be 300 characters or fewer")
+    .trim()
     .optional(),
 });
 
@@ -79,7 +99,7 @@ router.patch("/users/me", requireAuth, async (req, res) => {
   if (Object.keys(parsed.data).length === 0) {
     res.status(400).json({
       error: "EMPTY_UPDATE",
-      message: "Provide at least one field to update: displayName, avatarUrl, or bio.",
+      message: "Provide at least one field to update: username, displayName, avatarUrl, or bio.",
     });
     return;
   }
@@ -88,6 +108,13 @@ router.patch("/users/me", requireAuth, async (req, res) => {
   try {
     profile = await updateProfile(req.user!.id, parsed.data);
   } catch (err) {
+    if (err instanceof UsernameTakenError) {
+      res.status(409).json({
+        error: err.code,
+        message: err.message,
+      });
+      return;
+    }
     req.log.error({ err }, "Profile update failed");
     res.status(500).json({
       error: "UPDATE_FAILED",
@@ -105,6 +132,34 @@ router.patch("/users/me", requireAuth, async (req, res) => {
   }
 
   res.json({ user: profile });
+});
+
+// ─── GET /api/users/check-username ────────────────────────────────────────────
+// Real-time availability check. Returns { available: true/false }.
+// Requires auth so anonymous bots cannot enumerate taken usernames.
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.get("/users/check-username", requireAuth, async (req, res) => {
+  const raw = typeof req.query["username"] === "string" ? req.query["username"].toLowerCase().trim() : "";
+
+  const parsed = usernameSchema.safeParse(raw);
+  if (!parsed.success) {
+    res.status(400).json({
+      error: "INVALID_USERNAME",
+      message: parsed.error.issues[0]?.message ?? "Invalid username format",
+      available: false,
+    });
+    return;
+  }
+
+  const { data: existing } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .ilike("username", parsed.data)
+    .neq("id", req.user!.id)
+    .maybeSingle();
+
+  res.json({ available: !existing });
 });
 
 // ─── GET /api/users/me/bids ───────────────────────────────────────────────────

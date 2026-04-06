@@ -8,6 +8,7 @@ import { supabaseAdmin } from "./supabase";
  */
 export interface OwnProfile {
   id: string;
+  username: string | null;
   displayName: string | null;
   avatarUrl: string | null;
   bio: string | null;
@@ -26,6 +27,7 @@ export interface OwnProfile {
  */
 export interface PublicProfile {
   id: string;
+  username: string | null;
   displayName: string | null;
   avatarUrl: string | null;
   bio: string | null;
@@ -39,6 +41,7 @@ export interface PublicProfile {
 
 interface ProfileRow {
   id: string;
+  username: string | null;
   display_name: string | null;
   avatar_url: string | null;
   bio: string | null;
@@ -49,7 +52,7 @@ interface ProfileRow {
 
 // ─── Column selects ──────────────────────────────────────────────────────────
 
-const PROFILE_COLS = "id, display_name, avatar_url, bio, is_admin, is_banned, created_at";
+const PROFILE_COLS = "id, username, display_name, avatar_url, bio, is_admin, is_banned, created_at";
 
 // ─── Typed errors ─────────────────────────────────────────────────────────────
 
@@ -126,6 +129,7 @@ async function fetchProfileStats(userId: string): Promise<{
 function toOwnProfile(row: ProfileRow, stats: Awaited<ReturnType<typeof fetchProfileStats>>): OwnProfile {
   return {
     id: row.id,
+    username: row.username,
     displayName: row.display_name,
     avatarUrl: row.avatar_url,
     bio: row.bio,
@@ -138,6 +142,7 @@ function toOwnProfile(row: ProfileRow, stats: Awaited<ReturnType<typeof fetchPro
 function toPublicProfile(row: ProfileRow, stats: Awaited<ReturnType<typeof fetchProfileStats>>): PublicProfile {
   return {
     id: row.id,
+    username: row.username,
     displayName: row.display_name,
     avatarUrl: row.avatar_url,
     bio: row.bio,
@@ -236,12 +241,22 @@ export async function getPublicProfile(userId: string): Promise<PublicProfile | 
 
 /**
  * Update the authenticated user's own profile.
- * Only allows safe fields: display_name, avatar_url, bio.
+ * Allowed safe fields: username, display_name, avatar_url, bio.
+ * Username must already be validated and unique-checked by the caller (route).
  */
 export interface UpdateProfileInput {
+  username?: string;
   displayName?: string;
   avatarUrl?: string;
   bio?: string;
+}
+
+export class UsernameTakenError extends Error {
+  readonly code = "USERNAME_TAKEN";
+  constructor(username: string) {
+    super(`The username "${username}" is already taken. Please choose another one.`);
+    this.name = "UsernameTakenError";
+  }
 }
 
 export async function updateProfile(
@@ -249,6 +264,25 @@ export async function updateProfile(
   input: UpdateProfileInput,
 ): Promise<OwnProfile | null> {
   const patch: Record<string, string | null> = {};
+
+  if (input.username !== undefined) {
+    const normalizedUsername = input.username.toLowerCase().trim();
+
+    if (normalizedUsername.length > 0) {
+      const { data: taken } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .ilike("username", normalizedUsername)
+        .neq("id", userId)
+        .maybeSingle();
+
+      if (taken) {
+        throw new UsernameTakenError(normalizedUsername);
+      }
+    }
+
+    patch["username"] = normalizedUsername || null;
+  }
 
   if (input.displayName !== undefined) patch["display_name"] = input.displayName;
   if (input.avatarUrl !== undefined) patch["avatar_url"] = input.avatarUrl;

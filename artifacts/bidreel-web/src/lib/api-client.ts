@@ -322,6 +322,7 @@ export async function uploadFileToStorage(
 
 export interface ApiUserProfile {
   id: string;
+  username: string | null;
   displayName: string | null;
   avatarUrl: string | null;
   bio: string | null;
@@ -347,6 +348,67 @@ export async function getUserMeApi(): Promise<ApiUserProfile> {
   }
   const data = await res.json() as { user: ApiUserProfile };
   return data.user;
+}
+
+// ─── Update own profile ───────────────────────────────────────────────────────
+
+export interface UpdateProfilePayload {
+  username?: string;
+  displayName?: string;
+  avatarUrl?: string;
+  bio?: string;
+}
+
+export class UsernameTakenError extends Error {
+  readonly code = "USERNAME_TAKEN";
+  constructor(message: string) {
+    super(message);
+    this.name = "UsernameTakenError";
+  }
+}
+
+export async function updateProfileApi(payload: UpdateProfilePayload): Promise<ApiUserProfile> {
+  const token = await getToken();
+  if (!token) {
+    redirectToLogin();
+    throw Object.assign(new Error("Not authenticated"), { code: "UNAUTHORIZED" });
+  }
+  const res = await fetch(`${API_BASE}/users/me`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (res.status === 401) {
+    redirectToLogin();
+    throw Object.assign(new Error("Session expired"), { code: "UNAUTHORIZED" });
+  }
+  if (res.status === 409) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new UsernameTakenError(err.message ?? "Username is already taken");
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to update profile");
+  }
+  const data = await res.json() as { user: ApiUserProfile };
+  return data.user;
+}
+
+/** Check whether a username is available for the current user.
+ *  Returns true if the username can be claimed. */
+export async function checkUsernameApi(username: string): Promise<boolean> {
+  const token = await getToken();
+  if (!token) return false;
+  const res = await fetch(
+    `${API_BASE}/users/check-username?username=${encodeURIComponent(username.toLowerCase())}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) return false;
+  const data = await res.json() as { available: boolean };
+  return data.available;
 }
 
 // ─── Public user profile ──────────────────────────────────────────────────────

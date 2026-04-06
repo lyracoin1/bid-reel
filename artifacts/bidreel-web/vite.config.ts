@@ -2,12 +2,11 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 const rawPort = process.env.PORT;
 
 // PORT is only required when running the dev/preview server.
-// During `vite build` (e.g. Capacitor Android build) it is optional.
+// During `vite build` (Vercel CI, Capacitor, etc.) it is optional.
 const isBuild = process.argv.includes("build");
 if (!rawPort && !isBuild) {
   throw new Error(
@@ -21,13 +20,27 @@ if (!Number.isNaN(port) && (port <= 0 || !Number.isInteger(port))) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-const basePath = process.env.BASE_PATH;
+// In Replit the artifact router injects BASE_PATH (e.g. "/bidreel-web") so the
+// app is served under a sub-path.  On Vercel / standalone deploys no prefix is
+// needed, so we default to "/" when the variable is absent.
+const basePath = process.env.BASE_PATH ?? "/";
 
-if (!basePath) {
-  throw new Error(
-    "BASE_PATH environment variable is required but was not provided.",
-  );
-}
+// Replit-specific plugins — only loaded when running inside Replit itself.
+// Never imported on Vercel or in Capacitor Android builds.
+const isReplit =
+  process.env.REPL_ID !== undefined || process.env.REPL_SLUG !== undefined;
+
+const replitPlugins = isReplit && !isBuild
+  ? await Promise.all([
+      import("@replit/vite-plugin-runtime-error-modal").then((m) =>
+        m.default(),
+      ),
+      import("@replit/vite-plugin-cartographer").then((m) =>
+        m.cartographer({ root: path.resolve(import.meta.dirname, "..") }),
+      ),
+      import("@replit/vite-plugin-dev-banner").then((m) => m.devBanner()),
+    ])
+  : [];
 
 export default defineConfig({
   base: basePath,
@@ -42,20 +55,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    runtimeErrorOverlay(),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
-      ? [
-          await import("@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer({
-              root: path.resolve(import.meta.dirname, ".."),
-            }),
-          ),
-          await import("@replit/vite-plugin-dev-banner").then((m) =>
-            m.devBanner(),
-          ),
-        ]
-      : []),
+    ...replitPlugins,
   ],
   resolve: {
     alias: {

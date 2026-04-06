@@ -18,6 +18,7 @@ export interface OwnProfile {
   followersCount: number;
   followingCount: number;
   isAdmin: boolean;
+  isCompleted: boolean;
   createdAt: string;
 }
 
@@ -36,6 +37,7 @@ export interface PublicProfile {
   followersCount: number;
   followingCount: number;
   isBanned: boolean;
+  isCompleted: boolean;
   createdAt: string;
 }
 
@@ -134,6 +136,9 @@ function toOwnProfile(row: ProfileRow, stats: Awaited<ReturnType<typeof fetchPro
     avatarUrl: row.avatar_url,
     bio: row.bio,
     isAdmin: row.is_admin ?? false,
+    // isCompleted is derived: a user is complete once they have set a username.
+    // This avoids a hard dependency on the is_completed DB column being present.
+    isCompleted: row.username !== null,
     createdAt: row.created_at,
     ...stats,
   };
@@ -147,6 +152,7 @@ function toPublicProfile(row: ProfileRow, stats: Awaited<ReturnType<typeof fetch
     avatarUrl: row.avatar_url,
     bio: row.bio,
     isBanned: row.is_banned ?? false,
+    isCompleted: row.username !== null,
     createdAt: row.created_at,
     ...stats,
   };

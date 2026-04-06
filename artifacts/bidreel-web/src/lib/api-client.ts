@@ -332,6 +332,8 @@ export interface ApiUserProfile {
   followersCount: number;
   followingCount: number;
   isAdmin: boolean;
+  /** true once the user has set a username (onboarding complete). */
+  isCompleted: boolean;
   createdAt: string;
 }
 

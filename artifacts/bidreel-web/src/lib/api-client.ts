@@ -14,20 +14,27 @@
  */
 
 import { getValidSessionToken, setSessionToken, clearSessionToken } from "./session";
+import { Capacitor } from "@capacitor/core";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
 
 /**
  * API_BASE resolution order:
- *  1. VITE_API_URL build-time env var — used for standalone Android/iOS APK builds
- *     where there is no Replit proxy.  Set to the full base URL of the API server
- *     (e.g. https://your-api.replit.app/api) when running `pnpm run android:build`.
+ *  1. VITE_API_URL build-time env var — ONLY used for native Capacitor (Android/iOS)
+ *     APK builds where there is no same-domain proxy.  Set to the full base URL of
+ *     the API server (e.g. https://your-api.replit.app/api) when building the APK.
  *  2. Relative path `<BASE>/api` — used in the web app where the Replit proxy routes
- *     /api/* to the Express server on the same domain.
+ *     /api/* to the Express server on the same domain.  This survives any domain
+ *     change automatically, so it is always preferred on web.
  */
-export const API_BASE: string =
-  (import.meta.env["VITE_API_URL"] as string | undefined)?.replace(/\/$/, "") ??
-  `${BASE}/api`;
+export const API_BASE: string = (() => {
+  const configured = (import.meta.env["VITE_API_URL"] as string | undefined)?.replace(/\/$/, "");
+  // Only honour VITE_API_URL when running inside a native Capacitor app (APK/IPA).
+  // On web, the API is always co-hosted on the same domain via the Replit proxy, so a
+  // relative path is correct and will never break due to a misconfigured env var.
+  if (configured && Capacitor.isNativePlatform()) return configured;
+  return `${BASE}/api`;
+})();
 
 // ─── Token management ─────────────────────────────────────────────────────────
 

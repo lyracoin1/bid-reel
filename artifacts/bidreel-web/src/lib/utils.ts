@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { differenceInSeconds } from "date-fns";
+import { Capacitor } from "@capacitor/core";
 
 // ── Auction state ────────────────────────────────────────────────────────────
 
@@ -71,20 +72,20 @@ export function getWhatsAppUrl(phone: string, itemTitle: string): string {
 /**
  * Returns the public-facing base URL to use when generating shareable links.
  *
- * On web: `window.location.origin` (e.g. https://bidreel.app)
- * On Android Capacitor: `window.location.origin` returns `https://localhost`
+ * On web: `window.location.origin` — always correct for any domain.
+ * On Android Capacitor: `window.location.origin` returns `capacitor://localhost`
  * which is meaningless when shared externally.
  *
- * Set VITE_PUBLIC_BASE_URL in your .env (and as a Replit Secret for builds)
- * to your deployed web domain, e.g. https://bidreel.app  or
- * https://your-replit-project.replit.app
- *
- * That value will be baked into the Android APK at build time and used
- * whenever the app generates a link to share via WhatsApp / system share.
+ * VITE_PUBLIC_BASE_URL is ONLY used in native Capacitor builds (APK/IPA).
+ * Set it to your deployed API domain (e.g. https://bidreel.replit.app) when
+ * running `pnpm run android:build`.  On web, window.location.origin is used
+ * directly and survives any domain change automatically.
  */
 export function getPublicBaseUrl(): string {
   const configured = (import.meta.env["VITE_PUBLIC_BASE_URL"] as string | undefined)?.replace(/\/$/, "");
-  if (configured) return configured;
-  // Fallback — works correctly on web but will be https://localhost on Android
+  // Only use the configured URL in native Capacitor context (APK/IPA).
+  // On web, window.location.origin is always the correct public domain and
+  // survives any domain change automatically.
+  if (configured && Capacitor.isNativePlatform()) return configured;
   return window.location.origin;
 }

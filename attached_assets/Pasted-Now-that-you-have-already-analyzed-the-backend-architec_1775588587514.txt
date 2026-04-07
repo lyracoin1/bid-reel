@@ -1,0 +1,81 @@
+Now that you have already analyzed the backend architecture, I want you to generate a precise migration map from the current Express server to a Vercel serverless architecture.
+
+IMPORTANT:
+
+* DO NOT write full code implementations
+* DO NOT refactor yet
+* ONLY map what should move where
+
+CONTEXT:
+
+* We are deleting the Express server (no app.listen in production)
+* We are moving to Vercel Functions (api/ directory)
+* Supabase is used for DB and auth
+* Cloudflare R2 will be used for media
+* No long-running processes allowed
+
+YOUR TASK:
+
+1. For EVERY route file in artifacts/api-server/src/routes:
+
+   * List the file name
+   * List all endpoints inside it
+   * For each endpoint:
+
+     * Give the exact target Vercel function path
+       (example: POST /api/auth/login → api/auth/login.ts)
+
+2. For shared logic (middlewares, utils, services):
+
+   * Identify files like:
+
+     * requireAuth
+     * supabase client
+     * profile logic
+     * devAuth
+   * Tell me:
+
+     * Move to api/_lib/
+     * or move to lib/
+     * or refactor needed
+
+3. For schedulers:
+
+   * profile-cleanup.ts → confirm Supabase pg_cron
+   * media-lifecycle.ts → confirm Vercel Cron function
+   * explicitly say what to delete
+
+4. For the entry point:
+
+   * Confirm deletion of:
+
+     * index.ts
+     * app.ts
+   * Explain what replaces them in Vercel
+
+5. For media upload:
+
+   * Map current /api/media/upload-url
+   * Show where it will live in Vercel
+   * Note that it should later switch to R2
+
+6. Output format:
+
+Give a structured table:
+
+SECTION A — ROUTE MIGRATION
+[Route File] → [Endpoints] → [New Vercel Paths]
+
+SECTION B — SHARED LOGIC
+[File] → [Destination] → [Notes]
+
+SECTION C — SCHEDULERS
+[File] → [New System] → [Action]
+
+SECTION D — DELETE LIST
+List all files that must be removed
+
+SECTION E — FINAL STRUCTURE
+Show the final folder structure (api/, lib/, etc.)
+
+Be precise. No generic advice. Base everything on the actual code you already read.

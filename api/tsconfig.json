@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "typeRoots": [
+      "../node_modules/.pnpm/@types+node@25.3.5/node_modules/@types",
+      "../node_modules/@types"
+    ]
+  },
+  "include": ["./**/*.ts"]
+}

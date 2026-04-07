@@ -38,15 +38,19 @@ export const supabaseAdmin = createClient(
 // at supabaseAdmin.auth is still a GoTrueClient instance.
 // ---------------------------------------------------------------------------
 
+interface _AuthError {
+  message?: string;
+}
+
 interface _AuthAdminApi {
-  createUser(attrs: object): Promise<{ data: { user: { id: string } | null }; error: unknown }>;
-  updateUserById(uid: string, attrs: object): Promise<{ data: unknown; error: unknown }>;
-  deleteUser(uid: string): Promise<{ data: unknown; error: unknown }>;
+  createUser(attrs: object): Promise<{ data: { user: { id: string } | null }; error: _AuthError | null }>;
+  updateUserById(uid: string, attrs: object): Promise<{ data: unknown; error: _AuthError | null }>;
+  deleteUser(uid: string): Promise<{ data: unknown; error: _AuthError | null }>;
 }
 
 interface _GoTrueClientLike {
   admin: _AuthAdminApi;
-  getUser(jwt?: string): Promise<{ data: { user: { id: string; phone?: string } | null }; error: unknown }>;
+  getUser(jwt?: string): Promise<{ data: { user: { id: string; phone?: string } | null }; error: _AuthError | null }>;
 }
 
 // Use authAdmin.xxx() instead of supabaseAdmin.auth.admin.xxx().

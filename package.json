@@ -9,6 +9,10 @@
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
   "private": true,
+  "dependencies": {
+    "@supabase/supabase-js": "^2.100.0",
+    "zod": "3.25.76"
+  },
   "devDependencies": {
     "@vercel/node": "^5.1.15",
     "typescript": "~5.9.2",

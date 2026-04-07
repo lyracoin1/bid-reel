@@ -1,5 +1,4 @@
 import { createClient } from "@supabase/supabase-js";
-import type { GoTrueClient } from "@supabase/supabase-js";
 import { requireEnv } from "./env";
 
 const clientOptions = {
@@ -27,17 +26,31 @@ export const supabaseAdmin = createClient(
   clientOptions,
 );
 
-// supabase-js@2.100.0 changed SupabaseClient.auth from GoTrueClient to
-// SupabaseAuthClient (extends AuthClient), removing typed accessors that only
-// exist on GoTrueClient (.admin, .getUser(jwt), etc.).
-// The underlying runtime object is still a GoTrueClient; these casts restore
-// type-safe access without changing any runtime behaviour.
+// ---------------------------------------------------------------------------
+// supabase-js@2.100.0 breaking change: SupabaseClient.auth is now typed as
+// SupabaseAuthClient (extends AuthClient) instead of GoTrueClient.  Methods
+// that only exist on GoTrueClient — admin.*, getUser(jwt) — are no longer
+// visible to TypeScript.  GoTrueClient is not exported from @supabase/supabase-js
+// and @supabase/auth-js is a transitive dep only (not directly importable).
+//
+// Fix: cast once here using local structural interfaces that cover exactly the
+// methods this codebase calls.  Runtime behaviour is unchanged — the object
+// at supabaseAdmin.auth is still a GoTrueClient instance.
+// ---------------------------------------------------------------------------
 
-// Typed access to admin auth methods (createUser, updateUserById, deleteUser …).
-// Use instead of supabaseAdmin.auth.admin.xxx().
-export const authAdmin = (supabaseAdmin.auth as unknown as GoTrueClient).admin;
+interface _AuthAdminApi {
+  createUser(attrs: object): Promise<{ data: { user: { id: string } | null }; error: unknown }>;
+  updateUserById(uid: string, attrs: object): Promise<{ data: unknown; error: unknown }>;
+  deleteUser(uid: string): Promise<{ data: unknown; error: unknown }>;
+}
 
-// Typed access to GoTrueClient methods that are missing from SupabaseAuthClient
-// in 2.100.0, specifically getUser(jwt) used to verify Bearer tokens.
-// Use instead of supabaseAdmin.auth.getUser(jwt).
-export const goTrueAuth = supabaseAdmin.auth as unknown as GoTrueClient;
+interface _GoTrueClientLike {
+  admin: _AuthAdminApi;
+  getUser(jwt?: string): Promise<{ data: { user: { id: string; phone?: string } | null }; error: unknown }>;
+}
+
+// Use authAdmin.xxx() instead of supabaseAdmin.auth.admin.xxx().
+export const authAdmin = (supabaseAdmin.auth as unknown as _GoTrueClientLike).admin;
+
+// Use goTrueAuth.getUser(jwt) instead of supabaseAdmin.auth.getUser(jwt).
+export const goTrueAuth = supabaseAdmin.auth as unknown as _GoTrueClientLike;

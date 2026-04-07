@@ -3,7 +3,13 @@
   "buildCommand": "pnpm --filter @workspace/bidreel-web run build",
   "outputDirectory": "artifacts/bidreel-web/dist/public",
   "framework": null,
+  "functions": {
+    "api/**/*.ts": { "runtime": "nodejs20.x" }
+  },
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/cron/media-cleanup", "schedule": "0 */6 * * *" }
   ]
 }

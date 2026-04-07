@@ -135,9 +135,10 @@ export default async function handler(
     }
     console.error("UPLOAD_URL_ERROR:", err);
 
-    return res.status(500).json({
+    res.status(500).json({
       error: "INTERNAL_ERROR",
       message: err instanceof Error ? err.message : String(err),
     });
+    return;
   }
 }

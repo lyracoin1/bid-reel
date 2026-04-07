@@ -133,7 +133,11 @@ export default async function handler(
       res.status(err.statusCode).json(err.toJSON());
       return;
     }
-    logger.error("POST /api/media/upload-url: unexpected error", err);
-    res.status(500).json({ error: "INTERNAL_ERROR", message: "Unexpected error." });
+    console.error("UPLOAD_URL_ERROR:", err);
+
+    return res.status(500).json({
+      error: "INTERNAL_ERROR",
+      message: err instanceof Error ? err.message : String(err),
+    });
   }
 }

@@ -1,0 +1,57 @@
+Now migrate the core shared backend logic into the new Vercel serverless structure.
+
+IMPORTANT:
+
+* Replit is for editing only, NEVER production runtime
+* Do NOT add any Replit-specific code, URLs, proxies, env assumptions, or dependencies
+* Keep the project portable to Cursor or any other editor
+* Preserve current business logic as much as possible
+* Do NOT delete the old Express backend yet
+* Do NOT migrate route handlers yet beyond what is required by shared logic
+
+TASK:
+
+1. Move and adapt these files into the new api/_lib structure:
+
+* artifacts/api-server/src/lib/supabase.ts → api/_lib/supabase.ts
+* artifacts/api-server/src/lib/devAuth.ts → api/_lib/devAuth.ts
+* artifacts/api-server/src/lib/profiles.ts → api/_lib/profiles.ts
+
+2. Move and refactor auth helpers:
+
+* artifacts/api-server/src/middlewares/requireAuth.ts → api/_lib/requireAuth.ts
+* artifacts/api-server/src/middlewares/requireAdmin.ts → api/_lib/requireAdmin.ts
+
+IMPORTANT:
+
+* Remove Express middleware signatures
+* Convert them into plain async helper functions usable inside Vercel functions
+* They should not depend on Express Request/Response/NextFunction types
+
+3. Move validation schemas:
+
+* keep only framework-agnostic schemas from artifacts/api-server/src/utils/validation.ts
+* create api/_lib/validation.ts
+* do NOT carry over Express-coupled helpers
+
+4. Fix devAuth scalability issue:
+
+* replace any listUsers({ perPage: 1000 }) fallback with direct email lookup through the appropriate Supabase admin API if supported by the current codebase/client
+
+5. Keep everything stateless and Vercel-compatible
+
+DO NOT:
+
+* delete old files
+* modify frontend
+* migrate auctions/bids/follows/saves/notifications/admin/reports yet
+* touch R2 yet
+* touch schedulers yet
+
+OUTPUT:
+
+* list all created/changed files
+* show the main refactors you made
+* confirm there is no Express dependency left in the new shared files
+* confirm there is no Replit dependency
+* note any compatibility risk you found

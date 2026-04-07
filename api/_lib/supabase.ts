@@ -28,8 +28,16 @@ export const supabaseAdmin = createClient(
 );
 
 // supabase-js@2.100.0 changed SupabaseClient.auth from GoTrueClient to
-// SupabaseAuthClient (extends AuthClient), removing the typed .admin accessor.
-// The underlying runtime object is still a GoTrueClient with full admin methods;
-// this cast restores type-safe access to .admin without changing any behaviour.
-// All callers must use authAdmin.xxx() instead of supabaseAdmin.auth.admin.xxx().
+// SupabaseAuthClient (extends AuthClient), removing typed accessors that only
+// exist on GoTrueClient (.admin, .getUser(jwt), etc.).
+// The underlying runtime object is still a GoTrueClient; these casts restore
+// type-safe access without changing any runtime behaviour.
+
+// Typed access to admin auth methods (createUser, updateUserById, deleteUser …).
+// Use instead of supabaseAdmin.auth.admin.xxx().
 export const authAdmin = (supabaseAdmin.auth as unknown as GoTrueClient).admin;
+
+// Typed access to GoTrueClient methods that are missing from SupabaseAuthClient
+// in 2.100.0, specifically getUser(jwt) used to verify Bearer tokens.
+// Use instead of supabaseAdmin.auth.getUser(jwt).
+export const goTrueAuth = supabaseAdmin.auth as unknown as GoTrueClient;

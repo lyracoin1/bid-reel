@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "./supabase";
+import { goTrueAuth } from "./supabase";
 import { isUserBanned } from "./profiles";
 import { ApiError } from "./errors";
 
@@ -38,7 +38,7 @@ export async function requireAuth(
 
   const token = header.slice(7);
 
-  const { data, error } = await supabaseAdmin.auth.getUser(token);
+  const { data, error } = await goTrueAuth.getUser(token);
 
   if (error || !data.user) {
     throw new ApiError(

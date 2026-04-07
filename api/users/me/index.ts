@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
 import { requireAuth } from "../../_lib/requireAuth";
-import { supabaseAdmin } from "../../_lib/supabase";
+import { supabaseAdmin, authAdmin } from "../../_lib/supabase";
 import {
   getOwnProfile,
   updateProfile,
@@ -137,7 +137,7 @@ async function handleDelete(
   await supabaseAdmin.from("profiles").delete().eq("id", userId);
 
   // 3. Delete the Supabase Auth user — irreversible
-  const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+  const { error: authError } = await authAdmin.deleteUser(userId);
   if (authError) {
     logger.error("DELETE /api/users/me: auth deletion failed", {
       err: authError,

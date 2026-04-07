@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import type { GoTrueClient } from "@supabase/supabase-js";
 import { requireEnv } from "./env";
 
 const clientOptions = {
@@ -25,3 +26,10 @@ export const supabaseAdmin = createClient(
   requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
   clientOptions,
 );
+
+// supabase-js@2.100.0 changed SupabaseClient.auth from GoTrueClient to
+// SupabaseAuthClient (extends AuthClient), removing the typed .admin accessor.
+// The underlying runtime object is still a GoTrueClient with full admin methods;
+// this cast restores type-safe access to .admin without changing any behaviour.
+// All callers must use authAdmin.xxx() instead of supabaseAdmin.auth.admin.xxx().
+export const authAdmin = (supabaseAdmin.auth as unknown as GoTrueClient).admin;

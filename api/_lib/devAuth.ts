@@ -16,7 +16,7 @@
  */
 
 import { createHmac } from "crypto";
-import { supabase, supabaseAdmin } from "./supabase";
+import { supabase, supabaseAdmin, authAdmin } from "./supabase";
 import { upsertProfile, PhoneAlreadyRegisteredError } from "./profiles";
 import type { OwnProfile } from "./profiles";
 
@@ -56,7 +56,7 @@ async function ensureEmailUser(
   phone: string,
 ): Promise<string> {
   const { data: created, error: createError } =
-    await supabaseAdmin.auth.admin.createUser({
+    await authAdmin.createUser({
       email: derivedEmail,
       email_confirm: true,
       password: derivedPassword,
@@ -78,7 +78,7 @@ async function ensureEmailUser(
 
   if (profile?.id) {
     // Refresh the password so sign-in works if the service role key changed.
-    await supabaseAdmin.auth.admin.updateUserById(profile.id, {
+    await authAdmin.updateUserById(profile.id, {
       email_confirm: true,
       password: derivedPassword,
     });
@@ -112,9 +112,7 @@ async function reconcilePhoneOwnership(
 
   await supabaseAdmin.from("profiles").delete().eq("id", existingProfile.id);
 
-  await supabaseAdmin.auth.admin
-    .deleteUser(existingProfile.id)
-    .catch(() => null);
+  await authAdmin.deleteUser(existingProfile.id).catch(() => null);
 }
 
 export async function devLogin(phoneNumber: string): Promise<DevLoginResult> {

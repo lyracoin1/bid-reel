@@ -1,0 +1,59 @@
+Now implement the first real Vercel API endpoints on top of the new shared serverless _lib files.
+
+IMPORTANT:
+
+* Replit is for editing only, NEVER production runtime
+* Do NOT add any Replit-specific code, URLs, proxies, or dependencies
+* Keep the project portable to Cursor or any other editor
+* Preserve existing response behavior as closely as possible for frontend compatibility
+* Do NOT delete the old Express backend yet
+* Only migrate this first safe slice
+
+IMPLEMENT THESE ENDPOINTS:
+
+1. GET /api/healthz
+2. POST /api/auth/login
+3. POST /api/auth/dev-login
+4. POST /api/auth/admin-login
+5. GET /api/auth/me
+6. POST /api/auth/logout
+7. GET /api/users/me
+8. PATCH /api/users/me
+9. DELETE /api/users/me
+10. GET /api/users/check-username
+
+FILES TO CREATE:
+
+* api/auth/login.ts
+* api/auth/dev-login.ts
+* api/auth/admin-login.ts
+* api/auth/me.ts
+* api/auth/logout.ts
+* api/users/me/index.ts
+* api/users/check-username.ts
+
+REQUIREMENTS:
+
+1. Use standard Vercel Request/Response handling only
+2. Use the new shared files in api/_lib
+3. Catch ApiError consistently and return proper HTTP JSON responses
+4. Keep methods compatible:
+
+   * users/me/index.ts should handle GET, PATCH, DELETE
+5. Respect USE_DEV_AUTH in the auth routes
+6. Keep the response shapes as close as possible to the old Express routes so the frontend does not break
+7. If any old route depended on Express-specific helpers, replace them cleanly without changing business behavior
+8. Do NOT migrate auctions, bids, follows, saves, notifications, admin, reports, media upload, or schedulers yet
+
+ALSO:
+
+* verify that api/healthz.ts still works and remains compatible with Vercel routing
+* if needed, update it to match the same response style used by the new endpoints
+
+AT THE END:
+
+* list every created/changed file
+* summarize each endpoint’s behavior
+* state any compatibility caveat
+* confirm there is still no Express dependency in the new api/ slice
+* do NOT commit or push yet

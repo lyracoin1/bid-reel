@@ -53,8 +53,26 @@ interface _GoTrueClientLike {
   getUser(jwt?: string): Promise<{ data: { user: { id: string; phone?: string } | null }; error: _AuthError | null }>;
 }
 
+// Anon-client methods that only exist on GoTrueClient, not SupabaseAuthClient.
+interface _AnonGoTrueClientLike {
+  signInWithPassword(credentials: {
+    email: string;
+    password: string;
+  }): Promise<{
+    data: {
+      user: { id: string } | null;
+      session: { access_token: string } | null;
+    };
+    error: _AuthError | null;
+  }>;
+  signOut(): Promise<{ error: _AuthError | null }>;
+}
+
 // Use authAdmin.xxx() instead of supabaseAdmin.auth.admin.xxx().
 export const authAdmin = (supabaseAdmin.auth as unknown as _GoTrueClientLike).admin;
 
 // Use goTrueAuth.getUser(jwt) instead of supabaseAdmin.auth.getUser(jwt).
 export const goTrueAuth = supabaseAdmin.auth as unknown as _GoTrueClientLike;
+
+// Use goTrueAnonAuth.signInWithPassword/signOut() instead of supabase.auth.xxx().
+export const goTrueAnonAuth = supabase.auth as unknown as _AnonGoTrueClientLike;

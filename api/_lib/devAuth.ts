@@ -16,7 +16,7 @@
  */
 
 import { createHmac } from "crypto";
-import { supabase, supabaseAdmin, authAdmin } from "./supabase";
+import { supabaseAdmin, authAdmin, goTrueAnonAuth } from "./supabase";
 import { upsertProfile, PhoneAlreadyRegisteredError } from "./profiles";
 import type { OwnProfile } from "./profiles";
 
@@ -128,7 +128,7 @@ export async function devLogin(phoneNumber: string): Promise<DevLoginResult> {
 
   // Step 2: sign in via email+password.
   const { data: signIn, error: signInError } =
-    await supabase.auth.signInWithPassword({
+    await goTrueAnonAuth.signInWithPassword({
       email: derivedEmail,
       password: derivedPassword,
     });

@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireAuth } from "../_lib/requireAuth";
-import { supabase } from "../_lib/supabase";
+import { goTrueAnonAuth } from "../_lib/supabase";
 import { ApiError } from "../_lib/errors";
 import { logger } from "../_lib/logger";
 
@@ -26,7 +26,7 @@ export default async function handler(
 
   try {
     await requireAuth(req.headers["authorization"]);
-    await supabase.auth.signOut();
+    await goTrueAnonAuth.signOut();
     res.status(200).json({ message: "Logged out" });
   } catch (err) {
     if (err instanceof ApiError) {

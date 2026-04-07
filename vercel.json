@@ -4,7 +4,7 @@
   "outputDirectory": "artifacts/bidreel-web/dist/public",
   "framework": null,
   "functions": {
-    "api/**/*.ts": { "runtime": "nodejs20.x" }
+    "api/**/*.ts": { "runtime": "@vercel/node" }
   },
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }

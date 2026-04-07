@@ -1,0 +1,79 @@
+We need a precise root-cause diagnosis for why Vercel STILL fails with:
+
+"Error: Function Runtimes must have a valid version, for example `now-php@1.0.0`"
+
+IMPORTANT:
+
+* Do NOT guess
+* Do NOT make random edits
+* Diagnose first, then fix only the confirmed cause
+* Replit is editing only, never production runtime
+* Production must remain GitHub + Vercel + Supabase + R2 only
+* Do NOT add any Replit-specific code, URLs, or dependencies
+
+TASK PHASE 1 — DIAGNOSIS
+
+1. Show the exact current contents of ALL vercel-related config files in the repo:
+
+   * /vercel.json
+   * any nested vercel.json files
+   * any .vercel files or project config files if present
+2. Search the repo for every occurrence of:
+
+   * "runtime"
+   * "@vercel/node"
+   * "nodejs20.x"
+   * "functions"
+   * "now-php"
+3. Show the latest local git commit hash and confirm the current root vercel.json is committed
+4. Confirm whether the current HEAD commit has been pushed to GitHub
+5. Confirm whether Vercel is definitely building commit 37739c2 or some older commit
+6. Check if there is any cached or conflicting Vercel configuration causing the old runtime config to still be applied
+7. Check whether the current repo structure or package setup is making Vercel interpret this as a different deployment type
+
+TASK PHASE 2 — FIX
+After diagnosis, fix ONLY the confirmed root cause.
+
+Possible examples:
+
+* wrong vercel.json file being read
+* stale committed config still present elsewhere
+* hidden .vercel config conflict
+* project root mismatch
+* invalid config inheritance
+* malformed JSON or unsupported config combination
+* Vercel project settings conflicting with repo config
+
+RESTRICTIONS:
+
+* Do NOT change frontend code unless the confirmed cause requires it
+* Do NOT change API route code unless the confirmed cause requires it
+* Do NOT refactor unrelated files
+* Do NOT delete anything unrelated
+* Keep changes minimal and targeted
+
+OUTPUT FORMAT:
+SECTION A — ROOT CAUSE
+
+* exact cause
+* exact file/path or setting responsible
+* why Vercel is still seeing invalid runtime config
+
+SECTION B — EVIDENCE
+
+* relevant file paths
+* relevant config contents
+* relevant git/deploy evidence
+
+SECTION C — FIX APPLIED
+
+* exact files/settings changed
+* exact diff summary
+
+SECTION D — NEXT ACTION
+
+* whether I need to push again
+* whether I need to redeploy
+* what exact deployment result to expect next
+
+Do the diagnosis carefully first, then fix the confirmed cause.

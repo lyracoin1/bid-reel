@@ -109,9 +109,8 @@ export default async function handler(
     const r2 = getR2Client();
 
     const command = new PutObjectCommand({
-      Bucket:      R2_BUCKET,
-      Key:         path,
-      ContentType: mimeType,
+      Bucket: R2_BUCKET,
+      Key:    path,
     });
 
     const uploadUrl = await getSignedUrl(r2, command, { expiresIn: EXPIRY_SECONDS });

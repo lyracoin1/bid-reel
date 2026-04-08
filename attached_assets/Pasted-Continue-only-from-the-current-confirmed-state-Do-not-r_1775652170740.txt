@@ -1,0 +1,83 @@
+Continue only from the current confirmed state. Do not re-analyze the project from scratch.
+
+## Primary goal
+
+Fix the profile image upload issue in production with the smallest possible change, while keeping the current architecture exactly as it is.
+
+## Confirmed current state
+
+* GitHub is the only source of truth
+* Vercel is the only production runtime
+* Replit is for editing only
+* Supabase is the current backend
+* `/api/media/upload-url` already exists
+* The current error is no longer about a missing endpoint
+* The current error happens inside our own API before the signed upload URL is created
+* Current diagnosis:
+  `ensureBucket()` calls `updateBucket()` with a `fileSizeLimit` value above what the current Supabase project tier allows
+* Result:
+  Supabase rejects `updateBucket()` and returns:
+  `The object exceeded the maximum allowed size`
+* That error is then returned by our API to the client
+
+## What you need to do now
+
+Review only the profile image upload path and apply the smallest possible fix so that:
+
+* `updateBucket()` stops failing
+* the current flow remains unchanged
+* profile image upload works in production
+
+## Execution scope
+
+Only change what is directly necessary in the image upload flow.
+If the current `fileSizeLimit` is too high for profile images, change it to an appropriate image-only limit.
+Do not solve video uploads now.
+
+## Required constraints
+
+* No refactor
+* No architecture changes
+* Do not change the endpoint structure
+* Do not change the current flow
+* Do not reopen previously solved topics
+* Do not touch auth
+* Do not touch `vercel.json`
+* Do not introduce new services to solve the current image upload issue
+* Do not expand the task into unrelated improvements
+
+## Required verification
+
+Make sure this flow still works after the change:
+
+1. `POST /api/media/upload-url`
+2. upload file via signed URL
+3. `PATCH /api/users/me` with `avatarUrl`
+
+## After finishing the image upload fix
+
+Do not implement Cloudflare R2 yet.
+
+Instead, give me separately:
+
+1. The exact Cloudflare R2 values you need from me
+2. Where I can find each value in the Cloudflare dashboard
+3. Whether you need a public bucket or signed URLs
+4. The exact S3-compatible endpoint format that should be used
+
+## Important
+
+* Do not write any R2 code yet
+* Do not merge R2 into the current fix
+* Fix the profile image upload first
+* Then only request the R2 setup requirements
+
+## Expected output
+
+After you finish, give me only:
+
+1. The actual current cause of the issue
+2. The file(s) you changed
+3. A very short summary of the change
+4. How I should verify after deploy that the issue is fixed
+5. Then the Cloudflare R2 requirements only, with no code

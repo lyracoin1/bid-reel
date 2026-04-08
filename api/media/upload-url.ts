@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { supabaseAdmin } from "../_lib/supabase";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { requireAuth } from "../_lib/requireAuth";
 import { ApiError } from "../_lib/errors";
 import { logger } from "../_lib/logger";
@@ -9,16 +10,20 @@ import { logger } from "../_lib/logger";
 // ---------------------------------------------------------------------------
 // POST /api/media/upload-url
 // ---------------------------------------------------------------------------
-// Returns a presigned PUT URL for uploading directly to Supabase Storage,
+// Returns a presigned PUT URL for uploading directly to Cloudflare R2,
 // plus the final public URL the client should save after a successful upload.
 //
 // Request:  { fileType: "image"|"video", mimeType: string, sizeBytes: number }
 // Response: { uploadUrl, path, publicUrl, fileType, expiresInSeconds }
 // ---------------------------------------------------------------------------
 
-const BUCKET = "media";
-const EXPIRY_SECONDS = 3600;
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;  // 10 MB
+const R2_ACCOUNT_ID   = "d4b5c54d01b6cf375012d7b9d1331ead";
+const R2_BUCKET       = "bidreel-media";
+const R2_PUBLIC_BASE  = "https://pub-8b8e7f8f594241f09d4af25fd307f2e4.r2.dev";
+const R2_ENDPOINT     = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+const EXPIRY_SECONDS  = 3600;
+
+const MAX_IMAGE_BYTES = 10  * 1024 * 1024; // 10 MB
 const MAX_VIDEO_BYTES = 200 * 1024 * 1024; // 200 MB
 
 const ALLOWED_MIME: Record<"image" | "video", string[]> = {
@@ -27,50 +32,31 @@ const ALLOWED_MIME: Record<"image" | "video", string[]> = {
 };
 
 const MIME_TO_EXT: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "video/mp4": "mp4",
+  "image/jpeg":    "jpg",
+  "image/png":     "png",
+  "image/webp":    "webp",
+  "video/mp4":     "mp4",
   "video/quicktime": "mov",
-  "video/webm": "webm",
+  "video/webm":    "webm",
 };
 
 const bodySchema = z.object({
-  fileType: z.enum(["image", "video"]),
-  mimeType: z.string().min(1),
+  fileType:  z.enum(["image", "video"]),
+  mimeType:  z.string().min(1),
   sizeBytes: z.number().int().positive(),
 });
 
-const BUCKET_OPTIONS = {
-  public: true,
-  fileSizeLimit: MAX_IMAGE_BYTES,
-  allowedMimeTypes: [
-    ...ALLOWED_MIME.image,
-    ...ALLOWED_MIME.video,
-  ],
-};
-
-// Ensure the bucket exists with the correct settings.
-// createBucket only applies settings on first creation — if the bucket already
-// exists, its fileSizeLimit is whatever Supabase defaulted to.  We must call
-// updateBucket in that case so the limit is always in effect.
-async function ensureBucket(): Promise<void> {
-  const { error } = await supabaseAdmin.storage.createBucket(BUCKET, BUCKET_OPTIONS);
-
-  if (!error) return; // Freshly created with correct settings.
-
-  if (!error.message.toLowerCase().includes("already exists")) {
-    throw error; // Unexpected creation error.
+function getR2Client(): S3Client {
+  const accessKeyId     = process.env["R2_ACCESS_KEY_ID"];
+  const secretAccessKey = process.env["R2_SECRET_ACCESS_KEY"];
+  if (!accessKeyId || !secretAccessKey) {
+    throw new Error("R2_ACCESS_KEY_ID or R2_SECRET_ACCESS_KEY is not set");
   }
-
-  // Bucket existed before — enforce our fileSizeLimit.
-  const { error: updateError } = await supabaseAdmin.storage.updateBucket(
-    BUCKET,
-    BUCKET_OPTIONS,
-  );
-  if (updateError) {
-    throw updateError;
-  }
+  return new S3Client({
+    region: "auto",
+    endpoint: R2_ENDPOINT,
+    credentials: { accessKeyId, secretAccessKey },
+  });
 }
 
 export default async function handler(
@@ -114,32 +100,26 @@ export default async function handler(
       return;
     }
 
-    const ext = MIME_TO_EXT[mimeType] ?? "bin";
+    const ext  = MIME_TO_EXT[mimeType] ?? "bin";
     const path = `${fileType}s/${user.id}/${randomUUID()}.${ext}`;
 
-    await ensureBucket();
+    const r2 = getR2Client();
 
-    const { data, error } = await supabaseAdmin.storage
-      .from(BUCKET)
-      .createSignedUploadUrl(path);
+    const command = new PutObjectCommand({
+      Bucket:      R2_BUCKET,
+      Key:         path,
+      ContentType: mimeType,
+    });
 
-    if (error || !data) {
-      logger.error("POST /api/media/upload-url: signed URL creation failed", { error });
-      res.status(500).json({
-        error: "STORAGE_ERROR",
-        message: "Could not create upload URL. Please try again.",
-      });
-      return;
-    }
+    const uploadUrl = await getSignedUrl(r2, command, { expiresIn: EXPIRY_SECONDS });
+    const publicUrl = `${R2_PUBLIC_BASE}/${path}`;
 
-    const { data: publicData } = supabaseAdmin.storage
-      .from(BUCKET)
-      .getPublicUrl(path);
+    logger.info("POST /api/media/upload-url: R2 presigned URL created", { path });
 
     res.status(200).json({
-      uploadUrl: data.signedUrl,
+      uploadUrl,
       path,
-      publicUrl: publicData.publicUrl,
+      publicUrl,
       fileType,
       expiresInSeconds: EXPIRY_SECONDS,
     });
@@ -148,12 +128,10 @@ export default async function handler(
       res.status(err.statusCode).json(err.toJSON());
       return;
     }
-    console.error("UPLOAD_URL_ERROR:", err);
-
+    logger.error("POST /api/media/upload-url failed", err);
     res.status(500).json({
       error: "INTERNAL_ERROR",
       message: err instanceof Error ? err.message : String(err),
     });
-    return;
   }
 }

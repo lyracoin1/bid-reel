@@ -1,0 +1,78 @@
+We have a confirmed issue with file uploads to Cloudflare R2 using presigned URLs.
+
+## Current behavior
+
+* Using fetch(uploadUrl, { method: "PUT", body: file })
+* Result: ERR_CONNECTION_RESET or HTTP 400 from R2
+* CORS is already correctly configured
+* R2 credentials are correct (no newline issue)
+* Presigned URL generation is correct
+
+## Root cause
+
+Cloudflare R2 expects the PUT request to match the signed request exactly.
+Using fetch without explicitly setting headers causes a mismatch (especially Content-Type), which results in R2 rejecting the request at the connection level.
+
+## Required fix
+
+Replace the current upload implementation with XMLHttpRequest and explicitly set Content-Type.
+
+## Instructions
+
+Find the function:
+uploadFileToStorage(...)
+
+Replace it entirely with this implementation:
+
+```ts
+export async function uploadFileToStorage(
+  uploadUrl: string,
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    if (onProgress) {
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      });
+    }
+
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`Upload failed: ${xhr.status}`));
+      }
+    });
+
+    xhr.addEventListener("error", () => {
+      reject(new Error("Network error during upload"));
+    });
+
+    xhr.open("PUT", uploadUrl);
+
+    // Critical: must match what R2 expects
+    xhr.setRequestHeader(
+      "Content-Type",
+      file.type || "application/octet-stream"
+    );
+
+    xhr.send(file);
+  });
+}
+```
+
+## Constraints
+
+* Do not use fetch for uploads
+* Do not add any extra headers
+* Do not modify the presigned URL logic
+* Do not change backend signing logic
+
+## Goal
+
+Ensure successful PUT upload to R2 with no ERR_CONNECTION_RESET and no 400 errors.

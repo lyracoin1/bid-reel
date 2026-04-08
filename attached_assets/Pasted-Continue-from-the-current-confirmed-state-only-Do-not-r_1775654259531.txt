@@ -1,0 +1,89 @@
+Continue from the current confirmed state only. Do not re-analyze the project.
+
+## Primary goal
+
+Clean and reset the production data with strict rules, and enforce correct user data behavior going forward.
+
+## Data cleanup requirements
+
+Apply a one-time cleanup that:
+
+1. Deletes ALL old data except what was created today:
+
+   * users
+   * profiles
+   * auctions
+   * bids
+   * media (images/videos)
+   * any related records
+
+2. Keep ONLY:
+
+   * data created today (based on created_at)
+   * and the following two users regardless of date:
+
+     Normal user:
+     phone: +201559035388
+
+     Admin user:
+     phone: +201060088141shjzfm
+
+3. Everything else must be permanently removed.
+
+## Media cleanup
+
+* Delete all old images/videos from storage (Supabase Storage)
+* Keep only today's uploads
+* Ensure no orphaned files remain
+
+## User roles
+
+* Ensure:
+
+  * +201060088141shjzfm is ADMIN
+  * +201559035388 is normal user
+* All other users (if any remain today) are normal users
+
+## Data correctness rules (must be enforced)
+
+1. Every user must have:
+
+   * a name
+   * a phone number
+
+2. The UI must display:
+
+   * ONLY the first 2 letters of the user's name (uppercase or as designed)
+
+3. The phone number used for signup:
+
+   * must be treated as the user's WhatsApp number
+   * must be stored cleanly and consistently
+
+4. No invalid or empty names or phone numbers should exist after cleanup
+
+## Constraints
+
+* Do not change architecture
+* Do not introduce new services
+* Do not refactor unrelated code
+* Do not touch auth flow unless required for phone consistency
+* Focus only on cleanup + enforcement
+
+## Implementation freedom
+
+You are free to:
+
+* use SQL
+* use Supabase admin client
+* write scripts
+* or add a temporary admin endpoint
+
+## Expected output
+
+After completion, provide only:
+
+1. What was deleted
+2. What was kept
+3. What rules are now enforced
+4. How I can verify everything is clean and correct

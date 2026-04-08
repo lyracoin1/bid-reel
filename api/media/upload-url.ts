@@ -43,7 +43,7 @@ const bodySchema = z.object({
 
 const BUCKET_OPTIONS = {
   public: true,
-  fileSizeLimit: MAX_VIDEO_BYTES,
+  fileSizeLimit: MAX_IMAGE_BYTES,
   allowedMimeTypes: [
     ...ALLOWED_MIME.image,
     ...ALLOWED_MIME.video,

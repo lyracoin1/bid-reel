@@ -23,8 +23,8 @@ const R2_PUBLIC_BASE  = "https://pub-8b8e7f8f594241f09d4af25fd307f2e4.r2.dev";
 const R2_ENDPOINT     = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
 const EXPIRY_SECONDS  = 3600;
 
-const MAX_IMAGE_BYTES = 10  * 1024 * 1024; // 10 MB
-const MAX_VIDEO_BYTES = 200 * 1024 * 1024; // 200 MB
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20 MB
+const MAX_VIDEO_BYTES = 20 * 1024 * 1024; // 20 MB
 
 const ALLOWED_MIME: Record<"image" | "video", string[]> = {
   image: ["image/jpeg", "image/png", "image/webp"],

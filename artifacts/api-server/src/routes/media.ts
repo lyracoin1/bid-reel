@@ -42,8 +42,8 @@ const ALLOWED_IMAGE_TYPES = new Set([
   "image/webp",
 ]);
 
-const MAX_VIDEO_BYTES = 200 * 1024 * 1024; // 200 MB
-const MAX_IMAGE_BYTES = 20 * 1024 * 1024;  // 20 MB
+const MAX_VIDEO_BYTES = 20 * 1024 * 1024; // 20 MB
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20 MB
 
 const MIME_TO_EXT: Record<string, string> = {
   "video/mp4": "mp4",

@@ -110,8 +110,8 @@ export default function Interests() {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setAvatarError("Image must be smaller than 10 MB.");
+    if (file.size > 20 * 1024 * 1024) {
+      setAvatarError("Image must be smaller than 20 MB.");
       e.target.value = "";
       return;
     }

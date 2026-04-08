@@ -16,8 +16,8 @@ import { reverseGeocodeCountry, getCurrencyForCountry, type CurrencyInfo } from 
 type PostType = "video" | "photos";
 
 // ─── File size limits (client-side enforcement) ───────────────────────────────
-const MAX_IMAGE_BYTES = 2 * 1024 * 1024;   // 2 MB
-const MAX_VIDEO_BYTES = 10 * 1024 * 1024;  // 10 MB
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20 MB
+const MAX_VIDEO_BYTES = 20 * 1024 * 1024; // 20 MB
 
 // ─── Allowed categories ───────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -153,8 +153,8 @@ export default function CreateAuction() {
     setVideoError(null);
     if (file.size > MAX_VIDEO_BYTES) {
       setVideoError(lang === "ar"
-        ? `الفيديو كبير جداً: ${(file.size / 1024 / 1024).toFixed(1)} ميغابايت. الحد الأقصى 10 ميغابايت.`
-        : `Video too large: ${(file.size / 1024 / 1024).toFixed(1)} MB. Maximum is 10 MB.`);
+        ? `الفيديو كبير جداً: ${(file.size / 1024 / 1024).toFixed(1)} ميغابايت. الحد الأقصى 20 ميغابايت.`
+        : `Video too large: ${(file.size / 1024 / 1024).toFixed(1)} MB. Maximum is 20 MB.`);
       e.target.value = "";
       return;
     }
@@ -189,7 +189,7 @@ export default function CreateAuction() {
         break;
       }
       if (file.size > MAX_IMAGE_BYTES) {
-        errors.push(`${file.name}: ${(file.size / 1024 / 1024).toFixed(1)} MB exceeds 2 MB limit`);
+        errors.push(`${file.name}: ${(file.size / 1024 / 1024).toFixed(1)} MB exceeds 20 MB limit`);
         continue;
       }
       validFiles.push(file);
@@ -366,8 +366,8 @@ export default function CreateAuction() {
                 <>
                   <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
                     {lang === "ar"
-                      ? "اختر مقطع فيديو من جهازك. الحد الأقصى 10 ميغابايت — MP4 أو MOV أو WebM."
-                      : "Select a video from your device. Max 10 MB — MP4, MOV, or WebM."}
+                      ? "اختر مقطع فيديو من جهازك. الحد الأقصى 20 ميغابايت — MP4 أو MOV أو WebM."
+                      : "Select a video from your device. Max 20 MB — MP4, MOV, or WebM."}
                   </p>
 
                   {videoPreviewUrl ? (
@@ -411,7 +411,7 @@ export default function CreateAuction() {
                         <Upload size={28} className="text-primary" />
                       </div>
                       <h3 className="font-bold text-white text-lg mb-1">{t("tap_to_select_video")}</h3>
-                      <p className="text-xs text-muted-foreground">MP4, MOV, WebM — max 10 MB</p>
+                      <p className="text-xs text-muted-foreground">MP4, MOV, WebM — max 20 MB</p>
                     </button>
                   )}
 
@@ -442,8 +442,8 @@ export default function CreateAuction() {
                 <>
                   <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
                     {lang === "ar"
-                      ? "أضف حتى 6 صور. الحد الأقصى 2 ميغابايت لكل صورة. الصورة الأولى هي الغلاف."
-                      : "Add up to 6 photos. Max 2 MB each. The first photo is the cover shown in the feed."}
+                      ? "أضف حتى 6 صور. الحد الأقصى 20 ميغابايت لكل صورة. الصورة الأولى هي الغلاف."
+                      : "Add up to 6 photos. Max 20 MB each. The first photo is the cover shown in the feed."}
                   </p>
 
                   <div className="grid grid-cols-3 gap-2 mb-4">

@@ -13,7 +13,8 @@ const AUCTION_SELECT = `
   seller:profiles!seller_id (
     id,
     display_name,
-    avatar_url
+    avatar_url,
+    phone
   )
 `.trim();
 

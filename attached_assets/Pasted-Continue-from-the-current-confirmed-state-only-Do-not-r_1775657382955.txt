@@ -1,0 +1,136 @@
+Continue from the current confirmed state only. Do not re-analyze the project.
+
+## Primary goal
+
+Perform a strict data reset and enforce correct user identity and WhatsApp behavior across the system.
+
+---
+
+## 1. Data cleanup (strict)
+
+Perform a one-time cleanup with these exact rules:
+
+* Delete ALL old data created before today:
+
+  * users
+  * profiles
+  * auctions
+  * bids
+  * media (images/videos)
+  * any related records
+
+* Keep ONLY:
+
+  * data created today
+  * AND these two users regardless of date:
+
+    Normal user:
+    +201559035388
+
+    Admin user:
+    +201060088141shjzfm
+
+* Everything else must be permanently deleted.
+
+---
+
+## 2. Storage cleanup
+
+* Delete all old media files from storage (R2 and/or Supabase if still present)
+* Keep only today's uploads
+* Ensure no orphaned files remain
+
+---
+
+## 3. User identity enforcement (CRITICAL)
+
+Every user must have a clear identity:
+
+* Required fields:
+
+  * name
+  * phone
+
+* Enforce:
+
+  * phone = unique
+  * no empty names
+  * no invalid phone values
+
+* Display rule:
+
+  * show either:
+
+    * first 2 letters of the name
+      OR
+    * full name (both acceptable)
+  * but must always be consistent across UI
+
+---
+
+## 4. Phone = WhatsApp (CRITICAL)
+
+The phone number used during signup MUST be:
+
+* treated as the user's WhatsApp number
+* stored cleanly
+* used everywhere as the contact number
+
+No separate WhatsApp field.
+
+---
+
+## 5. WhatsApp button fix (IMPORTANT BUG)
+
+Current behavior is wrong:
+
+* It triggers "share" instead of direct chat
+
+Fix it so that:
+
+* Clicking the WhatsApp icon opens direct chat with the user's phone
+
+* Use WhatsApp direct chat format:
+  https://wa.me/<phone>
+
+* The phone must be:
+
+  * sanitized (no spaces, no symbols except country code)
+  * exactly the same as the signup phone
+
+Example:
++201234567890 → https://wa.me/201234567890
+
+---
+
+## 6. Role enforcement
+
+* Ensure:
+
+  * +201060088141shjzfm → ADMIN
+  * +201559035388 → NORMAL USER
+* All other users (if any remain today) → NORMAL
+
+---
+
+## 7. Constraints
+
+* No architecture changes
+* No refactor
+* No new services
+* Do not break existing working flows (upload, auctions, etc.)
+* Focus only on cleanup + identity + WhatsApp fix
+
+---
+
+## 8. Expected output
+
+After completion, give me ONLY:
+
+1. What data was deleted
+2. What remains
+3. How user identity is now enforced
+4. How WhatsApp behavior was fixed
+5. How I verify everything is correct
+
+Do not give explanations beyond that.

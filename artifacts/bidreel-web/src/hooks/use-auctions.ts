@@ -41,7 +41,7 @@ function apiProfileToUser(
       profile?.avatar_url ??
       '',
     handle: `@${(profile?.id ?? fallbackId).slice(0, 8)}`,
-    phone: '', // never exposed from API
+    phone: (profile as (typeof profile & { phone?: string | null }))?.phone ?? '',
   };
 }
 

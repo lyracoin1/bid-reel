@@ -71,10 +71,21 @@
 }
 
 @layer base {
+  html {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
   body {
     @apply bg-[#030305] text-foreground font-sans antialiased selection:bg-primary/30;
     /* Hide scrollbar for the main app container to feel native */
     overflow: hidden;
+    max-width: 100vw;
+    overflow-x: hidden;
+    /* WebView touch optimizations */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
   }
 
   h1, h2, h3, h4, h5, h6 {

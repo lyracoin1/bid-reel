@@ -1,0 +1,153 @@
+You are a senior mobile + web engineer.
+
+We are preparing this project (**BidReel**) to be fully compatible with **Android Studio** and ready to be wrapped as a **native Android app (WebView-based)**.
+
+⚠️ IMPORTANT CONTEXT:
+
+* Frontend: React + Vite
+* Backend: Vercel serverless functions
+* Database/Auth: Supabase
+* Storage: Cloudflare R2 (S3-compatible)
+* Deployment: Vercel (production)
+* Replit is ONLY used for development and pushing to GitHub
+
+---
+
+## 🎯 GOAL
+
+Prepare the project so it can be safely and cleanly integrated into **Android Studio WebView** without breaking anything, and ensure it behaves like a **production-grade mobile app (similar to TikTok / Reels)**.
+
+---
+
+## ✅ TASKS
+
+### 1. Mobile Compatibility Audit
+
+* Ensure the app is fully responsive on mobile screens
+* Fix viewport issues (use correct meta viewport)
+* Ensure no horizontal scrolling
+* All components must work inside a WebView
+
+### 2. WebView Compatibility
+
+* Remove or fix anything that breaks inside Android WebView:
+
+  * window.open
+  * external redirects
+  * unsupported browser APIs
+* Ensure routing works correctly (SPA fallback)
+* Ensure deep links can be handled later
+
+### 3. Environment & URLs
+
+* Make sure ALL API calls use production-safe URLs (Vercel)
+* No localhost references anywhere
+* All environment variables must be compatible with Android build
+
+### 4. Auth Stability (Supabase)
+
+* Ensure session persistence works inside WebView
+* Use safe storage (localStorage or cookie fallback)
+* No redirect loops after login
+
+### 5. Media Handling (VERY IMPORTANT)
+
+* Video and image playback must:
+
+  * autoplay correctly
+  * work inside WebView
+  * not require user gesture if possible (muted autoplay)
+* Ensure R2 URLs work on mobile networks
+* No CORS or header issues
+
+### 6. Performance Optimization
+
+* Reduce bundle size if needed
+* Lazy load heavy components (especially video)
+* Avoid unnecessary re-renders
+
+### 7. Error Handling
+
+* Add global error handling (UI fallback)
+* Show user-friendly errors for:
+
+  * network issues
+  * upload failures
+  * auth errors
+
+### 8. PWA Preparation (optional but recommended)
+
+* Add manifest.json
+* Add basic icons
+* Prepare for installability (helps Android wrapper)
+
+---
+
+## 📦 ANDROID STUDIO PREPARATION
+
+Prepare everything needed for Android Studio:
+
+1. Provide the **production URL** to load inside WebView
+2. Ensure HTTPS is enforced
+3. Confirm the app works correctly when loaded inside a WebView
+4. Identify if any headers or permissions are required
+
+---
+
+## 🔑 KEYS & CONFIG
+
+Tell me clearly:
+
+* Do you need:
+
+  * API keys?
+  * Supabase config?
+  * R2 credentials?
+  * Vercel environment variables?
+
+* List EXACTLY what is missing (if anything)
+
+---
+
+## 🤖 ANDROID INTEGRATION SUPPORT
+
+Answer clearly:
+
+1. Can you prepare:
+
+   * WebView configuration code (Java/Kotlin)?
+   * Required Android permissions?
+   * Recommended settings (hardware acceleration, video support)?
+
+2. Can you generate:
+
+   * A ready-to-use Android Studio template?
+   * Package name suggestions?
+   * Build configuration?
+
+3. Can you guide step-by-step integration with Android Studio?
+
+---
+
+## 🚨 RULES
+
+* DO NOT break current upload system (XHR + presigned URL)
+* DO NOT change architecture unless necessary
+* DO NOT move away from Vercel or R2
+* Keep everything production-ready
+
+---
+
+## 📋 OUTPUT FORMAT
+
+Give me:
+
+1. What is already OK ✅
+2. What must be fixed ⚠️
+3. Exact code changes (if needed)
+4. Missing requirements from me
+5. Android Studio readiness status
+
+---
+
+Act like a production engineer. Be precise, structured, and do NOT guess.

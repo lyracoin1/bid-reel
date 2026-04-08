@@ -275,7 +275,7 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
 
         {/* 3. WhatsApp */}
         <motion.a
-          href={whatsappUrl} target="_blank" rel="noopener noreferrer"
+          href={whatsappUrl} target="_self"
           whileTap={{ scale: 0.8 }}
           className="flex flex-col items-center gap-1"
           style={{ minWidth: 44, minHeight: 44 }}

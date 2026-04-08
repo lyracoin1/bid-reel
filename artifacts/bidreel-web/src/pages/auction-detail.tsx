@@ -553,7 +553,7 @@ export default function AuctionDetail() {
               </motion.button>
             </div>
             <a
-              href={whatsappUrl} target="_blank" rel="noopener noreferrer"
+              href={whatsappUrl} target="_self"
               className="flex items-center justify-center gap-2.5 w-full py-3.5 border-t border-white/8 bg-[#25D366]/12 hover:bg-[#25D366]/20 transition-colors active:scale-[0.98] group"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="#25D366" className="shrink-0 drop-shadow-[0_0_6px_#25D36680]">

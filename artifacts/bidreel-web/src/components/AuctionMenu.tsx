@@ -99,7 +99,7 @@ export function AuctionMenu({
       URL.revokeObjectURL(blobUrl);
       toast({ title: "تم التنزيل", description: "اكتمل التنزيل بنجاح" });
     } catch {
-      window.open(mediaUrl, "_blank", "noopener,noreferrer");
+      window.location.href = mediaUrl;
       toast({ title: "فُتح الملف", description: "يمكنك حفظ الملف من المتصفح" });
     } finally {
       setDownloading(false);

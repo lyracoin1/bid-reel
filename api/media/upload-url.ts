@@ -56,6 +56,7 @@ function getR2Client(): S3Client {
     region: "auto",
     endpoint: R2_ENDPOINT,
     credentials: { accessKeyId, secretAccessKey },
+    forcePathStyle: true,
   });
 }
 

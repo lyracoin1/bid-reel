@@ -302,28 +302,13 @@ export async function uploadFileToStorage(
   file: File,
   onProgress?: (pct: number) => void,
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-
-    if (onProgress) {
-      xhr.upload.addEventListener("progress", (e) => {
-        if (e.lengthComputable) {
-          onProgress(Math.round((e.loaded / e.total) * 100));
-        }
-      });
-    }
-
-    xhr.addEventListener("load", () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error(`Storage upload failed: HTTP ${xhr.status}`));
-    });
-
-    xhr.addEventListener("error", () => reject(new Error("Network error during file upload")));
-
-    xhr.open("PUT", uploadUrl);
-    xhr.setRequestHeader("Content-Type", file.type);
-    xhr.send(file);
+  const res = await fetch(uploadUrl, {
+    method: "PUT",
+    body: file,
   });
+  if (!res.ok) {
+    throw new Error(`Storage upload failed: HTTP ${res.status}`);
+  }
 }
 
 // ─── Current user (own profile) ───────────────────────────────────────────────

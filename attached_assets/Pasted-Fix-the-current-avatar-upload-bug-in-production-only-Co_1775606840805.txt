@@ -1,0 +1,55 @@
+Fix the current avatar upload bug in production only.
+
+Context:
+
+* Production is GitHub + Vercel only
+* Replit is edit-only
+* Supabase is backend/auth/storage
+* Current endpoint `/api/media/upload-url` exists and is being called
+* The user now gets this error during avatar upload:
+  `The object exceeded the maximum allowed size`
+* Supabase global storage limit is already 50 MB, so this is NOT caused by the global project storage limit
+* We should not guess broadly or refactor unrelated code
+
+Task:
+Inspect the existing upload flow and apply the smallest correct fix so normal mobile profile photos upload successfully.
+
+What to inspect:
+
+1. The server file that handles `POST /api/media/upload-url`
+2. The exact call to `createSignedUploadUrl(...)`
+3. The frontend upload function that performs the actual `PUT` to the signed URL
+
+Required checks:
+
+1. Confirm whether `createSignedUploadUrl` is being called with the correct second argument/options
+2. Confirm whether the upload request sends the same `Content-Type` as the file MIME type
+3. Confirm whether any custom size limit in backend code is lower than intended
+4. Confirm whether the bucket-level settings or signed upload flow are the real source of the rejection
+
+Preferred fix order:
+
+1. If `createSignedUploadUrl(path)` is missing upload options, update it to the correct Supabase usage for image uploads
+2. Ensure the actual upload request uses:
+
+   * method: `PUT`
+   * header: `Content-Type: file.type`
+   * body: raw file
+3. Keep backend image size allowance practical for normal mobile photos (target around 7 MB)
+4. Do not change architecture
+5. Do not introduce R2
+6. Do not refactor unrelated files
+
+Deliverables:
+
+1. Exact root cause found
+2. Files changed
+3. Minimal diff summary
+4. Whether push is needed
+5. Manual verification steps after deploy
+
+Important:
+
+* Do not hand-wave
+* Read the real existing code before changing anything
+* Make the smallest correct fix only

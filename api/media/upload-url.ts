@@ -41,20 +41,35 @@ const bodySchema = z.object({
   sizeBytes: z.number().int().positive(),
 });
 
-// Ensure the bucket exists and is public.  Safe to call on every request —
-// createBucket is a no-op if the bucket already exists.
+const BUCKET_OPTIONS = {
+  public: true,
+  fileSizeLimit: MAX_VIDEO_BYTES,
+  allowedMimeTypes: [
+    ...ALLOWED_MIME.image,
+    ...ALLOWED_MIME.video,
+  ],
+};
+
+// Ensure the bucket exists with the correct settings.
+// createBucket only applies settings on first creation — if the bucket already
+// exists, its fileSizeLimit is whatever Supabase defaulted to.  We must call
+// updateBucket in that case so the limit is always in effect.
 async function ensureBucket(): Promise<void> {
-  const { error } = await supabaseAdmin.storage.createBucket(BUCKET, {
-    public: true,
-    fileSizeLimit: MAX_VIDEO_BYTES,
-    allowedMimeTypes: [
-      ...ALLOWED_MIME.image,
-      ...ALLOWED_MIME.video,
-    ],
-  });
-  // "already exists" is the only non-fatal error here
-  if (error && !error.message.toLowerCase().includes("already exists")) {
-    throw error;
+  const { error } = await supabaseAdmin.storage.createBucket(BUCKET, BUCKET_OPTIONS);
+
+  if (!error) return; // Freshly created with correct settings.
+
+  if (!error.message.toLowerCase().includes("already exists")) {
+    throw error; // Unexpected creation error.
+  }
+
+  // Bucket existed before — enforce our fileSizeLimit.
+  const { error: updateError } = await supabaseAdmin.storage.updateBucket(
+    BUCKET,
+    BUCKET_OPTIONS,
+  );
+  if (updateError) {
+    throw updateError;
   }
 }
 

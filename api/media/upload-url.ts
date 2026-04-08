@@ -57,6 +57,8 @@ function getR2Client(): S3Client {
     endpoint: R2_ENDPOINT,
     credentials: { accessKeyId, secretAccessKey },
     forcePathStyle: true,
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   });
 }
 

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    BidReel splash screen icon — Android 12+ SplashScreen API.
+    Referenced by windowSplashScreenAnimatedIcon in values-v31/styles.xml.
+
+    Canvas: 288dp × 288dp (standard splash icon canvas).
+    Safe zone: 192dp × 192dp centred (48dp margin each side).
+    The system clips and composites this inside a 288dp circle, so all
+    meaningful artwork must stay within the 192dp safe area.
+
+    Visual: the same BidReel figure-8 logo as the adaptive icon foreground,
+    scaled 2.667× to fill the splash canvas proportionally.
+    White on transparent — rendered over windowSplashScreenIconBackgroundColor
+    (violet #6D28D9 circle) on windowSplashScreenBackground (#030305).
+
+    ── Geometry (scaled from 108dp icon at factor 2.667) ─────────────────────
+    Upper ring:  centre (144, 96),  outer r=48, inner r=27
+    Lower ring:  centre (144, 192), outer r=48, inner r=29
+    Play ▶:      (133,75) → (133,117) → (168,96)
+    Accent dots: (203, 69) r=9  and  (213, 139) r=5
+    ──────────────────────────────────────────────────────────────────────────
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="288"
+    android:viewportHeight="288">
+
+    <!-- Upper ring (donut) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="
+            M96,96 A48,48,0,1,0,192,96 A48,48,0,1,0,96,96 Z
+            M117,96 A27,27,0,1,0,171,96 A27,27,0,1,0,117,96 Z" />
+
+    <!-- Play triangle ▶ inside upper ring -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M133,75 L133,117 L168,96 Z" />
+
+    <!-- Lower ring (donut) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="
+            M96,192 A48,48,0,1,0,192,192 A48,48,0,1,0,96,192 Z
+            M115,192 A29,29,0,1,0,173,192 A29,29,0,1,0,115,192 Z" />
+
+    <!-- Accent dot — upper right -->
+    <path
+        android:fillColor="#C4B5FD"
+        android:pathData="M194,69 A9,9,0,1,0,212,69 A9,9,0,1,0,194,69 Z" />
+
+    <!-- Accent dot — mid right, smaller -->
+    <path
+        android:fillColor="#C4B5FD"
+        android:pathData="M208,139 A5,5,0,1,0,218,139 A5,5,0,1,0,208,139 Z" />
+
+</vector>

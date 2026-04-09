@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    BidReel adaptive icon foreground layer.
+    108dp × 108dp canvas. All artwork is white on transparent.
+    Designed to sit on @color/ic_launcher_background (#6D28D9).
+
+    Visual identity: figure-8 (two rings) representing the "B" in BidReel,
+    with a play-triangle (▶) inside the upper ring — uniting "Bid" (auction)
+    and "Reel" (video). Mirrors the neon logo on the web app.
+
+    Safe zone: 72dp × 72dp centred (18dp margin each side).
+    Both rings and the triangle fit entirely within the safe zone.
+
+    ── Geometry ──────────────────────────────────────────────────────────────
+    Upper ring:  centre (54, 36), outer r=18, inner r=10  → ring width 8dp
+    Lower ring:  centre (54, 72), outer r=18, inner r=11  → ring width 7dp
+    Play ▶:      vertices (50,28) (50,44) (63,36) — all within r≈9 of (54,36)
+    Accent dots: (76,26) r=3.5  and  (80,52) r=2
+    ──────────────────────────────────────────────────────────────────────────
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Upper ring (donut) — fillType evenOdd carves the inner hole -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="
+            M36,36 A18,18,0,1,0,72,36 A18,18,0,1,0,36,36 Z
+            M44,36 A10,10,0,1,0,64,36 A10,10,0,1,0,44,36 Z" />
+
+    <!-- Play triangle ▶ inside upper ring (white on violet hole) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M50,28 L50,44 L63,36 Z" />
+
+    <!-- Lower ring (donut) — slightly taller inner hole reflects the B base -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="
+            M36,72 A18,18,0,1,0,72,72 A18,18,0,1,0,36,72 Z
+            M43,72 A11,11,0,1,0,65,72 A11,11,0,1,0,43,72 Z" />
+
+    <!-- Accent dot — upper right, light violet -->
+    <path
+        android:fillColor="#C4B5FD"
+        android:pathData="M72.5,26 A3.5,3.5,0,1,0,79.5,26 A3.5,3.5,0,1,0,72.5,26 Z" />
+
+    <!-- Accent dot — mid right, smaller -->
+    <path
+        android:fillColor="#C4B5FD"
+        android:pathData="M78,52 A2,2,0,1,0,82,52 A2,2,0,1,0,78,52 Z" />
+
+</vector>

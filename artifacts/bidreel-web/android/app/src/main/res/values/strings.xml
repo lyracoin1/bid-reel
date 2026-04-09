@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BidReel</string>
+    <string name="title_activity_main">BidReel</string>
+    <string name="package_name">com.bidreel.app</string>
+    <string name="custom_url_scheme">com.bidreel.app</string>
+</resources>

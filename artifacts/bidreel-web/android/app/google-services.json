@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "695785911123",
+    "project_id": "bidreel-android",
+    "storage_bucket": "bidreel-android.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:695785911123:android:0d32068264d55151a4a7a6",
+        "android_client_info": {
+          "package_name": "com.bidreel.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBp3K2fVIYtb6t-In6KZztKZV02rXmFm0M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

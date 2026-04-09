@@ -36,7 +36,10 @@ tmp/
 # ============================================================
 # ANDROID / CAPACITOR
 # ============================================================
-android/
+# android/ is intentionally NOT ignored here — artifacts/bidreel-web/android/
+# is committed so Android Studio can open it directly from GitHub.
+# The android/.gitignore inside that folder excludes all generated files
+# (build/, .gradle/, local.properties, synced web assets, etc.)
 ios/
 .expo/
 .expo-shared/

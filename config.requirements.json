@@ -1,0 +1,214 @@
+{
+  "schema_version": "1.0",
+  "project": "BidReel",
+  "description": "Machine-readable map of all required configuration keys. Contains placeholders only — no real secrets.",
+  "config": [
+    {
+      "key": "VITE_SUPABASE_URL",
+      "category": "Frontend",
+      "public": true,
+      "target": "Vercel env vars (Production) + local .env.local",
+      "required": true,
+      "placeholder": "https://YOUR_PROJECT_REF.supabase.co",
+      "notes": "Supabase project URL. Safe to embed in frontend bundle."
+    },
+    {
+      "key": "VITE_SUPABASE_ANON_KEY",
+      "category": "Frontend",
+      "public": true,
+      "target": "Vercel env vars (Production) + local .env.local",
+      "required": true,
+      "placeholder": "YOUR_SUPABASE_ANON_KEY",
+      "notes": "Supabase anon/public key. Safe to embed — subject to RLS."
+    },
+    {
+      "key": "VITE_API_URL",
+      "category": "Frontend",
+      "public": true,
+      "target": "Build-time env var for Capacitor APK builds only",
+      "required": false,
+      "placeholder": "https://www.bid-reel.com/api",
+      "notes": "Leave empty for web (uses relative /api/ paths). Required for Android APK builds."
+    },
+    {
+      "key": "VITE_PUBLIC_BASE_URL",
+      "category": "Frontend",
+      "public": true,
+      "target": "Vercel env vars",
+      "required": false,
+      "placeholder": "https://www.bid-reel.com",
+      "notes": "Base URL for share links. Falls back to window.location.origin on web."
+    },
+    {
+      "key": "VITE_FIREBASE_API_KEY",
+      "category": "Frontend / Firebase",
+      "public": true,
+      "target": "Vercel env vars",
+      "required": false,
+      "placeholder": "AIzaSy...",
+      "notes": "Firebase Web SDK. Only needed for browser push notifications. Android uses google-services.json."
+    },
+    {
+      "key": "VITE_FIREBASE_AUTH_DOMAIN",
+      "category": "Frontend / Firebase",
+      "public": true,
+      "target": "Vercel env vars",
+      "required": false,
+      "placeholder": "YOUR_PROJECT_ID.firebaseapp.com",
+      "notes": "Firebase Web SDK auth domain."
+    },
+    {
+      "key": "VITE_FIREBASE_PROJECT_ID",
+      "category": "Frontend / Firebase",
+      "public": true,
+      "target": "Vercel env vars",
+      "required": false,
+      "placeholder": "YOUR_FIREBASE_PROJECT_ID",
+      "notes": "Firebase project ID."
+    },
+    {
+      "key": "VITE_FIREBASE_STORAGE_BUCKET",
+      "category": "Frontend / Firebase",
+      "public": true,
+      "target": "Vercel env vars",
+      "required": false,
+      "placeholder": "YOUR_PROJECT_ID.firebasestorage.app",
+      "notes": "Firebase storage bucket (not used for media — R2 is used instead)."
+    },
+    {
+      "key": "VITE_FIREBASE_MESSAGING_SENDER_ID",
+      "category": "Frontend / Firebase",
+      "public": true,
+      "target": "Vercel env vars",
+      "required": false,
+      "placeholder": "000000000000",
+      "notes": "Firebase Cloud Messaging sender ID."
+    },
+    {
+      "key": "VITE_FIREBASE_APP_ID",
+      "category": "Frontend / Firebase",
+      "public": true,
+      "target": "Vercel env vars",
+      "required": false,
+      "placeholder": "1:000000000000:web:abc123",
+      "notes": "Firebase Web App ID."
+    },
+    {
+      "key": "VITE_FIREBASE_VAPID_KEY",
+      "category": "Frontend / Firebase",
+      "public": true,
+      "target": "Vercel env vars",
+      "required": false,
+      "placeholder": "YOUR_VAPID_KEY",
+      "notes": "Web Push VAPID key from Firebase Console → Cloud Messaging → Web Push Certificates."
+    },
+    {
+      "key": "SUPABASE_URL",
+      "category": "Server / API",
+      "public": false,
+      "target": "Vercel env vars (server-side only)",
+      "required": true,
+      "placeholder": "https://YOUR_PROJECT_REF.supabase.co",
+      "notes": "Same value as VITE_SUPABASE_URL but set separately for server-side use."
+    },
+    {
+      "key": "SUPABASE_ANON_KEY",
+      "category": "Server / API",
+      "public": false,
+      "target": "Vercel env vars (server-side only)",
+      "required": true,
+      "placeholder": "YOUR_SUPABASE_ANON_KEY",
+      "notes": "Used by server to create the anonymous Supabase client."
+    },
+    {
+      "key": "SUPABASE_SERVICE_ROLE_KEY",
+      "category": "Server / API",
+      "public": false,
+      "target": "Vercel env vars (server-side only) — NEVER frontend",
+      "required": true,
+      "placeholder": "YOUR_SUPABASE_SERVICE_ROLE_KEY",
+      "notes": "SECRET. Bypasses RLS. Server-side admin operations only. Never expose to browser."
+    },
+    {
+      "key": "R2_ACCESS_KEY_ID",
+      "category": "Server / Cloudflare R2",
+      "public": false,
+      "target": "Vercel env vars (server-side only)",
+      "required": true,
+      "placeholder": "YOUR_R2_ACCESS_KEY_ID",
+      "notes": "SECRET. Must be exactly 32 characters with no trailing newline. Used to sign presigned PUT URLs."
+    },
+    {
+      "key": "R2_SECRET_ACCESS_KEY",
+      "category": "Server / Cloudflare R2",
+      "public": false,
+      "target": "Vercel env vars (server-side only)",
+      "required": true,
+      "placeholder": "YOUR_R2_SECRET_ACCESS_KEY",
+      "notes": "SECRET. R2 API token secret. Server-side only."
+    },
+    {
+      "key": "R2_ACCOUNT_ID",
+      "category": "Server / Cloudflare R2",
+      "public": false,
+      "target": "Vercel env vars",
+      "required": true,
+      "placeholder": "YOUR_CLOUDFLARE_ACCOUNT_ID",
+      "notes": "Cloudflare account ID. Used to build the R2 S3 endpoint URL."
+    },
+    {
+      "key": "R2_BUCKET",
+      "category": "Server / Cloudflare R2",
+      "public": false,
+      "target": "Vercel env vars",
+      "required": true,
+      "placeholder": "bidreel-media",
+      "notes": "R2 bucket name where all uploaded media is stored."
+    },
+    {
+      "key": "R2_PUBLIC_BASE_URL",
+      "category": "Server / Cloudflare R2",
+      "public": false,
+      "target": "Vercel env vars",
+      "required": true,
+      "placeholder": "https://YOUR_PUBLIC_DOMAIN.r2.dev",
+      "notes": "Public CDN URL for serving media. Returned to clients after upload."
+    },
+    {
+      "key": "USE_DEV_AUTH",
+      "category": "Server / Auth",
+      "public": false,
+      "target": "Vercel env vars",
+      "required": false,
+      "placeholder": "false",
+      "notes": "Enables passwordless dev login endpoint. Must be absent or false in production."
+    },
+    {
+      "key": "ADMIN_ACTIVATION_CODE",
+      "category": "Server / Auth",
+      "public": false,
+      "target": "Vercel env vars (server-side only)",
+      "required": false,
+      "placeholder": "YOUR_ADMIN_CODE",
+      "notes": "SECRET. Used by admin-login endpoint to activate admin accounts."
+    },
+    {
+      "key": "CAPACITOR_LIVE_RELOAD_URL",
+      "category": "Capacitor / Android",
+      "public": false,
+      "target": "Local shell env var before running cap sync",
+      "required": false,
+      "placeholder": "https://YOUR_REPLIT_DEV_URL",
+      "notes": "Dev-only. When set, WebView loads from dev server instead of bundled assets."
+    },
+    {
+      "key": "google-services.json",
+      "category": "Capacitor / Android / Firebase",
+      "public": false,
+      "target": "android/app/google-services.json (committed to repo)",
+      "required": true,
+      "placeholder": "N/A — binary/JSON file, not an env var",
+      "notes": "Already present. Contains Firebase project config for Android native push notifications."
+    }
+  ]
+}

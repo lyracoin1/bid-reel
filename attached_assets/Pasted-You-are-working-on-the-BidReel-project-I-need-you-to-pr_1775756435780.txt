@@ -1,0 +1,183 @@
+You are working on the BidReel project. I need you to prepare the project for production web deployment on Vercel and mobile packaging with Capacitor/Android Studio.
+
+IMPORTANT RULES:
+- Do NOT expose any real secrets, tokens, keys, passwords, service-role keys, private URLs, or credentials in chat output, source code, logs, or committed files.
+- Do NOT hardcode secrets into the frontend, Android app, or repository.
+- Do NOT delete or break any existing working feature.
+- Do NOT change business logic unless strictly required for configuration correctness.
+- Make all changes conservatively and safely.
+- If a value is sensitive and currently unknown or should remain private, use a clear placeholder and document exactly where it must be filled.
+- I already have:
+  - a real domain
+  - Vercel hosting
+  - Supabase backend/auth/database
+  - Cloudflare R2 for videos and images
+- Your job is to prepare everything missing in the project structure and create a clean handoff file for final secret insertion.
+
+PROJECT GOAL:
+Prepare this project so it is production-ready for:
+1) Vercel web deployment
+2) Capacitor Android build in Android Studio
+3) Supabase auth/backend integration
+4) Cloudflare R2 media flow
+5) Safe environment variable management
+6) Deep link / app link readiness if needed
+7) Zero secret leakage
+
+WHAT I WANT YOU TO DO:
+
+1. AUDIT THE PROJECT
+- Inspect the full project and identify all places that depend on:
+  - frontend env vars
+  - server env vars
+  - Vercel env vars
+  - Supabase URL/keys
+  - Cloudflare R2 endpoint/bucket/keys
+  - API base URLs
+  - Capacitor Android config
+  - authentication redirect URLs
+  - upload endpoints
+  - push notification config if any
+- Find missing, inconsistent, duplicated, unsafe, or hardcoded configuration.
+
+2. CREATE A SINGLE CLEAR HANDOFF FILE
+Create a root-level file named exactly:
+PRODUCTION_SETUP_CHECKLIST.md
+
+This file must include:
+- a full inventory of every required environment variable and secret
+- grouped by:
+  - Frontend
+  - Server / API
+  - Vercel
+  - Supabase
+  - Cloudflare R2
+  - Capacitor / Android
+  - Auth Redirects / Deep Links
+  - Optional Firebase / Push Notifications
+- for each item include:
+  - Variable name
+  - Where it is used
+  - Whether it is public or secret
+  - Example placeholder value only
+  - Where to set it (local .env, Vercel env, Android, Supabase dashboard, Cloudflare dashboard, etc.)
+  - Whether it is mandatory or optional
+- include a “Ready / Missing / Needs Verification” status for each item
+
+3. CREATE SAFE ENV TEMPLATES
+Create or update safe template files only, with placeholders and comments, never real secrets:
+- .env.example
+- .env.server.example (if backend/serverless uses one)
+- any other necessary example env files
+
+Rules:
+- Only placeholders
+- No real values
+- No leaked keys
+- Make names consistent across the entire codebase
+
+4. STANDARDIZE ENV USAGE IN CODE
+- Refactor the code only where needed so configuration is read consistently from environment variables
+- Remove unsafe hardcoded values
+- Keep public values only in frontend-safe env vars
+- Ensure secret values are only read server-side
+- If something currently uses a secret in the frontend, replace that design with a safer pattern if possible, or flag it clearly in the checklist
+
+5. PREPARE VERCEL READINESS
+- Verify the project is correctly structured for Vercel deployment
+- Confirm build command, output directory, and runtime expectations
+- Identify all Vercel env vars required
+- Add a section in PRODUCTION_SETUP_CHECKLIST.md called:
+  “Vercel Required Variables and Dashboard Steps”
+- If there are serverless functions, verify they use server-side secrets only
+- Do not reveal any actual secret values
+
+6. PREPARE SUPABASE READINESS
+- Verify Supabase integration points
+- Confirm which values belong in frontend:
+  - SUPABASE_URL
+  - SUPABASE_ANON_KEY
+- Confirm which values must NEVER be exposed:
+  - service role key
+  - admin secrets
+- Document required redirect URLs for auth flows
+- If OTP, magic link, reset password, or OAuth are used, document exactly what redirect/deep link setup is needed
+- Add a section:
+  “Supabase Mobile and Web Auth Setup”
+- Do not assume service-role belongs in frontend under any circumstance
+
+7. PREPARE CLOUDFLARE R2 READINESS
+- Audit upload and media delivery flow
+- Verify whether uploads happen:
+  - directly from client
+  - through backend
+  - through signed URLs
+- If current design exposes secret R2 credentials to the client, mark that as unsafe and propose the safe structure in the checklist
+- Document all required R2 config items:
+  - account ID if needed
+  - bucket name
+  - endpoint
+  - public asset base URL or custom domain if used
+  - access key / secret key as server-side only
+  - CORS expectations
+- Add a section:
+  “Cloudflare R2 Secure Media Configuration”
+
+8. PREPARE CAPACITOR / ANDROID READINESS
+- Audit Capacitor config and Android-related requirements
+- Verify:
+  - appId / package name
+  - appName
+  - webDir
+  - allowNavigation if needed
+  - server URL usage if any
+  - Android internet permission expectations
+  - deep link or app link readiness
+- If auth redirects or app links are needed, document:
+  - custom scheme
+  - android intent filters
+  - domain-based app links
+  - assetlinks.json requirement
+- Add a section:
+  “Android Studio / Capacitor Final Requirements”
+- Do not fabricate values; use placeholders where unknown
+
+9. CREATE A MACHINE-READABLE CONFIG MAP
+Create a root-level file named:
+config.requirements.json
+
+It must contain a structured JSON map of:
+- every required config key
+- category
+- public/secret
+- target location
+- required/optional
+- placeholder example
+- notes
+
+This file must contain placeholders only, never real secrets.
+
+10. REPORT ONLY WHAT WAS DONE
+At the end, output:
+- exact files created or modified
+- exact configuration gaps found
+- exact unsafe patterns found
+- exact remaining manual steps for me
+- do not paste secrets
+- do not invent values
+- do not ask for unnecessary clarification before doing the audit
+
+SUCCESS CRITERIA:
+- The repo contains a clear production configuration checklist
+- The repo contains safe example env files
+- The repo contains a config requirements JSON map
+- No secrets are exposed
+- Web/Vercel, Supabase, R2, and Android requirements are all documented
+- The project is easier to hand off to Android Studio and final deployment without missing anything
+
+EXTRA IMPORTANT:
+- Preserve all current project goals and architecture
+- Do not simplify away existing functionality
+- Do not remove integrations with Vercel, Supabase, or Cloudflare R2
+- Be thorough and production-minded
+- Treat this as a professional deployment-readiness audit and preparation pass

@@ -27,6 +27,7 @@ const config: CapacitorConfig = {
   server: {
     url: "https://www.bid-reel.com",
     cleartext: false,
+    allowNavigation: ["*.supabase.co"],
   },
 
   plugins: {

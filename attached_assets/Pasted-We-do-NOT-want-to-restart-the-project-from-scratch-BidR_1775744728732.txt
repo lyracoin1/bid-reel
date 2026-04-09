@@ -1,0 +1,57 @@
+We do NOT want to restart the project from scratch.
+
+BidReel is already ~70% complete (React + Vite, Vercel, Supabase, R2).
+We want to EVOLVE this project into a Native-first mobile architecture, not replace it.
+
+Important:
+- Keep existing backend, APIs, auth, storage, and core logic
+- Reuse as much as possible from current frontend (logic, structure, patterns)
+- Avoid full rewrite unless absolutely necessary
+
+Goal:
+Transform BidReel into a real mobile app experience (close to TikTok behavior) by progressively introducing native/mobile layers.
+
+Your task:
+
+1. Analyze the current project and identify:
+   - What parts can stay as-is (web layer)
+   - What parts can be reused (logic, API calls, state handling)
+   - What parts MUST be rewritten for mobile
+
+2. Define what is REQUIRED to move toward a Native-first architecture:
+   - Do we need React Native? Or can we use Capacitor + native modules?
+   - Which features MUST be native (video playback, gestures, caching, lifecycle, etc.)
+   - Which features can remain in the web layer safely
+
+3. Give a clear migration strategy WITHOUT restarting:
+   - Phase 1: minimal changes to get a strong mobile app foundation
+   - Phase 2: upgrade performance (video, feed, gestures)
+   - Phase 3: native-level polish
+
+4. Be very specific about:
+   - Video system (critical for TikTok-like experience)
+   - Feed performance and scrolling
+   - Preloading / buffering strategy
+   - Memory handling
+   - Mobile navigation (non-browser feel)
+
+5. Tell me:
+   - Exactly what new tools/frameworks we must introduce
+   - What files or layers will be added
+   - What risks exist if we keep too much of the web layer
+
+6. Ask me any questions you need before starting implementation.
+
+Rules:
+- Do NOT suggest a full rewrite unless there is no other viable option
+- Do NOT default to simple WebView
+- Focus on upgrading, not replacing
+- Think like a senior mobile architect, not a generic assistant
+
+Return:
+- Architecture decision
+- What we keep vs change
+- Step-by-step migration plan
+- Required tools/libraries
+- Risks and tradeoffs
+- Questions for clarification

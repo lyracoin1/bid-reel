@@ -42,19 +42,9 @@ const config: CapacitorConfig = {
   webDir: "dist/public",
 
   server: {
-    /**
-     * androidScheme: "https" serves bundled assets from https://localhost.
-     * This is the standard Capacitor pattern — localhost here is the Capacitor
-     * bridge, not a network server.  API calls reach production via the
-     * VITE_API_URL that is baked into the bundle at build time.
-     */
     androidScheme: "https",
-
-    /**
-     * allowNavigation: domains the WebView may navigate to.
-     * Supabase is listed so OAuth redirects and asset URLs work correctly.
-     */
-    allowNavigation: ["*.supabase.co"],
+    hostname: "localhost",
+    cleartext: true,
   },
 
   plugins: {

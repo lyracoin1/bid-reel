@@ -1,0 +1,63 @@
+I want an architecture and product decision review only for now. Do NOT write code yet.
+
+Project context:
+
+* Product name: BidReel
+* Current stack:
+
+  * Web frontend: React + Vite
+  * Backend/API: Vercel serverless functions
+  * Database/Auth: Supabase
+  * Media storage: Cloudflare R2
+  * Domain: bid-reel.com / [www.bid-reel.com](http://www.bid-reel.com)
+* Product goal:
+
+  * A highly polished short-video auction platform similar in feel to TikTok / Instagram Reels
+  * Professional Android app
+  * Shared backend for both web and app
+  * Same brand identity, colors, content structure, and user data across platforms
+
+What I need from you:
+
+1. Evaluate whether I should:
+
+   * keep the current web product and add a dedicated Android app,
+   * or rebuild Android from scratch as a separate mobile frontend,
+   * or keep using the current Capacitor approach.
+2. Recommend the best architecture for long-term scalability and production quality.
+3. Keep ONE backend only:
+
+   * same Supabase
+   * same Vercel API
+   * same R2 storage
+   * same auth and user accounts
+4. Explain whether I need:
+
+   * a separate domain for the Android app,
+   * or if web and app can share the same domain/backend safely.
+5. Preserve:
+
+   * the same visual identity
+   * same colors
+   * same content model
+   * same admin/backend logic
+6. Do NOT generate code yet.
+7. Do NOT refactor anything yet.
+8. First give me:
+
+   * the recommended architecture
+   * pros/cons of each option
+   * migration plan
+   * risk analysis
+   * estimated complexity
+9. Prioritize a real, production-grade Android app experience, not a temporary wrapper.
+10. Assume I want the final result to feel like a real native-quality short-video app, while keeping the current backend and product logic.
+
+Output format:
+
+* Clear recommendation first
+* Then architecture comparison
+* Then migration plan in phases
+* Then what should stay shared between web and app
+* Then what should be mobile-specific
+* No code yet

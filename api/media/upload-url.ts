@@ -1,7 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  PutBucketCorsCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { requireAuth } from "../_lib/requireAuth";
 import { ApiError } from "../_lib/errors";
@@ -17,8 +21,8 @@ import { logger } from "../_lib/logger";
 // Response: { uploadUrl, path, publicUrl, fileType, expiresInSeconds }
 // ---------------------------------------------------------------------------
 
-const R2_ACCOUNT_ID   = process.env["R2_ACCOUNT_ID"]      ?? "d4b5c54d01b6cf375012d7b9d1331ead";
-const R2_PUBLIC_BASE  = process.env["R2_PUBLIC_BASE_URL"]  ?? "https://pub-8b8e7f8f594241f09d4af25fd307f2e4.r2.dev";
+const R2_ACCOUNT_ID  = process.env["R2_ACCOUNT_ID"]     ?? "d4b5c54d01b6cf375012d7b9d1331ead";
+const R2_PUBLIC_BASE = process.env["R2_PUBLIC_BASE_URL"] ?? "https://pub-8b8e7f8f594241f09d4af25fd307f2e4.r2.dev";
 
 /**
  * Sanitize the R2 bucket name.
@@ -37,9 +41,9 @@ function sanitizeBucketName(raw: string): string {
   return raw;
 }
 
-const R2_BUCKET = sanitizeBucketName(process.env["R2_BUCKET"] ?? "bidreel-media");
-const R2_ENDPOINT     = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
-const EXPIRY_SECONDS  = 3600;
+const R2_BUCKET  = sanitizeBucketName(process.env["R2_BUCKET"] ?? "bidreel-media");
+const R2_ENDPOINT = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+const EXPIRY_SECONDS = 3600;
 
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20 MB
 const MAX_VIDEO_BYTES = 20 * 1024 * 1024; // 20 MB
@@ -50,12 +54,12 @@ const ALLOWED_MIME: Record<"image" | "video", string[]> = {
 };
 
 const MIME_TO_EXT: Record<string, string> = {
-  "image/jpeg":    "jpg",
-  "image/png":     "png",
-  "image/webp":    "webp",
-  "video/mp4":     "mp4",
+  "image/jpeg":      "jpg",
+  "image/png":       "png",
+  "image/webp":      "webp",
+  "video/mp4":       "mp4",
   "video/quicktime": "mov",
-  "video/webm":    "webm",
+  "video/webm":      "webm",
 };
 
 const bodySchema = z.object({
@@ -63,6 +67,67 @@ const bodySchema = z.object({
   mimeType:  z.string().min(1),
   sizeBytes: z.number().int().positive(),
 });
+
+// ---------------------------------------------------------------------------
+// CORS — origins that are allowed to call this endpoint and upload to R2.
+//
+// https://localhost  — Capacitor Android/iOS bridge origin (APK/IPA builds).
+//                      The WebView serves bundled assets from this origin even
+//                      though it is not a real network server.
+// https://www.bid-reel.com / https://bid-reel.com — production web.
+// ---------------------------------------------------------------------------
+const ALLOWED_ORIGINS = [
+  "https://localhost",
+  "https://www.bid-reel.com",
+  "https://bid-reel.com",
+];
+
+function setCorsHeaders(req: VercelRequest, res: VercelResponse): void {
+  const origin = req.headers["origin"] as string | undefined;
+  // Reflect the request origin if it is in the allow-list, otherwise use *.
+  // Reflecting is required when credentials (Authorization header) are sent.
+  const allowOrigin =
+    origin && ALLOWED_ORIGINS.includes(origin) ? origin : "*";
+
+  res.setHeader("Access-Control-Allow-Origin", allowOrigin);
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Max-Age", "86400");
+}
+
+// ---------------------------------------------------------------------------
+// R2 CORS — automatically applied to the bucket on the first request after a
+// cold start.  This ensures the browser/WebView can PUT files directly to R2
+// from any of the allowed origins without a CORS preflight failure.
+// ---------------------------------------------------------------------------
+let r2CorsConfigured = false;
+
+async function ensureR2Cors(r2: S3Client): Promise<void> {
+  if (r2CorsConfigured) return;
+  try {
+    await r2.send(
+      new PutBucketCorsCommand({
+        Bucket: R2_BUCKET,
+        CORSConfiguration: {
+          CORSRules: [
+            {
+              AllowedOrigins: ALLOWED_ORIGINS,
+              AllowedMethods: ["GET", "PUT"],
+              AllowedHeaders: ["*"],
+              MaxAgeSeconds: 86400,
+            },
+          ],
+        },
+      }),
+    );
+    r2CorsConfigured = true;
+    logger.info("R2 CORS policy applied", { bucket: R2_BUCKET });
+  } catch (err) {
+    // Non-fatal: log and continue. The upload may still succeed if the policy
+    // was already set correctly in the Cloudflare dashboard.
+    logger.error("Failed to apply R2 CORS policy (non-fatal)", err);
+  }
+}
 
 function getR2Client(): S3Client {
   const accessKeyId     = process.env["R2_ACCESS_KEY_ID"];
@@ -84,6 +149,15 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<void> {
+  // Always set CORS headers — needed for both OPTIONS preflight and the actual POST.
+  setCorsHeaders(req, res);
+
+  // Handle CORS preflight.
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+
   if (req.method !== "POST") {
     res.status(405).json({ error: "METHOD_NOT_ALLOWED", message: "POST required" });
     return;
@@ -125,6 +199,9 @@ export default async function handler(
     const path = `${fileType}s/${user.id}/${randomUUID()}.${ext}`;
 
     const r2 = getR2Client();
+
+    // Ensure the R2 bucket CORS policy allows uploads from the mobile WebView.
+    await ensureR2Cors(r2);
 
     const command = new PutObjectCommand({
       Bucket: R2_BUCKET,

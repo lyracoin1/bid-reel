@@ -1,0 +1,21 @@
+{
+	"appId": "com.bidreel.app",
+	"appName": "BidReel",
+	"webDir": "dist/public",
+	"server": {
+		"androidScheme": "https",
+		"allowNavigation": [
+			"*.supabase.co"
+		]
+	},
+	"plugins": {
+		"SplashScreen": {
+			"launchShowDuration": 0,
+			"backgroundColor": "#030305",
+			"showSpinner": false
+		}
+	},
+	"android": {
+		"minWebViewVersion": 60
+	}
+}

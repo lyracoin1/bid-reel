@@ -18,8 +18,26 @@ import { logger } from "../_lib/logger";
 // ---------------------------------------------------------------------------
 
 const R2_ACCOUNT_ID   = process.env["R2_ACCOUNT_ID"]      ?? "d4b5c54d01b6cf375012d7b9d1331ead";
-const R2_BUCKET       = process.env["R2_BUCKET"]           ?? "bidreel-media";
 const R2_PUBLIC_BASE  = process.env["R2_PUBLIC_BASE_URL"]  ?? "https://pub-8b8e7f8f594241f09d4af25fd307f2e4.r2.dev";
+
+/**
+ * Sanitize the R2 bucket name.
+ * If someone accidentally pastes a full Cloudflare dashboard URL as the env
+ * var value (e.g. https://dash.cloudflare.com/<account>/r2/default/buckets/media)
+ * this extracts just the final path segment so the S3 client never receives
+ * a value containing '/'.
+ *
+ * Correct env var value should be just the bucket name, e.g.: bidreel-media
+ */
+function sanitizeBucketName(raw: string): string {
+  if (raw.startsWith("http://") || raw.startsWith("https://")) {
+    const segment = raw.split("/").filter(Boolean).pop();
+    return segment ?? raw;
+  }
+  return raw;
+}
+
+const R2_BUCKET = sanitizeBucketName(process.env["R2_BUCKET"] ?? "bidreel-media");
 const R2_ENDPOINT     = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
 const EXPIRY_SECONDS  = 3600;
 

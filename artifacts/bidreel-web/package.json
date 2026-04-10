@@ -9,7 +9,7 @@
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "android:sync-dev": "cap sync android",
-    "android:build": "BASE_PATH=/ vite build --config vite.config.ts && cap sync android",
+    "android:build": "BASE_PATH=/ VITE_API_URL=https://www.bid-reel.com/api VITE_PUBLIC_BASE_URL=https://www.bid-reel.com vite build --config vite.config.ts && cap sync android",
     "android:open": "cap open android"
   },
   "devDependencies": {

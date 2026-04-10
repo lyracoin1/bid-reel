@@ -1,0 +1,52 @@
+We need a root-cause check from the source of truth in Replit.
+
+Context:
+
+* This project’s real source of truth is Replit, not manual Android Studio edits.
+* I already updated the root Capacitor config and ran build + cap sync locally.
+* Android still logs:
+
+  * Loading app at https://localhost
+  * Handling local request: https://localhost/...
+  * auth failed to load own profile: Unexpected token '<'
+* The generated android/app/src/main/assets/capacitor.config.json appears correct after sync, but the app still runs from localhost.
+
+Your task:
+
+1. Audit the Replit source of truth and find why Capacitor Android still serves https://localhost at runtime.
+2. Check all possible causes in source code and config, especially:
+
+   * capacitor.config.ts
+   * capacitor.config.json
+   * vite.config.ts
+   * any Capacitor server settings
+   * any Android-specific overrides
+   * any build output assumptions around dist/public
+   * whether the project is intentionally using bundled local assets instead of remote production URL
+3. Determine whether localhost is expected behavior for Capacitor in this app, and whether the real bug is actually that frontend API calls are using relative /api paths instead of the production domain.
+4. If the correct fix is NOT changing Capacitor server.url, then implement the real fix in the source:
+
+   * for example, fixing API base URL resolution in the frontend
+   * or fixing environment variable usage for Android builds
+5. Search the repo for all references to:
+
+   * localhost
+   * 127.0.0.1
+   * /api/auth/login
+   * /api/users/me
+   * API base URL logic
+   * fetch wrappers
+   * axios instances
+6. Explain clearly:
+
+   * what is the real root cause
+   * which source file is responsible
+   * what exact fix you applied
+7. Commit and push the fix to GitHub.
+
+Important:
+
+* Do not guess.
+* Do not only patch generated Android files.
+* Fix the source of truth in Replit.
+* If localhost is normal for Capacitor bundled assets, say that explicitly and then fix the actual API routing bug instead.

@@ -1,15 +1,32 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 /**
- * Capacitor configuration for BidReel Android app — Production.
+ * Capacitor configuration for BidReel Android app.
  *
- * ─── Production mode ─────────────────────────────────────────────────────────
- * server.url is set to the production domain. The Android WebView loads the
- * live site at https://www.bid-reel.com instead of bundled local assets.
- * All API calls resolve against the production domain — no localhost involved.
+ * ─── How the Android app loads ───────────────────────────────────────────────
+ * The app uses BUNDLED web assets served by the Capacitor bridge from the
+ * origin https://localhost (this is normal and expected Capacitor behaviour —
+ * "localhost" here is the internal bridge, not a real server).
+ *
+ * With androidScheme: "https" the WebView origin is https://localhost, which
+ * correctly supports:
+ *   - History-API push-state routing (Wouter)
+ *   - localStorage / sessionStorage
+ *   - Same-origin fetch semantics treated as secure
+ *
+ * ─── API connectivity ────────────────────────────────────────────────────────
+ * Because the origin is https://localhost, relative paths like /api/... would
+ * resolve to https://localhost/api/... and fail.  This is solved by baking
+ * VITE_API_URL into the bundle at build time.  api-client.ts already reads
+ * that variable and uses it (instead of a relative path) whenever
+ * Capacitor.isNativePlatform() is true.
+ *
+ * Use the android:build npm script — it sets VITE_API_URL automatically:
+ *   pnpm --filter @workspace/bidreel-web run android:build
  *
  * ─── Build process ───────────────────────────────────────────────────────────
- *   1. npx cap sync android   (from artifacts/bidreel-web/)
+ *   1. pnpm --filter @workspace/bidreel-web run android:build
+ *      (builds web bundle with VITE_API_URL set, then runs cap sync)
  *   2. npx cap open android   (opens Android Studio)
  *   3. Build > Generate Signed Bundle / APK in Android Studio
  */
@@ -25,8 +42,18 @@ const config: CapacitorConfig = {
   webDir: "dist/public",
 
   server: {
-    url: "https://www.bid-reel.com",
-    cleartext: false,
+    /**
+     * androidScheme: "https" serves bundled assets from https://localhost.
+     * This is the standard Capacitor pattern — localhost here is the Capacitor
+     * bridge, not a network server.  API calls reach production via the
+     * VITE_API_URL that is baked into the bundle at build time.
+     */
+    androidScheme: "https",
+
+    /**
+     * allowNavigation: domains the WebView may navigate to.
+     * Supabase is listed so OAuth redirects and asset URLs work correctly.
+     */
     allowNavigation: ["*.supabase.co"],
   },
 

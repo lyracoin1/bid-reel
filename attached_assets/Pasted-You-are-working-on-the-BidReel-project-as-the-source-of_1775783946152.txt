@@ -1,0 +1,108 @@
+You are working on the BidReel project as the source-of-truth engineer.
+
+This is a ROOT-SOURCE fix request.
+Do NOT patch Android Studio manually.
+Do NOT rely on stale generated files.
+Do NOT keep server.url.
+The fix must start from the real source in Replit, then be committed so GitHub receives the corrected files.
+
+## Confirmed diagnosis
+
+We have hard evidence that the current source is still wrong:
+
+1) capacitor.config.ts currently still contains:
+   server: {
+     url: "https://www.bid-reel.com",
+     cleartext: false,
+     allowNavigation: ["*.supabase.co"]
+   }
+
+2) android/app/src/main/assets/capacitor.config.json is being generated with the same wrong server.url
+
+3) Logcat shows:
+   Loading app at https://www.bid-reel.com
+
+This proves the app is still loading the remote website instead of bundled local assets.
+
+That is the root bug.
+We must switch back to bundled assets architecture.
+
+## What you must do
+
+### 1) Fix the real source file
+Edit:
+artifacts/bidreel-web/capacitor.config.ts
+
+Replace the current remote server.url configuration with the correct local-assets configuration.
+
+Target result must be equivalent to:
+
+- keep appId
+- keep appName
+- keep webDir = "dist/public"
+- remove server.url completely
+- remove cleartext
+- use:
+  server: {
+    androidScheme: "https",
+    allowNavigation: ["*.supabase.co"]
+  }
+- keep SplashScreen config
+- keep android.minWebViewVersion
+
+### 2) Regenerate Android config from source
+After editing the real source, regenerate the Android output so that:
+
+artifacts/bidreel-web/android/app/src/main/assets/capacitor.config.json
+
+NO LONGER contains:
+- "url": "https://www.bid-reel.com"
+
+and DOES contain:
+- "androidScheme": "https"
+
+### 3) Verify by searching the project
+Run a project-wide search and verify that inside the active Capacitor config path there is no remaining runtime config forcing:
+https://www.bid-reel.com
+
+You may ignore:
+- .env.example
+- VITE_API_URL=https://www.bid-reel.com/api
+- VITE_PUBLIC_BASE_URL=https://www.bid-reel.com
+because API URLs are expected.
+But Capacitor runtime config must not load the app from the remote domain.
+
+### 4) Commit from Replit to GitHub
+Commit the fix from Replit so GitHub becomes correct too.
+
+### 5) Show me final proof
+After the edit, show me:
+
+A) final contents of:
+artifacts/bidreel-web/capacitor.config.ts
+
+B) final contents of:
+artifacts/bidreel-web/android/app/src/main/assets/capacitor.config.json
+
+C) a concise grep/search result proving there is no active Capacitor server.url left in the source/build path
+
+## Important constraints
+
+- This is a source-of-truth fix from Replit first
+- Do NOT propose Android Studio manual patching
+- Do NOT keep remote server.url architecture
+- Do NOT hand-wave
+- Do NOT say "should"
+- Perform the edit, regenerate, verify, and commit
+
+## Goal
+
+The Android app must load from bundled local assets via Capacitor bridge,
+while API calls still go to:
+https://www.bid-reel.com/api
+
+That means:
+- app origin = local Capacitor assets
+- API origin = production API URL
+
+Proceed now.

@@ -1,11 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import {
-  S3Client,
-  PutObjectCommand,
-  PutBucketCorsCommand,
-} from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { requireAuth } from "../_lib/requireAuth";
 import { ApiError } from "../_lib/errors";
@@ -95,39 +91,6 @@ function setCorsHeaders(req: VercelRequest, res: VercelResponse): void {
   res.setHeader("Access-Control-Max-Age", "86400");
 }
 
-// ---------------------------------------------------------------------------
-// R2 CORS — automatically applied to the bucket on the first request after a
-// cold start.  This ensures the browser/WebView can PUT files directly to R2
-// from any of the allowed origins without a CORS preflight failure.
-// ---------------------------------------------------------------------------
-let r2CorsConfigured = false;
-
-async function ensureR2Cors(r2: S3Client): Promise<void> {
-  if (r2CorsConfigured) return;
-  try {
-    await r2.send(
-      new PutBucketCorsCommand({
-        Bucket: R2_BUCKET,
-        CORSConfiguration: {
-          CORSRules: [
-            {
-              AllowedOrigins: ALLOWED_ORIGINS,
-              AllowedMethods: ["GET", "PUT"],
-              AllowedHeaders: ["*"],
-              MaxAgeSeconds: 86400,
-            },
-          ],
-        },
-      }),
-    );
-    r2CorsConfigured = true;
-    logger.info("R2 CORS policy applied", { bucket: R2_BUCKET });
-  } catch (err) {
-    // Non-fatal: log and continue. The upload may still succeed if the policy
-    // was already set correctly in the Cloudflare dashboard.
-    logger.error("Failed to apply R2 CORS policy (non-fatal)", err);
-  }
-}
 
 function getR2Client(): S3Client {
   const accessKeyId     = process.env["R2_ACCESS_KEY_ID"];
@@ -199,9 +162,6 @@ export default async function handler(
     const path = `${fileType}s/${user.id}/${randomUUID()}.${ext}`;
 
     const r2 = getR2Client();
-
-    // Ensure the R2 bucket CORS policy allows uploads from the mobile WebView.
-    await ensureR2Cors(r2);
 
     const command = new PutObjectCommand({
       Bucket: R2_BUCKET,

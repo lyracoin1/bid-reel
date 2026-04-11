@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Shield, Loader2, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Loader2, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { adminLogin } from "@/services/admin-api";
 import { setAdminSession } from "@/lib/admin-session";
 
@@ -28,52 +28,65 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
+    <div className="relative min-h-screen bg-[#030305] flex items-center justify-center p-4 overflow-hidden">
 
-        {/* Logo */}
+      {/* Ambient glow — exact same orbs as main app login */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/15 rounded-full blur-[100px] mix-blend-screen animate-pulse" />
+        <div className="absolute bottom-1/4 right-1/4 w-[28rem] h-[28rem] bg-indigo-600/10 rounded-full blur-[120px] mix-blend-screen" />
+      </div>
+
+      <div className="relative z-10 w-full max-w-sm">
+
+        {/* Logo + heading */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-violet-600 flex items-center justify-center shadow-xl shadow-violet-600/30 mb-4">
-            <Shield size={28} className="text-white" />
-          </div>
-          <h1 className="text-xl font-bold text-white">BidReel Admin</h1>
-          <p className="text-sm text-gray-500 mt-1">تسجيل دخول لوحة الإدارة</p>
+          <img
+            src="/bidreel-admin/logo-icon.png"
+            alt="BidReel"
+            className="w-20 h-20 rounded-2xl mb-5 box-glow"
+          />
+          <h1 className="text-2xl font-display font-bold text-white text-center">BidReel Admin</h1>
+          <p className="text-sm text-muted-foreground text-center mt-1.5">تسجيل دخول لوحة الإدارة</p>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1.5" dir="rtl">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-muted-foreground font-medium text-right">
               رقم الهاتف (مع كود الدولة)
             </label>
             <input
               type="tel"
+              inputMode="tel"
               value={phone}
-              onChange={e => setPhone(e.target.value)}
+              onChange={e => { setPhone(e.target.value); setError(null); }}
               placeholder="+20XXXXXXXXXX"
+              autoComplete="tel"
               dir="ltr"
               required
-              className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 transition"
+              className="w-full bg-muted/40 border border-border rounded-xl px-4 py-3.5 text-white text-base placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/60 transition"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1.5" dir="rtl">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-muted-foreground font-medium text-right">
               كود الإدارة
             </label>
             <div className="relative">
               <input
                 type={showCode ? "text" : "password"}
                 value={code}
-                onChange={e => setCode(e.target.value)}
-                placeholder="••••••"
+                onChange={e => { setCode(e.target.value); setError(null); }}
+                placeholder="أدخل الكود السري"
+                autoComplete="off"
                 required
-                className="w-full px-4 py-3 pr-11 bg-gray-900 border border-gray-700 rounded-xl text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 transition"
+                className="w-full bg-muted/40 border border-border rounded-xl px-4 py-3.5 pr-12 text-white text-base placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/60 transition"
               />
               <button
                 type="button"
                 onClick={() => setShowCode(!showCode)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white transition-colors"
               >
                 {showCode ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
@@ -81,7 +94,7 @@ export default function Login() {
           </div>
 
           {error && (
-            <div className="flex items-start gap-2.5 p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm" dir="rtl">
+            <div className="flex items-start gap-2.5 p-3.5 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-sm" dir="rtl">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -90,7 +103,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading || !phone.trim() || !code.trim()}
-            className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-violet-600/20 mt-2"
+            className="w-full bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground font-semibold rounded-xl py-3.5 transition-colors flex items-center justify-center gap-2 mt-1"
           >
             {loading ? (
               <>
@@ -103,7 +116,7 @@ export default function Login() {
           </button>
         </form>
 
-        <p className="text-center text-xs text-gray-700 mt-6">
+        <p className="text-center text-xs text-muted-foreground/40 mt-8">
           BidReel Admin Panel · admin.bid-reel.com
         </p>
       </div>

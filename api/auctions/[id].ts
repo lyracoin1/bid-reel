@@ -12,6 +12,7 @@ const AUCTION_SELECT = `
   *,
   seller:profiles!seller_id (
     id,
+    username,
     display_name,
     avatar_url,
     phone

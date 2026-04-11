@@ -137,6 +137,7 @@ export interface ApiAuctionRaw {
   currency_label?: string | null;
   seller: {
     id: string;
+    username: string | null;
     display_name: string | null;
     avatar_url: string | null;
     phone: string | null;

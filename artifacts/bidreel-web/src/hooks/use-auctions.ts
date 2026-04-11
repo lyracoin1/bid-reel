@@ -34,13 +34,17 @@ function apiProfileToUser(
   profile: ApiAuctionRaw['seller'] | ApiAuctionBid['bidder'],
   fallbackId: string,
 ): User {
+  // username is the real handle stored in profiles.username (set during onboarding).
+  // display_name is the full name shown elsewhere.
+  // Fall back to truncated UUID only when the profile has no username yet.
+  const rawUsername = (profile as (typeof profile & { username?: string | null }))?.username;
+  const handle = rawUsername ? `@${rawUsername}` : `@${(profile?.id ?? fallbackId).slice(0, 8)}`;
+
   return {
     id: profile?.id ?? fallbackId,
-    name: profile?.display_name ?? 'Seller',
-    avatar:
-      profile?.avatar_url ??
-      '',
-    handle: `@${(profile?.id ?? fallbackId).slice(0, 8)}`,
+    name: profile?.display_name ?? rawUsername ?? 'Seller',
+    avatar: profile?.avatar_url ?? '',
+    handle,
     phone: (profile as (typeof profile & { phone?: string | null }))?.phone ?? '',
   };
 }

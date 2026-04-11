@@ -1,42 +1,68 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { useEffect } from "react";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import { Loader2 } from "lucide-react";
+import { isAdminSessionValid } from "@/lib/admin-session";
+
+import Login from "@/pages/Login";
+import Dashboard from "@/pages/Dashboard";
+import Users from "@/pages/Users";
+import Auctions from "@/pages/Auctions";
+import Reports from "@/pages/Reports";
+import Stats from "@/pages/Stats";
+import Actions from "@/pages/Actions";
 import NotFound from "@/pages/not-found";
 
-const queryClient = new QueryClient();
+function AdminGuard({ children }: { children: React.ReactNode }) {
+  const [, setLocation] = useLocation();
 
-function Home() {
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-gray-900">Replit Agent is building...</h1>
-        <p className="mt-2 text-sm text-gray-600">Your app will appear here once it's ready.</p>
+  useEffect(() => {
+    if (!isAdminSessionValid()) {
+      setLocation("/login");
+    }
+  }, [setLocation]);
+
+  if (!isAdminSessionValid()) {
+    return (
+      <div className="h-screen bg-gray-950 flex items-center justify-center">
+        <Loader2 size={28} className="text-violet-500 animate-spin" />
       </div>
-    </div>
-  );
+    );
+  }
+
+  return <>{children}</>;
 }
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
-      <Route component={NotFound} />
+      <Route path="/login" component={Login} />
+      <Route path="/">
+        <AdminGuard><Dashboard /></AdminGuard>
+      </Route>
+      <Route path="/users">
+        <AdminGuard><Users /></AdminGuard>
+      </Route>
+      <Route path="/auctions">
+        <AdminGuard><Auctions /></AdminGuard>
+      </Route>
+      <Route path="/reports">
+        <AdminGuard><Reports /></AdminGuard>
+      </Route>
+      <Route path="/stats">
+        <AdminGuard><Stats /></AdminGuard>
+      </Route>
+      <Route path="/actions">
+        <AdminGuard><Actions /></AdminGuard>
+      </Route>
+      <Route><NotFound /></Route>
     </Switch>
   );
 }
 
-function App() {
+export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+      <Router />
+    </WouterRouter>
   );
 }
-
-export default App;

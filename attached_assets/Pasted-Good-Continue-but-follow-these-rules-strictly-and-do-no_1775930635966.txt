@@ -1,0 +1,38 @@
+Good. Continue, but follow these rules strictly and do not skip any item.
+
+1. Keep the existing main app fully untouched and working.
+2. Build the standalone admin app in a separate folder:
+   artifacts/bidreel-admin
+3. Do NOT duplicate unnecessary code from the main app. Reuse logic only where safe, but keep the admin app independent.
+4. Do NOT put SUPABASE_SERVICE_ROLE_KEY in any frontend file, client bundle, Vite env exposed to browser, or shared client utility.
+5. All privileged admin operations must run only through secure backend api/admin/* endpoints.
+6. Protect every admin endpoint with requireAdmin or equivalent verified server-side admin auth.
+7. Protect every admin frontend route so non-admin users are redirected away.
+8. Create a dedicated admin login flow if needed, but keep it secure and compatible with Supabase auth.
+9. Make the UI production-ready:
+   - clean sidebar
+   - dashboard home
+   - users management
+   - auctions management
+   - reports/moderation
+   - stats cards
+   - loading/error/empty states
+10. Make sure every existing admin API client call points to a real implemented backend route.
+11. Do not leave placeholders, mock handlers, or TODO endpoints.
+12. After finishing, give me exactly these outputs:
+
+A. Full folder tree for artifacts/bidreel-admin
+B. Full list of created backend files under api/admin
+C. Every environment variable required, separated into:
+   - frontend-only
+   - backend-only
+D. Any SQL migration needed
+E. What admin role logic you used exactly
+F. Exact deployment steps for Vercel
+G. Exact DNS record I will add later for admin.bid-reel.com
+H. A checklist of what I must provide you manually, if anything is still missing
+
+Important:
+- If you need any secret, key, table name, schema detail, or existing env variable from me, stop and ask specifically for that exact item.
+- If something already exists in the repo, reuse it instead of inventing a new incompatible system.
+- Do not break compatibility with future Android WebView usage.

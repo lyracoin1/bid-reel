@@ -1,0 +1,84 @@
+Continue in the existing BidReel codebase. Do not restart. Do not modify unrelated UI.
+
+We are still in **Feed UI Phase**.
+
+## Implement ONLY this:
+
+Fix the issue where the **username is not displayed to other users in the feed**.
+
+### Problem
+
+* The username should appear in the feed (near avatar / video info)
+* It works partially or for the owner, but not for other users
+* This is NOT a UI issue — it's a **data binding / data fetching issue**
+
+### Required result
+
+* Every reel/video must display the correct username of its owner
+* The username must be visible to all users, not only the uploader
+* The value must come from the correct source of truth (database)
+
+### What to check
+
+1. Inspect how reel/video data is fetched:
+
+   * Is the user info included?
+   * Is it using `user_id` only without joining profile data?
+
+2. Check Supabase queries:
+
+   * If you're only selecting from `reels` (or videos table), you are likely missing user info
+   * You must include the related user/profile data
+
+3. Ensure one of these is correctly implemented:
+
+   * join with profiles table
+   * or include embedded relation (Supabase select with foreign key)
+
+Example concept (adapt to existing schema, DO NOT copy blindly):
+
+* select reels + profiles(username, avatar_url)
+
+4. Check the frontend:
+
+   * where the username is rendered
+   * ensure it is using the fetched value (not undefined / fallback)
+
+5. Make sure:
+
+   * no hardcoded username
+   * no fallback like "user" or empty string overriding real data
+   * no conditional hiding for non-owners
+
+### Important constraints
+
+* Do NOT redesign UI
+* Do NOT move any elements
+* Do NOT touch mute, follow, or action buttons
+* Do NOT modify storage or upload logic
+* Do NOT break existing feed rendering
+
+### Implementation expectation
+
+* Fix the data flow from backend → frontend
+* Ensure the username is always available in the feed item object
+* Ensure the component reads it correctly and renders it
+
+### Deliverables
+
+After finishing, return:
+
+1. which files were modified
+2. what the root cause was (exactly)
+3. what query/data structure was changed
+4. confirmation that usernames now appear for all users
+
+### Validation checklist
+
+* open feed as a different user → usernames appear correctly
+* scroll multiple reels → each shows correct owner name
+* no undefined / empty usernames
+* no console errors
+* avatar + username match correctly
+
+Work ONLY on this username fix. Do not touch anything else.

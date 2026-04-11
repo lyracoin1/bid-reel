@@ -1,0 +1,76 @@
+You are continuing the existing BidReel codebase. Do not restart, do not redesign, and do not touch unrelated parts.
+
+Current phase: **Frontend feed UI stabilization only**.
+
+Now implement **ONLY** this task:
+
+## Task: Fix Mute Button Behavior in the video feed
+
+The mute button is already present / will appear in the feed UI, but its behavior is incorrect.
+You must fix it so that the button always reflects the **real current audio state of the active video**.
+
+### Required behavior
+
+1. The mute/unmute button must be bound to the **actual HTMLVideoElement muted state** of the currently active reel/video.
+2. The icon/state shown in the UI must always match the real state:
+
+   * if video is muted → show muted icon/state
+   * if video has sound → show unmuted icon/state
+3. Tapping the mute button must immediately toggle the active video's sound correctly.
+4. When the active video changes while scrolling the feed:
+
+   * the mute button must sync to the newly active video's real muted state
+   * it must not keep stale state from the previous video
+5. If the feed uses one shared global mute state, make sure all active playback logic respects it consistently.
+6. If each video has its own local state now and that is causing desync, refactor carefully so there is one reliable source of truth.
+7. The button must never look “unmuted” while the playing video is actually muted, and never look “muted” while sound is actually on.
+8. On first feed load, initialize the button state from the real video/player state, not from a fake default visual state.
+9. If autoplay starts muted by policy, the UI must show muted immediately.
+10. If the user unmutes one active video, then moves to the next reel, the behavior must stay logically consistent with the intended app rule already used in the codebase:
+
+    * either preserve a global mute preference across reels
+    * or intentionally reset based on existing product logic
+      But in all cases the UI must exactly match the real playback state.
+
+### Important constraints
+
+* Do NOT redesign the feed
+* Do NOT move other buttons
+* Do NOT edit follow, username, avatar, or left/right column in this step
+* Do NOT touch backend/API logic unless absolutely required for this mute sync
+* Keep all existing styling unless a tiny change is necessary for state visibility
+* Do not break autoplay, swipe, or active reel detection
+
+### Implementation expectation
+
+* Inspect the feed/video player components and locate:
+
+  * active reel detection
+  * video refs / video element access
+  * mute toggle handler
+  * any global/local sound state
+* Then make the mute button derive from the real source of truth.
+* Prefer a clean state flow rather than patching visually only.
+
+### Deliverables
+
+After making the change, return:
+
+1. exactly which files were modified
+2. what the root cause was
+3. what was changed
+4. confirmation that no other feed features were modified
+
+### Validation checklist
+
+Before finishing, verify all of these:
+
+* first video loads and mute icon is correct
+* tap mute toggles real sound
+* swipe to next reel keeps icon synced with actual sound state
+* swipe back also remains correct
+* no opposite-state bug remains
+* no console errors
+* mobile view still works
+
+Work only on this mute behavior fix now. Nothing else.

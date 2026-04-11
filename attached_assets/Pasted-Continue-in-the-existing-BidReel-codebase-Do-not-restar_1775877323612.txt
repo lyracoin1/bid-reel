@@ -1,0 +1,110 @@
+Continue in the existing BidReel codebase. Do not restart. Do not modify unrelated UI.
+
+We are still in **Feed UI Phase**.
+
+## Implement ONLY this:
+
+Fix the **Follow button behavior** (the `+` overlay above the avatar in the feed action stack) so it performs a real follow/unfollow flow.
+
+### Problem
+
+* The `+` follow button is visible
+* But it currently does not work
+* This is not a layout task
+* It needs real data binding and action handling
+
+### Required result
+
+* Tapping the `+` above the avatar must create a real follow relationship for the current reel owner
+* The button must update visually after success
+* It must not appear active for the current user viewing their own reel
+* It must not attempt to follow when required identity data is missing
+* It must not create duplicate follow rows
+* If the user is already following that seller/user, the UI must reflect that correctly
+
+### What to inspect
+
+1. Find where the feed card receives:
+
+   * current logged-in user id
+   * reel owner / seller id
+   * avatar/profile info
+   * existing follow state if any
+
+2. Inspect whether a `follows` table (or equivalent) already exists in Supabase.
+
+   * If yes, wire the button to it correctly
+   * If not, use the existing social relationship structure already present in the codebase if one exists
+   * Do NOT invent a whole new unrelated architecture unless absolutely required
+
+3. Check if the feed query already returns follow state.
+
+   * If not, fetch or derive it in the cleanest way possible
+   * Avoid N+1 chaos if there is already a shared feed loading layer
+
+4. Implement button logic:
+
+   * if viewer is owner → hide or disable follow button
+   * if not following → tap creates follow
+   * if already following → either hide `+` or render followed state according to existing UI pattern in the codebase
+   * keep behavior consistent with current product style already implied by the project
+
+5. Handle optimistic UI carefully:
+
+   * only if safe
+   * rollback on failure if you use optimistic update
+
+### Data integrity requirements
+
+* Prevent duplicate follows
+* Use correct follower/following direction
+* Ensure the row links:
+
+  * follower = current logged-in user
+  * following/followed user = reel owner
+
+### Constraints
+
+* Do NOT redesign the feed
+* Do NOT move the avatar or action stack
+* Do NOT modify mute logic
+* Do NOT touch username rendering
+* Do NOT change likes/save/share/bid logic
+* Do NOT alter unrelated backend behavior
+* Keep styling the same unless a tiny state change is needed
+
+### Implementation expectation
+
+Trace the real follow data flow end-to-end:
+
+* auth user
+* reel owner
+* current follow state
+* follow action
+* UI refresh/state update
+
+Use the cleanest existing data layer already present in the project.
+
+### Deliverables
+
+After finishing, return:
+
+1. exactly which files were modified
+2. exact root cause
+3. what follow data/action path was implemented
+4. how self-follow was prevented
+5. confirmation that no unrelated feed feature was changed
+
+### Validation checklist
+
+Before finishing, verify:
+
+* own reel → follow button hidden or disabled correctly
+* other user's reel, not followed → tap creates follow successfully
+* after follow, UI updates correctly
+* already-followed user shows correct state
+* no duplicate follow records created
+* no console errors
+* mobile feed still works
+
+Work ONLY on this follow button fix. Nothing else.

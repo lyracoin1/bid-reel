@@ -1,0 +1,81 @@
+Strict fix required. Do not give me explanations only — implement the fix correctly.
+
+Current problem:
+
+* The new admin auth flow now uses email + password through Supabase
+* But creating the admin profile fails because `profiles.phone` is currently NOT NULL
+* This blocks inserting a new admin profile for an email-based admin user
+* The current database schema still assumes the old phone-first auth flow
+
+You must fix this properly in production-safe way.
+
+REQUIREMENTS
+
+1. Fix the schema mismatch between old phone-based users and new email-based admin auth
+
+* Inspect the `profiles` table schema fully
+* Identify all columns that still force the old phone-first flow
+* Especially handle `phone NOT NULL`
+* Do NOT use a hacky permanent workaround unless absolutely necessary
+
+2. Implement the correct long-term solution
+   Choose the proper safe fix and apply it:
+
+* either make `profiles.phone` nullable
+* or redesign profile creation so phone is collected later in profile completion
+* or another production-safe approach if better
+  But do it cleanly and consistently across auth, onboarding, API, and frontend
+
+3. Preserve compatibility with existing users
+
+* Existing phone-based users must not break
+* Existing data must remain intact
+* New email-based admin users must be able to exist without immediate phone value if that is the correct design
+
+4. Admin creation
+
+* Create/fix the first admin user profile for:
+
+  * email: [lyracoin950@gmail.com](mailto:lyracoin950@gmail.com)
+* Ensure the matching profile row exists
+* Ensure `is_admin = true`
+* Do not require me to insert dummy data manually if you can solve it correctly in code/schema
+
+5. Auth and profile flow consistency
+
+* Email/password admin login must continue working
+* No phone login for admin
+* Profile creation logic must not fail for email-based auth users
+* If phone is required later for normal users, collect it in onboarding/profile completion instead of breaking account creation
+
+6. Database migration
+
+* Create the proper SQL migration(s)
+* Make them idempotent and safe
+* Explain exactly what changed in the schema
+
+7. Verify the full flow
+   After fixing, verify:
+
+* admin user can exist in auth.users
+* matching row can exist in profiles
+* admin can log in
+* admin passes is_admin check
+* no old user data is broken
+
+8. Output format
+   After finishing, give me:
+   A. The root cause
+   B. The exact schema fix applied
+   C. The exact SQL migration
+   D. Whether `phone` is still required, and at what step
+   E. Confirmation that [lyracoin950@gmail.com](mailto:lyracoin950@gmail.com) now has a valid admin profile
+   F. Any manual step still required from me, only if absolutely unavoidable
+
+IMPORTANT
+
+* Do not leave the system in a mixed broken state
+* Do not ask me to insert fake placeholder phone values unless there is no better option
+* Do not break existing users
+* Do not expose secrets
+* Implement the fix, don’t just describe it

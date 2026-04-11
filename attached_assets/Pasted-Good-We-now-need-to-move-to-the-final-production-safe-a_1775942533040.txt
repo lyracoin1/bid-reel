@@ -1,0 +1,245 @@
+Good. We now need to move to the final production-safe auth, admin, and profile system. Follow all requirements below strictly and do not skip anything.
+
+PROJECT CONTEXT
+
+* Main app domain: https://bid-reel.com
+* Admin dashboard domain: https://admin.bid-reel.com
+* First admin email: [lyracoin950@gmail.com](mailto:lyracoin950@gmail.com)
+* Temporary first admin password: 01060088141
+
+IMPORTANT:
+
+* Treat the provided password as a temporary initial password only
+* The admin must be able to change it immediately after first login
+* Add proper password reset / forgot password flow
+* Build this in a production-safe way using Supabase Auth
+
+IMPORTANT GOALS
+
+1. Fix the admin domain routing so admin.bid-reel.com no longer opens the normal main site
+2. Replace the current admin login with email/password authentication and email confirmation
+3. Clean/reset old user data and prepare the user profile system for the new required fields
+4. Add production-grade account management features for both admin and normal users
+
+---
+
+1. ADMIN DOMAIN MUST OPEN THE ADMIN DASHBOARD
+
+---
+
+Right now admin.bid-reel.com is taking us to the normal website. This is wrong.
+
+Fix this properly:
+
+* Make sure admin.bid-reel.com points to the standalone admin project only
+* Do NOT let admin.bid-reel.com open the main frontend
+* Keep the main app on bid-reel.com
+* Keep the admin dashboard as a separate web app under admin.bid-reel.com
+* Verify the Vercel setup and project/domain mapping
+* Tell me exactly what I still need to do manually in Vercel, if anything remains
+
+Expected final result:
+
+* bid-reel.com -> main user app
+* admin.bid-reel.com -> standalone admin dashboard
+
+---
+
+2. ADMIN LOGIN MUST USE EMAIL + PASSWORD + EMAIL VERIFICATION
+
+---
+
+Replace the current admin login system completely.
+
+Remove entirely:
+
+* phone login
+* activation code
+* USE_DEV_AUTH
+* any dev shortcut auth flow
+
+Implement:
+
+* admin login using email + password through Supabase Auth
+* email confirmation / verification flow
+* only verified admin users can access the dashboard
+* only users marked as admins can log into the admin dashboard
+
+Use this first admin account:
+
+* email: [lyracoin950@gmail.com](mailto:lyracoin950@gmail.com)
+* temporary password: 01060088141
+
+Requirements:
+
+* Create the correct auth flow using Supabase
+* Add login screen for email + password
+* Add email verification handling
+* Add proper error messages
+* Add loading states
+* Add logout flow
+* Use Supabase session properly
+* Do NOT expose service role key in frontend
+* Protect all admin routes
+* Protect all backend admin endpoints
+
+Password/account requirements:
+
+* The admin must be able to change password from inside the dashboard/account settings
+* Add forgot password / reset password flow for admin
+* Use secure password update flow through Supabase
+* If better security is needed, force password change after first login
+
+After implementation, tell me clearly:
+
+* how the first admin account is created
+* what exact steps I must do in Supabase if required
+* whether I must manually confirm the email or whether Supabase handles it automatically
+* what exact admin credentials I should use after setup
+
+---
+
+3. REMOVE / RESET OLD USER DATA
+
+---
+
+We want a clean reset of old users and old incomplete profile data.
+
+I want you to identify all old user-related data that should be reset/cleaned for this new auth/profile flow.
+
+This includes:
+
+* old users that should no longer remain in the previous incomplete state
+* obsolete auth/profile records that conflict with the new email-based system
+* any old login/profile flow leftovers that can break onboarding
+
+Do this safely:
+
+* first inspect what tables and user-linked data currently exist
+* then tell me exactly what will be deleted/reset before doing destructive work
+* identify what must be deleted from:
+
+  * auth users
+  * profiles
+  * related user-owned data if needed
+* do NOT randomly delete production-critical data without listing it first
+
+I want a clear cleanup/reset plan for old users and old user profile states, and then implement the safe reset needed for the new system.
+
+---
+
+4. EXPAND USER PROFILE DATA AFTER EMAIL AUTH
+
+---
+
+After switching to email/password with email confirmation, the user profile must be more complete.
+
+After signup/login, the user profile flow must support and store at minimum:
+
+* profile photo
+* phone number with international format and country code, starting with +
+* username
+* display name if needed
+* any fields already needed by the app for public profile and account usage
+
+Important:
+
+* phone number must be stored in a usable format for direct WhatsApp button integration
+* the WhatsApp direct button must use the user phone number
+* profile image must work properly
+* this profile completion flow must be production-ready and not broken
+
+Also inspect and fix any existing issues related to:
+
+* missing username showing incorrectly to other users
+* missing profile image behavior
+* broken onboarding/profile completion flow
+* any data-mapping issue between Supabase, API, and frontend
+
+---
+
+5. PROFESSIONAL ACCOUNT FEATURES
+
+---
+
+Add professional account-management features used in serious production systems where appropriate.
+
+For admin:
+
+* change password
+* forgot password
+* reset password by email
+* account settings page
+* session/logout handling
+* clear auth errors
+* protected routes
+* verified-email enforcement
+
+For normal users:
+
+* change password
+* forgot password
+* reset password by email
+* clean signup/login flow
+* email verification
+* complete profile onboarding after signup
+* proper validation and error handling
+
+If useful and compatible with the current system, also prepare for:
+
+* role-based access structure
+* audit logging for important admin actions
+* clear status for verified/unverified users
+* secure session handling
+* future support for 2FA or OTP without breaking architecture
+
+---
+
+6. KEEP DESIGN CONSISTENT
+
+---
+
+Keep the admin dashboard design fully consistent with the main BidReel design system:
+
+* same dark background
+* same purple glow / gradients
+* same buttons
+* same inputs
+* same spacing and radius
+* same overall premium product feel
+
+---
+
+7. FINAL OUTPUT I NEED FROM YOU
+
+---
+
+After finishing, give me all of the following:
+
+A. What exactly you changed
+B. Whether admin.bid-reel.com is now correctly separated from the main site
+C. Exact admin login flow now in use
+D. Exact steps for the first admin account using:
+
+* [lyracoin950@gmail.com](mailto:lyracoin950@gmail.com)
+  E. Any Supabase settings I must enable
+  F. Any SQL migration required
+  G. Exact old user data cleanup/reset plan
+  H. What old data was actually removed or what still needs my confirmation before deletion
+  I. What profile fields are now required after email auth
+  J. Confirmation that phone numbers are stored with +country code and usable for direct WhatsApp links
+  K. What password/account management features were added
+  L. Any remaining manual work I must do in:
+* Vercel
+* Supabase
+* DNS
+
+IMPORTANT RULES
+
+* Do not skip any item above
+* Do not leave mock auth or temporary dev auth
+* Do not break the main app
+* Do not expose secrets in frontend
+* If any destructive deletion needs confirmation, stop and show me the exact deletion plan first
+* Reuse existing compatible structures where possible instead of inventing a conflicting system
+* Treat the provided password as temporary and ensure it can be changed securely

@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import {
-  LayoutDashboard, Users, Gavel, Flag, BarChart3, LogOut, History,
+  LayoutDashboard, Users, Gavel, Flag, BarChart3, LogOut, History, Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { clearAdminSession } from "@/lib/admin-session";
@@ -28,8 +28,8 @@ interface AdminLayoutProps {
 export function AdminLayout({ children, title }: AdminLayoutProps) {
   const [location, setLocation] = useLocation();
 
-  function handleLogout() {
-    clearAdminSession();
+  async function handleLogout() {
+    await clearAdminSession();
     setLocation("/login");
   }
 
@@ -78,8 +78,20 @@ export function AdminLayout({ children, title }: AdminLayoutProps) {
           })}
         </nav>
 
-        {/* Logout */}
-        <div className="p-3 border-t border-sidebar-border" dir="rtl">
+        {/* Bottom actions */}
+        <div className="p-3 border-t border-sidebar-border space-y-0.5" dir="rtl">
+          <button
+            onClick={() => setLocation("/account")}
+            className={cn(
+              "w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all",
+              location === "/account"
+                ? "bg-primary/15 text-primary border border-primary/25"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
+            )}
+          >
+            <Settings size={17} className={location === "/account" ? "text-primary" : "text-muted-foreground"} />
+            إعدادات الحساب
+          </button>
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"

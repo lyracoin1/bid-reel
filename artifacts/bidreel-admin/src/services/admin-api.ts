@@ -1,18 +1,19 @@
-import { getAdminToken } from "@/lib/admin-session";
+import { supabase } from "@/lib/supabase";
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "/api";
 
-function adminHeaders(): Record<string, string> {
-  const token = getAdminToken();
+async function adminHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
   return headers;
 }
 
 async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers = await adminHeaders();
   const res = await fetch(`${API_BASE}/admin${path}`, {
     ...options,
-    headers: { ...adminHeaders(), ...((options.headers as Record<string, string>) ?? {}) },
+    headers: { ...headers, ...((options.headers as Record<string, string>) ?? {}) },
   });
 
   if (!res.ok) {
@@ -24,25 +25,6 @@ async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T
   }
 
   return res.json() as Promise<T>;
-}
-
-export async function adminLogin(
-  phoneNumber: string,
-  adminCode: string,
-): Promise<{ token: string }> {
-  const res = await fetch(`${API_BASE}/auth/admin-login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ phoneNumber, adminCode }),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string };
-    throw new Error(err.message ?? `Login failed: ${res.status}`);
-  }
-
-  const data = await res.json() as { token: string };
-  return data;
 }
 
 export interface AdminStats {

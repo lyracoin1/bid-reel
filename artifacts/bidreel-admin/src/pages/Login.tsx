@@ -50,7 +50,7 @@ export default function Login() {
               type="tel"
               value={phone}
               onChange={e => setPhone(e.target.value)}
-              placeholder="+201060088141"
+              placeholder="+20XXXXXXXXXX"
               dir="ltr"
               required
               className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 transition"

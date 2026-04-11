@@ -1,0 +1,69 @@
+Good, continue building the admin dashboard, and apply the following UI and deployment requirements carefully.
+
+--------------------------------
+UI / DESIGN (VERY IMPORTANT)
+--------------------------------
+
+I want the dashboard to follow a modern dark neon style similar to this concept:
+
+- Background: deep dark gradient (black → dark purple)
+- Primary color: purple / violet glow
+- Secondary accent: neon green (for success states like "available", active icons, confirmations)
+- Error color: soft red (like modern UI alerts, not harsh)
+
+Design style:
+- Smooth gradients
+- Rounded corners (modern UI, like TikTok / Stripe dashboard)
+- Soft glow effects on buttons
+- Clean spacing and minimal clutter
+- Glass / blur effect where appropriate
+
+Components:
+- Sidebar with icons (left side)
+- Top header
+- Cards with stats (with glow accents)
+- Tables (users, auctions, reports)
+- Buttons:
+  - Primary: purple gradient with glow
+  - Success: green highlight
+  - Danger: red (soft)
+
+Forms:
+- Inputs should have glowing borders on focus
+- Validation states:
+  - Green = valid
+  - Red = error
+
+--------------------------------
+ARCHITECTURE / DEPLOYMENT
+--------------------------------
+
+The admin dashboard is a WEB APP only (not mobile app).
+
+It will be deployed on Vercel under this domain:
+https://admin.bid-reel.com
+
+Important:
+- Do NOT hardcode the domain inside the code
+- Just make the project ready for deployment
+
+This dashboard is a separate app but part of the same system.
+It must connect to the same backend (Supabase + API).
+
+--------------------------------
+SECURITY (REMINDER)
+--------------------------------
+
+- NEVER expose SUPABASE_SERVICE_ROLE_KEY in frontend
+- All admin actions must go through backend API routes (/api/admin/*)
+
+--------------------------------
+FINAL OUTPUT
+--------------------------------
+
+After UI update:
+1. Show me preview structure (pages + components)
+2. Confirm the project is ready for Vercel deployment
+3. List any missing environment variables (if needed)
+
+If you need any asset (logo, colors, icons), ask me.

@@ -1,0 +1,53 @@
+You are working on the BidReel mobile feed UI in the existing real project. Do not redesign the app. Do not touch backend logic in this task. This task is frontend layout only.
+
+TASK PART 1:
+Move the entire right-side vertical action stack to the LEFT side of the screen, and remove the current left-side elements that conflict with it.
+
+Important:
+This is not a partial move. Move the FULL stack as one unit from right to left.
+
+The moved stack must include everything that currently belongs to the right-side vertical action area, including:
+- the avatar/user circle
+- the small circular "+" overlay attached to it
+- the countdown badge if it belongs to that same stack
+- like
+- WhatsApp
+- save
+- share
+- bid
+
+Requirements:
+
+1. Move the full right-side stack to the LEFT side.
+- Keep the same order.
+- Keep the same spacing.
+- Keep the same styling.
+- Keep the avatar circle and the small "+" overlay attached exactly as they are.
+- Do not split them into separate areas.
+- Do not duplicate anything.
+
+2. Remove the current left-side UI that occupies that space now.
+- Delete the current left-side badge/info block that is currently shown on the left.
+- The moved avatar/action stack will take its place.
+- After the change, there must not be old left-side elements still visible there.
+- The left side should contain the moved action stack only.
+
+3. Preserve layout quality.
+- Make sure the moved left stack does not overlap badly with title, price, bids, or bottom navigation.
+- Keep the overall visual style exactly the same.
+- Do not redesign colors, icons, or branding.
+- Do not move bottom navigation.
+
+4. Do not work on functionality yet.
+- Do not fix follow logic in this task.
+- Do not fix username data in this task.
+- Do not change mute behavior in this task.
+- Only do the visual/layout move and cleanup.
+
+Deliverables:
+- Update the relevant feed component(s).
+- Report exactly which files were changed.
+- Confirm that:
+  1) the full right-side action stack was moved to the left as one unit
+  2) the old left-side conflicting elements were removed
+  3) no duplicate stack remains on the right

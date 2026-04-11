@@ -162,22 +162,14 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         </div>
       )}
 
-      {/* ── Top bar: seller pill (left) + timer pill (right) ─────────────── */}
+      {/* ── Top bar: timer pill (right only) ────────────────────────────── */}
+      {/* Seller avatar has moved to the left action stack below. */}
       {/* paddingTop respects Android status bar / notch via safe-area-inset-top */}
       <div
-        className="absolute top-0 left-0 right-0 z-20 px-4 flex items-center justify-between gap-2"
+        className="absolute top-0 left-0 right-0 z-20 px-4 flex items-center justify-end"
         style={{ paddingTop: "max(48px, calc(env(safe-area-inset-top, 0px) + 12px))" }}
       >
-        {/* Left: avatar pill (tap → seller profile) */}
-        <button
-          className="flex items-center gap-2 bg-black/40 backdrop-blur-md border border-white/10 rounded-full pl-1 pr-3 py-1 active:scale-95 transition-transform shrink-0"
-          onClick={(e) => { e.stopPropagation(); setLocation(`/users/${auction.seller.id}`); }}
-        >
-          <UserAvatar src={auction.seller.avatar || null} name={auction.seller.name} size={30} />
-          <span className="text-[13px] font-semibold text-white leading-none">{auction.seller.handle}</span>
-        </button>
-
-        {/* Right: timer pill */}
+        {/* Timer pill */}
         <div className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-md border shrink-0", timerPill.className)}>
           <span className={cn("w-1.5 h-1.5 rounded-full", timerPill.dot)} />
           {timerPill.label}
@@ -210,12 +202,11 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         <AuctionMenu auctionId={auction.id} auctionTitle={auction.title} mediaUrl={auction.mediaUrl} isOwner={isOwner} />
       </div>
 
-      {/* ── RIGHT action stack (TikTok/Reels convention) ──────────────────── */}
-      {/*   Placed on the right side — the natural thumb zone for right-handed  */}
-      {/*   users (90 % of population). LTR direction is explicit so it never   */}
-      {/*   mirrors on Arabic / RTL layouts.                                    */}
+      {/* ── LEFT action stack ─────────────────────────────────────────────── */}
+      {/*   Moved to the left side. LTR direction is explicit so it never      */}
+      {/*   mirrors on Arabic / RTL layouts.                                   */}
       <div
-        className="absolute right-3 bottom-36 z-20 flex flex-col items-center gap-4"
+        className="absolute left-3 bottom-36 z-20 flex flex-col items-center gap-4"
         style={{ direction: "ltr" }}
       >
 
@@ -366,9 +357,9 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
       </div>
 
       {/* ── Bottom info area ───────────────────────────────────────────────── */}
-      {/* right-[76px] leaves room for the 48px action stack at right-3 + gap  */}
+      {/* left-[76px] leaves room for the 48px action stack at left-3 + gap   */}
       <div
-        className="absolute bottom-36 left-4 right-[76px] z-10 flex flex-col gap-2 cursor-pointer"
+        className="absolute bottom-36 left-[76px] right-4 z-10 flex flex-col gap-2 cursor-pointer"
         onClick={() => setLocation(`/auction/${auction.id}`)}
       >
         <h2 className="text-[21px] font-bold text-white leading-snug line-clamp-2 drop-shadow-sm">

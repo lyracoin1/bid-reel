@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/bidreel-admin/"
+title = "BidReel Admin"
+version = "1.0.0"
+id = "artifacts/bidreel-admin"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/bidreel-admin/" ]
+localPort = 22020
+
+[services.development]
+run = "pnpm --filter @workspace/bidreel-admin run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/bidreel-admin", "run", "build" ]
+publicDir = "artifacts/bidreel-admin/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22020"
+BASE_PATH = "/bidreel-admin/"

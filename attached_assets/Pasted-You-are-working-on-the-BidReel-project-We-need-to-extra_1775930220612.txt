@@ -1,0 +1,90 @@
+You are working on the BidReel project.
+
+We need to extract and refactor the existing admin/dashboard into a completely separate production-ready project.
+
+GOAL:
+Create a standalone Admin Dashboard app that is clean, secure, and deployable on Vercel under admin.bid-reel.com.
+
+---
+
+STEP 1 — Extract Dashboard:
+- Locate all admin/dashboard related pages, components, routes, and logic
+- Move them into a new standalone React + Vite project
+- Remove any dependency on the main frontend app
+
+---
+
+STEP 2 — Clean Architecture:
+- Structure the new project as:
+  /src
+    /pages
+    /components
+    /services
+    /hooks
+    /types
+
+- Remove any unused UI or user-facing logic
+
+---
+
+STEP 3 — Secure Data Access:
+- DO NOT use Supabase service role key in frontend
+- All admin actions must go through secure API endpoints
+
+- Create serverless API endpoints (Vercel functions) for:
+  - getUsers
+  - banUser
+  - deleteVideo
+  - getReports
+  - manageAuctions
+
+---
+
+STEP 4 — Auth & Roles:
+- Only allow access to users with role = 'admin'
+- Add route protection (redirect if not admin)
+- Use Supabase auth session
+
+---
+
+STEP 5 — Environment Setup:
+- Frontend:
+  - VITE_SUPABASE_URL
+  - VITE_SUPABASE_ANON_KEY
+
+- Backend:
+  - SUPABASE_SERVICE_ROLE_KEY (server only)
+
+---
+
+STEP 6 — UI Upgrade:
+- Make the dashboard modern (like TikTok admin / analytics panel)
+- Add:
+  - Sidebar navigation
+  - Tables (users, videos)
+  - Actions (ban, delete)
+  - Stats cards
+
+---
+
+STEP 7 — Deployment Ready:
+- Prepare for Vercel deployment
+- Ensure it can be linked to:
+  admin.bid-reel.com
+
+---
+
+STEP 8 — Output:
+- Give me:
+  1. Folder structure of the new project
+  2. All required environment variables
+  3. Any secrets or keys I must provide
+  4. Deployment steps
+  5. Any database changes needed (tables, roles)
+
+---
+
+IMPORTANT:
+- Do NOT break the existing main app
+- Keep everything production-safe
+- Ask me for anything missing before proceeding

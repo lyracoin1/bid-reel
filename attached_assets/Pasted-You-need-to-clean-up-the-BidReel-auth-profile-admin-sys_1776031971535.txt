@@ -1,0 +1,78 @@
+You need to clean up the BidReel auth/profile/admin system properly and stop relying on manual dashboard fixes.
+
+Current product rules that must be enforced:
+
+1. Email is the login identity
+
+* Users and admins must sign in with email + password
+* Phone number is NOT the login identity anymore
+* Do not keep any phone-first auth assumptions anywhere in the codebase
+
+2. Phone is still required, but as profile data
+
+* Every real user account must ultimately have a phone number for direct contact / WhatsApp
+* The phone must be stored in profile data, not used as the login credential
+* Phone must be normalized and stored in international format starting with +
+
+3. Username is required
+
+* Every real user must have a unique username
+* Username must be required during profile completion if not present at signup
+
+4. Profile completion must be enforced
+   Implement a clean two-step flow:
+
+* Step 1: Create/sign in account with email + password
+* Step 2: Force profile completion if required fields are missing
+
+Required profile fields after signup:
+
+* username
+* phone
+* display_name
+* avatar if your current flow expects it
+* any other field currently required by the product
+
+5. Admin account setup must be handled by you, not manually by me
+   The admin user already exists / or should be created with this email:
+
+* [lyracoin950@gmail.com](mailto:lyracoin950@gmail.com)
+
+You must do all of the following:
+
+* verify the user exists in auth.users
+* create or update the matching row in public.profiles
+* set is_admin = true for that exact user
+* ensure the admin login succeeds on admin.bid-reel.com
+* ensure the “not an admin” error is resolved for this account
+
+6. Database cleanup
+   Audit the current profiles schema and fix the design properly:
+
+* phone must not be the auth identity
+* phone should not break admin creation by being wrongly enforced at auth creation time
+* username support must be real and consistent
+* is_admin must exist and be used correctly
+* profile completion state must be consistent
+* remove leftover phone-first assumptions from DB constraints, triggers, and frontend/backend logic
+
+7. Email verification
+   Implement proper email verification flow for normal users if feasible with the current setup.
+   Also tell me clearly whether the current Supabase free/default email setup is only acceptable for testing and whether custom SMTP is required for production.
+
+8. Deliverables
+   When finished, provide:
+
+* exact files changed
+* exact SQL migrations or SQL commands used
+* exact admin user fix applied
+* whether profile completion is now enforced
+* whether phone, username, and email roles are now separated correctly
+* what still remains before production readiness
+
+Important:
+
+* Do not give me theory only
+* Do not leave this as a manual dashboard-only process
+* Implement the real code and DB changes
+* The result must be production-oriented and consistent

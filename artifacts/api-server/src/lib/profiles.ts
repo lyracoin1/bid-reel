@@ -58,6 +58,7 @@ const PROFILE_COLS = "id, username, display_name, avatar_url, bio, is_admin, is_
 
 // ─── Typed errors ─────────────────────────────────────────────────────────────
 
+/** @deprecated Phone is no longer the auth identity. Kept for any legacy call sites. */
 export class PhoneAlreadyRegisteredError extends Error {
   readonly code = "PHONE_ALREADY_REGISTERED";
   constructor(phone: string) {
@@ -161,11 +162,14 @@ function toPublicProfile(row: ProfileRow, stats: Awaited<ReturnType<typeof fetch
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Upserts a profile row on login.
+ * Ensures a profile row exists for the given user.
+ * Email is used as the identity (not phone). Phone is profile data, set separately.
+ * If the row already exists (auto-created by DB trigger on signup), it is returned as-is.
+ * If the row is missing (trigger not yet applied, legacy account), it is created here.
  */
 export async function upsertProfile(
   userId: string,
-  phone: string,
+  email: string,
 ): Promise<{ isNewUser: boolean; profile: OwnProfile }> {
   const { data: existing } = await supabaseAdmin
     .from("profiles")
@@ -178,26 +182,14 @@ export async function upsertProfile(
     return { isNewUser: false, profile: toOwnProfile(existing, stats) };
   }
 
-  const { data: phoneOwner } = await supabaseAdmin
-    .from("profiles")
-    .select("id")
-    .eq("phone", phone)
-    .maybeSingle();
-
-  if (phoneOwner && phoneOwner.id !== userId) {
-    throw new PhoneAlreadyRegisteredError(phone);
-  }
-
+  // Profile row not present — create it (fallback for accounts predating the signup trigger).
   const { data: created, error } = await supabaseAdmin
     .from("profiles")
-    .insert({ id: userId, phone })
+    .insert({ id: userId, email })
     .select(PROFILE_COLS)
     .single();
 
   if (error) {
-    if (error.code === "23505" && error.message.includes("phone")) {
-      throw new PhoneAlreadyRegisteredError(phone);
-    }
     throw new Error(
       `Failed to create profile for user ${userId}: ${error.message}`,
     );
@@ -255,6 +247,8 @@ export interface UpdateProfileInput {
   displayName?: string;
   avatarUrl?: string;
   bio?: string;
+  /** Phone number in E.164 format (e.g. +201060088141). Used for WhatsApp contact links. */
+  phone?: string;
 }
 
 export class UsernameTakenError extends Error {
@@ -293,6 +287,7 @@ export async function updateProfile(
   if (input.displayName !== undefined) patch["display_name"] = input.displayName;
   if (input.avatarUrl !== undefined) patch["avatar_url"] = input.avatarUrl;
   if (input.bio !== undefined) patch["bio"] = input.bio;
+  if (input.phone !== undefined) patch["phone"] = input.phone;
 
   if (Object.keys(patch).length === 0) {
     return getOwnProfile(userId);

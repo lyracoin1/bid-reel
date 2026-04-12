@@ -248,6 +248,29 @@ router.post("/auth/admin-login", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/auth/ensure-profile
+// ---------------------------------------------------------------------------
+// Called by the web app immediately after a Supabase email+password login.
+// Guarantees that a profiles row exists for the authenticated user.
+// If the DB trigger already created the row on signup, this is a fast no-op.
+// If the row is missing (legacy account or trigger not yet applied), it creates one.
+// Returns { isNewUser, user } — same shape as the old devLogin response.
+// ---------------------------------------------------------------------------
+router.post("/auth/ensure-profile", requireAuth, async (req, res) => {
+  try {
+    const result = await upsertProfile(req.user!.id, req.user!.email);
+    res.json({
+      isNewUser: result.isNewUser,
+      user: result.profile,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    logger.error({ err: message, userId: req.user!.id }, "ensure-profile failed");
+    res.status(500).json({ error: "PROFILE_ERROR", message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // GET /api/auth/me
 // ---------------------------------------------------------------------------
 router.get("/auth/me", requireAuth, async (req, res) => {

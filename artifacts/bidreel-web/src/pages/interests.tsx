@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLang } from "@/contexts/LanguageContext";
-import { Camera, CheckCircle2, XCircle, Loader2, ArrowRight } from "lucide-react";
+import { Camera, CheckCircle2, XCircle, Loader2, ArrowRight, Phone, User } from "lucide-react";
 import {
   updateProfileApi,
   checkUsernameApi,
@@ -10,6 +10,18 @@ import {
   getUploadUrlApi,
   uploadFileToStorage,
 } from "@/lib/api-client";
+
+/** Normalize raw phone input to E.164 format */
+function normalizePhone(raw: string): string {
+  const cleaned = raw.replace(/[\s\-\(\)\.]/g, "");
+  if (cleaned.startsWith("+")) return cleaned;
+  if (cleaned.startsWith("00")) return "+" + cleaned.slice(2);
+  if (/^0\d{9,10}$/.test(cleaned)) return "+20" + cleaned.slice(1);
+  if (/^\d{10,14}$/.test(cleaned)) return "+" + cleaned;
+  return cleaned;
+}
+
+const E164_REGEX = /^\+[1-9]\d{7,14}$/;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -44,9 +56,11 @@ export default function Interests() {
   const [step, setStep] = useState<0 | 1>(0);
 
   // ── Profile setup state (step 0) ──
-  const [username, setUsername] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [phone, setPhone]             = useState("");
+  const [username, setUsername]       = useState("");
   const [usernameState, setUsernameState] = useState<UsernameState>("idle");
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarFile, setAvatarFile]   = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -134,6 +148,21 @@ export default function Interests() {
     if (isSubmitting) return;
     setSubmitError(null);
 
+    // Validate display name
+    const trimmedName = displayName.trim();
+    if (trimmedName.length < 2) {
+      setSubmitError("Display name must be at least 2 characters.");
+      return;
+    }
+
+    // Validate + normalize phone
+    const normalizedPhone = normalizePhone(phone.trim());
+    if (!E164_REGEX.test(normalizedPhone)) {
+      setSubmitError("Enter a valid phone number with country code (e.g. +201060088141 or 01060088141 for Egypt).");
+      return;
+    }
+
+    // Validate username
     const trimmed = username.trim();
 
     if (trimmed.length < 3) {
@@ -173,6 +202,8 @@ export default function Interests() {
 
       await updateProfileApi({
         username: trimmed,
+        displayName: trimmedName,
+        phone: normalizedPhone,
         ...(avatarUrl ? { avatarUrl } : {}),
       });
 
@@ -189,7 +220,7 @@ export default function Interests() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, username, usernameState, avatarFile]);
+  }, [isSubmitting, displayName, phone, username, usernameState, avatarFile]);
 
   // ── Interests helpers ──
   const toggleInterest = (id: string) => {
@@ -224,6 +255,8 @@ export default function Interests() {
   };
 
   const canSubmitProfile =
+    displayName.trim().length >= 2 &&
+    phone.trim().length >= 7 &&
     username.length >= 3 &&
     USERNAME_REGEX.test(username) &&
     usernameState !== "taken" &&
@@ -319,6 +352,59 @@ export default function Interests() {
                   <p className="text-xs text-red-400 text-center">{avatarError}</p>
                 )}
               </div>
+            </motion.div>
+
+            {/* Display name input */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, delay: 0.14 }}
+              className="mb-4"
+            >
+              <label className="block text-xs font-semibold text-white/50 mb-2 tracking-wide uppercase">
+                Display name <span className="text-primary">*</span>
+              </label>
+              <div className="relative">
+                <User size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+                <input
+                  type="text"
+                  inputMode="text"
+                  autoComplete="name"
+                  maxLength={50}
+                  value={displayName}
+                  onChange={e => { setDisplayName(e.target.value); setSubmitError(null); }}
+                  placeholder="Your full name"
+                  className="w-full bg-white/5 border border-white/10 focus:border-primary/60 rounded-2xl pl-10 pr-4 py-4 text-white text-base font-medium placeholder:text-white/20 focus:outline-none transition-colors"
+                />
+              </div>
+            </motion.div>
+
+            {/* Phone input */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, delay: 0.16 }}
+              className="mb-4"
+            >
+              <label className="block text-xs font-semibold text-white/50 mb-2 tracking-wide uppercase">
+                WhatsApp / Phone <span className="text-primary">*</span>
+              </label>
+              <div className="relative">
+                <Phone size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  value={phone}
+                  onChange={e => { setPhone(e.target.value); setSubmitError(null); }}
+                  placeholder="01060088141 or +201060088141"
+                  dir="ltr"
+                  className="w-full bg-white/5 border border-white/10 focus:border-primary/60 rounded-2xl pl-10 pr-4 py-4 text-white text-base font-medium placeholder:text-white/20 focus:outline-none transition-colors"
+                />
+              </div>
+              <p className="mt-1.5 text-xs text-white/30">
+                Used for seller/buyer contact via WhatsApp · Egyptian numbers auto-detected
+              </p>
             </motion.div>
 
             {/* Username input */}

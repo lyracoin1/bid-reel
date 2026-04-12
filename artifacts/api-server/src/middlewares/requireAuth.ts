@@ -5,7 +5,7 @@ import { isUserBanned } from "../lib/profiles";
 // Attached to req by requireAuth — available in all downstream handlers.
 export interface AuthUser {
   id: string;
-  phone: string;
+  email: string;
 }
 
 declare global {
@@ -22,10 +22,7 @@ declare global {
  * 1. Reads the Bearer token from the Authorization header.
  * 2. Validates the JWT via Supabase Admin (getUser — server-side verify, no network hop).
  * 3. Checks that the user's account is not banned (profiles.is_banned).
- * 4. Attaches req.user = { id, phone } for downstream handlers.
- *
- * Phone is taken from the Supabase Auth user object — it is only used internally
- * (e.g. for WhatsApp link generation) and must never appear in API responses.
+ * 4. Attaches req.user = { id, email } for downstream handlers.
  *
  * Usage: router.get("/protected", requireAuth, handler)
  */
@@ -59,9 +56,6 @@ export async function requireAuth(
   }
 
   // Step 2: check if account is banned
-  // isUserBanned returns false if the profile row doesn't exist yet (first login
-  // race condition) — the profile upsert happens after verify-otp, so banned
-  // users will be caught here on every subsequent request.
   const banned = await isUserBanned(data.user.id);
   if (banned) {
     req.log?.warn({ userId: data.user.id }, "Banned user attempted access");
@@ -75,7 +69,7 @@ export async function requireAuth(
   // Step 3: attach user to request
   req.user = {
     id: data.user.id,
-    phone: data.user.phone ?? "",
+    email: data.user.email ?? "",
   };
 
   next();

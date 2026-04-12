@@ -64,6 +64,8 @@ router.get("/users/me", requireAuth, async (req, res) => {
 // Username uniqueness is enforced: 409 is returned if already taken.
 // ─────────────────────────────────────────────────────────────────────────────
 
+const e164Regex = /^\+[1-9]\d{7,14}$/;
+
 const updateProfileSchema = z.object({
   username: usernameSchema
     .transform(v => v.toLowerCase().trim())
@@ -83,6 +85,11 @@ const updateProfileSchema = z.object({
     .max(300, "Bio must be 300 characters or fewer")
     .trim()
     .optional(),
+  // Phone stored as profile data (WhatsApp contact). Must be E.164 format.
+  phone: z
+    .string()
+    .regex(e164Regex, "Phone must be in international format starting with + (e.g. +201060088141)")
+    .optional(),
 });
 
 router.patch("/users/me", requireAuth, async (req, res) => {
@@ -99,7 +106,7 @@ router.patch("/users/me", requireAuth, async (req, res) => {
   if (Object.keys(parsed.data).length === 0) {
     res.status(400).json({
       error: "EMPTY_UPDATE",
-      message: "Provide at least one field to update: username, displayName, avatarUrl, or bio.",
+      message: "Provide at least one field to update: username, displayName, avatarUrl, bio, or phone.",
     });
     return;
   }

@@ -46,11 +46,12 @@ export default defineConfig({
   base: basePath,
   define: {
     // Expose Supabase connection details to the frontend bundle.
-    // SUPABASE_URL is public (project URL); SUPABASE_ANON_KEY is safe for clients.
+    // Support both naming conventions: VITE_SUPABASE_URL (Vite-native) and
+    // SUPABASE_URL (legacy/server-style). VITE_ prefix is checked first.
     'import.meta.env.VITE_SUPABASE_URL':
-      JSON.stringify(process.env['SUPABASE_URL'] ?? ''),
+      JSON.stringify(process.env['VITE_SUPABASE_URL'] ?? process.env['SUPABASE_URL'] ?? ''),
     'import.meta.env.VITE_SUPABASE_ANON_KEY':
-      JSON.stringify(process.env['SUPABASE_ANON_KEY'] ?? ''),
+      JSON.stringify(process.env['VITE_SUPABASE_ANON_KEY'] ?? process.env['SUPABASE_ANON_KEY'] ?? ''),
   },
   plugins: [
     react(),

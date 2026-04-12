@@ -378,6 +378,8 @@ export interface UpdateProfilePayload {
   displayName?: string;
   avatarUrl?: string;
   bio?: string;
+  /** Phone in E.164 format (e.g. +201060088141). Used for WhatsApp contact links. */
+  phone?: string;
 }
 
 export class UsernameTakenError extends Error {

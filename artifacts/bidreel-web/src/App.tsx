@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -5,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { NotificationBannerProvider } from "@/contexts/NotificationBannerContext";
 import { useFcmToken } from "@/hooks/use-fcm-token";
+import { supabase } from "@/lib/supabase";
+import { setToken, clearToken } from "@/lib/api-client";
 
 // Core user pages — loaded eagerly (always needed)
 import Splash from "@/pages/splash";
@@ -45,6 +48,22 @@ function FcmInit() {
   return null;
 }
 
+/** Keeps the api-client Bearer token in sync with Supabase session refreshes. */
+function AuthSync() {
+  useEffect(() => {
+    if (!supabase) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.access_token) {
+        setToken(session.access_token);
+      } else {
+        clearToken();
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+  return null;
+}
+
 function App() {
   return (
     <LanguageProvider>
@@ -52,6 +71,7 @@ function App() {
         <TooltipProvider>
           <NotificationBannerProvider>
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <AuthSync />
               <FcmInit />
               <Router />
             </WouterRouter>

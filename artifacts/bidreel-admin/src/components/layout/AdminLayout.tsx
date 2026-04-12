@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { clearAdminSession } from "@/lib/admin-session";
+import { NotificationBell } from "@/components/NotificationBell";
 
 interface NavItem {
   label: string;
@@ -23,9 +24,11 @@ const NAV: NavItem[] = [
 interface AdminLayoutProps {
   children: React.ReactNode;
   title: string;
+  /** When true, removes the default padding from <main> so children can fill the full height. */
+  noPadding?: boolean;
 }
 
-export function AdminLayout({ children, title }: AdminLayoutProps) {
+export function AdminLayout({ children, title, noPadding = false }: AdminLayoutProps) {
   const [location, setLocation] = useLocation();
 
   async function handleLogout() {
@@ -108,11 +111,16 @@ export function AdminLayout({ children, title }: AdminLayoutProps) {
         {/* Top header */}
         <header className="h-14 flex items-center justify-between px-6 border-b border-border bg-sidebar/80 backdrop-blur shrink-0">
           <h1 className="text-base font-display font-bold text-white">{title}</h1>
-          <span className="text-xs text-muted-foreground/50">admin.bid-reel.com</span>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <span className="text-xs text-muted-foreground/40 pl-2 border-l border-border">
+              admin.bid-reel.com
+            </span>
+          </div>
         </header>
 
-        {/* Scrollable content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        {/* Content */}
+        <main className={cn("flex-1 overflow-hidden", noPadding ? "" : "overflow-y-auto p-6")}>
           {children}
         </main>
       </div>

@@ -27,6 +27,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { runMediaCleanup } from "../lib/media-lifecycle";
 import { logger } from "../lib/logger";
+import { env } from "../config/env";
 
 const adminRouter = Router();
 
@@ -425,6 +426,141 @@ adminRouter.get("/actions", async (_req, res) => {
   } catch (err) {
     logger.error({ err }, "GET /admin/actions failed");
     res.status(500).json({ error: "ACTIONS_FAILED", message: "Failed to fetch action log" });
+  }
+});
+
+// ─── GET /notifications ───────────────────────────────────────────────────────
+
+adminRouter.get("/notifications", async (_req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("admin_notifications")
+      .select("id, type, title, message, is_read, metadata, created_at")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+
+    res.json({ notifications: data ?? [] });
+  } catch (err) {
+    logger.error({ err }, "GET /admin/notifications failed");
+    res.status(500).json({ error: "NOTIFICATIONS_FAILED", message: "Failed to fetch notifications" });
+  }
+});
+
+// ─── PATCH /notifications/:id/read ───────────────────────────────────────────
+
+adminRouter.patch("/notifications/:id/read", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { error } = await supabaseAdmin
+      .from("admin_notifications")
+      .update({ is_read: true })
+      .eq("id", id);
+
+    if (error) throw error;
+
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err, id }, "PATCH /admin/notifications/:id/read failed");
+    res.status(500).json({ error: "UPDATE_FAILED", message: "Failed to mark notification as read" });
+  }
+});
+
+// ─── POST /notifications/read-all ────────────────────────────────────────────
+
+adminRouter.post("/notifications/read-all", async (_req, res) => {
+  try {
+    const { error } = await supabaseAdmin
+      .from("admin_notifications")
+      .update({ is_read: true })
+      .eq("is_read", false);
+
+    if (error) throw error;
+
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "POST /admin/notifications/read-all failed");
+    res.status(500).json({ error: "UPDATE_FAILED", message: "Failed to mark all notifications as read" });
+  }
+});
+
+// ─── POST /deploy ─────────────────────────────────────────────────────────────
+//
+// Triggers a Vercel deployment via the VERCEL_DEPLOY_HOOK_URL secret.
+// Rate-limited: one trigger per 60 seconds (checked against DB).
+// Logs the attempt as an admin_notification with type "deploy_triggered".
+
+adminRouter.post("/deploy", async (req, res) => {
+  if (!env.vercelDeployHookUrl) {
+    res.status(501).json({
+      error: "NOT_CONFIGURED",
+      message: "VERCEL_DEPLOY_HOOK_URL is not configured on the server.",
+    });
+    return;
+  }
+
+  try {
+    // ── Rate limit: max 1 deploy per 60 seconds ──────────────────────────────
+    const { data: lastDeploy } = await supabaseAdmin
+      .from("admin_notifications")
+      .select("created_at")
+      .eq("type", "deploy_triggered")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastDeploy) {
+      const elapsedMs = Date.now() - new Date(lastDeploy.created_at).getTime();
+      if (elapsedMs < 60_000) {
+        const retryAfter = Math.ceil((60_000 - elapsedMs) / 1000);
+        res.status(429).json({
+          error: "RATE_LIMITED",
+          message: `يرجى الانتظار ${retryAfter} ثانية قبل إعادة النشر`,
+          retryAfterSeconds: retryAfter,
+        });
+        return;
+      }
+    }
+
+    // ── Trigger the Vercel deploy hook ───────────────────────────────────────
+    const hookRes = await fetch(env.vercelDeployHookUrl, { method: "POST" });
+
+    const triggeredAt = new Date().toISOString();
+    const hookOk = hookRes.ok;
+    const hookStatus = hookRes.status;
+
+    // ── Log the attempt regardless of outcome ────────────────────────────────
+    await supabaseAdmin.from("admin_notifications").insert({
+      type: "deploy_triggered",
+      title: hookOk ? "نشر تم تشغيله بنجاح" : "فشل تشغيل النشر",
+      message: hookOk
+        ? `تم إرسال طلب النشر بنجاح في ${new Date(triggeredAt).toLocaleTimeString("ar-SA")}`
+        : `فشل طلب النشر — كود الاستجابة: ${hookStatus}`,
+      metadata: {
+        triggered_by: req.user!.id,
+        hook_status: hookStatus,
+        triggered_at: triggeredAt,
+      },
+    });
+
+    logger.info(
+      { adminId: req.user!.id, hookStatus, triggeredAt },
+      "Admin triggered Vercel deployment",
+    );
+
+    if (!hookOk) {
+      res.status(502).json({
+        error: "HOOK_FAILED",
+        message: `Deploy hook returned ${hookStatus}`,
+      });
+      return;
+    }
+
+    res.json({ ok: true, triggeredAt });
+  } catch (err) {
+    logger.error({ err }, "POST /admin/deploy failed");
+    res.status(500).json({ error: "DEPLOY_FAILED", message: "Failed to trigger deployment" });
   }
 });
 

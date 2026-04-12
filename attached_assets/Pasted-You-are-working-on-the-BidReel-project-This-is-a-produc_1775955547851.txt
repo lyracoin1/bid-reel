@@ -1,0 +1,239 @@
+You are working on the BidReel project. This is a production-oriented task, not a mockup task.
+
+I need you to implement the following in the ADMIN dashboard, and I want REAL WORKING FUNCTIONALITY end-to-end — not static UI, not placeholders, not fake buttons, not demo data, and not visual-only components.
+
+Project context:
+- BidReel is a short-video auction platform
+- Main user app is separate from admin
+- Admin runs on its own Vercel project and domain
+- Tech stack includes React/Vite frontend, Supabase backend/auth/database, GitHub repo, and Vercel deployment
+- The admin dashboard must become a real control center for the platform
+
+Your mission is to build these 3 features inside the admin dashboard:
+
+==================================================
+1) REAL ADMIN NOTIFICATIONS SYSTEM
+==================================================
+
+I need a real admin-only notifications system inside the admin dashboard.
+
+Requirements:
+- Notifications must be stored in the database, not hardcoded
+- Notifications must be visible only to authorized admins
+- Notifications must support read/unread state
+- Notifications must show newest first
+- Notifications must persist across refreshes and sessions
+- Notifications must be fetched from real backend/database logic
+
+Examples of events that should create admin notifications:
+- a new user signs up
+- a new auction is created
+- a report/flag is submitted
+- an important moderation event happens
+- a critical backend/admin event happens
+- optionally: deployment event status notifications later
+
+Minimum required implementation:
+- Create a proper table for admin notifications in Supabase
+- Add real insert logic from relevant system actions where possible
+- Add API/backend access layer if needed
+- Add admin dashboard UI for:
+  - notification bell or notification panel
+  - unread badge count
+  - dropdown or side panel list
+  - mark one as read
+  - mark all as read if useful
+- Make sure notification items include:
+  - id
+  - type
+  - title
+  - message
+  - created_at
+  - is_read
+  - optional metadata payload if useful
+
+Important:
+- Do not create fake notifications just to show the UI
+- If sample seed data is needed during development, clearly isolate it and do not leave the final result dependent on mock data
+- The final system must be connected to real Supabase tables and real application logic
+
+==================================================
+2) REAL APP PREVIEW / DEVICE EMULATOR PANEL INSIDE ADMIN
+==================================================
+
+On the LEFT side of the admin dashboard, I want a persistent live app preview panel that behaves like an in-dashboard device preview.
+
+This does NOT need to be a real Android emulator process, but it MUST be a REAL LIVE PREVIEW of the actual app/site, not a fake image or decorative phone shell.
+
+Requirements:
+- Left side: mobile-style preview area
+- Right side: admin controls and dashboard tools
+- The preview must load the actual app URL or actual relevant app route
+- It must be responsive and visually framed like a mobile device if possible
+- It must update from the real running app/site, not static screenshots
+- It must be usable for live preview/testing while staying inside admin
+- It must be built in a robust way, not as a broken temporary embed
+
+Preferred implementation:
+- A proper iframe or equivalent live preview mechanism
+- A mobile viewport container styled like a phone frame
+- Sensible width/height for a realistic mobile experience
+- Scrollable preview inside the frame
+- A refresh button for the preview itself
+- Optional route switcher if helpful (example: home, login, profile, auction view)
+
+Important:
+- Do not just draw a phone mockup without real content
+- Do not ship a fake “preview” card
+- The left panel must display real app content
+- The layout must be production-quality and stable
+
+==================================================
+3) REAL DEPLOY / UPDATE BUTTON INSIDE ADMIN
+==================================================
+
+I want a REAL working update/deploy button inside admin so I can reduce dependence on Replit for routine refresh/deploy actions.
+
+Clarification:
+I do NOT want a fake button that only changes UI state.
+I want a button that actually triggers a real deployment/update pipeline in a safe way.
+
+Important architecture note:
+- Do NOT implement unsafe direct git push from the browser
+- Do NOT fake “Git Push” text
+- Do NOT build a dummy orange button with no backend effect
+- The button must perform a real backend-connected action
+
+Safe acceptable implementation:
+- Trigger a Vercel Deploy Hook through a secure backend endpoint
+- Or trigger a secure GitHub Action / deployment workflow through backend logic
+- The action must be restricted to admin users only
+- Secrets/tokens/hooks must stay server-side only
+- No secret should ever be exposed in frontend code
+
+Required behavior:
+- Add a real “Deploy / Update” button in admin
+- Clicking it should trigger a real deployment/update action
+- Show real status feedback:
+  - idle
+  - deploying / running
+  - success
+  - failed
+- If possible, store deployment attempts in DB or logs
+- If possible, show last deployment timestamp and result
+- Protect the endpoint so only admins can use it
+- Add basic rate limiting / guard logic if needed
+
+Preferred label:
+- Use a clear label such as:
+  - “Deploy Update”
+  - “Trigger Deploy”
+  - or similar
+- If styling it orange fits the design, that is fine, but functionality is more important than style
+
+Important:
+- This must be a REAL deploy trigger, not a pretend control
+- If the repo cannot safely be pushed directly from admin, use the correct deploy hook / workflow trigger solution
+- Explain clearly what is implemented and why
+
+==================================================
+LAYOUT REQUIREMENTS
+==================================================
+
+I want the admin dashboard layout updated so that:
+
+- LEFT SIDE:
+  - live app preview / mobile device preview
+- RIGHT SIDE:
+  - admin controls
+  - notifications
+  - management tools
+  - deploy/update controls
+
+The result should feel like a real operations dashboard / control center.
+
+Requirements:
+- Clean production layout
+- Responsive where possible
+- Stable spacing and alignment
+- Keep the design aligned with BidReel’s visual identity
+- Do not sacrifice usability for flashy visuals
+
+==================================================
+AUTH / SECURITY REQUIREMENTS
+==================================================
+
+This is critical.
+
+Everything must be protected properly:
+- Only authenticated admins can access these features
+- Non-admin users must be blocked
+- Deployment endpoints must be server-protected
+- Secrets must remain server-side
+- Notifications data must not leak to normal users
+- Any new API routes or serverless functions must validate admin permissions
+- Do not rely only on frontend checks
+
+If needed:
+- verify session
+- verify admin role from database/profile
+- return proper unauthorized responses
+
+==================================================
+DATABASE / BACKEND REQUIREMENTS
+==================================================
+
+I do not want frontend-only work.
+
+You must implement:
+- database schema changes if needed
+- migrations if needed
+- real queries
+- real insert/update/read logic
+- real protected endpoints
+- real integration with the existing BidReel codebase
+
+If you create new tables, provide proper schema.
+If you create new env vars, document them clearly.
+If you create deploy hook integration, keep secrets on the server only.
+
+==================================================
+DELIVERY REQUIREMENTS
+==================================================
+
+Do not stop at visual components.
+
+I want you to complete this task as actual integrated functionality.
+
+When finished, provide:
+1. Exact files changed
+2. New files created
+3. Database changes / SQL / migrations
+4. Environment variables required
+5. How admin authorization is enforced
+6. How notifications are generated and stored
+7. How the live preview works
+8. How the deploy button works technically
+9. Any limitations or recommended next improvements
+
+Also:
+- If something cannot be implemented exactly as requested, do not hide it
+- Explain the constraint clearly
+- Then implement the closest REAL safe production solution
+- Do not replace real functionality with mock UI
+
+==================================================
+FINAL NON-NEGOTIABLE RULE
+==================================================
+
+This task must be implemented as REAL, FUNCTIONAL, END-TO-END FEATURES.
+
+I repeat:
+- no fake buttons
+- no mock-only notifications
+- no decorative phone frame without live content
+- no frontend-only deploy control
+- no placeholder architecture
+
+Everything must be real, connected, authorized, and production-oriented.
+Proceed now.

@@ -48,6 +48,11 @@ export default defineConfig({
     "import.meta.env.VITE_SUPABASE_ANON_KEY": JSON.stringify(
       process.env["SUPABASE_ANON_KEY"] ?? "",
     ),
+    // Main app URL used for the in-admin live preview iframe.
+    // Override via APP_PREVIEW_URL env var on Vercel.
+    "import.meta.env.VITE_APP_PREVIEW_URL": JSON.stringify(
+      process.env["APP_PREVIEW_URL"] ?? "https://bid-reel.com",
+    ),
   },
   plugins: [react(), tailwindcss(), ...replitPlugins],
   resolve: {

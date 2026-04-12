@@ -145,3 +145,39 @@ export async function adminGetActions(): Promise<AdminAction[]> {
   const data = await adminFetch<{ actions: AdminAction[] }>("/actions");
   return data.actions;
 }
+
+// ─── Admin Notifications ──────────────────────────────────────────────────────
+
+export interface AdminNotification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export async function adminGetNotifications(): Promise<AdminNotification[]> {
+  const data = await adminFetch<{ notifications: AdminNotification[] }>("/notifications");
+  return data.notifications;
+}
+
+export async function adminMarkNotificationRead(id: string): Promise<void> {
+  await adminFetch(`/notifications/${id}/read`, { method: "PATCH" });
+}
+
+export async function adminMarkAllNotificationsRead(): Promise<void> {
+  await adminFetch("/notifications/read-all", { method: "POST" });
+}
+
+// ─── Deploy ───────────────────────────────────────────────────────────────────
+
+export interface DeployResult {
+  ok: boolean;
+  triggeredAt: string;
+}
+
+export async function adminTriggerDeploy(): Promise<DeployResult> {
+  return adminFetch<DeployResult>("/deploy", { method: "POST" });
+}

@@ -35,6 +35,11 @@ export const env = {
   // When absent the server runs without FCM push notifications.
   firebaseServiceAccountJson: optional("FIREBASE_SERVICE_ACCOUNT_JSON"),
 
+  // ─── Vercel deploy hook (optional) ─────────────────────────────────────────
+  // When set, POST /api/admin/deploy will call this URL to trigger a Vercel
+  // deployment. The URL is a secret — never expose it to the frontend.
+  vercelDeployHookUrl: optional("VERCEL_DEPLOY_HOOK_URL"),
+
   // ─── Derived helpers ───────────────────────────────────────────────────────
   get isProduction() {
     return this.nodeEnv === "production";

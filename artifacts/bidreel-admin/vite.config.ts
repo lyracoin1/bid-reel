@@ -42,11 +42,16 @@ const replitPlugins =
 export default defineConfig({
   base: basePath,
   define: {
+    // Support both naming conventions:
+    //   VITE_SUPABASE_URL  — Vite-native style (recommended for new Vercel projects)
+    //   SUPABASE_URL       — legacy style used by the API server (fallback)
+    // Vite 7 resolves VITE_* vars at its own env-plugin stage before define runs,
+    // so we explicitly override both to guarantee the correct value is baked in.
     "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(
-      process.env["SUPABASE_URL"] ?? "",
+      process.env["VITE_SUPABASE_URL"] ?? process.env["SUPABASE_URL"] ?? "",
     ),
     "import.meta.env.VITE_SUPABASE_ANON_KEY": JSON.stringify(
-      process.env["SUPABASE_ANON_KEY"] ?? "",
+      process.env["VITE_SUPABASE_ANON_KEY"] ?? process.env["SUPABASE_ANON_KEY"] ?? "",
     ),
     // Main app URL used for the in-admin live preview iframe.
     // Override via APP_PREVIEW_URL env var on Vercel.

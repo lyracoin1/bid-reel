@@ -45,7 +45,7 @@ export function AdminLayout({ children, title, noPadding = false }: AdminLayoutP
         {/* Logo */}
         <div className="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border">
           <img
-            src="/bidreel-admin/logo-icon.png"
+            src={`${import.meta.env.BASE_URL}logo-icon.png`}
             alt="BidReel"
             className="w-9 h-9 rounded-xl box-glow shrink-0"
           />

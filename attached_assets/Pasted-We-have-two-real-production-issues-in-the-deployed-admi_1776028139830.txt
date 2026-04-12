@@ -1,0 +1,64 @@
+We have two real production issues in the deployed admin app at admin.bid-reel.com/login and I need a full root-cause fix, not guesses and not cosmetic-only changes.
+
+Issue 1: Broken logo/icon at the top of the admin login page
+Issue 2: Login fails with the message "Failed to fetch"
+
+You must debug and fix both issues end-to-end.
+
+Requirements:
+
+1. Fix the broken admin logo/icon
+
+* Find the exact asset path currently used by the admin login page
+* Verify whether the file exists in the admin project build output
+* Fix any wrong import, wrong relative path, wrong public asset path, case mismatch, or base path issue
+* Make sure the logo renders correctly in the deployed Vercel admin build, not just locally
+
+2. Fix the login failure "Failed to fetch"
+   This is likely a network/API/config problem, not just bad credentials.
+   You must trace the full login request from the deployed admin frontend to the backend/auth target and identify the exact failure point.
+
+Check all of the following:
+
+* what URL the admin login form is calling in production
+* whether VITE_API_URL is correct in the deployed admin app
+* whether the request is going to localhost, a dead domain, a wrong domain, or a missing endpoint
+* whether the API server is up and reachable from admin.bid-reel.com
+* whether CORS is blocking the request
+* whether the login endpoint exists and returns the correct response
+* whether admin auth is using Supabase directly or the API server, and whether that path is configured correctly
+* whether any recent env var changes require redeploy or rebuild
+* whether the fetch is failing due to mixed origin, bad HTTPS, DNS, 404, 500, or network error
+
+3. Do not stop at theory
+   I want actual debugging evidence:
+
+* exact file(s) involved
+* exact endpoint being called
+* exact reason for "Failed to fetch"
+* exact fix applied
+
+4. Verify after fixing
+
+* confirm the deployed admin login page loads the logo correctly
+* confirm login works with the real admin credentials
+* confirm no frontend request is pointing to localhost or a missing URL
+* confirm production build is clean
+
+5. Output format
+   When done, report:
+
+* root cause of broken logo
+* root cause of failed fetch
+* files changed
+* env vars checked or corrected
+* whether redeploy was required
+* final working login URL and API target used by production admin
+
+Important:
+
+* this must be a real production fix
+* do not give a partial answer
+* do not just change UI text
+* do not assume the issue is credentials unless you prove it
+* trace the real production path and fix it properly

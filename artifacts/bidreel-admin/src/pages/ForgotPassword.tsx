@@ -46,7 +46,7 @@ export default function ForgotPassword() {
 
         <div className="flex flex-col items-center mb-8">
           <img
-            src="/bidreel-admin/logo-icon.png"
+            src={`${import.meta.env.BASE_URL}logo-icon.png`}
             alt="BidReel"
             className="w-20 h-20 rounded-2xl mb-5 box-glow"
           />

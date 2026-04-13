@@ -78,6 +78,10 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
     startsAt: raw.starts_at,
     endsAt: raw.ends_at,
     mediaUrl,
+    // Keep thumbnailUrl separate so FeedCard can use it as a video poster.
+    // For video auctions: thumbUrl is the thumbnail image.
+    // For image auctions: thumbUrl may equal mediaUrl — fine as a poster fallback.
+    thumbnailUrl: thumbUrl ?? null,
     type: videoUrl ? 'video' : 'album',
     seller: apiProfileToUser(raw.seller, raw.seller_id),
     likes: r.like_count ?? 0,

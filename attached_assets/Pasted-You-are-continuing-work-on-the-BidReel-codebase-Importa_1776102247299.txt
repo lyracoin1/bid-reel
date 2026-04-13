@@ -1,0 +1,80 @@
+You are continuing work on the BidReel codebase.
+
+Important global rules:
+- First inspect the current implementation and KEEP everything that already works.
+- DO NOT rebuild working parts.
+- DO NOT introduce overengineering (no complex streaming systems, no multi-bitrate pipelines).
+- Focus on performance, smooth playback, and user experience.
+- Keep the system simple and production-practical.
+
+Context:
+- Auctions and media already exist
+- Videos are already uploaded and displayed
+- The app behaves like a short-video feed (TikTok-style)
+- Now we need to improve playback performance and UX quality
+
+Your task:
+
+A) Audit current video system
+Inspect:
+- how videos are uploaded
+- storage format (Cloudflare R2)
+- playback URLs
+- video element usage in frontend
+- feed scrolling behavior
+- autoplay logic
+- preload behavior
+
+B) Improve video playback UX
+
+Ensure:
+1. Only one video plays at a time
+2. Next video preloads before it appears
+3. Previous videos are paused and released
+4. Autoplay works reliably on scroll
+5. No multiple audio overlap
+6. Video starts fast (no noticeable delay)
+
+C) Optimize performance
+
+- Use lazy loading for videos not in viewport
+- Ensure videos do not all load at once
+- Avoid memory leaks from video elements
+- Ensure unmounted videos are properly cleaned up
+
+D) Mobile-first behavior
+
+- Ensure vertical video fills screen correctly
+- Ensure touch scroll feels smooth
+- Avoid layout shifts during video load
+- Ensure controls are minimal and non-intrusive
+
+E) Media quality
+
+- Ensure video is playable on web reliably (mp4, h264 preferred)
+- If compression already exists, validate it
+- If not:
+  - add simple compression guidance (NOT full pipeline)
+- Ensure thumbnail exists and loads fast
+
+F) Feed experience
+
+- Ensure infinite scroll or pagination works smoothly
+- Ensure loading states are clean
+- Ensure no flicker between videos
+
+G) Deliverables
+
+After implementation provide:
+1. Audit summary of current video system
+2. What was improved
+3. Any performance bottlenecks found
+4. Whether autoplay is now stable
+5. Whether only one video plays at a time
+6. Any limitations remaining
+
+Important:
+- Do NOT implement live streaming
+- Do NOT implement complex video CDN logic
+- Do NOT break existing upload flow
+- Focus only on playback quality and UX polish

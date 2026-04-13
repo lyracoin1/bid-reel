@@ -22,6 +22,9 @@ export interface Auction {
   startsAt?: string | null;
   endsAt: string;
   mediaUrl: string;
+  /** Thumbnail/poster URL. For video auctions this is the separate thumbnail;
+   *  for image auctions it's the same as mediaUrl. Used as video poster. */
+  thumbnailUrl?: string | null;
   type: "video" | "album";
   images?: string[];
   seller: User;

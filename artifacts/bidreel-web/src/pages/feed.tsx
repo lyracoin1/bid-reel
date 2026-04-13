@@ -107,7 +107,11 @@ export default function Feed() {
 
         {auctions.map((auction, index) => (
           <div key={auction.id} data-index={index} className="feed-card w-full h-[100dvh] snap-always">
-            <FeedCard auction={auction} isActive={activeIndex === index} />
+            <FeedCard
+              auction={auction}
+              isActive={activeIndex === index}
+              isNear={Math.abs(index - activeIndex) <= 1}
+            />
           </div>
         ))}
 

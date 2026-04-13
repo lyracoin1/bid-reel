@@ -59,6 +59,9 @@ function TikTokShareIcon() {
 interface FeedCardProps {
   auction: Auction;
   isActive: boolean;
+  /** True when this card is the active card or immediately adjacent (±1 position).
+   *  When false, the video src is removed and buffers are released. */
+  isNear: boolean;
 }
 
 // Module-level mute preference — single source of truth shared across all
@@ -67,7 +70,7 @@ interface FeedCardProps {
 // Initialised to `true` because browser autoplay policy always starts muted.
 let globalMuted = true;
 
-export function FeedCard({ auction, isActive }: FeedCardProps) {
+export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   const [, setLocation] = useLocation();
   const { mutate: toggleLike } = useToggleLike();
   const { isFollowing, toggle: toggleFollow } = useFollow();
@@ -128,6 +131,8 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
   // effect above) so that when play() is called the video element already has
   // the correct muted state — avoids a one-frame window where sound state could
   // briefly mismatch while waiting for the isMuted state update to flush.
+  // Reset currentTime to 0 on deactivation so swiping back always starts
+  // from the beginning rather than mid-video.
   useEffect(() => {
     const el = videoRef.current;
     if (!isVideo || !el) return;
@@ -136,8 +141,24 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
       el.play().catch(() => {});
     } else {
       el.pause();
+      el.currentTime = 0;
     }
   }, [isActive, isVideo]);
+
+  // Resource release: when this card is no longer near the viewport (more than
+  // one card away), call el.load() to tell the browser to abort any in-flight
+  // network request and release the decoded video buffer from memory.
+  // React already removed the `src` attribute (src={undefined} renders no attr),
+  // but load() is needed to flush the buffered data and abort the connection.
+  // Safe to call even when src is not set — behaves as a no-op in that case.
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!isVideo || !el) return;
+    if (!isNear) {
+      el.pause();
+      el.load();
+    }
+  }, [isNear, isVideo]);
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -169,9 +190,13 @@ export function FeedCard({ auction, isActive }: FeedCardProps) {
         <div className="absolute inset-0">
           <video
             ref={videoRef}
-            src={auction.mediaUrl}
+            src={isNear ? auction.mediaUrl : undefined}
+            poster={auction.thumbnailUrl ?? undefined}
             className={cn("w-full h-full object-cover transition-transform duration-700", isActive ? "scale-100" : "scale-105")}
-            playsInline preload="metadata" loop muted
+            playsInline
+            preload={isActive ? "auto" : "metadata"}
+            loop
+            muted
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent via-35% to-black/90 pointer-events-none" />
           {state !== "active" && <div className="absolute inset-0 bg-black/25 pointer-events-none" />}

@@ -10,6 +10,13 @@
  * Schema (migration 003 + 020):
  *   id, user_id, type, message, auction_id, actor_id, read, created_at
  *
+ * Wiring status:
+ *   notifyOutbid          — ✅ WIRED  (routes/auctions.ts, both bid endpoints)
+ *   notifyNewFollower     — ✅ WIRED  (routes/follows.ts, POST follow)
+ *   notifyAuctionStarted  — ✅ WIRED  (routes/auctions.ts, POST /api/auctions)
+ *   notifyAuctionWon      — ⏳ READY  (not wired — requires winner system, phase 2)
+ *   notifyAuctionEndingSoon — ⏳ READY (not wired — requires scheduler, phase 2)
+ *
  * All functions are non-throwing — they log errors but never bubble them up.
  */
 
@@ -66,10 +73,10 @@ async function getUserFcmTokens(userId: string): Promise<string[]> {
  * Non-throwing — logs errors but does not bubble them up.
  *
  * Error handling policy:
- *   42P01  — table does not exist (environment not yet migrated) → silent INFO
- *   PGRST204 — column not found (schema/code mismatch) → ERROR with full context
- *   23514  — check_violation (type not in CHECK list) → ERROR with full context
- *   other  — unexpected DB error → ERROR with full context
+ *   42P01    — table does not exist (environment not yet migrated) → INFO
+ *   PGRST204 — column not found (schema/code mismatch) → ERROR with remediation hint
+ *   23514    — check_violation (type not in CHECK list) → ERROR with remediation hint
+ *   other    — unexpected DB error → ERROR with full context
  */
 export async function createNotification(input: CreateNotificationInput): Promise<void> {
   const { error } = await supabaseAdmin.from("notifications").insert({
@@ -84,18 +91,16 @@ export async function createNotification(input: CreateNotificationInput): Promis
   if (error) {
     const code = (error as { code?: string }).code;
     if (code === "42P01") {
-      // Table not yet created — expected in fresh environments before migrations run.
-      logger.info({ userId: input.userId, type: input.type }, "notifications: table not found — run migrations");
+      logger.info(
+        { userId: input.userId, type: input.type },
+        "notifications: table not found — run migrations"
+      );
     } else if (code === "PGRST204") {
-      // Column not found in PostgREST schema cache — schema/code mismatch.
-      // Apply migration 020 to fix this.
       logger.error(
         { err: error.message, code, type: input.type },
         "notifications: column mismatch — apply migration 020_notifications_schema_fix.sql"
       );
     } else if (code === "23514") {
-      // CHECK constraint violation — notification type not in the allowed list.
-      // Apply migration 020 to fix this.
       logger.error(
         { err: error.message, code, type: input.type },
         "notifications: type rejected by CHECK constraint — apply migration 020_notifications_schema_fix.sql"
@@ -122,9 +127,13 @@ export async function createNotification(input: CreateNotificationInput): Promis
   );
 }
 
+// =============================================================================
+// ── WIRED HELPERS ─────────────────────────────────────────────────────────────
+// =============================================================================
+
 /**
  * Notify the previous highest bidder that they have been outbid.
- * Wired: routes/auctions.ts → POST /api/bids
+ * WIRED: routes/auctions.ts → POST /api/bids and POST /api/auctions/:id/bids
  */
 export async function notifyOutbid(
   prevBidderId: string,
@@ -134,6 +143,8 @@ export async function notifyOutbid(
 ): Promise<void> {
   const dollars = (newAmount / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
   const message = `You've been outbid on "${auctionTitle}" — new high bid is ${dollars}`;
+
+  logger.info({ prevBidderId, auctionId }, "notifications: triggering outbid");
 
   await createNotification({
     userId: prevBidderId,
@@ -149,8 +160,11 @@ export async function notifyOutbid(
 }
 
 /**
- * Notify all watchers of an auction that it has gone live.
- * Not yet wired — no auction-start trigger exists. Phase 2.
+ * Notify all followers of a seller that their auction just went live.
+ * WIRED: routes/auctions.ts → POST /api/auctions
+ *
+ * watcherUserIds — follower_ids from user_follows where following_id = sellerId.
+ * Safe early-return when the list is empty.
  */
 export async function notifyAuctionStarted(
   watcherUserIds: string[],
@@ -159,9 +173,12 @@ export async function notifyAuctionStarted(
 ): Promise<void> {
   if (watcherUserIds.length === 0) return;
 
+  logger.info(
+    { auctionId, watcherCount: watcherUserIds.length },
+    "notifications: triggering auction_started"
+  );
+
   const message = `Auction is now live: "${auctionTitle}"`;
-  const fcmTitle = "🟢 Auction is live!";
-  const fcmBody = `${auctionTitle} just started — place your bid now!`;
 
   await Promise.all(
     watcherUserIds.map(userId =>
@@ -171,8 +188,8 @@ export async function notifyAuctionStarted(
         message,
         auctionId,
         fcm: {
-          title: fcmTitle,
-          body: fcmBody,
+          title: "🟢 Auction is live!",
+          body: `${auctionTitle} just started — place your bid now!`,
           data: { auctionId, type: "auction_started" },
         },
       })
@@ -182,7 +199,7 @@ export async function notifyAuctionStarted(
 
 /**
  * Notify user B that user A started following them.
- * Wired: routes/follows.ts → POST /api/users/:id/follow
+ * WIRED: routes/follows.ts → POST /api/users/:id/follow
  */
 export async function notifyNewFollower(
   followedUserId: string,
@@ -190,6 +207,8 @@ export async function notifyNewFollower(
   followerName: string,
 ): Promise<void> {
   const message = `${followerName} started following you`;
+
+  logger.info({ followedUserId, followerUserId }, "notifications: triggering new_follower");
 
   await createNotification({
     userId: followedUserId,
@@ -200,6 +219,87 @@ export async function notifyNewFollower(
       title: "New follower 🎉",
       body: message,
       data: { actorId: followerUserId, type: "new_follower" },
+    },
+  });
+}
+
+// =============================================================================
+// ── READY — NOT YET WIRED (phase 2) ───────────────────────────────────────────
+// =============================================================================
+
+/**
+ * Notify the auction winner that they won.
+ *
+ * NOT WIRED — waiting for winner determination system (services/winners.service.ts).
+ * Call this from the winner creation flow once auctions.expireAuctions() is implemented.
+ *
+ * Payload matches notifications schema (migration 003 + 020):
+ *   user_id    = winnerId
+ *   type       = "auction_won"
+ *   message    = human-readable win message
+ *   auction_id = auctionId
+ *   actor_id   = null (system event)
+ */
+export async function notifyAuctionWon(
+  winnerId: string,
+  auctionId: string,
+  auctionTitle: string,
+  finalAmount: number,
+): Promise<void> {
+  const dollars = (finalAmount / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
+  const message = `You won "${auctionTitle}" with a final bid of ${dollars}. Contact the seller to arrange the exchange.`;
+
+  logger.info({ winnerId, auctionId, finalAmount }, "notifications: triggering auction_won");
+
+  await createNotification({
+    userId: winnerId,
+    type: "auction_won",
+    message,
+    auctionId,
+    fcm: {
+      title: "🏆 You won!",
+      body: message,
+      data: { auctionId, type: "auction_won" },
+    },
+  });
+}
+
+/**
+ * Notify the current leading bidder that the auction ends soon.
+ *
+ * NOT WIRED — waiting for a scheduler or cron that polls ending auctions.
+ * Call this from the expiry scheduler with minutesLeft = 60 (or 30).
+ *
+ * Payload matches notifications schema (migration 003 + 020):
+ *   user_id    = leadingBidderId
+ *   type       = "auction_ending_soon"
+ *   message    = countdown message
+ *   auction_id = auctionId
+ *   actor_id   = null (system event)
+ */
+export async function notifyAuctionEndingSoon(
+  leadingBidderId: string,
+  auctionId: string,
+  auctionTitle: string,
+  minutesLeft: number,
+): Promise<void> {
+  const timeLabel = minutesLeft >= 60
+    ? `${Math.round(minutesLeft / 60)} hour${minutesLeft >= 120 ? "s" : ""}`
+    : `${minutesLeft} minute${minutesLeft !== 1 ? "s" : ""}`;
+
+  const message = `"${auctionTitle}" ends in ${timeLabel} — you're currently winning!`;
+
+  logger.info({ leadingBidderId, auctionId, minutesLeft }, "notifications: triggering auction_ending_soon");
+
+  await createNotification({
+    userId: leadingBidderId,
+    type: "auction_ending_soon",
+    message,
+    auctionId,
+    fcm: {
+      title: "⏳ Auction ending soon!",
+      body: message,
+      data: { auctionId, type: "auction_ending_soon", minutesLeft: String(minutesLeft) },
     },
   });
 }

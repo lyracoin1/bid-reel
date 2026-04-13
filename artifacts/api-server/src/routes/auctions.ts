@@ -11,7 +11,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
-import { notifyOutbid } from "../lib/notifications";
+import { notifyOutbid, notifyAuctionStarted } from "../lib/notifications";
 import { getBidderCol, getBidderUserId } from "../lib/dbSchema";
 import { deleteMediaFile } from "../lib/media-lifecycle";
 
@@ -439,6 +439,24 @@ router.post("/auctions", requireAuth, async (req, res) => {
   }
 
   logger.info({ auctionId: auction.id, sellerId }, "Auction created");
+
+  // Notify seller's followers that a new auction is live (fire-and-forget, non-fatal).
+  // Fetches follower_ids from user_follows where following_id = sellerId.
+  void (async () => {
+    const { data: follows, error: followErr } = await supabaseAdmin
+      .from("user_follows")
+      .select("follower_id")
+      .eq("following_id", sellerId);
+
+    if (followErr) {
+      logger.warn({ err: followErr.message, sellerId }, "auction_started: failed to fetch followers");
+      return;
+    }
+
+    const followerIds = (follows ?? []).map((f: { follower_id: string }) => f.follower_id);
+    await notifyAuctionStarted(followerIds, auction.id, title);
+  })();
+
   res.status(201).json({ auction });
 });
 

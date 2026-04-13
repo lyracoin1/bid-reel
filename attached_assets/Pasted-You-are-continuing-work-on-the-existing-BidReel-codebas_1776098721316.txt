@@ -1,0 +1,76 @@
+You are continuing work on the existing BidReel codebase.
+
+Important global rules:
+- First inspect the current implementation and KEEP everything that already works.
+- DO NOT rebuild working parts.
+- DO NOT introduce realtime systems, websockets, or background workers unless absolutely required.
+- Only wire missing functionality.
+- Keep the system simple and consistent with the current architecture.
+
+Context:
+- Notifications table is now fixed and working.
+- notifyOutbid and notifyNewFollower are already working.
+- Other notification types exist in code but are NOT wired:
+  - notifyAuctionStarted
+  - notifyAuctionWon
+  - auction_ending_soon (type exists only)
+- Winner logic and scheduler do NOT exist yet.
+
+Your task:
+
+A) Audit notification functions
+- Inspect lib/notifications.ts
+- List all notification helper functions
+- Confirm which ones are currently used vs unused
+
+B) Wire safe, non-breaking triggers ONLY
+
+1. Auction Started (safe wiring)
+- If there is a place where an auction becomes "active" (creation or status change):
+  → call notifyAuctionStarted
+- If no clear lifecycle exists, skip and document
+
+2. Auction Won (DO NOT fake logic)
+- DO NOT guess winner logic
+- DO NOT implement winner system here
+- ONLY:
+  - ensure notifyAuctionWon is ready to be used later
+  - validate its payload structure matches notifications table
+
+3. Auction Ending Soon
+- DO NOT implement scheduler
+- ONLY:
+  - prepare helper function if missing
+  - do not wire yet
+
+C) Validate notification payloads
+For ALL notification helpers:
+- Ensure they send:
+  - user_id
+  - actor_id (if applicable)
+  - type
+  - message
+  - auction_id (if applicable)
+- Ensure all types match DB CHECK constraint
+
+D) Logging
+- Add minimal logging when notification is triggered
+- Do not spam logs
+
+E) Deliverables
+After implementation:
+1. List all notification types
+2. Which are wired vs not wired
+3. Exact places where each notification is triggered
+4. Confirmation that:
+   - outbid works
+   - new_follower works
+   - no broken inserts occur
+5. Any events intentionally deferred to later phases
+
+Important:
+- DO NOT implement winner logic yet
+- DO NOT implement scheduler yet
+- DO NOT modify schema
+- DO NOT change existing working flows
+- Only connect what is safe and real

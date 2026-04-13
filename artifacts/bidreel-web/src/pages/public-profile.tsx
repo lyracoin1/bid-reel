@@ -80,7 +80,7 @@ export default function PublicProfilePage() {
   const followersCount = localFollowersCount ?? profile?.followersCount ?? 0;
 
   return (
-    <MobileLayout hideNav={false}>
+    <MobileLayout showNav={true}>
       <div className="min-h-full bg-background">
 
         {/* ── Header ── */}

@@ -119,7 +119,7 @@ router.get("/users/me/saved", requireAuth, async (req, res) => {
 
 router.post("/auctions/:auctionId/save", requireAuth, async (req, res) => {
   const callerId = req.user!.id;
-  const auctionId = parseAuctionId(req.params["auctionId"] ?? "");
+  const auctionId = parseAuctionId(req.params["auctionId"] as string);
 
   if (!auctionId) {
     res.status(400).json({ error: "INVALID_AUCTION_ID", message: "auctionId must be a valid UUID." });
@@ -170,7 +170,7 @@ router.post("/auctions/:auctionId/save", requireAuth, async (req, res) => {
 
 router.delete("/auctions/:auctionId/save", requireAuth, async (req, res) => {
   const callerId = req.user!.id;
-  const auctionId = parseAuctionId(req.params["auctionId"] ?? "");
+  const auctionId = parseAuctionId(req.params["auctionId"] as string);
 
   if (!auctionId) {
     res.status(400).json({ error: "INVALID_AUCTION_ID", message: "auctionId must be a valid UUID." });

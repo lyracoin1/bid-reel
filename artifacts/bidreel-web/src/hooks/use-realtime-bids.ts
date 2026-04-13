@@ -70,11 +70,12 @@ export function useRealtimeBids(
   }, []);
 
   useEffect(() => {
-    if (!supabase || !auctionId) return;
+    const sb = supabase;
+    if (!sb || !auctionId) return;
 
     const channelName = `auction-${auctionId}-bids`;
 
-    const channel = supabase
+    const channel = sb
       .channel(channelName)
       .on(
         "postgres_changes",
@@ -93,7 +94,7 @@ export function useRealtimeBids(
       });
 
     return () => {
-      supabase.removeChannel(channel);
+      void sb.removeChannel(channel);
       setIsConnected(false);
     };
   }, [auctionId, handleNewBid]);

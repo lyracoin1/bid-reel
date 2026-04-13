@@ -55,7 +55,7 @@ router.get("/users/me/following-ids", requireAuth, async (req, res) => {
 
 router.post("/users/:userId/follow", requireAuth, async (req, res) => {
   const callerId = req.user!.id;
-  const targetId = parseUserId(req.params["userId"] ?? "");
+  const targetId = parseUserId(req.params["userId"] as string);
 
   if (!targetId) {
     res.status(400).json({ error: "INVALID_USER_ID", message: "userId must be a valid UUID." });
@@ -106,16 +106,17 @@ router.post("/users/:userId/follow", requireAuth, async (req, res) => {
 
   // Fire notification (non-blocking, never throws)
   // Fetch caller's display name for the notification message
-  supabaseAdmin
-    .from("profiles")
-    .select("display_name")
-    .eq("id", callerId)
-    .maybeSingle()
-    .then(({ data: callerProfile }) => {
+  void (async () => {
+    try {
+      const { data: callerProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("display_name")
+        .eq("id", callerId)
+        .maybeSingle();
       const callerName = callerProfile?.display_name ?? "Someone";
-      return notifyNewFollower(targetId, callerId, callerName);
-    })
-    .catch(() => {});
+      await notifyNewFollower(targetId, callerId, callerName);
+    } catch { /* non-blocking — ignore notification failures */ }
+  })();
 
   res.json({
     isFollowing: true,
@@ -130,7 +131,7 @@ router.post("/users/:userId/follow", requireAuth, async (req, res) => {
 
 router.delete("/users/:userId/follow", requireAuth, async (req, res) => {
   const callerId = req.user!.id;
-  const targetId = parseUserId(req.params["userId"] ?? "");
+  const targetId = parseUserId(req.params["userId"] as string);
 
   if (!targetId) {
     res.status(400).json({ error: "INVALID_USER_ID", message: "userId must be a valid UUID." });
@@ -174,7 +175,7 @@ router.delete("/users/:userId/follow", requireAuth, async (req, res) => {
 
 router.get("/users/:userId/followers", requireAuth, async (req, res) => {
   const callerId = req.user!.id;
-  const targetId = parseUserId(req.params["userId"] ?? "");
+  const targetId = parseUserId(req.params["userId"] as string);
 
   if (!targetId) {
     res.status(400).json({ error: "INVALID_USER_ID", message: "userId must be a valid UUID." });
@@ -247,7 +248,7 @@ router.get("/users/:userId/followers", requireAuth, async (req, res) => {
 
 router.get("/users/:userId/following", requireAuth, async (req, res) => {
   const callerId = req.user!.id;
-  const targetId = parseUserId(req.params["userId"] ?? "");
+  const targetId = parseUserId(req.params["userId"] as string);
 
   if (!targetId) {
     res.status(400).json({ error: "INVALID_USER_ID", message: "userId must be a valid UUID." });

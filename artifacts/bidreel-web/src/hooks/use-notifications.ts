@@ -53,14 +53,15 @@ export function useNotifications(): UseNotificationsReturn {
 
   // ── Supabase Realtime subscription ──────────────────────────────────────────
   useEffect(() => {
-    if (!supabase) return;
+    const sb = supabase;
+    if (!sb) return;
 
     const userId = getCurrentUserId();
     if (!userId) return;
 
     const channelName = `notifications:${userId}`;
 
-    const channel = supabase
+    const channel = sb
       .channel(channelName)
       .on(
         "postgres_changes",
@@ -99,7 +100,7 @@ export function useNotifications(): UseNotificationsReturn {
     channelRef.current = channel;
 
     return () => {
-      void supabase.removeChannel(channel);
+      void sb.removeChannel(channel);
       channelRef.current = null;
       setIsConnected(false);
     };

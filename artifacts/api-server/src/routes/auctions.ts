@@ -683,7 +683,7 @@ const auctionBidSchema = z.object({
 });
 
 router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
-  const auctionId = req.params["id"];
+  const auctionId = req.params["id"] as string;
   const userId = req.user!.id;
 
   const parsed = auctionBidSchema.safeParse(req.body);

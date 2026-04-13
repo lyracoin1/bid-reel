@@ -104,7 +104,7 @@ export default function Profile() {
                       {user?.displayName ?? "My Profile"}
                     </h1>
                     <p className="text-sm text-muted-foreground mt-1">
-                      @{user?.id.slice(0, 8) ?? "…"}
+                      @{user?.username ?? user?.id.slice(0, 8) ?? "…"}
                     </p>
                     {user?.isAdmin && (
                       <div className="flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full bg-violet-500/20 border border-violet-500/30 w-fit">

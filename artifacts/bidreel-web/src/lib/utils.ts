@@ -63,10 +63,16 @@ export function getTimeRemaining(endsAt: string | Date): {
   return { text: `${Math.floor(secondsLeft / 86400)}d left`, isUrgent: false, isEnded: false };
 }
 
-/** Builds a wa.me deep-link that opens a direct WhatsApp chat with the seller. */
+/** Builds a wa.me deep-link that opens a direct WhatsApp chat with the seller.
+ *  Includes a standardised prefilled message so the buyer doesn't need to type.
+ *  Returns "#" when no phone is available so the link is safe to render. */
 export function getWhatsAppUrl(phone: string, _itemTitle?: string): string {
   const digits = phone.replace(/\D/g, "");
-  return `https://wa.me/${digits}`;
+  if (!digits) return "#";
+  const message = encodeURIComponent(
+    "Hi, I saw your auction on BidReel and I'm interested.",
+  );
+  return `https://wa.me/${digits}?text=${message}`;
 }
 
 /**

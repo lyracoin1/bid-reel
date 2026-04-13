@@ -1,0 +1,110 @@
+You are continuing work on the BidReel codebase.
+
+Important global rules:
+- First inspect the current implementation and KEEP everything that already works.
+- DO NOT rebuild working systems.
+- DO NOT introduce payments, checkout, escrow, delivery, or any transaction system.
+- The platform must remain a connector only between users.
+- Focus only on UI/UX clarity, final polish, and user interaction.
+
+Context:
+- Auth is complete (email-first)
+- Admin panel is working
+- Notifications system is working
+- Follow system is production-ready
+- Auction lifecycle is complete (active → ended → archived)
+- Video feed is optimized and smooth
+- The platform is NOT responsible for payments or delivery
+
+Your task:
+
+A) Add WhatsApp contact action
+
+Goal:
+- Allow users to directly contact the seller of an auction
+
+Requirements:
+1. Use the seller’s phone number from profile
+2. Add a visible button:
+   - Label: "Contact on WhatsApp"
+3. Button must:
+   - Open WhatsApp with prefilled message:
+     "Hi, I saw your auction on BidReel and I'm interested."
+4. Only show button when:
+   - Auction is active OR ended
+5. Do NOT show for archived or removed auctions
+6. Ensure phone format is valid for WhatsApp URL
+
+B) Clarify auction state in UI
+
+Ensure every auction clearly shows status:
+
+1. Active:
+   - Show countdown
+   - Show current highest bid
+
+2. Ended:
+   - Show:
+     - "Auction ended"
+     - Final price
+     - Winner (if exists)
+     - "No bids" if none
+
+3. Archived:
+   - Hide from main feed
+   - If visible in profile:
+     - Show label "Archived"
+
+C) Remove misleading product assumptions
+
+Ensure UI does NOT imply:
+- payment processing
+- platform responsibility for delivery
+- guarantee of transaction
+
+Replace any wording like:
+- "Buy"
+- "Checkout"
+- "Order"
+
+With neutral wording like:
+- "Place bid"
+- "Contact seller"
+
+D) Improve action clarity
+
+Ensure:
+- Bid button is clear and primary
+- Disabled state when auction ended
+- Prevent bid if auction is no longer active
+
+E) Profile + identity clarity
+
+Ensure:
+- Username is clearly visible everywhere
+- Avatar shows consistently
+- Follow button state is always correct
+
+F) Empty states and edge UX
+
+Handle:
+- No bids → show "No bids yet"
+- No followers → clear message
+- Loading states → no flicker
+- Errors → user-friendly messages
+
+G) Deliverables
+
+After implementation provide:
+1. List of UI changes made
+2. Where WhatsApp button was added
+3. Confirmation:
+   - No payment logic introduced
+   - No misleading wording remains
+4. Any UI areas improved
+5. Any edge cases handled
+
+Important:
+- Do NOT redesign the entire UI
+- Do NOT introduce new business logic
+- This is polish + clarity phase only

@@ -314,19 +314,21 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
           <span className="text-[11px] font-semibold text-white/80">{auction.likes}</span>
         </motion.button>
 
-        {/* 3. WhatsApp */}
-        <motion.a
-          href={whatsappUrl} target="_self"
-          whileTap={{ scale: 0.8 }}
-          className="flex flex-col items-center gap-1"
-          style={{ minWidth: 44, minHeight: 44 }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="w-12 h-12 rounded-full bg-[#25D366]/15 backdrop-blur-md border border-[#25D366]/50 flex items-center justify-center shadow-[0_0_14px_rgba(37,211,102,0.3)]">
-            <WhatsAppIcon />
-          </div>
-          <span className="text-[11px] font-semibold text-white/80">{t("chat")}</span>
-        </motion.a>
+        {/* 3. WhatsApp — only for active or ended auctions */}
+        {(state === "active" || state === "ended") && auction.seller.phone && (
+          <motion.a
+            href={whatsappUrl} target="_self"
+            whileTap={{ scale: 0.8 }}
+            className="flex flex-col items-center gap-1"
+            style={{ minWidth: 44, minHeight: 44 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full bg-[#25D366]/15 backdrop-blur-md border border-[#25D366]/50 flex items-center justify-center shadow-[0_0_14px_rgba(37,211,102,0.3)]">
+              <WhatsAppIcon />
+            </div>
+            <span className="text-[11px] font-semibold text-white/80">{t("chat")}</span>
+          </motion.a>
+        )}
 
         {/* 4. Save / Bookmark */}
         <motion.button

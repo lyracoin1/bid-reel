@@ -1,0 +1,100 @@
+You are working on the BidReel project.
+
+Context:
+- Main app: React + Vite
+- Admin panel: separate React app on admin.bid-reel.com
+- Auth system has already been migrated from phone-first to email-first
+- Supabase Auth is now based on email + password
+- phone is no longer the login identity; it is only a profile/contact field
+- username is required during profile completion
+- The current issue is that some UI inside the admin preview/mock phone still shows the old phone-number login screen, which is outdated and incorrect
+
+Your task in this phase:
+Completely remove all remaining phone-first assumptions from the user-facing auth UI, onboarding UI, and any admin preview/mock emulator screens.
+
+Critical goals:
+1. The app must no longer present phone number as the primary sign-in method anywhere in the real app UI.
+2. The first-time entry flow should use the Arabic-equivalent product concept of:
+   - "Sign up / Create account" as the primary first-time action
+   - then show two account creation options:
+     a) Continue with Google
+     b) Create a normal account
+3. Returning users should use Sign in with email + password.
+4. Phone must remain only as a required profile/contact field after account creation or during profile completion, not as auth identity.
+5. The admin-side preview / phone mockup / emulator panel must reflect the current real app auth flow, not an old static phone-number screen.
+6. The emulator/preview should be as realistic as possible and should represent the actual current app state, not a hardcoded outdated mock.
+
+What I want you to do:
+A) Search the codebase thoroughly for all outdated phone-first auth UI and logic, including:
+- login screens
+- onboarding screens
+- reusable auth components
+- preview/mock mobile frame inside admin
+- hardcoded mock JSON / fixtures / screenshots / seed state
+- strings such as:
+  - phone number
+  - sign in with phone
+  - enter your phone number
+  - OTP-first assumptions
+  - any old Arabic equivalents too
+
+B) Replace the old flow with this new structure:
+- First screen for new users:
+  - Primary CTA: Sign up
+  - Secondary CTA: Sign in
+- On sign-up:
+  - Continue with Google
+  - Create account manually
+- Manual account creation:
+  - email
+  - password
+  - confirm password
+- After successful account creation:
+  - profile completion flow requiring:
+    - username
+    - phone (as contact field, not auth identity)
+    - any other required profile fields already defined by the project
+- Returning users:
+  - Sign in with email + password
+- Keep the terminology consistent across main app and preview
+
+C) For the admin preview / emulator / phone frame:
+- Remove any old hardcoded phone-login screen
+- Make it render the current real auth flow or a shared source of truth
+- Do not use outdated static screenshots
+- If the preview is based on mock states, update those states to match the new app exactly
+- Ensure the preview can display:
+  - welcome / entry screen
+  - sign up options
+  - sign in screen
+  - profile completion state
+
+D) Important implementation rules:
+- Do not break existing production auth logic
+- Do not reintroduce phone-based login
+- Do not use phone as an auth identifier anywhere
+- Do not fake the emulator with old content
+- Reuse shared components/config where possible so the real app and the preview stay in sync
+- Keep Arabic UI and English UI consistent conceptually
+- Make the UI production-grade, clean, modern, and mobile-first
+
+E) Deliverables required from you:
+1. List every file changed
+2. Explain exactly where the old phone-first UI was still leaking from
+3. Explain how the preview/emulator is now sourcing the current auth flow
+4. Confirm whether any old phone-first strings or components still exist anywhere
+5. If anything cannot be fully unified, explain the blocker clearly
+
+Before editing:
+- inspect and identify all sources of the old phone-first screen
+- then apply the fixes carefully
+- then verify the final state
+
+After editing:
+Give me a concise verification report covering:
+- real app auth flow
+- sign up flow
+- sign in flow
+- profile completion flow
+- admin preview/emulator state
+- whether any phone-first remnants still remain

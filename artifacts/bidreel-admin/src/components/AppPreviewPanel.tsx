@@ -12,9 +12,11 @@ interface Route {
 }
 
 const ROUTES: Route[] = [
-  { label: "الرئيسية", path: "/" },
-  { label: "تسجيل دخول", path: "/login" },
-  { label: "المزادات", path: "/auctions" },
+  { label: "الرئيسية",    path: "/"          },
+  { label: "تسجيل دخول", path: "/login"      },
+  { label: "إنشاء حساب", path: "/login?tab=signup" },
+  { label: "المزادات",   path: "/feed"       },
+  { label: "إتمام الملف", path: "/interests" },
 ];
 
 export function AppPreviewPanel() {
@@ -59,7 +61,7 @@ export function AppPreviewPanel() {
       </div>
 
       {/* Route switcher */}
-      <div className="flex gap-1 shrink-0" dir="rtl">
+      <div className="flex gap-1 shrink-0 flex-wrap" dir="rtl">
         {ROUTES.map((r) => (
           <button
             key={r.path}
@@ -96,7 +98,7 @@ export function AppPreviewPanel() {
             </div>
           )}
 
-          {/* Iframe */}
+          {/* Live iframe of the current app */}
           <iframe
             ref={iframeRef}
             key={key}

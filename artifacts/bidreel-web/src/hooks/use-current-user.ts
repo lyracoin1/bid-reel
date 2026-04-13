@@ -5,7 +5,7 @@
  * Fetched once (on first call to useCurrentUser / getCurrentUserId) and
  * reused for the lifetime of the page session.
  *
- * ISOLATION GUARANTEE: Each phone number maps to a unique Supabase auth user
+ * ISOLATION GUARANTEE: Each email address maps to a unique Supabase auth user
  * and profile row. The cached user is always the owner of the active JWT.
  * Call clearCurrentUserCache() before logout to prevent stale data.
  */

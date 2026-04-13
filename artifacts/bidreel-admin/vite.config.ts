@@ -61,9 +61,16 @@ export default defineConfig({
       process.env["VITE_SUPABASE_ANON_KEY"] ?? process.env["SUPABASE_ANON_KEY"] ?? "",
     ),
     // Main app URL used for the in-admin live preview iframe.
-    // Override via APP_PREVIEW_URL env var on Vercel.
+    // Resolution order:
+    //   1. APP_PREVIEW_URL env var (set this in Vercel to "https://bid-reel.com")
+    //   2. Replit dev domain (uses the local dev server so the preview always
+    //      shows the current code, not the old production build)
+    //   3. Fallback to production domain
     "import.meta.env.VITE_APP_PREVIEW_URL": JSON.stringify(
-      process.env["APP_PREVIEW_URL"] ?? "https://bid-reel.com",
+      process.env["APP_PREVIEW_URL"] ??
+      (isReplit && process.env["REPLIT_DEV_DOMAIN"]
+        ? `https://${process.env["REPLIT_DEV_DOMAIN"]}`
+        : "https://bid-reel.com"),
     ),
     // API server base URL.
     // In production: set VITE_API_URL in Vercel to the full API server URL

@@ -2,13 +2,13 @@
  * Session token management.
  *
  * The token key intentionally uses a versioned suffix (":v2").
- * When the auth architecture changes in a breaking way (e.g. removing the
- * shared dev-user fallback), bumping the version forces all browsers to
- * discard stale tokens and re-authenticate with their own phone number.
+ * When the auth architecture changes in a breaking way (e.g. switching from
+ * phone-first OTP to email+password), bumping the version forces all browsers
+ * to discard stale tokens and re-authenticate.
  *
  * Key history:
- *   bidreel:token  — v1, used the shared +14155550001 dev-user (insecure)
- *   bidreel:session:v2 — current, per-user tokens only
+ *   bidreel:token      — v1, used the shared +14155550001 dev-user (insecure, phone-based)
+ *   bidreel:session:v2 — current, email+password Supabase JWT tokens
  */
 
 const TOKEN_KEY = "bidreel:session:v2";

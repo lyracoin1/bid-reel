@@ -5,12 +5,12 @@
  *
  * Auth strategy:
  *   1. Check in-memory cache (fast path for the current page session).
- *   2. Check localStorage for a valid (non-expired) session token — persisted
- *      after the user completes phone login.
+ *   2. Check localStorage for a valid (non-expired) Supabase JWT — persisted
+ *      after the user signs in with email + password.
  *   3. Return null — the caller must redirect to /login.
  *
- * There is NO automatic fallback login. Every user must enter their own phone
- * number on the login page. Different phones always produce different accounts.
+ * Auth identity is email + password (Supabase Auth).
+ * Phone is a profile/contact field only — never used for authentication.
  */
 
 import { getValidSessionToken, setSessionToken, clearSessionToken } from "./session";
@@ -40,7 +40,7 @@ export const API_BASE: string = (() => {
 
 let cachedToken: string | null = null;
 
-/** Stores a token received from the phone login flow into memory + localStorage. */
+/** Stores a Supabase JWT received after email+password sign-in into memory + localStorage. */
 export function setToken(token: string): void {
   cachedToken = token;
   setSessionToken(token);

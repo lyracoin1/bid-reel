@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, Mail, Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { useLang } from "@/contexts/LanguageContext";
@@ -14,10 +14,14 @@ type Mode = "signin" | "signup";
 
 export default function Login() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
   const { lang, dir } = useLang();
   const isRtl = dir === "rtl";
 
-  const [mode, setMode]         = useState<Mode>("signin");
+  // Support ?tab=signup so the admin preview panel and deep-links can open
+  // the sign-up form directly. Default to sign-in for returning users.
+  const initialMode: Mode = new URLSearchParams(search).get("tab") === "signup" ? "signup" : "signin";
+  const [mode, setMode]         = useState<Mode>(initialMode);
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm]   = useState("");
@@ -245,7 +249,7 @@ export default function Login() {
 
         {/* Tab toggle */}
         <div className="flex rounded-xl bg-muted/30 border border-border p-1 gap-1">
-          {(["signin", "signup"] as Mode[]).map(m => (
+          {(["signup", "signin"] as Mode[]).map(m => (
             <button
               key={m}
               type="button"

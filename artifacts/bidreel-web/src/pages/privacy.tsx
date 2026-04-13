@@ -35,8 +35,10 @@ export default function PrivacyPolicy() {
           <section className="space-y-2">
             <h2 className="text-white font-semibold text-base">Data We Collect</h2>
             <ul className="list-disc pl-5 space-y-1">
-              <li><strong className="text-white/90">Phone number</strong> — used for one-time password (OTP) authentication. Never shared publicly.</li>
+              <li><strong className="text-white/90">Email address</strong> — used to create and authenticate your account via email and password. Never shared publicly.</li>
+              <li><strong className="text-white/90">Phone number</strong> — used as a WhatsApp contact field so buyers and sellers can communicate. Never used as a login identity or shared beyond the transaction context.</li>
               <li><strong className="text-white/90">Display name &amp; avatar</strong> — shown on your public profile and auction listings.</li>
+              <li><strong className="text-white/90">Username</strong> — your unique handle on the platform, shown publicly.</li>
               <li><strong className="text-white/90">Videos and photos</strong> — media you upload for auction listings, stored securely in cloud storage.</li>
               <li><strong className="text-white/90">Bids</strong> — amounts you bid on auctions, linked to your account.</li>
               <li><strong className="text-white/90">Location (optional)</strong> — approximate country, used only to suggest local currency. Never stored on our servers.</li>
@@ -69,8 +71,8 @@ export default function PrivacyPolicy() {
             <h2 className="text-white font-semibold text-base">Data Retention</h2>
             <p>
               Your data is retained while your account is active. When you delete your account,
-              all personal data (phone number, display name, avatar, bids, follows, saves, and device
-              tokens) is permanently deleted within 30 days. Auction listings you created will be
+              all personal data (email address, phone number, display name, avatar, bids, follows,
+              saves, and device tokens) is permanently deleted within 30 days. Auction listings you created will be
               anonymised rather than deleted to preserve auction integrity.
             </p>
           </section>

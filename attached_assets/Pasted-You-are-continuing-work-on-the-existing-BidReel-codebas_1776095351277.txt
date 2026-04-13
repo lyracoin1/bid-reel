@@ -1,0 +1,78 @@
+You are continuing work on the existing BidReel codebase.
+
+Important global rules:
+- First inspect the current implementation and KEEP everything that already matches the requirements.
+- DO NOT rebuild working parts.
+- DO NOT introduce live bidding, websockets, realtime subscriptions, payments, shipping, commissions, checkout, delivery tracking, or order management.
+- If something already exists and is correct, skip it.
+- Only implement what is missing, broken, inconsistent, or incomplete.
+- Keep BidReel as a connection layer only between users.
+- Do not introduce any product wording or architecture that implies platform responsibility for payment, shipping, delivery, disputes, or escrow.
+
+Project context:
+- Main app: React + Vite
+- Admin panel: separate React app on admin.bid-reel.com
+- Backend: Vercel serverless API
+- Database/Auth: Supabase
+- Storage: Cloudflare R2
+- Auth has already been migrated to email-first
+- Admin-to-API routing was already fixed
+- The next step is to audit what already exists and replace the outdated admin phone/mock preview with a realistic app preview/emulator panel
+
+This phase is ONLY about:
+1. auditing the current preview-related implementation,
+2. preserving anything already correct,
+3. replacing outdated preview behavior,
+4. building a realistic in-admin app preview/emulator that reflects the current real BidReel app state and flows.
+
+Goals:
+- The preview must no longer show any old phone-first auth UI
+- It must reflect the current email-first auth flow
+- It must feel close to a real mobile app viewport
+- It must not be a static screenshot or stale mock
+- It must be maintainable and tied to the current app architecture as much as possible
+
+Required audit first:
+A) Inspect and report:
+- current preview/mock/emulator implementation
+- whether it is static, mocked, duplicated, iframe-based, or shared-component-based
+- all outdated sources still feeding old UI
+- whether any preview strings or states still reflect phone-first auth
+
+B) Keep everything that already matches the requirements.
+Do not rewrite working preview code unnecessarily.
+
+Implementation requirements:
+1. Refactor the preview to use the best available shared source of truth:
+   preferred order:
+   a) shared real app components in preview-safe mode
+   b) shared view/state definitions used by both app and admin
+   c) if needed, a documented adapter layer that mirrors the real app in a maintainable way
+2. Support these preview states:
+   - welcome/entry
+   - sign up entry
+   - sign in
+   - continue with Google option
+   - manual account creation
+   - profile completion
+   - authenticated feed/home
+   - empty state if relevant
+3. If architecture allows, add state controls in admin for:
+   - logged out / logged in
+   - profile complete / incomplete
+   - empty feed / populated feed
+   - locale switch if already feasible
+4. Keep the preview visually premium, mobile-first, and product-grade
+5. Do not build a fake Android OS simulator
+6. Do not leave the preview as a stale static mock
+7. Do not reintroduce phone-first language or logic
+
+Deliverables required:
+1. Audit summary of what already existed and what you kept
+2. Root cause of why the old preview was outdated
+3. Files changed
+4. Exact implementation approach
+5. Which states the preview now supports
+6. Whether it uses shared components, shared state definitions, or an adapter layer
+7. What limitations still remain compared to a real Android runtime
+8. Verification that the preview now reflects the email-first app correctly

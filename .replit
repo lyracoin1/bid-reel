@@ -49,9 +49,7 @@ timeoutMs = 20000
 [userenv]
 
 [userenv.shared]
-ADMIN_PANEL_PASSWORD = "01207387165shjzfm"
 USE_DEV_AUTH = "true"
-ADMIN_ACTIVATION_CODE = "01207387165shjzfm"
 SUPABASE_URL = "https://zhbfbjwagehwetyqljjr.supabase.co"
 
 [userenv.development]

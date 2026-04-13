@@ -22,6 +22,8 @@ const LANG_KEY = "bidreel_lang";
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Language>(() => {
+    const urlLang = new URLSearchParams(window.location.search).get("lang");
+    if (urlLang === "ar" || urlLang === "en") return urlLang as Language;
     return (localStorage.getItem(LANG_KEY) as Language) || "en";
   });
 

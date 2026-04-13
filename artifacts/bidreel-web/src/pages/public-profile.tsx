@@ -92,7 +92,7 @@ export default function PublicProfilePage() {
             <ArrowLeft size={18} className="text-white" />
           </button>
           <h1 className="text-base font-bold text-white truncate">
-            {profileLoading ? "Loading…" : (profile?.displayName ?? `@${userId.slice(0, 8)}`)}
+            {profileLoading ? "Loading…" : (profile?.displayName ?? profile?.username ?? `@${userId.slice(0, 8)}`)}
           </h1>
         </div>
 
@@ -132,7 +132,7 @@ export default function PublicProfilePage() {
                       <h2 className="text-lg font-bold text-white leading-tight truncate">
                         {profile?.displayName ?? "Unknown"}
                       </h2>
-                      <p className="text-xs text-muted-foreground mt-0.5">@{userId.slice(0, 8)}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">@{profile?.username ?? userId.slice(0, 8)}</p>
                       {profile?.bio && (
                         <p className="text-xs text-white/60 mt-1.5 line-clamp-2">{profile.bio}</p>
                       )}

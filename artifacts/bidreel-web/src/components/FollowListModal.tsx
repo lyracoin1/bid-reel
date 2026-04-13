@@ -127,10 +127,10 @@ export function FollowListModal({ userId, mode, onClose }: FollowListModalProps)
                         onClick={() => { onClose(); setLocation(`/users/${u.id}`); }}
                       >
                         <p className="text-sm font-semibold text-white leading-none truncate">
-                          {u.displayName ?? `@${u.id.slice(0, 8)}`}
+                          {u.displayName ?? u.username ?? `@${u.id.slice(0, 8)}`}
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                          @{u.id.slice(0, 8)}
+                          @{u.username ?? u.id.slice(0, 8)}
                         </p>
                       </button>
 

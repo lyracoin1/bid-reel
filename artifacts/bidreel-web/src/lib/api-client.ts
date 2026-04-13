@@ -438,6 +438,7 @@ export async function checkUsernameApi(username: string): Promise<boolean> {
 
 export interface ApiPublicProfile {
   id: string;
+  username: string | null;
   displayName: string | null;
   avatarUrl: string | null;
   bio: string | null;
@@ -446,6 +447,7 @@ export interface ApiPublicProfile {
   followersCount: number;
   followingCount: number;
   isBanned: boolean;
+  isCompleted: boolean;
   createdAt: string;
 }
 
@@ -553,6 +555,7 @@ export async function unregisterDeviceToken(token: string): Promise<void> {
 
 export interface ApiFollowUser {
   id: string;
+  username: string | null;
   displayName: string | null;
   avatarUrl: string | null;
   isFollowing: boolean;

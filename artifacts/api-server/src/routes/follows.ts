@@ -206,7 +206,7 @@ router.get("/users/:userId/followers", requireAuth, async (req, res) => {
   // Fetch profiles for all follower IDs
   const { data: profiles } = await supabaseAdmin
     .from("profiles")
-    .select("id, display_name, avatar_url")
+    .select("id, username, display_name, avatar_url")
     .in("id", followerIds);
 
   // Check which of these the caller follows
@@ -221,7 +221,7 @@ router.get("/users/:userId/followers", requireAuth, async (req, res) => {
   );
 
   const profileMap = new Map(
-    (profiles ?? []).map((p: { id: string; display_name: string | null; avatar_url: string | null }) => [p.id, p])
+    (profiles ?? []).map((p: { id: string; username: string | null; display_name: string | null; avatar_url: string | null }) => [p.id, p])
   );
 
   const result = followerIds
@@ -230,6 +230,7 @@ router.get("/users/:userId/followers", requireAuth, async (req, res) => {
       if (!p) return null;
       return {
         id: p.id,
+        username: p.username,
         displayName: p.display_name,
         avatarUrl: p.avatar_url,
         isFollowing: callerFollowsSet.has(p.id),
@@ -277,7 +278,7 @@ router.get("/users/:userId/following", requireAuth, async (req, res) => {
 
   const { data: profiles } = await supabaseAdmin
     .from("profiles")
-    .select("id, display_name, avatar_url")
+    .select("id, username, display_name, avatar_url")
     .in("id", followingIds);
 
   // Check which of these the caller follows
@@ -292,7 +293,7 @@ router.get("/users/:userId/following", requireAuth, async (req, res) => {
   );
 
   const profileMap = new Map(
-    (profiles ?? []).map((p: { id: string; display_name: string | null; avatar_url: string | null }) => [p.id, p])
+    (profiles ?? []).map((p: { id: string; username: string | null; display_name: string | null; avatar_url: string | null }) => [p.id, p])
   );
 
   const result = followingIds
@@ -301,6 +302,7 @@ router.get("/users/:userId/following", requireAuth, async (req, res) => {
       if (!p) return null;
       return {
         id: p.id,
+        username: p.username,
         displayName: p.display_name,
         avatarUrl: p.avatar_url,
         isFollowing: callerFollowsSet.has(p.id),

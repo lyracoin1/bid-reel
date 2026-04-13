@@ -1,0 +1,80 @@
+You are continuing work on the existing BidReel codebase.
+
+Important global rules:
+- First inspect the current implementation and KEEP everything that already works.
+- DO NOT rebuild working parts.
+- DO NOT introduce realtime systems, websockets, payments, shipping, checkout, or unrelated features.
+- Only implement what is missing, broken, inconsistent, or incomplete.
+- Keep BidReel as a short-video auction platform that connects users directly, not as a transaction intermediary.
+
+Current context:
+- Email-first auth is already done
+- Admin/API routing is fixed
+- App preview/emulator is improved
+- Notifications table is fixed
+- notifyOutbid, notifyNewFollower, and notifyAuctionStarted are wired
+- The next goal is to make the follow system feel real and production-grade, similar to strong social apps
+
+This phase is ONLY about the follow system.
+
+Your task:
+
+A) Audit the current follow implementation first
+Inspect:
+- user_follows table schema
+- follow/unfollow routes
+- any profile UI that shows follow state
+- any follower/following counts
+- any feed logic related to follows
+- any notifications tied to follows
+
+B) Keep everything that already works
+Do not rebuild working routes or UI.
+Reuse user_follows if it is already correct.
+
+C) Upgrade the follow system to a real product-grade feature
+
+Required outcomes:
+1. Follow and unfollow must work reliably
+2. Duplicate follows must be prevented safely
+3. Follower count and following count must be accurate
+4. Public profile must clearly show:
+   - Follow / Following state
+   - follower count
+   - following count
+5. The current logged-in user should see the correct relationship state on profiles
+6. The system should expose clean API responses for:
+   - isFollowing
+   - followersCount
+   - followingCount
+7. notifyNewFollower must continue working correctly after the changes
+
+D) Feed relationship support
+Inspect whether there is already any "following" based feed or filtering.
+- If a following feed already exists partially, complete it safely
+- If it does not exist, do NOT invent a huge new feed system here
+- Only add minimal clean support that fits the current architecture
+
+E) Reliability and edge cases
+- Prevent self-follow
+- Prevent duplicate rows
+- Ensure unfollow is idempotent
+- Ensure counts stay correct after follow/unfollow
+- Keep auth checks strict
+
+F) Deliverables
+After implementation, provide:
+1. Audit summary of what already existed
+2. Files changed
+3. Exact missing pieces implemented
+4. Whether counts are live-calculated or cached
+5. Which follow-related UI screens now work correctly
+6. Whether any follow-based feed behavior exists now
+7. Any intentionally deferred enhancements
+
+Important:
+- Do not redesign the whole social graph
+- Do not add recommender systems
+- Do not add realtime
+- Do not change unrelated auction logic
+- This phase is follow system only

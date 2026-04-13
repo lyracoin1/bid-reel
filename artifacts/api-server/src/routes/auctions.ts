@@ -12,8 +12,9 @@ import { supabaseAdmin } from "../lib/supabase";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
 import { notifyOutbid, notifyAuctionStarted } from "../lib/notifications";
-import { getBidderCol, getBidderUserId } from "../lib/dbSchema";
+import { getBidderCol, getBidderUserId, hasWinnerBidIdCol } from "../lib/dbSchema";
 import { deleteMediaFile } from "../lib/media-lifecycle";
+import { expireAuctions } from "../lib/auction-lifecycle";
 
 const router = Router();
 
@@ -199,6 +200,12 @@ function normalizeAuction(a: any): any {
 }
 
 router.get("/auctions", async (req, res) => {
+  // Expire overdue auctions before serving the list (fire-and-forget — does
+  // not block the response; expired auctions will be accurate on next fetch).
+  void expireAuctions().catch(err =>
+    logger.warn({ err: String(err) }, "GET /auctions: expireAuctions background call failed"),
+  );
+
   // select("*") is intentional — avoids hard-coding column names that may
   // not yet exist in partially-migrated databases.
   // Exclude soft-deleted (status = 'removed') auctions from the feed.
@@ -574,6 +581,11 @@ router.post("/bids", requireAuth, async (req, res) => {
   const { auctionId, amount } = parsed.data;
   const userId = req.user!.id;
 
+  // 1b. Expire any overdue auctions so the status check below is accurate.
+  await expireAuctions().catch(err =>
+    logger.warn({ err: String(err) }, "POST /bids: expireAuctions pre-check failed"),
+  );
+
   // 2. Fetch auction using select("*") so it works with old and new schema
   const { data: auction, error: auctionErr } = await supabaseAdmin
     .from("auctions")
@@ -586,8 +598,8 @@ router.post("/bids", requireAuth, async (req, res) => {
     return;
   }
 
-  // 3. Auction must be active
-  if (!isAuctionActive(auction.starts_at, auction.ends_at)) {
+  // 3. Auction must be active — check both time window and status column
+  if (auction.status === "ended" || !isAuctionActive(auction.starts_at, auction.ends_at)) {
     res.status(409).json({
       error: "AUCTION_NOT_ACTIVE",
       message: "This auction is not currently accepting bids",
@@ -643,15 +655,22 @@ router.post("/bids", requireAuth, async (req, res) => {
     return;
   }
 
-  // 8. Update the price counter using the column name that actually exists in this DB
+  // 8. Update auction: price counter + winner tracking.
+  //    winner_id is always set (column exists since migration 005/009).
+  //    winner_bid_id is set only if migration 021 has been applied.
   const priceCol = priceColName(auction);
+  const wbidColExists = await hasWinnerBidIdCol();
+  const auctionPatch: Record<string, unknown> = {
+    [priceCol]: amount,
+    bid_count: auction.bid_count + 1,
+    winner_id: userId,
+    updated_at: new Date().toISOString(),
+  };
+  if (wbidColExists) auctionPatch["winner_bid_id"] = newBid.id;
+
   const { data: updatedAuction, error: updateErr } = await supabaseAdmin
     .from("auctions")
-    .update({
-      [priceCol]: amount,
-      bid_count: auction.bid_count + 1,
-      updated_at: new Date().toISOString(),
-    })
+    .update(auctionPatch)
     .eq("id", auctionId)
     .select("*")
     .single();
@@ -715,6 +734,11 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
 
   const { amount } = parsed.data;
 
+  // Expire overdue auctions so the status check below is accurate.
+  await expireAuctions().catch(err =>
+    logger.warn({ err: String(err) }, "POST /auctions/:id/bids: expireAuctions pre-check failed"),
+  );
+
   // select("*") works with both old and new schema column names
   const { data: auction, error: auctionErr } = await supabaseAdmin
     .from("auctions")
@@ -727,7 +751,8 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
     return;
   }
 
-  if (!isAuctionActive(auction.starts_at, auction.ends_at)) {
+  // Check both status column and time window for defense in depth.
+  if (auction.status === "ended" || !isAuctionActive(auction.starts_at, auction.ends_at)) {
     res.status(409).json({
       error: "AUCTION_NOT_ACTIVE",
       message: "This auction is not currently accepting bids",
@@ -779,14 +804,20 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
     return;
   }
 
+  // Update auction: price counter + winner tracking.
   const priceCol2 = priceColName(auction);
+  const wbidColExists2 = await hasWinnerBidIdCol();
+  const auctionPatch2: Record<string, unknown> = {
+    [priceCol2]: amount,
+    bid_count: auction.bid_count + 1,
+    winner_id: userId,
+    updated_at: new Date().toISOString(),
+  };
+  if (wbidColExists2) auctionPatch2["winner_bid_id"] = newBid.id;
+
   const { data: updatedAuction2 } = await supabaseAdmin
     .from("auctions")
-    .update({
-      [priceCol2]: amount,
-      bid_count: auction.bid_count + 1,
-      updated_at: new Date().toISOString(),
-    })
+    .update(auctionPatch2)
     .eq("id", auctionId)
     .select("*")
     .single();

@@ -1,0 +1,88 @@
+You are continuing work on the existing BidReel codebase.
+
+Important global rules:
+- First inspect the current implementation and KEEP everything that already works.
+- DO NOT rebuild working parts.
+- DO NOT introduce websockets, realtime bidding, payments, shipping, or escrow.
+- Only implement missing core auction lifecycle logic.
+- Keep the system simple, deterministic, and production-safe.
+
+Context:
+- Auctions can be created
+- Bids can be placed
+- Validation is implemented
+- DB trigger updates current_bid and bid_count
+- Notifications system is now working
+- Follow system is now production-ready
+
+Current critical gaps:
+- winner_id is never set
+- winner_bid_id is never set
+- auctions.status never flips to "ended"
+- no expiration mechanism exists
+
+Your task:
+
+A) Audit current auction flow
+- Inspect auctions table
+- Inspect bids table
+- Inspect any existing services (winners.service.ts, auctions.service.ts)
+- Confirm what already exists vs missing
+
+B) Implement winner tracking (on each bid)
+- When a new bid is placed:
+  - Update auctions.winner_id = bidder_id
+  - Update auctions.winner_bid_id = bid_id
+- Ensure:
+  - Only the latest valid bid is considered the winner
+  - No race conditions (simple transaction-safe logic)
+
+C) Implement auction expiration logic
+- Create a function expireAuctions()
+- It must:
+  - Find auctions where:
+    status = 'active'
+    AND ends_at < now()
+  - Set:
+    status = 'ended'
+  - Ensure winner_id is correct (based on last bid)
+
+D) Execution model
+- Do NOT introduce cron infrastructure
+- Instead:
+  - Call expireAuctions() safely:
+    - before reading auctions
+    - or before placing a bid
+- Must be idempotent
+
+E) Edge cases
+- No bids:
+  - winner_id remains null
+- Multiple bids:
+  - highest/latest valid bid wins
+- Auction already ended:
+  - no updates allowed
+
+F) Data integrity
+- Ensure:
+  - winner_id references profiles(id)
+  - winner_bid_id references bids(id)
+- Do not break existing triggers
+
+G) Deliverables
+After implementation provide:
+1. Files changed
+2. Exact logic for winner assignment
+3. expireAuctions() implementation
+4. Where it is called from
+5. Confirmation that:
+   - winner is always correct
+   - status flips correctly
+   - no duplicate execution issues
+6. Any deferred improvements
+
+Important:
+- DO NOT implement scheduler
+- DO NOT implement payments
+- DO NOT modify unrelated systems
+- This phase is ONLY auction lifecycle

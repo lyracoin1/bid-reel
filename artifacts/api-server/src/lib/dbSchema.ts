@@ -6,7 +6,8 @@
  * server start and caches the result so every request uses the right column name.
  *
  * Handles:
- *   bids.bidder_id  (migration 005+)  vs  bids.user_id  (migration 002/004)
+ *   bids.bidder_id         (migration 005+)  vs  bids.user_id  (migration 002/004)
+ *   auctions.winner_bid_id (migration 021+)  — optional, gracefully skipped if absent
  */
 
 import { supabaseAdmin } from "./supabase";
@@ -40,4 +41,27 @@ export async function getBidderCol(): Promise<"bidder_id" | "user_id"> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getBidderUserId(bid: any): string {
   return bid.bidder_id ?? bid.user_id ?? null;
+}
+
+// ── Auctions: winner_bid_id column presence (migration 021) ──────────────────
+
+let _hasWinnerBidIdCol: boolean | null = null;
+
+/**
+ * Returns true if the auctions table has the winner_bid_id column
+ * (added in migration 021). Probes once per server start, cached thereafter.
+ * If absent, callers must omit winner_bid_id from update patches.
+ */
+export async function hasWinnerBidIdCol(): Promise<boolean> {
+  if (_hasWinnerBidIdCol !== null) return _hasWinnerBidIdCol;
+
+  const { error } = await supabaseAdmin
+    .from("auctions")
+    .select("winner_bid_id")
+    .limit(0);
+
+  // 42703 = column does not exist
+  _hasWinnerBidIdCol = error?.code !== "42703";
+  logger.info({ present: _hasWinnerBidIdCol }, "auctions: winner_bid_id column probe");
+  return _hasWinnerBidIdCol;
 }

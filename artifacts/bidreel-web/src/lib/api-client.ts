@@ -234,6 +234,8 @@ export interface CreateAuctionInput {
   lng: number;
   currencyCode?: string;
   currencyLabel?: string;
+  /** Auction duration in whole hours. Must be 1–48. Defaults to 24 on the server if omitted. */
+  durationHours?: number;
 }
 
 export async function createAuctionApi(input: CreateAuctionInput): Promise<{ auction: ApiAuctionRaw }> {

@@ -1,0 +1,123 @@
+You are continuing work on the existing BidReel codebase.
+
+Important global rules:
+- First inspect the current implementation and KEEP everything that already works.
+- DO NOT rebuild working parts.
+- DO NOT introduce websockets, realtime bidding, payments, shipping, escrow, checkout, or unrelated systems.
+- Only implement the missing auction lifecycle improvements described below.
+- Keep the system simple, deterministic, and production-safe.
+- Prefer soft archive over hard deletion.
+
+Context:
+- Auctions can already be created
+- Bids can already be placed
+- winner_id is now tracked
+- winner_bid_id is now tracked
+- expireAuctions() exists and flips expired auctions from active to ended
+- notifyAuctionWon is already wired
+- The next step is to tighten auction duration rules and add archival behavior
+
+Product decisions for this phase:
+1. Minimum auction duration = 1 hour
+2. Maximum auction duration = 48 hours
+3. Auctions should NOT be hard-deleted after a week
+4. Instead, ended auctions should become archived 7 days after they ended
+5. Archived auctions should no longer appear in public feed/explore style listings
+6. Keep archived auctions in the database for history/admin/debugging/reference
+
+Your task:
+
+A) Audit first
+Inspect:
+- auction creation validation
+- auctions table status values
+- all auction listing endpoints and feed/explore queries
+- any existing code that assumes only active/ended/removed
+- current expireAuctions() implementation
+
+B) Enforce auction duration rules
+Implement strict backend validation for auction creation/update:
+- minimum duration: 1 hour
+- maximum duration: 48 hours
+
+Requirements:
+- Do not rely only on frontend validation
+- Enforce in server-side API validation
+- If the request violates limits, return a clear validation error
+- Preserve existing valid behavior
+
+C) Add archived lifecycle state safely
+Implement support for:
+- status = 'archived'
+
+Requirements:
+1. Update schema/constraints safely if needed
+2. Update any backend enums/types/validators safely
+3. Do not break existing status handling
+4. Keep 'removed' intact if it already exists and is used
+5. Final lifecycle should support:
+   - draft (if already used)
+   - active
+   - ended
+   - archived
+   - removed (if already used by the current system)
+
+D) Implement archiveAuctions()
+Create a function such as archiveAuctions() or extend lifecycle utilities safely.
+
+Behavior:
+- find auctions where:
+  - status = 'ended'
+  - ended long enough ago (7 days)
+- set status = 'archived'
+
+Important:
+- Use the best available timestamp source
+- If there is no ended_at column, use the safest existing field or add ended_at only if truly necessary
+- Prefer a minimal safe migration if needed
+- Make the function idempotent
+- Do not physically delete auctions
+
+E) Execution model
+Do NOT add cron infrastructure in this phase.
+
+Instead, call archiveAuctions() safely from places that already make sense, such as:
+- before listing auctions
+- alongside expireAuctions()
+- any safe read path where lifecycle cleanup already occurs
+
+Do not make requests slow unnecessarily.
+Fire-and-forget is acceptable where safe.
+
+F) Public visibility rules
+After this phase:
+- active auctions appear in public feeds/lists
+- ended auctions may still appear where appropriate
+- archived auctions must NOT appear in public browsing/feed/explore endpoints
+- archived auctions may still be visible in admin or history-oriented contexts if those already exist
+
+G) UI/data consistency
+Do not redesign the UI heavily in this phase, but ensure:
+- archived auctions do not leak into normal public listings
+- existing ended logic still works
+- no broken assumptions remain in API responses
+
+H) Deliverables
+After implementation provide:
+1. Audit summary
+2. Files changed
+3. Any migration added in full
+4. Exact validation logic for min/max duration
+5. Exact archive rule used
+6. Where archiveAuctions() is called from
+7. Confirmation that archived auctions are excluded from public listings
+8. Any intentionally deferred improvements
+
+Important:
+- Do NOT hard delete auctions
+- Do NOT add a scheduler
+- Do NOT redesign unrelated UI
+- This phase is only:
+  - duration limits
+  - archived state
+  - archive lifecycle behavior

@@ -1,19 +1,24 @@
 /**
- * auction-lifecycle.ts — Auction expiration and winner assignment
+ * auction-lifecycle.ts — Auction expiration, winner assignment, and archival
  *
  * expireAuctions()
  *   Scans for active auctions whose ends_at has passed, marks them
- *   as 'ended', and records the winner (highest bid holder).
+ *   as 'ended', records the winner (highest bid holder), and fires
+ *   the auction_won notification to the winner.
  *
- *   Execution model: triggered on-demand before reads/writes that depend
- *   on auction status. No cron required.
+ * archiveAuctions()
+ *   Scans for ended auctions whose ends_at was more than 7 days ago
+ *   and moves them to 'archived'. Archived auctions are hidden from
+ *   public feeds but remain in the database for history/admin use.
  *
- *   Idempotency: the UPDATE is guarded with .eq("status", "active") so
- *   concurrent or duplicate calls are safe — already-ended auctions are
- *   never touched again.
+ * runAuctionLifecycle()
+ *   Convenience wrapper that calls expireAuctions() then archiveAuctions()
+ *   in sequence. Use this at call sites that already trigger lifecycle work.
  *
- *   Batch cap: processes at most 50 expired auctions per call to avoid
- *   unbounded latency.
+ * Execution model: all functions are triggered on-demand (no cron).
+ * Idempotency: every UPDATE is guarded by a status equality check so
+ * concurrent or duplicate calls never double-process any auction.
+ * Batch cap: 50 auctions per call to avoid unbounded latency.
  */
 
 import { supabaseAdmin } from "./supabase";
@@ -137,4 +142,50 @@ export async function expireAuctions(): Promise<void> {
       })();
     }
   }
+}
+
+/**
+ * Archive ended auctions that have been in 'ended' state for more than 7 days.
+ *
+ * Uses ends_at as the reference timestamp — this is always in the past for ended
+ * auctions and avoids adding an ended_at column.
+ *
+ * Idempotent: the UPDATE is guarded with .eq("status", "ended") so already-archived
+ * auctions are never touched again. Concurrent calls are safe.
+ *
+ * Requires migration 022 (adds 'archived' to auction_status enum).
+ * If the enum value does not exist yet, Supabase returns a type error; it is caught
+ * and logged at warn level so the function never crashes the caller.
+ */
+export async function archiveAuctions(): Promise<void> {
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { error, count } = await supabaseAdmin
+    .from("auctions")
+    .update({ status: "archived" }, { count: "exact" })
+    .eq("status", "ended")
+    .lt("ends_at", cutoff);
+
+  if (error) {
+    // 22P02 = invalid_text_representation (enum value not yet in DB → migration not applied)
+    // Log at warn, never crash.
+    logger.warn({ err: error.message, code: error.code }, "archiveAuctions: update failed");
+    return;
+  }
+
+  if (count && count > 0) {
+    logger.info({ count }, "archiveAuctions: archived ended auctions");
+  }
+}
+
+/**
+ * Run the full auction lifecycle in sequence:
+ *   1. expireAuctions() — flip active → ended, assign winner, notify winner
+ *   2. archiveAuctions() — flip ended → archived (7-day-old auctions)
+ *
+ * Use this wrapper at all call sites so both steps always run together.
+ */
+export async function runAuctionLifecycle(): Promise<void> {
+  await expireAuctions();
+  await archiveAuctions();
 }

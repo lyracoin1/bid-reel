@@ -14,7 +14,7 @@ import { logger } from "../lib/logger";
 import { notifyOutbid, notifyAuctionStarted } from "../lib/notifications";
 import { getBidderCol, getBidderUserId, hasWinnerBidIdCol } from "../lib/dbSchema";
 import { deleteMediaFile } from "../lib/media-lifecycle";
-import { expireAuctions } from "../lib/auction-lifecycle";
+import { runAuctionLifecycle } from "../lib/auction-lifecycle";
 
 const router = Router();
 
@@ -200,19 +200,22 @@ function normalizeAuction(a: any): any {
 }
 
 router.get("/auctions", async (req, res) => {
-  // Expire overdue auctions before serving the list (fire-and-forget — does
-  // not block the response; expired auctions will be accurate on next fetch).
-  void expireAuctions().catch(err =>
-    logger.warn({ err: String(err) }, "GET /auctions: expireAuctions background call failed"),
+  // Run lifecycle cleanup before serving the list (fire-and-forget — does not
+  // block the response; status changes will be accurate on the next fetch).
+  // This handles both expiration (active → ended) and archival (ended → archived).
+  void runAuctionLifecycle().catch(err =>
+    logger.warn({ err: String(err) }, "GET /auctions: runAuctionLifecycle background call failed"),
   );
 
   // select("*") is intentional — avoids hard-coding column names that may
   // not yet exist in partially-migrated databases.
-  // Exclude soft-deleted (status = 'removed') auctions from the feed.
+  // Exclude soft-deleted ('removed') and archived auctions from the public feed.
+  // Ended auctions are kept visible (they show as "ended" for up to 7 days).
   const { data: auctions, error } = await supabaseAdmin
     .from("auctions")
     .select("*")
     .neq("status", "removed")
+    .neq("status", "archived")
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -369,6 +372,13 @@ const createAuctionSchema = z.object({
     .min(-180).max(180),
   currencyCode: z.string().max(10).optional().default("USD"),
   currencyLabel: z.string().max(60).optional().default("US Dollar"),
+  durationHours: z
+    .number({ invalid_type_error: "durationHours must be a number" })
+    .int("durationHours must be a whole number of hours")
+    .min(1, "Auction must run for at least 1 hour")
+    .max(48, "Auction cannot run for more than 48 hours")
+    .optional()
+    .default(24),
 });
 
 // Columns returned to the client — never expose internal/deleted fields.
@@ -391,7 +401,7 @@ router.post("/auctions", requireAuth, async (req, res) => {
     return;
   }
 
-  const { title, description, category, startPrice, minIncrement, videoUrl, thumbnailUrl, lat, lng, currencyCode, currencyLabel } =
+  const { title, description, category, startPrice, minIncrement, videoUrl, thumbnailUrl, lat, lng, currencyCode, currencyLabel, durationHours } =
     parsed.data;
   const sellerId = req.user!.id;
 
@@ -415,7 +425,8 @@ router.post("/auctions", requireAuth, async (req, res) => {
   }
 
   // ── Timestamps ─────────────────────────────────────────────────────────────
-  const endsAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+  // durationHours is validated by the schema (1–48 h), default 24 h.
+  const endsAt = new Date(Date.now() + durationHours * 60 * 60 * 1000);
   const mediaPurgeAfter = new Date(endsAt.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const { data: auction, error } = await insertAuction({
@@ -581,9 +592,9 @@ router.post("/bids", requireAuth, async (req, res) => {
   const { auctionId, amount } = parsed.data;
   const userId = req.user!.id;
 
-  // 1b. Expire any overdue auctions so the status check below is accurate.
-  await expireAuctions().catch(err =>
-    logger.warn({ err: String(err) }, "POST /bids: expireAuctions pre-check failed"),
+  // 1b. Run lifecycle cleanup so the status check below is accurate.
+  await runAuctionLifecycle().catch(err =>
+    logger.warn({ err: String(err) }, "POST /bids: runAuctionLifecycle pre-check failed"),
   );
 
   // 2. Fetch auction using select("*") so it works with old and new schema
@@ -734,9 +745,9 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
 
   const { amount } = parsed.data;
 
-  // Expire overdue auctions so the status check below is accurate.
-  await expireAuctions().catch(err =>
-    logger.warn({ err: String(err) }, "POST /auctions/:id/bids: expireAuctions pre-check failed"),
+  // Run lifecycle cleanup so the status check below is accurate.
+  await runAuctionLifecycle().catch(err =>
+    logger.warn({ err: String(err) }, "POST /auctions/:id/bids: runAuctionLifecycle pre-check failed"),
   );
 
   // select("*") works with both old and new schema column names

@@ -7,13 +7,17 @@
  *   1. Check in-memory cache (fast path for the current page session).
  *   2. Check localStorage for a valid (non-expired) Supabase JWT — persisted
  *      after the user signs in with email + password.
- *   3. Return null — the caller must redirect to /login.
+ *   3. Ask Supabase to refresh the session (uses the 60-day refresh token stored
+ *      in Supabase's own localStorage key) — handles the common case where the
+ *      1-hour access token has expired but the user is still within their session.
+ *   4. Return null — the caller must redirect to /login.
  *
  * Auth identity is email + password (Supabase Auth).
  * Phone is a profile/contact field only — never used for authentication.
  */
 
 import { getValidSessionToken, setSessionToken, clearSessionToken } from "./session";
+import { supabase } from "./supabase";
 import { Capacitor } from "@capacitor/core";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
@@ -64,15 +68,41 @@ export function redirectToLogin(): void {
 
 /**
  * Returns a valid Bearer token, or null if the user is not authenticated.
+ *
+ * Resolution order:
+ *  1. In-memory cache (fastest — avoids any I/O)
+ *  2. Our localStorage key (valid if within the 1-hour JWT expiry window)
+ *  3. Supabase session refresh — uses the 60-day refresh token that Supabase
+ *     stores in its own localStorage key to obtain a fresh access token.
+ *     This is the key path that keeps users logged in between sessions.
  */
 export async function getToken(): Promise<string | null> {
   if (cachedToken) return cachedToken;
+
   const stored = getValidSessionToken();
   if (stored) {
     cachedToken = stored;
     console.log("[auth] ✅ session restored from localStorage");
     return cachedToken;
   }
+
+  // Fallback: ask Supabase to refresh the session.
+  // getSession() returns the stored session, refreshing the access token if
+  // needed via the refresh token (valid for 60 days by default).
+  if (supabase) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        cachedToken = session.access_token;
+        setSessionToken(session.access_token);
+        console.log("[auth] ✅ session restored via Supabase token refresh");
+        return cachedToken;
+      }
+    } catch {
+      // Supabase unreachable — fall through to unauthenticated
+    }
+  }
+
   return null;
 }
 

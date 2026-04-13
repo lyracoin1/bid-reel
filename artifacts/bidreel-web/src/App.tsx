@@ -52,10 +52,15 @@ function FcmInit() {
 function AuthSync() {
   useEffect(() => {
     if (!supabase) return;
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.access_token) {
+        // New or refreshed session — store the latest access token.
         setToken(session.access_token);
-      } else {
+      } else if (event === "SIGNED_OUT") {
+        // Explicit sign-out only — clear the token and cached profile.
+        // Do NOT clear on INITIAL_SESSION with null (Supabase fires this while
+        // checking storage) or TOKEN_REFRESH_ERROR — those are transient states
+        // and the getToken() fallback will attempt a Supabase session refresh.
         clearToken();
       }
     });

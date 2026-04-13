@@ -156,8 +156,8 @@ export function AppPreviewPanel() {
       )}
 
       {/* ── Phone frame + iframe ── */}
-      <div className="flex-1 flex items-start justify-center overflow-hidden min-h-0">
-        <div className="relative w-[260px]" style={{ height: "calc(100% - 4px)" }}>
+      <div className="flex-1 flex items-center justify-center overflow-hidden min-h-0">
+        <div className="relative w-[260px]" style={{ height: "min(calc(100% - 4px), calc(260px * 16 / 9))", minHeight: "400px" }}>
 
           {/* Outer shell */}
           <div className="absolute inset-0 rounded-[34px] border-[5px] border-white/10 bg-black/40 shadow-2xl pointer-events-none z-10" />

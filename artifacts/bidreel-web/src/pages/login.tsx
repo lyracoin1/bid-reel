@@ -117,6 +117,14 @@ export default function Login() {
           setError(lang === "ar"
             ? "يرجى تأكيد بريدك الإلكتروني أولاً — تحقق من صندوق الوارد"
             : "Please verify your email first — check your inbox.");
+        } else if (
+          authError.message === "Failed to fetch" ||
+          authError.message.toLowerCase().includes("network") ||
+          authError.message.toLowerCase().includes("fetch")
+        ) {
+          // Supabase SDK wraps network errors as authError.message, not as thrown
+          // exceptions, so we must intercept them here and show a friendly message.
+          setError(copy.networkErr);
         } else {
           setError(authError.message);
         }
@@ -169,7 +177,15 @@ export default function Login() {
       });
 
       if (authError) {
-        setError(authError.message);
+        if (
+          authError.message === "Failed to fetch" ||
+          authError.message.toLowerCase().includes("network") ||
+          authError.message.toLowerCase().includes("fetch")
+        ) {
+          setError(copy.networkErr);
+        } else {
+          setError(authError.message);
+        }
         return;
       }
 

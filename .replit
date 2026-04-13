@@ -17,6 +17,27 @@ env = { "CI" = "true" }
 [workflows]
 runButton = "Project"
 
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=8080 pnpm --filter @workspace/api-server run dev & PORT=24694 BASE_PATH=/ pnpm --filter @workspace/bidreel-web run dev & PORT=22020 BASE_PATH=/bidreel-admin/ pnpm --filter @workspace/bidreel-admin run dev & wait"
+waitForPort = 24694
+
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
@@ -31,7 +52,7 @@ timeoutMs = 20000
 ADMIN_PANEL_PASSWORD = "01207387165shjzfm"
 USE_DEV_AUTH = "true"
 ADMIN_ACTIVATION_CODE = "01207387165shjzfm"
-SUPABASE_URL = "https://zhbfbjwagehwetyqljjr.supabase.com"
+SUPABASE_URL = "https://zhbfbjwagehwetyqljjr.supabase.co"
 
 [userenv.development]
 

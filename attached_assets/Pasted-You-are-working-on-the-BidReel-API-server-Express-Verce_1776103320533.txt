@@ -1,0 +1,79 @@
+You are working on the BidReel API server (Express + Vercel deployment).
+
+There is a production issue:
+The admin panel at https://admin.bid-reel.com cannot call the API due to CORS errors.
+
+Observed errors:
+- "Failed to fetch"
+- "CORS error"
+- preflight requests returning 404 / 405
+- Requests from admin domain are blocked
+
+Your task:
+
+A) Audit current CORS configuration
+- Locate where CORS is configured (likely in src/app.ts or server entry)
+- Identify current origin settings and why admin domain is blocked
+
+B) Fix CORS properly for production
+
+Implement a robust CORS configuration with:
+
+1. Allowed origins:
+   - https://www.bid-reel.com
+   - https://bid-reel.com
+   - https://admin.bid-reel.com
+   - http://localhost:5173
+   - http://localhost:3000
+
+2. Dynamic origin validation:
+   - Allow requests with no origin (server-to-server / curl)
+   - Allow only listed origins
+   - Reject unknown origins safely
+
+3. Full configuration:
+   - methods: GET, POST, PUT, DELETE, OPTIONS
+   - allowedHeaders: Content-Type, Authorization
+   - credentials: true
+
+Example target behavior (do NOT blindly copy, adapt to codebase):
+
+- Use a function-based origin handler
+- Ensure no wildcard "*" when credentials = true
+
+C) Ensure preflight requests work correctly
+
+- Express must correctly respond to OPTIONS requests
+- Add:
+  app.options("*", cors())
+
+- Ensure no route conflicts override OPTIONS
+
+D) Do NOT break existing routes
+
+- Keep all existing API routes intact
+- Do not change business logic
+- Only fix CORS layer
+
+E) Deploy safety
+
+- Ensure changes are compatible with Vercel serverless
+- No long-lived state
+- No breaking middleware order
+
+F) Deliverables
+
+After implementation, provide:
+
+1. Exact file modified
+2. Final CORS configuration code
+3. Confirmation that:
+   - admin.bid-reel.com can access API
+   - No wildcard CORS used
+   - Preflight requests succeed (200)
+4. Any edge cases handled
+
+Important:
+- Do NOT add new features
+- Do NOT modify authentication
+- This is a pure CORS fix

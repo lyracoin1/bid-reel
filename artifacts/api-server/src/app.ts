@@ -25,26 +25,44 @@ app.use(
     },
   }),
 );
-app.use(cors({
+// ─── CORS ────────────────────────────────────────────────────────────────────
+const ALLOWED_ORIGINS: Array<string | RegExp> = [
+  // Production domains
+  "https://bid-reel.com",
+  "https://www.bid-reel.com",
+  "https://admin.bid-reel.com",
+  // Local development
+  "http://localhost:5173",
+  "http://localhost:3000",
+  // Replit preview environments
+  /^https?:\/\/localhost(:\d+)?$/,
+  /\.replit\.dev$/,
+  /\.repl\.co$/,
+];
+
+const corsOptions: cors.CorsOptions = {
   origin: (origin, cb) => {
-    // Allow requests with no Origin (server-to-server, curl, Postman).
+    // Allow server-to-server requests, curl, and Postman (no Origin header).
     if (!origin) return cb(null, true);
 
-    const allowed = [
-      /^https?:\/\/localhost(:\d+)?$/,
-      /\.replit\.dev$/,
-      /\.repl\.co$/,
-      /^https:\/\/bid-reel\.com$/,
-      /^https:\/\/www\.bid-reel\.com$/,
-      /^https:\/\/admin\.bid-reel\.com$/,
-    ];
-    const ok = allowed.some((pattern) =>
+    const allowed = ALLOWED_ORIGINS.some((pattern) =>
       typeof pattern === "string" ? origin === pattern : pattern.test(origin),
     );
-    cb(ok ? null : new Error(`CORS: origin ${origin} not allowed`), ok);
+
+    // Pass null + false for unknown origins — no Error, so Express's error
+    // handler is not triggered and the preflight still gets a proper 200/204.
+    cb(null, allowed);
   },
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
-}));
+};
+
+// Respond to all OPTIONS preflight requests before they reach any route.
+// This must come before app.use("/api", router) so that preflight requests
+// are answered immediately and never hit the 404 catch-all.
+app.options("/{*path}", cors(corsOptions));
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

@@ -60,13 +60,12 @@ function apiBidToFrontend(bid: ApiAuctionBid): Bid {
 }
 
 function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Auction {
-  // Handle both old schema (current_price, minimum_increment) and new schema (current_bid, min_increment).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const r = raw as any;
-  const currentBid: number = r.current_bid ?? r.current_price ?? r.start_price ?? 0;
-  const startingBid: number = r.start_price ?? r.starting_bid ?? 0;
-  const videoUrl: string | undefined = r.video_url ?? r.storage_path;
-  const thumbUrl: string | undefined = r.thumbnail_url ?? r.image_paths?.[0];
+  const currentBid: number = r.current_bid ?? r.start_price ?? 0;
+  const startingBid: number = r.start_price ?? 0;
+  const videoUrl: string | undefined = r.video_url;
+  const thumbUrl: string | undefined = r.thumbnail_url;
   const mediaUrl = videoUrl ?? thumbUrl ?? '';
 
   return {

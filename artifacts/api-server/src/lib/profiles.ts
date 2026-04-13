@@ -56,17 +56,6 @@ interface ProfileRow {
 
 const PROFILE_COLS = "id, username, display_name, avatar_url, bio, is_admin, is_banned, created_at";
 
-// ─── Typed errors ─────────────────────────────────────────────────────────────
-
-/** @deprecated Phone is no longer the auth identity. Kept for any legacy call sites. */
-export class PhoneAlreadyRegisteredError extends Error {
-  readonly code = "PHONE_ALREADY_REGISTERED";
-  constructor(phone: string) {
-    super(`A profile with phone ${phone.slice(0, 4)}**** already exists under a different account.`);
-    this.name = "PhoneAlreadyRegisteredError";
-  }
-}
-
 // ─── Stats helpers ────────────────────────────────────────────────────────────
 
 /**
@@ -321,9 +310,3 @@ export async function isUserBanned(userId: string): Promise<boolean> {
   return data?.is_banned === true;
 }
 
-/**
- * @deprecated Use getOwnProfile() instead.
- */
-export async function getProfileById(userId: string): Promise<OwnProfile | null> {
-  return getOwnProfile(userId);
-}

@@ -202,9 +202,6 @@ adminRouter.patch("/users/:id", async (req, res) => {
 
 adminRouter.get("/auctions", async (_req, res) => {
   try {
-    // Use select("*") to avoid hard-coding column names that differ between
-    // schema versions (current_bid vs current_price after migration 009).
-    // Seller is fetched via a separate join alias.
     const { data, error } = await supabaseAdmin
       .from("auctions")
       .select("*, seller:profiles!seller_id(id, display_name)")
@@ -213,11 +210,7 @@ adminRouter.get("/auctions", async (_req, res) => {
     if (error) throw error;
 
     const auctions = (data ?? []).map((row: Record<string, unknown>) => {
-      // Normalize price column — supports both pre- and post-migration 009 schemas
-      const currentBid =
-        (row["current_bid"] as number | null) ??
-        (row["current_price"] as number | null) ??
-        0;
+      const currentBid = (row["current_bid"] as number | null) ?? 0;
       const seller = row["seller"] as { id: string; display_name: string | null } | null;
       return {
         id: row["id"],

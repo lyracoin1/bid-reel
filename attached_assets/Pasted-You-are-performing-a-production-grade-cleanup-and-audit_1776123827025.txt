@@ -1,0 +1,132 @@
+You are performing a production-grade cleanup and audit of the BidReel codebase and data model.
+
+This is NOT a prototype cleanup. Treat this as a strict production sanitization task.
+
+Project scope:
+
+* Main app
+* Admin panel
+* Backend API
+* Supabase database-related logic
+* Storage references
+* Build/deploy config
+
+Critical business rule:
+KEEP ONLY this admin account and its required linked profile/admin access:
+[lyracoin950@gmail.com](mailto:lyracoin950@gmail.com)
+
+Everything else old, test, mock, duplicate, stale, or leftover must be identified and removed safely.
+
+Your task is divided into 5 mandatory phases:
+
+PHASE 1 — FULL CODEBASE AUDIT
+Perform a deep audit of both:
+
+* the main app
+* the admin panel
+* backend/serverless API
+* shared packages/utilities/config
+
+Find and list:
+
+* dead code
+* duplicate code
+* old phone-auth leftovers
+* mock/test/demo data
+* hardcoded emails, phones, usernames, IDs, tokens, URLs
+* stale feature flags
+* unused components/pages/hooks/services
+* broken imports
+* stale API endpoints
+* mismatched route usage between admin/app/backend
+* stale environment assumptions
+* outdated preview/demo logic in admin
+* any code that can trigger "Failed to fetch" or misleading generic network errors
+* any references to deleted or legacy schema assumptions
+
+PHASE 2 — STRICT DATA CLEANUP PLAN
+Prepare a SAFE cleanup plan for database contents while preserving schema and required production structure.
+
+Rules:
+
+* DO NOT delete tables unless absolutely required and explicitly justified
+* DO NOT break foreign keys or required constraints
+* DO NOT remove production schema required by current architecture
+* DELETE all non-admin users and their dependent data
+* KEEP ONLY the admin account linked to: [lyracoin950@gmail.com](mailto:lyracoin950@gmail.com)
+* Remove all old profiles except the admin profile
+* Remove all old auctions
+* Remove all old bids
+* Remove all old notifications except any absolutely required admin-side system records
+* Remove all follows/followers relations except what must remain for admin integrity
+* Remove old media references and stale DB records
+* Identify any orphaned rows and delete them
+* Identify any records that will break the app after cleanup and fix their logic
+
+PHASE 3 — IMPLEMENT CLEANUP SAFELY
+Apply minimal, precise, production-safe changes to:
+
+* remove stale code
+* remove leftover mock/demo assumptions
+* fix references to deleted data
+* ensure the app and admin can boot cleanly with only the admin account remaining
+* ensure empty states are handled correctly after cleanup
+* ensure no UI crashes if tables become empty
+* ensure admin dashboards, preview, users page, auctions page, reports, notifications, and logs all handle clean/empty states safely
+
+PHASE 4 — AUTH / API / NETWORK REVIEW
+Review the entire request chain for both app and admin:
+
+* auth token retrieval
+* Supabase session fallback
+* Authorization header attachment
+* API base URL resolution
+* CORS handling
+* OPTIONS handling
+* Vercel routing
+* env variable assumptions
+* admin fetch timing
+* frontend error handling
+
+Fix any remaining issues that can cause:
+
+* "Failed to fetch"
+* generic "Network error"
+* broken signup/signin requests
+* broken admin data loading
+
+PHASE 5 — FINAL REPORT
+Return a strict final report with:
+
+1. exact files changed
+2. exact data categories removed
+3. exact code paths cleaned
+4. exact routes/endpoints reviewed
+5. exact remaining risks
+6. exact git diff summary
+7. whether production is now safe to redeploy
+8. any manual steps I must do in Supabase or Vercel
+
+NON-NEGOTIABLE RULES
+
+* Keep email-first auth
+* Do NOT reintroduce phone auth
+* Phone remains profile/contact field only
+* Do NOT add payment or checkout logic
+* This remains a connector platform only
+* Do NOT use Replit deploy
+* Do NOT leave any old test user, phone number, profile, auction, bid, or stale data
+* Do NOT keep any demo/mock account
+* Do NOT keep any old personal data
+* Keep ONLY the admin user: [lyracoin950@gmail.com](mailto:lyracoin950@gmail.com)
+* If there is any uncertainty before deleting data, inspect dependencies first and preserve schema integrity
+
+IMPORTANT OUTPUT FORMAT
+Before making destructive data changes, first provide:
+
+* exact diagnosis
+* exact cleanup plan
+* exact SQL or code areas affected
+  Then proceed only with safe, justified changes.
+
+Do not be lazy. Be exhaustive, strict, and production-safe.

@@ -27,9 +27,6 @@ export const env = {
   // ─── Admin ─────────────────────────────────────────────────────────────────
   adminSecret: optional("ADMIN_SECRET"),
 
-  // ─── Feature flags ─────────────────────────────────────────────────────────
-  useDevAuth: optional("USE_DEV_AUTH") === "true",
-
   // ─── Firebase Cloud Messaging (optional) ───────────────────────────────────
   // JSON string of the Firebase service account credentials.
   // When absent the server runs without FCM push notifications.

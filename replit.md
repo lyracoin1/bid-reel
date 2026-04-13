@@ -27,13 +27,10 @@ PORT=8080 pnpm --filter @workspace/api-server run dev & PORT=24694 BASE_PATH=/ p
 
 Admin account: `lyracoin950@gmail.com` — `is_admin=true`, `is_completed=true` set by migration 019.
 
-`USE_DEV_AUTH=true` is set in shared env (allows dev bypass where applicable).
-
 ## Environment Variables
 
 Shared env vars:
 - `SUPABASE_URL` = `https://zhbfbjwagehwetyqljjr.supabase.co`
-- `USE_DEV_AUTH` = `true`
 
 Secrets configured:
 - `SUPABASE_ANON_KEY` — used by both Vite frontends (picked up as `process.env.SUPABASE_ANON_KEY` in vite.config.ts → `VITE_SUPABASE_ANON_KEY`)
@@ -59,16 +56,15 @@ All migrations are SQL files in `artifacts/api-server/src/migrations/` and must 
 - `018_admin_notifications.sql` — `admin_notifications` table + triggers (new user/auction/report)
 - `019_email_auth_and_admin_setup.sql` — `email` column on profiles; drops phone UNIQUE; `handle_new_auth_user` trigger; admin upsert for lyracoin950@gmail.com
 
-**Key column names (important — don't confuse with old names):**
-- `auctions.current_bid` (not `current_price`)
-- `auctions.min_increment` (not `minimum_increment`)
+**Key column names:**
+- `auctions.current_bid`, `auctions.min_increment` (renamed from `current_price`/`minimum_increment` in migration 009 — old fallback code removed)
 - `bids.user_id` (not `bidder_id` — Drizzle schema uses `userId`)
 - `profiles.is_completed` — true once username is set (onboarding done)
 - `profiles.email` — synced from auth.users via trigger
 
 **Key tables:**
 - `profiles` — `id, email, username, display_name, avatar_url, bio, phone, is_admin, is_completed, expo_push_token, created_at, updated_at`
-- `auctions` — `id, seller_id, title, description, type, storage_path, image_paths[], starting_bid, current_bid, min_increment, bid_count, starts_at, ends_at, expires_at, lat, lng, currency_code, currency_label, winner_id, deleted_at, ...`
+- `auctions` — `id, seller_id, title, description, category, video_url, thumbnail_url, start_price, current_bid, min_increment, bid_count, like_count, status, starts_at, ends_at, media_purge_after, lat, lng, currency_code, currency_label, winner_id, winner_bid_id, ...`
 - `bids` — `id, auction_id, user_id, amount, created_at`
 - `notifications` — `id, user_id, type, message, auction_id, read, created_at`
 - `admin_notifications` — `id, type, title, message, is_read, metadata, created_at`

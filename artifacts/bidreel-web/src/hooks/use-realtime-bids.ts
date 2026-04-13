@@ -7,8 +7,7 @@
  *   2. Checks whether the current user has been outbid (via use-bid-polling)
  *   3. Fires a toast notification if outbid
  *
- * Falls back gracefully when Supabase credentials are missing or the
- * `bids` table does not yet exist (MVP mock-data phase).
+ * Falls back gracefully when Supabase credentials are missing.
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";

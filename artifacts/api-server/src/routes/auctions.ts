@@ -32,31 +32,15 @@ function isAuctionActive(startsAt: string | null, endsAt: string): boolean {
   return true;
 }
 
-// ─── Schema-agnostic helpers (handles both old and new column names) ───────────
-// The live DB may have either:
-//   OLD: current_price / minimum_increment
-//   NEW: current_bid  / min_increment        (after migration 009)
-// All bid/auction logic goes through these helpers so it works with both.
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getCurrentBid(a: any): number {
-  return a.current_bid ?? a.current_price ?? 0;
+  return a.current_bid ?? 0;
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getMinIncrement(a: any): number {
-  return a.min_increment ?? a.minimum_increment ?? 10;
-}
-/** Returns the correct column name for the price field in this DB row */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function priceColName(a: any): string {
-  return "current_bid" in a ? "current_bid" : "current_price";
+  return a.min_increment ?? 10;
 }
 
-/**
- * Insert an auction row — tries new column names (current_bid, min_increment)
- * first; if the DB returns a "column does not exist" (42703) error it retries
- * with the old names (current_price, minimum_increment).
- */
 async function insertAuction(payload: {
   seller_id: string;
   title: string;
@@ -80,106 +64,21 @@ async function insertAuction(payload: {
     ...base
   } = payload;
 
-  // PostgREST returns PGRST204 for "column not in schema cache"; Postgres returns 42703.
-  const isColErr = (code: string | undefined) =>
-    code === "PGRST204" || code === "42703";
-
   const locationFields = lat !== undefined && lng !== undefined ? { lat, lng } : {};
   const currencyFields = {
     currency_code: currency_code ?? "USD",
     currency_label: currency_label ?? "US Dollar",
   };
 
-  // Attempt 1: new schema + lat/lng + media_purge_after + currency
-  const a1 = await supabaseAdmin
-    .from("auctions")
-    .insert({
-      ...base,
-      current_bid: start_price_value,
-      min_increment: min_increment_value,
-      media_purge_after,
-      ...locationFields,
-      ...currencyFields,
-    })
-    .select("*")
-    .single();
-
-  if (!a1.error) return a1;
-  if (!isColErr(a1.error.code)) return a1;
-
-  // Fallback A: without lat/lng (currency columns exist but lat/lng may not)
-  logger.warn({ code: a1.error.code, msg: a1.error.message }, "Schema fallback A: retrying without lat/lng (keeping currency)");
-  const a2 = await supabaseAdmin
-    .from("auctions")
-    .insert({
-      ...base,
-      current_bid: start_price_value,
-      min_increment: min_increment_value,
-      media_purge_after,
-      ...currencyFields,
-    })
-    .select("*")
-    .single();
-
-  if (!a2.error) return a2;
-  if (!isColErr(a2.error.code)) return a2;
-
-  // Fallback B: without currency (currency columns not yet migrated) — keep lat/lng
-  logger.warn({ code: a2.error.code, msg: a2.error.message }, "Schema fallback B: retrying without currency fields (keeping lat/lng)");
-  const a2b = await supabaseAdmin
-    .from("auctions")
-    .insert({
-      ...base,
-      current_bid: start_price_value,
-      min_increment: min_increment_value,
-      media_purge_after,
-      ...locationFields,
-    })
-    .select("*")
-    .single();
-
-  if (!a2b.error) return a2b;
-  if (!isColErr(a2b.error.code)) return a2b;
-
-  // Fallback C: without lat/lng or currency
-  logger.warn({ code: a2b.error.code, msg: a2b.error.message }, "Schema fallback C: retrying without lat/lng or currency");
-  const a3 = await supabaseAdmin
-    .from("auctions")
-    .insert({
-      ...base,
-      current_bid: start_price_value,
-      min_increment: min_increment_value,
-      media_purge_after,
-    })
-    .select("*")
-    .single();
-
-  if (!a3.error) return a3;
-  if (!isColErr(a3.error.code)) return a3;
-
-  // Fallback C: without media_purge_after
-  logger.warn({ code: a3.error.code, msg: a3.error.message }, "Schema fallback C: retrying without media_purge_after");
-  const a4 = await supabaseAdmin
-    .from("auctions")
-    .insert({
-      ...base,
-      current_bid: start_price_value,
-      min_increment: min_increment_value,
-    })
-    .select("*")
-    .single();
-
-  if (!a4.error) return a4;
-  if (!isColErr(a4.error.code)) return a4;
-
-  // Fallback D: old schema names (current_price, minimum_increment)
-  logger.warn({ code: a4.error.code, msg: a4.error.message }, "Schema fallback D: using old column names (current_price, minimum_increment)");
   return supabaseAdmin
     .from("auctions")
     .insert({
       ...base,
-      current_price: start_price_value,
-      minimum_increment: min_increment_value,
+      current_bid: start_price_value,
+      min_increment: min_increment_value,
+      media_purge_after,
+      ...locationFields,
+      ...currencyFields,
     })
     .select("*")
     .single();
@@ -190,12 +89,10 @@ async function insertAuction(payload: {
 /** Normalize a raw auction DB row so the API always returns consistent field names */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normalizeAuction(a: any): any {
-  const currentBid = getCurrentBid(a);
-  const minInc = getMinIncrement(a);
   return {
     ...a,
-    current_bid: currentBid,
-    min_increment: minInc,
+    current_bid: getCurrentBid(a),
+    min_increment: getMinIncrement(a),
   };
 }
 
@@ -207,8 +104,6 @@ router.get("/auctions", async (req, res) => {
     logger.warn({ err: String(err) }, "GET /auctions: runAuctionLifecycle background call failed"),
   );
 
-  // select("*") is intentional — avoids hard-coding column names that may
-  // not yet exist in partially-migrated databases.
   // Exclude soft-deleted ('removed') and archived auctions from the public feed.
   // Ended auctions are kept visible (they show as "ended" for up to 7 days).
   const { data: auctions, error } = await supabaseAdmin
@@ -597,7 +492,7 @@ router.post("/bids", requireAuth, async (req, res) => {
     logger.warn({ err: String(err) }, "POST /bids: runAuctionLifecycle pre-check failed"),
   );
 
-  // 2. Fetch auction using select("*") so it works with old and new schema
+  // 2. Fetch auction
   const { data: auction, error: auctionErr } = await supabaseAdmin
     .from("auctions")
     .select("*")
@@ -669,10 +564,9 @@ router.post("/bids", requireAuth, async (req, res) => {
   // 8. Update auction: price counter + winner tracking.
   //    winner_id is always set (column exists since migration 005/009).
   //    winner_bid_id is set only if migration 021 has been applied.
-  const priceCol = priceColName(auction);
   const wbidColExists = await hasWinnerBidIdCol();
   const auctionPatch: Record<string, unknown> = {
-    [priceCol]: amount,
+    current_bid: amount,
     bid_count: auction.bid_count + 1,
     winner_id: userId,
     updated_at: new Date().toISOString(),
@@ -750,7 +644,6 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
     logger.warn({ err: String(err) }, "POST /auctions/:id/bids: runAuctionLifecycle pre-check failed"),
   );
 
-  // select("*") works with both old and new schema column names
   const { data: auction, error: auctionErr } = await supabaseAdmin
     .from("auctions")
     .select("*")
@@ -816,10 +709,9 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
   }
 
   // Update auction: price counter + winner tracking.
-  const priceCol2 = priceColName(auction);
   const wbidColExists2 = await hasWinnerBidIdCol();
   const auctionPatch2: Record<string, unknown> = {
-    [priceCol2]: amount,
+    current_bid: amount,
     bid_count: auction.bid_count + 1,
     winner_id: userId,
     updated_at: new Date().toISOString(),

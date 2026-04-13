@@ -215,7 +215,7 @@ router.get("/users/me/bids", requireAuth, async (req, res) => {
     res.json({ bids: auctionIds2.map(aId => {
       const a = auctionMap2.get(aId) as any;
       const myBid = seen2.get(aId)!;
-      return { auctionId: aId, myBidAmount: myBid.amount, isLeading: leaderMap2.get(aId) === userId, auction: a ? { id: a.id, title: a.title, mediaUrl: a.video_url ?? a.thumbnail_url ?? null, currentBid: a.current_bid ?? a.current_price ?? 0, bidCount: a.bid_count, endsAt: a.ends_at, startsAt: a.starts_at, currencyCode: a.currency_code ?? null } : null };
+      return { auctionId: aId, myBidAmount: myBid.amount, isLeading: leaderMap2.get(aId) === userId, auction: a ? { id: a.id, title: a.title, mediaUrl: a.video_url ?? a.thumbnail_url ?? null, currentBid: a.current_bid ?? 0, bidCount: a.bid_count, endsAt: a.ends_at, startsAt: a.starts_at, currencyCode: a.currency_code ?? null } : null };
     }).filter(r => r.auction !== null) });
     return;
   }
@@ -241,7 +241,6 @@ router.get("/users/me/bids", requireAuth, async (req, res) => {
   }
 
   // Fetch auction details + current leading bidder
-  // select("*") works with both old schema (current_price) and new schema (current_bid)
   const { data: auctions } = await supabaseAdmin
     .from("auctions")
     .select("*")
@@ -275,7 +274,7 @@ router.get("/users/me/bids", requireAuth, async (req, res) => {
             id: a.id,
             title: a.title,
             mediaUrl,
-            currentBid: a.current_bid ?? (a as any).current_price ?? 0,
+            currentBid: a.current_bid ?? 0,
             bidCount: a.bid_count,
             endsAt: a.ends_at,
             startsAt: a.starts_at,

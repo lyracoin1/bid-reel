@@ -39,6 +39,13 @@ const replitPlugins =
       ])
     : [];
 
+// The API server runs on a separate port/host. In dev (Replit) it's at
+// localhost:8080. In production it's the full URL set via VITE_API_URL.
+// When VITE_API_URL is not set at build time, the dev proxy below handles it.
+const apiServerUrl = process.env["VITE_API_URL"] ?? "";
+// Determine the local API port — respects API_PORT env var, defaults to 8080.
+const apiPort = Number(process.env["API_PORT"] ?? 8080);
+
 export default defineConfig({
   base: basePath,
   define: {
@@ -58,6 +65,11 @@ export default defineConfig({
     "import.meta.env.VITE_APP_PREVIEW_URL": JSON.stringify(
       process.env["APP_PREVIEW_URL"] ?? "https://bid-reel.com",
     ),
+    // API server base URL.
+    // In production: set VITE_API_URL in Vercel to the full API server URL
+    //   e.g. https://bidreel-api.vercel.app  (no trailing slash, no /api suffix)
+    // In dev: left empty — the Vite proxy below forwards /api → localhost:apiPort.
+    "import.meta.env.VITE_API_URL": JSON.stringify(apiServerUrl),
   },
   plugins: [react(), tailwindcss(), ...replitPlugins],
   resolve: {
@@ -78,6 +90,16 @@ export default defineConfig({
     fs: {
       strict: true,
       deny: ["**/.*"],
+    },
+    // Forward /api/* to the Express API server in development.
+    // This prevents the Vite dev server from swallowing API requests and
+    // returning index.html (which was causing the "not valid JSON" error).
+    proxy: {
+      "/api": {
+        target: `http://localhost:${apiPort}`,
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
   preview: {

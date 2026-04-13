@@ -2,7 +2,14 @@
   "buildCommand": "cd ../.. && pnpm --filter @workspace/bidreel-admin run build",
   "outputDirectory": "dist/public",
   "installCommand": "cd ../.. && pnpm install",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+  "routes": [
+    { "handle": "filesystem" },
+    {
+      "src": "/api/(.*)",
+      "headers": { "content-type": "application/json" },
+      "status": 404,
+      "dest": "/404-api.json"
+    },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }

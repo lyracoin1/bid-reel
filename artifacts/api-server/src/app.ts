@@ -25,7 +25,26 @@ app.use(
     },
   }),
 );
-app.use(cors());
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow requests with no Origin (server-to-server, curl, Postman).
+    if (!origin) return cb(null, true);
+
+    const allowed = [
+      /^https?:\/\/localhost(:\d+)?$/,
+      /\.replit\.dev$/,
+      /\.repl\.co$/,
+      /^https:\/\/bid-reel\.com$/,
+      /^https:\/\/www\.bid-reel\.com$/,
+      /^https:\/\/admin\.bid-reel\.com$/,
+    ];
+    const ok = allowed.some((pattern) =>
+      typeof pattern === "string" ? origin === pattern : pattern.test(origin),
+    );
+    cb(ok ? null : new Error(`CORS: origin ${origin} not allowed`), ok);
+  },
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

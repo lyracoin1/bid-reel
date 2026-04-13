@@ -19,6 +19,7 @@
 import { supabaseAdmin } from "./supabase";
 import { logger } from "./logger";
 import { getBidderCol, getBidderUserId, hasWinnerBidIdCol } from "./dbSchema";
+import { notifyAuctionWon } from "./notifications";
 
 /**
  * Expire all active auctions whose ends_at is in the past.
@@ -35,9 +36,10 @@ export async function expireAuctions(): Promise<void> {
   const now = new Date().toISOString();
 
   // 1. Find active auctions that have passed their end time.
+  //    title is fetched here so notifyAuctionWon can include it in the message.
   const { data: expired, error: fetchErr } = await supabaseAdmin
     .from("auctions")
-    .select("id")
+    .select("id, title")
     .eq("status", "active")
     .lt("ends_at", now)
     .limit(50);
@@ -54,7 +56,7 @@ export async function expireAuctions(): Promise<void> {
   const bCol = await getBidderCol();
   const wbidColExists = await hasWinnerBidIdCol();
 
-  for (const { id } of expired) {
+  for (const { id, title } of expired) {
     // 2. Find the highest bid for this auction (winner determination).
     //    Ordering by amount desc, then by created_at desc as tiebreaker
     //    ensures we always pick a deterministic winner.
@@ -74,20 +76,27 @@ export async function expireAuctions(): Promise<void> {
 
     // 3. Build the update patch.
     const patch: Record<string, unknown> = { status: "ended" };
+    let winnerId: string | null = null;
+    let winnerBidAmount: number | null = null;
 
     if (topBid) {
-      const winnerId = getBidderUserId(topBid);
-      if (winnerId) {
+      const resolvedWinnerId = getBidderUserId(topBid);
+      if (resolvedWinnerId) {
+        winnerId = resolvedWinnerId;
+        winnerBidAmount = topBid.amount as number;
         patch["winner_id"] = winnerId;
         if (wbidColExists) patch["winner_bid_id"] = topBid.id;
       }
     }
 
     // 4. Atomic update — .eq("status", "active") makes this idempotent.
-    //    If the auction was already ended by a concurrent call, this is a no-op.
-    const { error: updateErr } = await supabaseAdmin
+    //    count: "exact" lets us detect whether the row was actually updated
+    //    (count === 1) or was already ended by a concurrent call (count === 0).
+    //    The notification fires ONLY when count === 1, guaranteeing it triggers
+    //    at most once per auction.
+    const { error: updateErr, count: updatedCount } = await supabaseAdmin
       .from("auctions")
-      .update(patch)
+      .update(patch, { count: "exact" })
       .eq("id", id)
       .eq("status", "active");
 
@@ -96,15 +105,36 @@ export async function expireAuctions(): Promise<void> {
         { err: updateErr.message, auctionId: id },
         "expireAuctions: update failed",
       );
-    } else {
-      logger.info(
-        {
-          auctionId: id,
-          winnerId: patch["winner_id"] ?? null,
-          winnerBidId: patch["winner_bid_id"] ?? null,
-        },
-        "expireAuctions: auction ended",
-      );
+      continue;
+    }
+
+    logger.info(
+      {
+        auctionId: id,
+        winnerId,
+        winnerBidId: patch["winner_bid_id"] ?? null,
+        rowsUpdated: updatedCount,
+      },
+      "expireAuctions: auction ended",
+    );
+
+    // 5. Fire auction_won notification — only when:
+    //    a) This call actually flipped the status (updatedCount === 1)
+    //    b) There was at least one bid (winnerId is not null)
+    //    Fire-and-forget: never throws, never delays the loop.
+    if (updatedCount === 1 && winnerId !== null && winnerBidAmount !== null) {
+      void (async () => {
+        try {
+          await notifyAuctionWon(
+            winnerId!,
+            id,
+            (title as string | null) ?? "Auction",
+            winnerBidAmount!,
+          );
+        } catch (err) {
+          logger.warn({ err: String(err), auctionId: id }, "expireAuctions: notifyAuctionWon failed");
+        }
+      })();
     }
   }
 }

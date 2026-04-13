@@ -14,7 +14,7 @@
  *   notifyOutbid          — ✅ WIRED  (routes/auctions.ts, both bid endpoints)
  *   notifyNewFollower     — ✅ WIRED  (routes/follows.ts, POST follow)
  *   notifyAuctionStarted  — ✅ WIRED  (routes/auctions.ts, POST /api/auctions)
- *   notifyAuctionWon      — ⏳ READY  (not wired — requires winner system, phase 2)
+ *   notifyAuctionWon      — ✅ WIRED  (lib/auction-lifecycle.ts, expireAuctions loop)
  *   notifyAuctionEndingSoon — ⏳ READY (not wired — requires scheduler, phase 2)
  *
  * All functions are non-throwing — they log errors but never bubble them up.
@@ -224,19 +224,20 @@ export async function notifyNewFollower(
 }
 
 // =============================================================================
-// ── READY — NOT YET WIRED (phase 2) ───────────────────────────────────────────
+// ── AUCTION LIFECYCLE NOTIFICATIONS ───────────────────────────────────────────
 // =============================================================================
 
 /**
  * Notify the auction winner that they won.
  *
- * NOT WIRED — waiting for winner determination system (services/winners.service.ts).
- * Call this from the winner creation flow once auctions.expireAuctions() is implemented.
+ * WIRED — called from lib/auction-lifecycle.ts expireAuctions() loop.
+ * Fires at most once per auction: guarded by updatedCount === 1 check so
+ * concurrent expiry calls cannot double-send.
  *
  * Payload matches notifications schema (migration 003 + 020):
  *   user_id    = winnerId
  *   type       = "auction_won"
- *   message    = human-readable win message
+ *   message    = human-readable win message with final price
  *   auction_id = auctionId
  *   actor_id   = null (system event)
  */

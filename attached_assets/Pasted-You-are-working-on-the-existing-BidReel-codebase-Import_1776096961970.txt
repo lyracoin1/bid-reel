@@ -1,0 +1,84 @@
+You are working on the existing BidReel codebase.
+
+Important rule:
+I do NOT want vague answers.
+I do NOT want “probably”, “likely”, or “partially”.
+Every answer must be strict, binary, and backed by evidence.
+
+========================
+SECTION 1 — NOTIFICATIONS
+========================
+
+Answer the following questions with EXACT YES or NO.
+Then provide proof (files, code references, or schema).
+
+1. In-app notifications (inside the app UI):
+- Are they fully implemented and working end-to-end? (YES/NO)
+- Do they read from a notifications table in Supabase? (YES/NO)
+- Are they displayed in the UI correctly? (YES/NO)
+- Are they triggered automatically by backend events (e.g. new bid, auction ended)? (YES/NO)
+
+2. Push notifications (Firebase / browser/device):
+- Are push notifications fully implemented? (YES/NO)
+- Are VITE_FIREBASE_* variables configured in the frontend? (YES/NO)
+- Is the browser permission flow implemented? (YES/NO)
+- Are FCM tokens generated and stored? (YES/NO)
+- Are push notifications actually sent from the backend? (YES/NO)
+- Can a real user receive a push notification right now? (YES/NO)
+
+After answering:
+- Clearly state: "Notifications system status: COMPLETE / PARTIAL / NOT IMPLEMENTED"
+
+========================
+SECTION 2 — SUPABASE SCHEMA
+========================
+
+List ALL existing tables in the database.
+
+Then compare them EXACTLY against this required model:
+
+Required tables:
+- profiles
+- auctions
+- auction_media
+- bids
+- notifications
+- favorites
+- reports
+- (optional) auction_status_logs
+
+For EACH table:
+
+1. Does it exist? (YES/NO)
+2. Does it match the required structure? (YES/NO)
+3. If not, what is missing EXACTLY (fields, constraints, relations)?
+
+========================
+SECTION 3 — AUCTION FLOW READINESS
+========================
+
+Answer strictly YES or NO:
+
+1. Can a user create an auction right now? (YES/NO)
+2. Is auction media (video/image) linked correctly? (YES/NO)
+3. Can a user place a bid? (YES/NO)
+4. Is bid validation implemented (min increment, status, time)? (YES/NO)
+5. Does the system track current_price correctly? (YES/NO)
+6. Is winner_id determined automatically? (YES/NO)
+7. Is there an automatic auction end mechanism? (YES/NO)
+8. Are ended auctions clearly marked in the UI? (YES/NO)
+
+After answering:
+- State clearly: "Auction system status: COMPLETE / PARTIAL / NOT IMPLEMENTED"
+
+========================
+IMPORTANT
+========================
+
+- Do not explain broadly
+- Do not generalize
+- Do not skip anything
+- Every NO must include what is missing
+- Every YES must include proof (file name, function, or schema reference)
+
+I want a factual technical report, not a description.

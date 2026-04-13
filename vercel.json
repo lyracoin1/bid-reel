@@ -1,8 +1,15 @@
 {
   "installCommand": "pnpm install",
-  "buildCommand": "pnpm --filter @workspace/bidreel-web run build",
+  "buildCommand": "pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/bidreel-web run build",
   "outputDirectory": "artifacts/bidreel-web/dist/public",
+  "functions": {
+    "api/index.mjs": {
+      "runtime": "nodejs22.x",
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "crons": [

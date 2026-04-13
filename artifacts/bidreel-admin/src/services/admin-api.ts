@@ -2,20 +2,24 @@ import { supabase } from "@/lib/supabase";
 
 // ─── API base URL resolution ──────────────────────────────────────────────────
 //
-// VITE_API_URL must be set in the Vercel dashboard to the API server origin
-// (no trailing slash, no /api suffix). Example:
-//   VITE_API_URL=https://bidreel-api.vercel.app
-//
-// At build time, vite.config.ts bakes the value in via JSON.stringify, which
-// means an absent env var becomes "" (empty string) — not undefined. We use
-// || (falsy check) instead of ?? (nullish check) so empty string falls through
-// to the /api relative path that the Vite dev-server proxy handles.
+// Resolution order (first truthy value wins):
+//   1. VITE_API_URL build-time env var — set in Vercel dashboard if needed.
+//   2. Auto-detect: when running on admin.bid-reel.com, API lives on the same
+//      root domain (www.bid-reel.com) as a Vercel serverless function.
+//   3. Relative /api — used in local Replit dev where the Replit proxy routes
+//      /api/* to the Express server on port 8080.
 //
 // Full URL constructed for each call: {API_BASE}/admin/{path}
-//   Dev  (VITE_API_URL=""):                   /api/admin/stats
-//   Prod (VITE_API_URL="https://…"):   https://…/api/admin/stats
+//   Dev                : /api/admin/stats
+//   admin.bid-reel.com : https://www.bid-reel.com/api/admin/stats
+//   VITE_API_URL set   : {VITE_API_URL}/api/admin/stats
 
-const _origin = (import.meta.env.VITE_API_URL as string | undefined) || "";
+const _envOrigin = (import.meta.env.VITE_API_URL as string | undefined) || "";
+const _autoOrigin =
+  typeof window !== "undefined" && window.location.hostname === "admin.bid-reel.com"
+    ? "https://www.bid-reel.com"
+    : "";
+const _origin = _envOrigin || _autoOrigin;
 const API_BASE = _origin ? `${_origin}/api` : "/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

@@ -15,7 +15,13 @@ async function buildAll() {
   await rm(distDir, { recursive: true, force: true });
 
   await esbuild({
-    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
+    entryPoints: [
+      // Full server with port listener — used by Replit (dev + deployment).
+      path.resolve(artifactDir, "src/index.ts"),
+      // App-only bundle (no listener) — used by the Vercel serverless function
+      // at /api/index.mjs so that Express handles requests without binding a port.
+      path.resolve(artifactDir, "src/app.ts"),
+    ],
     platform: "node",
     bundle: true,
     format: "esm",

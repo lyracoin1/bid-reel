@@ -10,7 +10,7 @@
 
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, X, ShoppingBag, Gavel, Trophy, Tag } from "lucide-react";
+import { Bell, X, ShoppingBag, Gavel, Trophy, Tag, UserPlus } from "lucide-react";
 import { useNotifications, type AppNotification, type NotificationType } from "@/hooks/use-notifications";
 
 // ─── Icon + colour per notification type ──────────────────────────────────────
@@ -38,6 +38,26 @@ const TYPE_CONFIG: Record<
     icon: ShoppingBag,
     colour: "text-emerald-400",
     label: "New Bid",
+  },
+  new_bid_received: {
+    icon: ShoppingBag,
+    colour: "text-emerald-400",
+    label: "New Bid",
+  },
+  new_follower: {
+    icon: UserPlus,
+    colour: "text-blue-400",
+    label: "Follower",
+  },
+  auction_ending_soon: {
+    icon: Gavel,
+    colour: "text-orange-400",
+    label: "Ending Soon",
+  },
+  auction_removed: {
+    icon: Tag,
+    colour: "text-white/40",
+    label: "Removed",
   },
 };
 

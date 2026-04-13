@@ -1,0 +1,93 @@
+You are continuing work on the existing BidReel codebase.
+
+Important global rules:
+- First inspect the current implementation and KEEP everything that already matches the requirements.
+- DO NOT rebuild working parts.
+- DO NOT introduce live bidding, websockets, realtime subscriptions, payments, shipping, commissions, checkout, delivery tracking, or order management.
+- If something already exists and is correct, skip it.
+- Only implement what is missing, broken, inconsistent, or incomplete.
+- Keep BidReel as a connection layer only between users.
+- Do not introduce any product wording or architecture that implies platform responsibility for payment, shipping, delivery, disputes, or escrow.
+
+Project context:
+- Main app: React + Vite
+- Admin panel: separate React app
+- Backend: Vercel serverless API
+- Database/Auth: Supabase
+- Storage: Cloudflare R2
+- Auth is already email-first
+- Admin/API routing is already fixed
+- The app preview was already improved
+- Schema audit and TypeScript cleanup were already completed
+
+This phase is ONLY about fixing the notifications system so that in-app notifications actually work end-to-end.
+
+Known factual issue from the audit:
+- Notification inserts are currently failing silently because the server inserts actor_id, but the actual notifications table schema does not contain actor_id.
+- The notifications UI exists.
+- The notifications route exists.
+- Realtime subscription exists.
+- But no rows are actually being written successfully.
+
+Your task:
+A) Audit the current notifications implementation first
+Inspect carefully:
+- database schema for notifications
+- all migrations that touched notifications
+- api-server/src/lib/notifications.ts
+- api-server notification-related routes
+- frontend notification hooks/components
+- any Realtime subscription setup
+- any read / mark-read flows
+
+B) Preserve what already works
+Keep all correct existing pieces:
+- notifications UI
+- notification bell / unread badge
+- read / mark-read behavior
+- Realtime subscription if already correct
+Do not rebuild those parts unless required for consistency.
+
+C) Fix the schema/code mismatch
+You must choose the minimum correct fix and apply it safely.
+
+Required result:
+- Notification inserts must succeed
+- No silent failure
+- The notification payload written by the backend must match the actual table schema exactly
+- The read/query UI must still work correctly after the fix
+
+Important:
+- If the right fix is to add actor_id to the table, do that via a safe migration and align all reads/types
+- If the right fix is to remove actor_id from inserts, do that and align the backend consistently
+- Do not leave mixed incompatible notification schemas in the codebase
+- Resolve any message/title/body/read/is_read naming inconsistency if one exists
+- Make one clear canonical notifications model
+
+D) Improve reliability
+- Fix error handling so failed inserts are no longer silently swallowed
+- Only suppress errors intentionally when justified
+- Log actionable errors clearly
+- Ensure backend notification helpers fail safely but observably
+
+E) Verify the currently wired notification triggers
+Without implementing new product events yet unless absolutely needed, verify and keep/fix the already intended flows:
+- notifyOutbid
+- notifyNewFollower
+If they are already wired, make sure they now actually write rows successfully.
+
+F) Deliverables required
+After implementation, provide:
+1. Root cause
+2. Files changed
+3. Exact schema/code fix chosen
+4. Full migration(s), if any
+5. Which notification events now write successfully
+6. Whether in-app notifications are now fully working end-to-end
+7. Any notification events that still exist in code but remain intentionally unwired for a later phase
+
+Important:
+- Do not implement push notifications in this phase
+- Do not implement auction_won or auction_started flows yet unless needed only for schema consistency
+- Do not redesign the entire notifications system
+- This phase is only: make the current in-app notifications actually work correctly

@@ -7,8 +7,10 @@
  *   2. Looks up the user's FCM device tokens and fires push notifications
  *      via Firebase Cloud Messaging (no-op when FCM is not configured)
  *
- * NOTE: The notifications table may not exist in all environments.
- * All functions are non-throwing — they log errors but never bubble up.
+ * Schema (migration 003 + 020):
+ *   id, user_id, type, message, auction_id, actor_id, read, created_at
+ *
+ * All functions are non-throwing — they log errors but never bubble them up.
  */
 
 import { supabaseAdmin } from "./supabase";
@@ -19,6 +21,7 @@ export type NotificationType =
   | "outbid"
   | "auction_started"
   | "auction_won"
+  | "new_bid"
   | "new_bid_received"
   | "auction_ending_soon"
   | "auction_removed"
@@ -61,6 +64,12 @@ async function getUserFcmTokens(userId: string): Promise<string[]> {
 /**
  * Insert a single notification row and optionally fire an FCM push.
  * Non-throwing — logs errors but does not bubble them up.
+ *
+ * Error handling policy:
+ *   42P01  — table does not exist (environment not yet migrated) → silent INFO
+ *   PGRST204 — column not found (schema/code mismatch) → ERROR with full context
+ *   23514  — check_violation (type not in CHECK list) → ERROR with full context
+ *   other  — unexpected DB error → ERROR with full context
  */
 export async function createNotification(input: CreateNotificationInput): Promise<void> {
   const { error } = await supabaseAdmin.from("notifications").insert({
@@ -73,13 +82,31 @@ export async function createNotification(input: CreateNotificationInput): Promis
   });
 
   if (error) {
-    // 42P01 = table does not exist — silent, expected in some environments
-    if ((error as { code?: string }).code !== "42P01") {
-      logger.warn({ err: error.message, input }, "notifications: insert failed");
+    const code = (error as { code?: string }).code;
+    if (code === "42P01") {
+      // Table not yet created — expected in fresh environments before migrations run.
+      logger.info({ userId: input.userId, type: input.type }, "notifications: table not found — run migrations");
+    } else if (code === "PGRST204") {
+      // Column not found in PostgREST schema cache — schema/code mismatch.
+      // Apply migration 020 to fix this.
+      logger.error(
+        { err: error.message, code, type: input.type },
+        "notifications: column mismatch — apply migration 020_notifications_schema_fix.sql"
+      );
+    } else if (code === "23514") {
+      // CHECK constraint violation — notification type not in the allowed list.
+      // Apply migration 020 to fix this.
+      logger.error(
+        { err: error.message, code, type: input.type },
+        "notifications: type rejected by CHECK constraint — apply migration 020_notifications_schema_fix.sql"
+      );
+    } else {
+      logger.error({ err: error.message, code, input }, "notifications: insert failed unexpectedly");
     }
-  } else {
-    logger.debug({ userId: input.userId, type: input.type }, "notifications: created");
+    return;
   }
+
+  logger.debug({ userId: input.userId, type: input.type }, "notifications: created");
 
   if (!input.fcm) return;
 
@@ -97,6 +124,7 @@ export async function createNotification(input: CreateNotificationInput): Promis
 
 /**
  * Notify the previous highest bidder that they have been outbid.
+ * Wired: routes/auctions.ts → POST /api/bids
  */
 export async function notifyOutbid(
   prevBidderId: string,
@@ -122,6 +150,7 @@ export async function notifyOutbid(
 
 /**
  * Notify all watchers of an auction that it has gone live.
+ * Not yet wired — no auction-start trigger exists. Phase 2.
  */
 export async function notifyAuctionStarted(
   watcherUserIds: string[],
@@ -153,7 +182,7 @@ export async function notifyAuctionStarted(
 
 /**
  * Notify user B that user A started following them.
- * Non-blocking — failure is logged but does not affect the follow action.
+ * Wired: routes/follows.ts → POST /api/users/:id/follow
  */
 export async function notifyNewFollower(
   followedUserId: string,

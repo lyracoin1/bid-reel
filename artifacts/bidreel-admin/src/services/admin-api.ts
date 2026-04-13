@@ -1,6 +1,24 @@
 import { supabase } from "@/lib/supabase";
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "/api";
+// ─── API base URL resolution ──────────────────────────────────────────────────
+//
+// VITE_API_URL must be set in the Vercel dashboard to the API server origin
+// (no trailing slash, no /api suffix). Example:
+//   VITE_API_URL=https://bidreel-api.vercel.app
+//
+// At build time, vite.config.ts bakes the value in via JSON.stringify, which
+// means an absent env var becomes "" (empty string) — not undefined. We use
+// || (falsy check) instead of ?? (nullish check) so empty string falls through
+// to the /api relative path that the Vite dev-server proxy handles.
+//
+// Full URL constructed for each call: {API_BASE}/admin/{path}
+//   Dev  (VITE_API_URL=""):                   /api/admin/stats
+//   Prod (VITE_API_URL="https://…"):   https://…/api/admin/stats
+
+const _origin = (import.meta.env.VITE_API_URL as string | undefined) || "";
+const API_BASE = _origin ? `${_origin}/api` : "/api";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function adminHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -11,10 +29,22 @@ async function adminHeaders(): Promise<Record<string, string>> {
 
 async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = await adminHeaders();
-  const res = await fetch(`${API_BASE}/admin${path}`, {
+  const url = `${API_BASE}/admin${path}`;
+  const res = await fetch(url, {
     ...options,
     headers: { ...headers, ...((options.headers as Record<string, string>) ?? {}) },
   });
+
+  // Detect HTML responses before attempting JSON.parse — this surfaces a clear
+  // error instead of the cryptic "Unexpected token '<'" message.
+  const contentType = res.headers.get("content-type") ?? "";
+  if (contentType.includes("text/html")) {
+    throw new Error(
+      `Admin API misroute: received HTML instead of JSON from ${url}. ` +
+      `Check that VITE_API_URL is set correctly in the Vercel dashboard and redeploy. ` +
+      `Status: ${res.status}`,
+    );
+  }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as { message?: string; error?: string };
@@ -26,6 +56,8 @@ async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T
 
   return res.json() as Promise<T>;
 }
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
 
 export interface AdminStats {
   totalUsers: number;
@@ -45,6 +77,8 @@ export interface AdminStats {
 export async function adminGetStats(): Promise<AdminStats> {
   return adminFetch<AdminStats>("/stats");
 }
+
+// ─── Users ────────────────────────────────────────────────────────────────────
 
 export interface AdminUser {
   id: string;
@@ -72,6 +106,8 @@ export async function adminUpdateUser(
   });
   return data.user;
 }
+
+// ─── Auctions ─────────────────────────────────────────────────────────────────
 
 export interface AdminAuction {
   id: string;
@@ -107,6 +143,8 @@ export async function adminDeleteAuction(id: string): Promise<void> {
   await adminFetch(`/auctions/${id}`, { method: "DELETE" });
 }
 
+// ─── Reports ──────────────────────────────────────────────────────────────────
+
 export interface AdminReport {
   id: string;
   reason: string;
@@ -130,6 +168,8 @@ export async function adminUpdateReport(
 ): Promise<void> {
   await adminFetch(`/reports/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
 }
+
+// ─── Action log ───────────────────────────────────────────────────────────────
 
 export interface AdminAction {
   id: string;

@@ -50,4 +50,9 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
 
+// ─── Catch-all: unknown routes return JSON, never HTML or plain text ──────────
+app.use((_req, res) => {
+  res.status(404).json({ error: "not_found", message: "Route not found" });
+});
+
 export default app;

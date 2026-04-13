@@ -72,10 +72,13 @@ export default defineConfig({
         ? `https://${process.env["REPLIT_DEV_DOMAIN"]}`
         : "https://bid-reel.com"),
     ),
-    // API server base URL.
-    // In production: set VITE_API_URL in Vercel to the full API server URL
-    //   e.g. https://bidreel-api.vercel.app  (no trailing slash, no /api suffix)
-    // In dev: left empty — the Vite proxy below forwards /api → localhost:apiPort.
+    // API server origin URL — set in Vercel dashboard for production.
+    // Format: the bare origin of the API server, NO trailing slash, NO /api suffix.
+    //   e.g. VITE_API_URL=https://bidreel-api.vercel.app
+    // admin-api.ts appends /api automatically, so the final fetch target becomes:
+    //   https://bidreel-api.vercel.app/api/admin/stats
+    // In dev: left empty — admin-api.ts falls back to /api (proxied by Vite below).
+    // NOTE: This is a BUILD-TIME variable. After setting it in Vercel, redeploy.
     "import.meta.env.VITE_API_URL": JSON.stringify(apiServerUrl),
   },
   plugins: [react(), tailwindcss(), ...replitPlugins],

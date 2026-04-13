@@ -1,0 +1,95 @@
+You are continuing work on the BidReel project.
+
+Project context:
+- Main app: React + Vite
+- Admin panel: separate React app deployed on admin.bid-reel.com
+- Backend: Vercel serverless API
+- Database/Auth: Supabase
+- The auth migration to email-first has already happened
+- The remaining production issue is in the admin dashboard:
+  Unexpected token '<', "<!DOCTYPE..." is not valid JSON
+
+This indicates that at least one admin API request is receiving HTML instead of JSON.
+
+This phase is ONLY about fixing the admin-to-API production connection properly and permanently.
+
+Your goals:
+1. Identify exactly which admin requests are still resolving to HTML instead of JSON
+2. Fix the production API base URL wiring for the admin frontend
+3. Ensure Vercel routing does not send /api/* requests into the SPA index.html catch-all
+4. Ensure missing API routes return JSON, not HTML
+5. Harden frontend fetch logic so this class of failure becomes obvious and non-destructive
+6. Verify the final production behavior carefully
+
+What to inspect first:
+A) Admin frontend API calling layer
+- Search all fetch / axios / API client calls used by the admin dashboard
+- Identify whether any calls still use relative paths like:
+  /api/admin/...
+- Identify whether all production calls correctly use:
+  import.meta.env.VITE_API_URL
+- Check whether there are mixed patterns in the codebase
+
+B) Admin environment configuration
+- Inspect how VITE_API_URL is defined and consumed
+- Confirm whether the admin app expects VITE_API_URL at build time
+- Confirm whether there is any fallback that accidentally points requests back to admin.bid-reel.com instead of the real API origin
+
+C) Vercel configuration
+- Inspect vercel.json for the admin app
+- Inspect vercel.json for the backend/API project if separate
+- Confirm that /api/* is excluded from SPA catch-all rewrites
+- Confirm that frontend routes still correctly fall back to index.html
+- Fix route ordering if necessary
+
+D) API route handling
+- Inspect admin API endpoints
+- Ensure all valid API endpoints return JSON with the correct content-type
+- Ensure unknown API routes return JSON 404, never HTML
+- Ensure errors also return JSON consistently
+
+E) Frontend resilience
+- Update the admin API client/fetch wrapper to:
+  - check response.ok
+  - inspect content-type
+  - detect accidental text/html responses
+  - throw a clear structured error like:
+    "Admin API misroute: received HTML instead of JSON"
+- Prevent raw response.json() from exploding with the cryptic Unexpected token '<' error
+- Surface a cleaner admin error message for diagnosis
+
+Implementation requirements:
+1. Standardize all admin API calls through one shared API client layer if not already done
+2. In production, the admin frontend must use an explicit API origin via VITE_API_URL
+3. Do not rely on relative /api paths in production admin code
+4. Keep dev proxy behavior working in local development if present
+5. Do not break existing authentication headers or JWT handling
+6. Preserve CORS correctness for the allowed origins
+7. Keep the solution production-grade and easy to maintain
+
+Verification required after changes:
+1. Show exactly which request(s) were causing HTML instead of JSON
+2. Show what the incorrect URL resolution behavior was
+3. Show how it is now fixed
+4. Confirm the final source of truth for admin API origin
+5. Confirm whether VITE_API_URL must be set in Vercel dashboard, and where
+6. Confirm whether a redeploy is required after setting/changing VITE_API_URL
+7. Confirm whether any remaining relative admin API calls still exist
+8. Confirm what the API returns now for:
+   - success response
+   - unauthorized response
+   - not found response
+   - server error response
+
+Output format I want from you:
+- Root cause
+- Files changed
+- Exact fixes made
+- Any Vercel environment variable I must set manually
+- Whether I must redeploy
+- Final verification summary
+
+Important:
+Do not stop at code-only assumptions.
+Actually trace the admin API path resolution and identify the exact production failure source before changing anything.
+Then fix it fully.

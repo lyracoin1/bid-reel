@@ -4,7 +4,6 @@
   "outputDirectory": "artifacts/bidreel-web/dist/public",
   "functions": {
     "api/index.mjs": {
-      "runtime": "nodejs22.x",
       "maxDuration": 30
     }
   },

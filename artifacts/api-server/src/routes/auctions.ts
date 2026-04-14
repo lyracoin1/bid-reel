@@ -16,6 +16,7 @@ import { getBidderCol, getBidderUserId, hasWinnerBidIdCol } from "../lib/dbSchem
 import { deleteMediaFile } from "../lib/media-lifecycle";
 import { runAuctionLifecycle } from "../lib/auction-lifecycle";
 import { processVideoAsync } from "../lib/video-processing";
+import { buildUserFeedContext, scoreAuction } from "../lib/feed-ranking";
 
 const router = Router();
 
@@ -168,50 +169,70 @@ router.get("/auctions", async (req, res) => {
     user_signal: null as "interested" | "not_interested" | null,
   }));
 
-  // ── Signal-aware personalization (optional — skipped for unauthenticated) ──
+  // ── Feed intelligence ranking (optional — skipped for unauthenticated) ──────
   //
-  // We verify the Bearer token without hard-requiring auth so that anonymous
-  // users still receive the default recency-ordered feed.
+  // Verifies the Bearer token without hard-requiring auth, so anonymous users
+  // still get the default recency-ordered feed.
   //
-  // Ranking tiers (stable — created_at order is preserved within each tier):
-  //   0 → "interested"      (boosted to top)
-  //   1 → neutral / unknown (default position)
-  //   2 → "not_interested"  (pushed to bottom, still visible)
+  // For authenticated users, a weighted relevance score is computed per auction
+  // using existing behavioural signals (no new tables needed):
+  //
+  //   EXACT_INTERESTED / NOT_INTERESTED   ±100   (explicit button press)
+  //   User bid on this auction             +80   (strongest implicit positive)
+  //   User saved this auction              +50
+  //   User follows this seller             +30
+  //   Seller interest signals              +8 each, capped at +20
+  //   Seller bid history                   +8 each, capped at +15
+  //   Category interest signals            +5 each, capped at +10
+  //   Seller not-interested signals        −8 each, floor  −20
+  //   Category not-interested signals      −5 each, floor  −10
+  //
+  // Array.sort is stable in V8 so equal-score items keep created_at DESC order.
+  // Failures in any single data source degrade gracefully to empty (non-fatal).
   const authHeader = req.headers["authorization"];
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.slice(7);
     const { data: { user } } = await supabaseAdmin.auth.getUser(token);
 
     if (user) {
-      const auctionIds = feed.map((a) => (a as { id: string }).id);
+      try {
+        const ctx = await buildUserFeedContext(user.id);
 
-      const { data: signals } = await supabaseAdmin
-        .from("content_signals")
-        .select("auction_id, signal")
-        .eq("user_id", user.id)
-        .in("auction_id", auctionIds);
-
-      if (signals && signals.length > 0) {
-        const signalMap = new Map<string, "interested" | "not_interested">(
-          signals.map((s) => [s.auction_id as string, s.signal as "interested" | "not_interested"]),
-        );
-
-        // Tag each auction with the user's saved signal.
+        // Tag each auction with the user's exact signal for the frontend UI
         feed = feed.map((a) => ({
           ...a,
-          user_signal: signalMap.get((a as { id: string }).id) ?? null,
+          user_signal: (ctx.allSignals.get((a as { id: string }).id) ?? null) as
+            "interested" | "not_interested" | null,
         }));
 
-        // Stable three-tier sort.  Array.sort is stable in V8 (Node ≥ 11),
-        // so items within each tier keep their original created_at DESC order.
-        const tierOf = (sig: "interested" | "not_interested" | null) =>
-          sig === "interested" ? 0 : sig === "not_interested" ? 2 : 1;
-
-        feed.sort((a, b) => tierOf(a.user_signal) - tierOf(b.user_signal));
+        // Score and sort — stable sort preserves recency within equal scores
+        const scores = new Map<string, number>();
+        for (const item of feed) {
+          const id         = (item as { id: string }).id;
+          const seller_id  = (item as { seller_id: string }).seller_id;
+          const category   = (item as { category: string }).category;
+          scores.set(id, scoreAuction({ id, seller_id, category }, ctx));
+        }
+        feed.sort((a, b) =>
+          (scores.get((b as { id: string }).id) ?? 0) -
+          (scores.get((a as { id: string }).id) ?? 0),
+        );
 
         logger.info(
-          { userId: user.id, signalCount: signals.length },
-          "GET /auctions → personalized with signal ranking",
+          {
+            userId:      user.id,
+            signals:     ctx.allSignals.size,
+            follows:     ctx.followedSellerIds.size,
+            bids:        ctx.biddedAuctionIds.size,
+            saves:       ctx.savedAuctionIds.size,
+          },
+          "GET /auctions → ranked with weighted intelligence model",
+        );
+      } catch (err) {
+        // Ranking failed — return unranked (recency-ordered) feed rather than 500
+        logger.warn(
+          { err: String(err), userId: user.id },
+          "GET /auctions: feed ranking failed — returning recency-ordered feed",
         );
       }
     }

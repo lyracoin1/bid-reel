@@ -133,6 +133,26 @@ Scheduled jobs (run at startup and every minute):
 - Deletes original file from storage
 - Fails silently — original URL stays valid if processing fails
 
+**Feed intelligence ranking** (`src/lib/feed-ranking.ts`):
+- Applied per authenticated request to `GET /api/auctions` — anonymous users get recency order
+- Builds user context with two parallel rounds of queries (no new DB tables needed):
+  - Round 1 (parallel): `content_signals`, `bids`, `saved_auctions`, `user_follows`
+  - Round 2 (single batch): auction details (seller_id, category) for signal+bid history
+- Weighted additive scoring per auction:
+  - Explicit "interested" on this auction: **+100**
+  - Explicit "not_interested" on this auction: **−100**
+  - User has bid on this auction: **+80**
+  - User has saved this auction: **+50**
+  - User follows this seller: **+30**
+  - Per "interested" on seller's other auctions: **+8 each, cap +20**
+  - Per bid on seller's other auctions: **+8 each, cap +15**
+  - Per "interested" in same category: **+5 each, cap +10**
+  - Per "not_interested" on seller's auctions: **−8 each, floor −20**
+  - Per "not_interested" in same category: **−5 each, floor −10**
+- Stable sort (V8 Array.sort) — equal scores preserve created_at DESC order
+- Any single query failure degrades gracefully to empty (non-fatal via Promise.allSettled)
+- `user_signal` field (exact signal value) still returned per auction for frontend thumbs UI
+
 ### `artifacts/bidreel-web` (`@workspace/bidreel-web`)
 
 Main user-facing React app. Served at `/`.

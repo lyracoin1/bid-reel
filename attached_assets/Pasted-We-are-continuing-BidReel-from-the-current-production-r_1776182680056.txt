@@ -1,0 +1,189 @@
+We are continuing BidReel from the current production-ready state.
+
+Confirmed completed:
+
+* Main app auth works
+* Admin works
+* CORS issues are fixed
+* Profile completeness gate works
+* Location is integrated
+* Google auth wiring is in place
+* Interested / Not Interested signals exist and are stored
+* Feed ranking already uses a basic three-tier signal-aware ordering
+* Cursor-based feed pagination and infinite scroll are implemented
+* Media pipeline is production-ready:
+
+  * client-side image compression
+  * async server-side video processing
+
+Do NOT go backward.
+Do NOT revisit completed auth/admin/media/CORS work unless a direct regression is discovered.
+
+==================================================
+NEXT PHASE — FEED INTELLIGENCE SYSTEM
+=====================================
+
+This phase is about making the feed smarter in a practical, incremental, production-safe way.
+
+IMPORTANT:
+This is NOT a social "like" system.
+This is a hidden preference/relevance system.
+
+We want to build a better recommendation signal layer using:
+
+* Interested
+* Not interested
+* current feed behavior
+* simple user interaction signals where appropriate
+
+Do NOT build an overcomplicated ML system.
+Do NOT over-engineer.
+Build a clean, explainable, scalable rule-based intelligence layer first.
+
+==================================================
+PART 1 — AUDIT CURRENT SIGNAL USAGE
+===================================
+
+Audit the current feed logic and identify:
+
+1. how Interested / Not Interested is currently used
+2. what its limitations are
+3. what additional simple behavioral signals already exist in the product and can safely be used now, such as:
+
+   * opening an auction
+   * reaching an auction detail page
+   * placing a bid
+   * clicking WhatsApp
+   * following a seller
+   * viewing duration if already measurable
+4. which signals should count as positive
+5. which signals should count as negative
+6. which signals should remain neutral
+
+Return a clear signal map before or alongside implementation.
+
+==================================================
+PART 2 — BUILD A SIMPLE RELEVANCE SCORING LAYER
+===============================================
+
+Implement a practical scoring model for feed ordering.
+
+At minimum:
+
+1. Interested should strongly boost an auction or similar content
+2. Not interested should strongly downrank an auction or similar content
+3. Bidding or opening auction details should count as a positive engagement signal
+4. WhatsApp click should count as a strong positive intent signal
+5. Following a seller should positively influence that seller's auctions
+6. Neutral content should still remain visible so the feed does not become too narrow
+
+Important:
+
+* Keep the model explainable
+* Prefer weighted scoring over scattered ad-hoc conditions
+* Keep current pagination/feed architecture intact
+* Do not fully hide content unless clearly justified
+
+==================================================
+PART 3 — CONTENT / SELLER / CATEGORY AWARENESS
+==============================================
+
+If the current schema supports it, begin making the intelligence slightly broader than one exact auction only.
+
+For example:
+
+* If a user marks one auction from a seller as interested, similar content from that seller may get a modest boost
+* If a user marks a category/style as not interested, similar auctions may get a modest downrank
+
+Only do this if the current data model supports it cleanly.
+Do NOT invent a huge taxonomy if it does not exist yet.
+If category-level intelligence is not ready, state that clearly and keep the logic auction-level or seller-level only.
+
+==================================================
+PART 4 — CAPTURE ADDITIONAL BEHAVIOR SIGNALS SAFELY
+===================================================
+
+Implement small, realistic signal capture where useful and low-risk.
+
+Possible candidates:
+
+* auction detail opened
+* WhatsApp button clicked
+* bid placed
+* seller followed
+
+For each one:
+
+1. decide whether to store it explicitly
+2. decide whether it should affect feed score now or later
+3. keep storage clean and minimal
+4. avoid duplicate/noisy events where possible
+
+Do NOT spam the database with useless high-frequency tracking.
+Do NOT add creepy hidden surveillance behavior.
+Keep it product-relevant only.
+
+==================================================
+PART 5 — PRESERVE FEED QUALITY
+==============================
+
+While making the feed smarter, make sure:
+
+1. new users with few signals still get a healthy feed
+2. the feed remains diverse
+3. highly downranked content is reduced, not necessarily removed
+4. recent/active auctions still matter
+5. the feed does not become stale or repetitive
+6. there is a sensible fallback when signal data is sparse
+
+==================================================
+PART 6 — ADMIN / ANALYTICS READINESS
+====================================
+
+Do not clutter the admin UI heavily in this phase,
+but make sure the structure is clean enough for future analytics.
+
+If useful, expose or prepare:
+
+* signal weights
+* per-auction interest metrics
+* future seller/category preference metrics
+
+Only if this can be done cleanly.
+
+==================================================
+PART 7 — SAFETY / IMPLEMENTATION RULES
+======================================
+
+* Do NOT break the current feed
+* Do NOT break pagination
+* Do NOT reintroduce expensive full-feed loading
+* Do NOT add a fake "AI" label to anything
+* Do NOT build a black-box system
+* Keep the logic deterministic and reviewable
+* Keep changes incremental and production-safe
+* Do NOT turn this into a social like/reaction feature
+* This is a hidden preference system, not a public engagement feature
+
+==================================================
+REQUIRED OUTPUT
+===============
+
+Return:
+
+1. current signal usage diagnosis
+2. exact intelligence/scoring model implemented
+3. exact signals used now
+4. exact files changed
+5. any schema/migration changes
+6. what was intentionally deferred
+7. trade-offs / limitations
+8. exact git commands I should run next
+
+Before claiming success, verify:
+
+* interested content is boosted more intelligently than before
+* not interested content is meaningfully reduced
+* feed remains diverse for low-signal users
+* current feed/pagination behavior remains intact
+* no existing user flow is broken

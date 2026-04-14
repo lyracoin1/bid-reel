@@ -22,7 +22,7 @@ type StatusFilter = "all" | "active" | "banned" | "incomplete";
 type MenuAnchor = {
   top?: number;
   bottom?: number;
-  right: number;
+  left: number;
 };
 
 function formatDate(iso: string) {
@@ -82,14 +82,17 @@ export default function Users() {
       return;
     }
     const rect = e.currentTarget.getBoundingClientRect();
+    const menuWidth = 208; // w-52
     const menuHeight = 145;
     const spaceBelow = window.innerHeight - rect.bottom;
     const openUpward = spaceBelow < menuHeight + 8;
+    // Clamp left so menu stays within viewport
+    const left = Math.min(rect.left, window.innerWidth - menuWidth - 8);
     setOpenMenu(userId);
     setMenuAnchor(
       openUpward
-        ? { bottom: window.innerHeight - rect.top + 4, right: window.innerWidth - rect.right }
-        : { top: rect.bottom + 4,                       right: window.innerWidth - rect.right },
+        ? { bottom: window.innerHeight - rect.top + 4, left }
+        : { top: rect.bottom + 4, left },
     );
   }
 
@@ -325,7 +328,7 @@ export default function Users() {
             position: "fixed",
             top:    menuAnchor.top,
             bottom: menuAnchor.bottom,
-            right:  menuAnchor.right,
+            left:   menuAnchor.left,
             zIndex: 9999,
           }}
           className="w-52 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl overflow-hidden"

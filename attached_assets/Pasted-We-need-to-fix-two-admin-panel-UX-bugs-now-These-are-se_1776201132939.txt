@@ -1,0 +1,106 @@
+We need to fix two admin-panel UX bugs now.
+
+These are separate from the recent user-app fixes.
+
+Do a full audit before changing anything.
+
+## Bug 1 — Admin notification badge does not clear correctly
+
+Observed behavior:
+
+* admin notifications are opened/read
+* but the bell stays red
+* the unread count stays the same
+* the number does not decrease after reading
+
+### Required audit
+
+Inspect:
+
+1. how admin notifications are fetched
+2. how unread count is computed
+3. how "mark as read" or equivalent state is handled
+4. whether opening the notifications drawer actually updates read state
+5. whether local UI state and backend state are out of sync
+6. whether the unread badge is derived from stale cached data
+
+### Required fix
+
+Make the admin notification badge accurate.
+
+Expected behavior:
+
+* when notifications are read or marked read, the red badge count decreases correctly
+* if all are read, the red badge disappears
+* no stale unread count remains visible
+
+Do not guess.
+Explain the exact root cause first.
+
+---
+
+## Bug 2 — Action menu from the three-dots button opens clipped and eats half the visible area
+
+Observed behavior:
+
+* in the admin users page and admin auctions page
+* when clicking the three-dots action button
+* the menu opens in a broken/clipped way
+* part of the screen becomes awkwardly covered
+* instead of a normal dropdown opening downward and staying within the viewport
+
+### Required audit
+
+Inspect:
+
+1. the exact menu/dropdown component used in users and auctions pages
+2. whether it is rendered inside an overflow-hidden container, table wrapper, or clipped parent
+3. whether z-index / fixed / absolute positioning is wrong
+4. whether RTL positioning is contributing to the bug
+5. whether the menu should use a portal/popover strategy instead of rendering inside the table
+
+### Required fix
+
+Make the action menu open cleanly and predictably in both:
+
+* admin users page
+* admin auctions page
+
+Expected behavior:
+
+* clicking the three-dots button opens a compact action menu
+* the menu stays fully visible
+* it should open downward or in the safest direction depending on viewport space
+* it must not clip into the table container
+* it must not cover half the page
+* it must behave correctly in RTL
+
+If a shared dropdown/menu component is used, fix it at the shared level if safe.
+
+---
+
+## Deliverables BEFORE code
+
+Before implementation:
+
+1. identify the exact files controlling admin notifications badge/read state
+2. identify the exact files/components controlling the three-dots action menus in users and auctions
+3. explain the root cause of each bug
+4. propose the minimal safe implementation plan
+
+## Deliverables AFTER code
+
+After implementation:
+
+* summarize exactly what changed
+* list touched files
+* confirm the unread badge now updates correctly
+* confirm the action menus now open correctly and are not clipped
+* mention whether a shared component was fixed
+
+## Constraints
+
+* production safe
+* minimal changes
+* no redesign of the entire admin panel
+* no breaking existing admin actions

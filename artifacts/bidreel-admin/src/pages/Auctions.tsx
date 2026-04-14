@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   Loader2, AlertCircle, Gavel, MoreHorizontal, EyeOff, Trash2, CheckCircle, Search, X,
   ThumbsUp, ThumbsDown, Bookmark, ChevronUp, ChevronDown, ChevronsUpDown,
@@ -26,6 +27,12 @@ type SortField =
   | "endsAt";
 
 type SortDir = "asc" | "desc";
+
+type MenuAnchor = {
+  top?: number;
+  bottom?: number;
+  left: number;
+};
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
@@ -358,6 +365,8 @@ export default function Auctions() {
   const [confirm, setConfirm] = useState<ConfirmAction | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -367,6 +376,39 @@ export default function Auctions() {
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 3000);
+  }
+
+  useEffect(() => {
+    if (!openMenu) return;
+    function onMouseDown(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenu(null);
+        setMenuAnchor(null);
+      }
+    }
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [openMenu]);
+
+  function openMenuAtButton(auctionId: string, e: React.MouseEvent<HTMLButtonElement>) {
+    e.stopPropagation();
+    if (openMenu === auctionId) {
+      setOpenMenu(null);
+      setMenuAnchor(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuWidth = 192; // w-48
+    const menuHeight = 100;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpward = spaceBelow < menuHeight + 8;
+    const left = Math.min(rect.left, window.innerWidth - menuWidth - 8);
+    setOpenMenu(auctionId);
+    setMenuAnchor(
+      openUpward
+        ? { bottom: window.innerHeight - rect.top + 4, left }
+        : { top: rect.bottom + 4, left },
+    );
   }
 
   useEffect(() => {
@@ -420,6 +462,7 @@ export default function Auctions() {
 
   function runConfirm(action: ConfirmAction) {
     setOpenMenu(null);
+    setMenuAnchor(null);
     setConfirm(action);
   }
 
@@ -609,56 +652,13 @@ export default function Auctions() {
                     </td>
                     <td className="px-4 py-3.5 text-gray-400 text-xs">{formatDate(a.createdAt)}</td>
                     <td className="px-4 py-3.5 text-gray-400 text-xs">{formatDate(a.endsAt)}</td>
-                    <td className="px-4 py-3.5" data-action-menu>
-                      <div className="relative" data-action-menu>
-                        <button
-                          data-action-menu
-                          onClick={e => { e.stopPropagation(); setOpenMenu(openMenu === a.id ? null : a.id); }}
-                          className="p-1.5 rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
-                        >
-                          <MoreHorizontal size={16} />
-                        </button>
-                        {openMenu === a.id && (
-                          <div className="absolute right-0 top-8 z-20 w-48 bg-gray-800 border border-gray-700 rounded-xl shadow-xl overflow-hidden" dir="rtl" data-action-menu>
-                            {a.status !== "removed" ? (
-                              <button onClick={e => { e.stopPropagation(); runConfirm({
-                                label: "إخفاء المزاد", description: "سيتم إزالة المزاد من الفيد العام.", variant: "warning",
-                                onConfirm: async () => {
-                                  await adminUpdateAuction(a.id, { status: "removed" });
-                                  setAuctions(prev => prev.map(x => x.id === a.id ? { ...x, status: "removed" } : x));
-                                  setSelectedAuction(prev => prev?.id === a.id ? { ...prev, status: "removed" } : prev);
-                                },
-                              }); }}
-                                className="w-full text-right px-4 py-2.5 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2">
-                                <EyeOff size={14} className="text-amber-400" /> إخفاء المزاد
-                              </button>
-                            ) : (
-                              <button onClick={async e => { e.stopPropagation(); setOpenMenu(null);
-                                try {
-                                  await adminUpdateAuction(a.id, { status: "active" });
-                                  setAuctions(prev => prev.map(x => x.id === a.id ? { ...x, status: "active" } : x));
-                                  setSelectedAuction(prev => prev?.id === a.id ? { ...prev, status: "active" } : prev);
-                                  showToast("تم استعادة المزاد");
-                                } catch (err) { showToast((err as Error).message, false); }
-                              }}
-                                className="w-full text-right px-4 py-2.5 text-sm text-emerald-400 hover:bg-gray-700 flex items-center gap-2">
-                                <CheckCircle size={14} /> استعادة المزاد
-                              </button>
-                            )}
-                            <button onClick={e => { e.stopPropagation(); runConfirm({
-                              label: "حذف المزاد نهائياً", description: "سيتم حذف المزاد وجميع مزايداته بشكل دائم. لا يمكن التراجع.", variant: "danger",
-                              onConfirm: async () => {
-                                await adminDeleteAuction(a.id);
-                                setAuctions(prev => prev.filter(x => x.id !== a.id));
-                                setSelectedAuction(prev => prev?.id === a.id ? null : prev);
-                              },
-                            }); }}
-                              className="w-full text-right px-4 py-2.5 text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2">
-                              <Trash2 size={14} /> حذف نهائي
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                    <td className="px-4 py-3.5">
+                      <button
+                        onClick={e => openMenuAtButton(a.id, e)}
+                        className="p-1.5 rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
+                      >
+                        <MoreHorizontal size={16} />
+                      </button>
                     </td>
                   </tr>
                 );
@@ -677,6 +677,70 @@ export default function Auctions() {
           onDelete={handleDrawerDelete}
         />
       )}
+
+      {/* Action menu portal — renders outside overflow-x-auto to avoid clipping */}
+      {(() => {
+        const openMenuAuction = openMenu ? auctions.find(a => a.id === openMenu) ?? null : null;
+        if (!openMenuAuction || !menuAnchor) return null;
+        return createPortal(
+          <div
+            ref={menuRef}
+            style={{
+              position: "fixed",
+              top:    menuAnchor.top,
+              bottom: menuAnchor.bottom,
+              left:   menuAnchor.left,
+              zIndex: 9999,
+            }}
+            className="w-48 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl overflow-hidden"
+            dir="rtl"
+          >
+            {openMenuAuction.status !== "removed" ? (
+              <button
+                onClick={e => { e.stopPropagation(); runConfirm({
+                  label: "إخفاء المزاد", description: "سيتم إزالة المزاد من الفيد العام.", variant: "warning",
+                  onConfirm: async () => {
+                    await adminUpdateAuction(openMenuAuction.id, { status: "removed" });
+                    setAuctions(prev => prev.map(x => x.id === openMenuAuction.id ? { ...x, status: "removed" } : x));
+                    setSelectedAuction(prev => prev?.id === openMenuAuction.id ? { ...prev, status: "removed" } : prev);
+                  },
+                }); }}
+                className="w-full text-right px-4 py-2.5 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+              >
+                <EyeOff size={14} className="text-amber-400" /> إخفاء المزاد
+              </button>
+            ) : (
+              <button
+                onClick={async e => { e.stopPropagation(); setOpenMenu(null); setMenuAnchor(null);
+                  try {
+                    await adminUpdateAuction(openMenuAuction.id, { status: "active" });
+                    setAuctions(prev => prev.map(x => x.id === openMenuAuction.id ? { ...x, status: "active" } : x));
+                    setSelectedAuction(prev => prev?.id === openMenuAuction.id ? { ...prev, status: "active" } : prev);
+                    showToast("تم استعادة المزاد");
+                  } catch (err) { showToast((err as Error).message, false); }
+                }}
+                className="w-full text-right px-4 py-2.5 text-sm text-emerald-400 hover:bg-gray-700 flex items-center gap-2"
+              >
+                <CheckCircle size={14} /> استعادة المزاد
+              </button>
+            )}
+            <button
+              onClick={e => { e.stopPropagation(); runConfirm({
+                label: "حذف المزاد نهائياً", description: "سيتم حذف المزاد وجميع مزايداته بشكل دائم. لا يمكن التراجع.", variant: "danger",
+                onConfirm: async () => {
+                  await adminDeleteAuction(openMenuAuction.id);
+                  setAuctions(prev => prev.filter(x => x.id !== openMenuAuction.id));
+                  setSelectedAuction(prev => prev?.id === openMenuAuction.id ? null : prev);
+                },
+              }); }}
+              className="w-full text-right px-4 py-2.5 text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2"
+            >
+              <Trash2 size={14} /> حذف نهائي
+            </button>
+          </div>,
+          document.body,
+        );
+      })()}
     </AdminLayout>
   );
 }

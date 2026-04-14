@@ -93,7 +93,17 @@ export function NotificationBell() {
     <div className="relative" ref={panelRef}>
       {/* Bell button */}
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          const willOpen = !open;
+          setOpen(willOpen);
+          if (willOpen && unreadCount > 0) {
+            // Optimistically clear badge immediately; sync to backend in background
+            setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+            adminMarkAllNotificationsRead().catch(() => {
+              // non-critical — will resync on next 30s poll
+            });
+          }
+        }}
         className={cn(
           "relative w-9 h-9 flex items-center justify-center rounded-xl transition-all",
           open

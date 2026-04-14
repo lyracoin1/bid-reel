@@ -11,6 +11,7 @@ import {
   uploadFileToStorage,
 } from "@/lib/api-client";
 import { reverseGeocodeCity } from "@/lib/geo";
+import { clearCurrentUserCache } from "@/hooks/use-current-user";
 
 /** Normalize raw phone input to E.164 format */
 function normalizePhone(raw: string): string {
@@ -262,6 +263,11 @@ export default function Interests() {
         ...(avatarUrl ? { avatarUrl } : {}),
       });
 
+      // Clear the stale cached user so the next useCurrentUser() call re-fetches
+      // from the server and returns isCompleted: true. Without this the create-auction
+      // gate reads the old cached isCompleted: false and loops forever.
+      clearCurrentUserCache();
+
       setStep(1);
     } catch (err) {
       if (err instanceof UsernameTakenError) {
@@ -289,6 +295,9 @@ export default function Interests() {
 
   const finish = () => {
     localStorage.setItem("hasSeenInterests", "1");
+    // Ensure any cached user (which may still have isCompleted: false) is
+    // discarded before navigating away so feed / create-auction see fresh data.
+    clearCurrentUserCache();
     setLocation("/feed");
   };
 

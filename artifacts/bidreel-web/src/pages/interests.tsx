@@ -11,7 +11,7 @@ import {
   uploadFileToStorage,
 } from "@/lib/api-client";
 import { reverseGeocodeCity } from "@/lib/geo";
-import { clearCurrentUserCache } from "@/hooks/use-current-user";
+import { clearCurrentUserCache, getCachedCurrentUser } from "@/hooks/use-current-user";
 
 /** Normalize raw phone input to E.164 format */
 function normalizePhone(raw: string): string {
@@ -63,6 +63,8 @@ export default function Interests() {
   const [usernameState, setUsernameState] = useState<UsernameState>("idle");
   const [avatarFile, setAvatarFile]   = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  // Tracks an already-uploaded avatar URL so returning users don't need to re-upload
+  const [existingAvatarUrl, setExistingAvatarUrl] = useState<string | null>(null);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -77,12 +79,26 @@ export default function Interests() {
   // ── Interests state (step 1) ──
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // ── Cleanup avatar object URL on unmount ──
+  // ── Cleanup avatar object URL on unmount (only for blob: URLs, not external URLs) ──
   useEffect(() => {
     return () => {
-      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+      if (avatarPreview && avatarPreview.startsWith("blob:")) URL.revokeObjectURL(avatarPreview);
     };
   }, [avatarPreview]);
+
+  // ── Pre-populate form from cached user (returning users editing their profile) ──
+  useEffect(() => {
+    const cached = getCachedCurrentUser();
+    if (!cached) return;
+    if (cached.displayName) setDisplayName(cached.displayName);
+    if (cached.location)    setLocation2(cached.location);
+    if (cached.username)    setUsername(cached.username);
+    if (cached.avatarUrl) {
+      setExistingAvatarUrl(cached.avatarUrl);
+      setAvatarPreview(cached.avatarUrl);
+    }
+    // phone is private and not returned in ApiUserProfile — user must re-enter it
+  }, []);
 
   // ── Geolocation — request city name and auto-fill location field ──
   const requestGeoLocation = useCallback(() => {
@@ -178,9 +194,10 @@ export default function Interests() {
   }, [avatarPreview]);
 
   const removeAvatar = useCallback(() => {
-    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    if (avatarPreview && avatarPreview.startsWith("blob:")) URL.revokeObjectURL(avatarPreview);
     setAvatarFile(null);
     setAvatarPreview(null);
+    setExistingAvatarUrl(null);
     setAvatarError(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, [avatarPreview]);
@@ -211,8 +228,8 @@ export default function Interests() {
       return;
     }
 
-    // Validate avatar (required)
-    if (!avatarFile) {
+    // Validate avatar (required, but existing server URL is acceptable)
+    if (!avatarFile && !existingAvatarUrl) {
       setSubmitError("Profile photo is required. Please upload a photo.");
       return;
     }
@@ -318,6 +335,7 @@ export default function Interests() {
     return { text: "3–30 chars · lowercase letters, numbers, underscores only", color: "text-white/30" };
   };
 
+  const hasAvatar = avatarFile !== null || existingAvatarUrl !== null;
   const canSubmitProfile =
     displayName.trim().length >= 2 &&
     phone.trim().length >= 7 &&
@@ -326,7 +344,7 @@ export default function Interests() {
     USERNAME_REGEX.test(username) &&
     usernameState !== "taken" &&
     usernameState !== "checking" &&
-    avatarFile !== null &&
+    hasAvatar &&
     !isSubmitting;
 
   // ─── Render ─────────────────────────────────────────────────────────────────

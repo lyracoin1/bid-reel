@@ -41,7 +41,7 @@ export default function PrivacyPolicy() {
               <li><strong className="text-white/90">Username</strong> — your unique handle on the platform, shown publicly.</li>
               <li><strong className="text-white/90">Videos and photos</strong> — media you upload for auction listings, stored securely in cloud storage.</li>
               <li><strong className="text-white/90">Bids</strong> — amounts you bid on auctions, linked to your account.</li>
-              <li><strong className="text-white/90">Location (optional)</strong> — approximate country, used only to suggest local currency. Never stored on our servers.</li>
+              <li><strong className="text-white/90">Location</strong> — city or region, stored in your profile. Used to help buyers find nearby items and to suggest the appropriate local currency. Required to publish auctions. You can update or remove it at any time from your profile settings.</li>
               <li><strong className="text-white/90">Device push token</strong> — used to send you auction notifications (only when permission is granted).</li>
               <li><strong className="text-white/90">Follows and saves</strong> — who you follow and auctions you bookmark, private to your account.</li>
             </ul>
@@ -71,7 +71,7 @@ export default function PrivacyPolicy() {
             <h2 className="text-white font-semibold text-base">Data Retention</h2>
             <p>
               Your data is retained while your account is active. When you delete your account,
-              all personal data (email address, phone number, display name, avatar, bids, follows,
+              all personal data (email address, phone number, display name, avatar, username, location, bids, follows,
               saves, and device tokens) is permanently deleted within 30 days. Auction listings you created will be
               anonymised rather than deleted to preserve auction integrity.
             </p>

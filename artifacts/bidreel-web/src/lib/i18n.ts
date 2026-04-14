@@ -59,7 +59,27 @@ export type TKey =
   // Time
   | "time_ended" | "time_s" | "time_m" | "time_h" | "time_d"
   // Contact / messaging
-  | "contact_seller_ended_hint";
+  | "contact_seller_ended_hint"
+  // Profile — tabs
+  | "my_auctions" | "saved_tab"
+  // Profile — header / actions
+  | "edit_profile" | "member_since"
+  // Profile — account section
+  | "account_section" | "privacy_policy" | "delete_account"
+  // Profile — empty states
+  | "no_auctions_yet" | "no_auctions_yet_sub"
+  | "no_saved_yet" | "no_saved_yet_sub"
+  | "explore_auctions"
+  // Profile — completeness card field labels
+  | "profile_photo_label" | "username_label"
+  | "display_name_label" | "location_label" | "phone_required_label"
+  // Profile — completeness card header (use .replace("{pct}", String(completePct)))
+  | "profile_complete_pct"
+  // Feed — pull-to-refresh / empty / error
+  | "feed_pull" | "feed_release" | "feed_refreshing"
+  | "feed_error" | "feed_empty"
+  | "feed_error_sub" | "feed_empty_sub"
+  | "feed_try_again" | "feed_checking" | "feed_refresh";
 
 type Translations = Record<TKey, string>;
 
@@ -102,6 +122,23 @@ const en: Translations = {
   interests_title: "Choose what interests you", interests_subtitle: "Select topics you'd love to bid on",
   interests_skip: "Skip", interests_done: "Done",
   contact_seller_ended_hint: "For pickup, payment or delivery questions",
+  my_auctions: "My Auctions", saved_tab: "Saved",
+  edit_profile: "Edit", member_since: "Member since",
+  account_section: "Account", privacy_policy: "Privacy Policy", delete_account: "Delete Account",
+  no_auctions_yet: "You haven't created any auctions yet",
+  no_auctions_yet_sub: "List your first item and start selling to bidders around you.",
+  no_saved_yet: "You haven't saved any auctions yet",
+  no_saved_yet_sub: "Browse the feed and save auctions you're interested in.",
+  explore_auctions: "Explore auctions",
+  profile_photo_label: "Profile photo", username_label: "Username",
+  display_name_label: "Display name", location_label: "Location",
+  phone_required_label: "WhatsApp number",
+  profile_complete_pct: "Profile {pct}% complete",
+  feed_pull: "Pull to refresh", feed_release: "Release to refresh", feed_refreshing: "Refreshing…",
+  feed_error: "Couldn't load auctions", feed_empty: "No auctions yet",
+  feed_error_sub: "Check your connection and try again.",
+  feed_empty_sub: "Be the first to list something — or check back shortly for new drops.",
+  feed_try_again: "Try again", feed_checking: "Checking…", feed_refresh: "Refresh feed",
 };
 
 const ar: Translations = {
@@ -143,6 +180,23 @@ const ar: Translations = {
   interests_title: "اختر ما يهمك", interests_subtitle: "حدد مواضيع تريد المزايدة عليها",
   interests_skip: "تخطى", interests_done: "تم",
   contact_seller_ended_hint: "للاستفسار عن الاستلام أو الدفع أو التوصيل",
+  my_auctions: "مزاداتي", saved_tab: "المحفوظات",
+  edit_profile: "تعديل", member_since: "عضو منذ",
+  account_section: "الحساب", privacy_policy: "سياسة الخصوصية", delete_account: "حذف الحساب",
+  no_auctions_yet: "لم تنشر أي مزاد بعد",
+  no_auctions_yet_sub: "أضف أول عنصر وابدأ البيع للمزايدين حولك.",
+  no_saved_yet: "لم تحفظ أي مزادات بعد",
+  no_saved_yet_sub: "تصفّح الرئيسية واحفظ المزادات التي تهمك.",
+  explore_auctions: "استكشف المزادات",
+  profile_photo_label: "الصورة الشخصية", username_label: "اسم المستخدم",
+  display_name_label: "الاسم المعروض", location_label: "الموقع",
+  phone_required_label: "رقم واتساب",
+  profile_complete_pct: "ملفك الشخصي {pct}% مكتمل",
+  feed_pull: "اسحب للتحديث", feed_release: "أفلت للتحديث", feed_refreshing: "جارٍ التحديث…",
+  feed_error: "تعذّر تحميل المزادات", feed_empty: "لا توجد مزادات بعد",
+  feed_error_sub: "تحقق من اتصالك وحاول مجدداً.",
+  feed_empty_sub: "كن أول من يضيف — أو تحقق لاحقاً من الإضافات الجديدة.",
+  feed_try_again: "إعادة المحاولة", feed_checking: "جارٍ الفحص…", feed_refresh: "تحديث الرئيسية",
 };
 
 const ru: Translations = {
@@ -184,6 +238,23 @@ const ru: Translations = {
   interests_title: "Выберите интересы", interests_subtitle: "Темы, на которые вы хотите делать ставки",
   interests_skip: "Пропустить", interests_done: "Готово",
   contact_seller_ended_hint: "По вопросам получения, оплаты или доставки",
+  my_auctions: "Мои аукционы", saved_tab: "Сохранённые",
+  edit_profile: "Изменить", member_since: "Участник с",
+  account_section: "Аккаунт", privacy_policy: "Политика конфиденциальности", delete_account: "Удалить аккаунт",
+  no_auctions_yet: "Вы ещё не создали ни одного аукциона",
+  no_auctions_yet_sub: "Добавьте первый лот и начните продавать.",
+  no_saved_yet: "Вы ещё не сохранили ни одного аукциона",
+  no_saved_yet_sub: "Листайте ленту и сохраняйте интересные аукционы.",
+  explore_auctions: "Смотреть аукционы",
+  profile_photo_label: "Фото профиля", username_label: "Имя пользователя",
+  display_name_label: "Отображаемое имя", location_label: "Местоположение",
+  phone_required_label: "Номер WhatsApp",
+  profile_complete_pct: "Профиль заполнен на {pct}%",
+  feed_pull: "Потяните для обновления", feed_release: "Отпустите для обновления", feed_refreshing: "Обновление…",
+  feed_error: "Не удалось загрузить аукционы", feed_empty: "Пока нет аукционов",
+  feed_error_sub: "Проверьте соединение и повторите.",
+  feed_empty_sub: "Будьте первым или загляните позже за новинками.",
+  feed_try_again: "Повторить", feed_checking: "Проверка…", feed_refresh: "Обновить ленту",
 };
 
 const es: Translations = {
@@ -225,6 +296,23 @@ const es: Translations = {
   interests_title: "Elige tus intereses", interests_subtitle: "Selecciona temas en los que quieres pujar",
   interests_skip: "Saltar", interests_done: "Hecho",
   contact_seller_ended_hint: "Para preguntas de recogida, pago o entrega",
+  my_auctions: "Mis subastas", saved_tab: "Guardados",
+  edit_profile: "Editar", member_since: "Miembro desde",
+  account_section: "Cuenta", privacy_policy: "Política de privacidad", delete_account: "Eliminar cuenta",
+  no_auctions_yet: "Aún no has creado ninguna subasta",
+  no_auctions_yet_sub: "Publica tu primer artículo y empieza a vender.",
+  no_saved_yet: "Aún no has guardado ninguna subasta",
+  no_saved_yet_sub: "Explora el feed y guarda las subastas que te interesen.",
+  explore_auctions: "Explorar subastas",
+  profile_photo_label: "Foto de perfil", username_label: "Nombre de usuario",
+  display_name_label: "Nombre visible", location_label: "Ubicación",
+  phone_required_label: "Número de WhatsApp",
+  profile_complete_pct: "Perfil {pct}% completo",
+  feed_pull: "Desliza para actualizar", feed_release: "Suelta para actualizar", feed_refreshing: "Actualizando…",
+  feed_error: "No se pudieron cargar las subastas", feed_empty: "Aún no hay subastas",
+  feed_error_sub: "Comprueba tu conexión e inténtalo de nuevo.",
+  feed_empty_sub: "Sé el primero en publicar, o vuelve pronto para ver nuevas ofertas.",
+  feed_try_again: "Intentar de nuevo", feed_checking: "Comprobando…", feed_refresh: "Actualizar feed",
 };
 
 const fr: Translations = {
@@ -266,6 +354,23 @@ const fr: Translations = {
   interests_title: "Choisissez vos intérêts", interests_subtitle: "Sélectionnez les sujets sur lesquels vous souhaitez enchérir",
   interests_skip: "Ignorer", interests_done: "Terminer",
   contact_seller_ended_hint: "Pour les questions de retrait, paiement ou livraison",
+  my_auctions: "Mes enchères", saved_tab: "Sauvegardés",
+  edit_profile: "Modifier", member_since: "Membre depuis",
+  account_section: "Compte", privacy_policy: "Politique de confidentialité", delete_account: "Supprimer le compte",
+  no_auctions_yet: "Vous n'avez encore créé aucune enchère",
+  no_auctions_yet_sub: "Publiez votre premier article et commencez à vendre.",
+  no_saved_yet: "Vous n'avez encore sauvegardé aucune enchère",
+  no_saved_yet_sub: "Parcourez le fil et sauvegardez les enchères qui vous intéressent.",
+  explore_auctions: "Explorer les enchères",
+  profile_photo_label: "Photo de profil", username_label: "Nom d'utilisateur",
+  display_name_label: "Nom affiché", location_label: "Localisation",
+  phone_required_label: "Numéro WhatsApp",
+  profile_complete_pct: "Profil complété à {pct}%",
+  feed_pull: "Tirer pour actualiser", feed_release: "Relâcher pour actualiser", feed_refreshing: "Actualisation…",
+  feed_error: "Impossible de charger les enchères", feed_empty: "Pas encore d'enchères",
+  feed_error_sub: "Vérifiez votre connexion et réessayez.",
+  feed_empty_sub: "Soyez le premier à publier, ou revenez bientôt pour les nouveautés.",
+  feed_try_again: "Réessayer", feed_checking: "Vérification…", feed_refresh: "Actualiser le fil",
 };
 
 export const TRANSLATIONS: Record<Language, Translations> = { en, ar, ru, es, fr };

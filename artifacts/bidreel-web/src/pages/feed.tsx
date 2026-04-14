@@ -6,11 +6,13 @@ import { FeedCard } from "@/components/feed/FeedCard";
 import { useAuctions } from "@/hooks/use-auctions";
 import { useBidPolling } from "@/hooks/use-bid-polling";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { useLang } from "@/contexts/LanguageContext";
 
 // Trigger a load-more fetch when the user is this many cards from the end.
 const LOAD_MORE_THRESHOLD = 5;
 
 export default function Feed() {
+  const { t } = useLang();
   const { data: auctions, isLoading, loadMore, hasMore, isLoadingMore, isError } = useAuctions();
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -83,7 +85,7 @@ export default function Feed() {
               </motion.div>
             )}
             <span className={`text-xs font-semibold ${pullProgress >= 1 || isPulling ? "text-primary" : "text-white/60"}`}>
-              {isPulling ? "Refreshing…" : pullProgress >= 1 ? "Release to refresh" : "Pull to refresh"}
+              {isPulling ? t("feed_refreshing") : pullProgress >= 1 ? t("feed_release") : t("feed_pull")}
             </span>
           </motion.div>
         )}
@@ -100,7 +102,7 @@ export default function Feed() {
             className="fixed top-14 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 bg-black/85 backdrop-blur-md border border-white/12 rounded-full px-4 py-2 pointer-events-none"
           >
             <RefreshCw size={13} className="text-primary animate-spin" />
-            <span className="text-xs font-semibold text-primary">Refreshing…</span>
+            <span className="text-xs font-semibold text-primary">{t("feed_refreshing")}</span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -146,12 +148,10 @@ export default function Feed() {
               <Gavel size={32} className={isError ? "text-red-400/60" : "text-primary/60"} />
             </div>
             <h3 className="text-2xl font-bold mb-2">
-              {isError ? "Couldn't load auctions" : "No auctions yet"}
+              {isError ? t("feed_error") : t("feed_empty")}
             </h3>
             <p className="text-muted-foreground mb-8 max-w-xs">
-              {isError
-                ? "Check your connection and try again."
-                : "Be the first to list something — or check back shortly for new drops."}
+              {isError ? t("feed_error_sub") : t("feed_empty_sub")}
             </p>
             <motion.button
               whileTap={{ scale: 0.94 }}
@@ -160,7 +160,7 @@ export default function Feed() {
               className="flex items-center gap-2 px-6 py-3 rounded-full bg-primary/15 border border-primary/30 text-primary text-sm font-bold disabled:opacity-50 transition-opacity"
             >
               <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
-              {isRefreshing ? "Checking…" : "Try again"}
+              {isRefreshing ? t("feed_checking") : t("feed_try_again")}
             </motion.button>
           </div>
         )}
@@ -180,7 +180,7 @@ export default function Feed() {
               className="flex items-center gap-2 px-6 py-3 rounded-full bg-primary/15 border border-primary/30 text-primary text-sm font-bold disabled:opacity-50 transition-opacity"
             >
               <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
-              {isRefreshing ? "Refreshing…" : "Refresh feed"}
+              {isRefreshing ? t("feed_refreshing") : t("feed_refresh")}
             </motion.button>
           </div>
         )}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import {
-  Grid, Gavel, LogOut, ShieldCheck, Trash2, Shield, MapPin,
+  Grid, Bookmark, LogOut, ShieldCheck, Trash2, Shield, MapPin,
   Pencil, Settings, ChevronRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,7 +10,7 @@ import { formatAuctionPrice } from "@/lib/geo";
 import { HamburgerMenu } from "@/components/HamburgerMenu";
 import { useCurrentUser, clearCurrentUserCache } from "@/hooks/use-current-user";
 import { useAuctions } from "@/hooks/use-auctions";
-import { getUserBidsApi, clearToken, deleteAccountApi, type ApiMyBidEntry } from "@/lib/api-client";
+import { getSavedIdsApi, clearToken, deleteAccountApi } from "@/lib/api-client";
 import { clearAdminSession } from "@/pages/admin/admin-session";
 import { deleteNativeFcmToken } from "@/lib/native-fcm";
 import { getTimeRemaining } from "@/lib/utils";
@@ -18,13 +18,13 @@ import { useLang } from "@/contexts/LanguageContext";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { FollowListModal } from "@/components/FollowListModal";
 
-type Tab = "listings" | "bids";
+type Tab = "my_auctions" | "saved";
 type FollowModal = "followers" | "following" | null;
 
 export default function Profile() {
-  const [activeTab, setActiveTab] = useState<Tab>("listings");
-  const [myBids, setMyBids] = useState<ApiMyBidEntry[]>([]);
-  const [bidsLoading, setBidsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<Tab>("my_auctions");
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [savedLoading, setSavedLoading] = useState(false);
   const [followModal, setFollowModal] = useState<FollowModal>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -57,17 +57,21 @@ export default function Profile() {
     ? allAuctions.filter(a => a.seller.id === user.id)
     : [];
 
+  // Load saved IDs lazily when the saved tab is first activated
   useEffect(() => {
-    setBidsLoading(true);
-    getUserBidsApi()
-      .then(setMyBids)
-      .catch(err => console.error("[profile] Failed to load bids:", err))
-      .finally(() => setBidsLoading(false));
-  }, []);
+    if (activeTab !== "saved") return;
+    setSavedLoading(true);
+    getSavedIdsApi()
+      .then(ids => setSavedIds(new Set(ids)))
+      .catch(() => {})
+      .finally(() => setSavedLoading(false));
+  }, [activeTab]);
 
-  const tabs: { id: Tab; labelKey: "listings" | "my_bids"; icon: typeof Grid; count: number }[] = [
-    { id: "listings", labelKey: "listings", icon: Grid,  count: myListings.length },
-    { id: "bids",     labelKey: "my_bids",  icon: Gavel, count: myBids.length },
+  const savedAuctions = allAuctions.filter(a => savedIds.has(a.id));
+
+  const tabs: { id: Tab; labelKey: "my_auctions" | "saved_tab"; icon: typeof Grid; count: number }[] = [
+    { id: "my_auctions", labelKey: "my_auctions", icon: Grid,     count: myListings.length },
+    { id: "saved",       labelKey: "saved_tab",   icon: Bookmark, count: savedIds.size },
   ];
 
   const isLoading = userLoading || auctionsLoading;
@@ -80,16 +84,21 @@ export default function Profile() {
     setLocation("/login");
   }
 
-  // Frontend completeness — 4 core profile fields (matches create-auction gate logic).
-  // Each field contributes 25 points. Computed purely from user data, no API calls.
+  // Completeness — backend requires 5 fields (username, display_name, phone, avatar_url, location).
+  // Phone is private so not in ApiUserProfile; we infer it from user.isCompleted:
+  // if all 4 visible fields are set but isCompleted is still false → phone is missing.
+  const allVisibleSet = !!user?.avatarUrl && !!user?.username && !!user?.displayName && !!user?.location;
+  const phoneIsMissing = allVisibleSet && user?.isCompleted === false;
   const completenessFields = [
-    { key: "avatar",   label: "Profile photo", done: !!user?.avatarUrl },
-    { key: "username", label: "Username",       done: !!user?.username },
-    { key: "name",     label: "Display name",   done: !!user?.displayName },
-    { key: "location", label: "Location",       done: !!user?.location },
+    { key: "avatar",   label: t("profile_photo_label"),   done: !!user?.avatarUrl },
+    { key: "username", label: t("username_label"),         done: !!user?.username },
+    { key: "name",     label: t("display_name_label"),     done: !!user?.displayName },
+    { key: "location", label: t("location_label"),         done: !!user?.location },
+    ...(phoneIsMissing ? [{ key: "phone", label: t("phone_required_label"), done: false }] : []),
   ];
   const completedCount = completenessFields.filter(f => f.done).length;
-  const completePct    = Math.round((completedCount / completenessFields.length) * 100);
+  // Use server's isCompleted as the definitive ground truth for 100%
+  const completePct    = !user ? 0 : user.isCompleted ? 100 : Math.round((completedCount / completenessFields.length) * 100);
   const missingFields  = completenessFields.filter(f => !f.done);
 
   return (
@@ -139,7 +148,7 @@ export default function Profile() {
                     )}
                     {user?.createdAt && (
                       <p className="text-[11px] text-white/28 mt-0.5">
-                        Member since {new Date(user.createdAt).getFullYear()}
+                        {t("member_since")} {new Date(user.createdAt).getFullYear()}
                       </p>
                     )}
                     {user?.isAdmin && (
@@ -157,11 +166,11 @@ export default function Profile() {
             <motion.button
               whileTap={{ scale: 0.90 }}
               onClick={() => setLocation("/interests")}
-              aria-label="Edit profile"
+              aria-label={t("edit_profile")}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/8 border border-white/12 text-xs font-semibold text-white/60 hover:text-white hover:bg-white/12 transition shrink-0"
             >
               <Pencil size={13} />
-              Edit
+              {t("edit_profile")}
             </motion.button>
           </div>
 
@@ -178,7 +187,7 @@ export default function Profile() {
                 {/* Header: percentage + chevron */}
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-amber-300">
-                    Profile {completePct}% complete
+                    {t("profile_complete_pct").replace("{pct}", String(completePct))}
                   </span>
                   <ChevronRight size={14} className="text-amber-400/60 shrink-0" />
                 </div>
@@ -281,7 +290,7 @@ export default function Profile() {
 
         {/* ── Tab content ── */}
         <div className="px-5 pt-3 pb-6">
-          {activeTab === "listings" && (
+          {activeTab === "my_auctions" && (
             auctionsLoading ? (
               <div className="grid grid-cols-2 gap-3">
                 {[0, 1, 2, 3].map(i => (
@@ -316,8 +325,8 @@ export default function Profile() {
                 <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/8 flex items-center justify-center mb-1">
                   <Grid size={26} className="text-white/20" />
                 </div>
-                <p className="text-sm font-semibold text-white/60">You haven't created any auctions yet</p>
-                <p className="text-xs text-muted-foreground max-w-[220px]">List your first item and start selling to bidders around you.</p>
+                <p className="text-sm font-semibold text-white/60">{t("no_auctions_yet")}</p>
+                <p className="text-xs text-muted-foreground max-w-[220px]">{t("no_auctions_yet_sub")}</p>
                 <motion.button
                   whileTap={{ scale: 0.96 }}
                   onClick={() => setLocation("/create")}
@@ -329,48 +338,30 @@ export default function Profile() {
             )
           )}
 
-          {activeTab === "bids" && (
-            bidsLoading ? (
-              <div className="space-y-3">
-                {[0, 1, 2].map(i => (
-                  <div key={i} className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/8">
-                    <div className="w-16 h-20 rounded-xl bg-white/10 animate-pulse shrink-0" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 w-3/4 bg-white/10 rounded animate-pulse" />
-                      <div className="h-3 w-1/2 bg-white/8 rounded animate-pulse" />
-                      <div className="h-3 w-1/3 bg-white/8 rounded animate-pulse" />
-                    </div>
+          {activeTab === "saved" && (
+            savedLoading ? (
+              <div className="grid grid-cols-2 gap-3">
+                {[0, 1, 2, 3].map(i => (
+                  <div key={i} className="rounded-2xl bg-white/5 border border-white/8 overflow-hidden">
+                    <div className="aspect-[3/4] bg-white/10 animate-pulse" />
                   </div>
                 ))}
               </div>
-            ) : myBids.length > 0 ? (
-              <div className="space-y-3">
-                {myBids.map(entry => {
-                  if (!entry.auction) return null;
-                  const a = entry.auction;
-                  const timeInfo = getTimeRemaining(a.endsAt);
+            ) : savedAuctions.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3">
+                {savedAuctions.map(auction => {
+                  const timeInfo = getTimeRemaining(auction.endsAt);
                   return (
-                    <motion.div key={entry.auctionId} whileTap={{ scale: 0.98 }}
-                      onClick={() => setLocation(`/auction/${entry.auctionId}`)}
-                      className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/8 cursor-pointer">
-                      <div className="w-16 h-20 rounded-xl overflow-hidden shrink-0 bg-white/8">
-                        {a.mediaUrl && (
-                          <img src={a.mediaUrl} className="w-full h-full object-cover" alt={a.title} />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-white text-sm line-clamp-1">{a.title}</h4>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Current: <span className="text-white font-bold">{formatAuctionPrice(a.currentBid, a.currencyCode ?? "USD")}</span>
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Your bid: <span className="text-white">{formatAuctionPrice(entry.myBidAmount, a.currencyCode ?? "USD")}</span>
-                        </p>
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${entry.isLeading ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
-                            {entry.isLeading ? t("leading") : t("outbid")}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">{timeInfo.text}</span>
+                    <motion.div key={auction.id} whileTap={{ scale: 0.97 }}
+                      onClick={() => setLocation(`/auction/${auction.id}`)}
+                      className="rounded-2xl bg-white/5 border border-white/8 overflow-hidden cursor-pointer">
+                      <div className="aspect-[3/4] relative">
+                        <img src={auction.mediaUrl} className="w-full h-full object-cover" alt={auction.title} />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                        <div className="absolute bottom-0 left-0 right-0 p-3">
+                          <p className="text-xs font-bold text-white line-clamp-1">{auction.title}</p>
+                          <p className="text-sm font-bold text-white mt-0.5">{formatAuctionPrice(auction.currentBid, auction.currencyCode ?? "USD")}</p>
+                          <p className={`text-[10px] font-bold mt-1 ${timeInfo.isUrgent ? "text-red-400" : "text-emerald-400"}`}>{timeInfo.text}</p>
                         </div>
                       </div>
                     </motion.div>
@@ -380,16 +371,16 @@ export default function Profile() {
             ) : (
               <div className="py-16 flex flex-col items-center text-center gap-3">
                 <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/8 flex items-center justify-center mb-1">
-                  <Gavel size={26} className="text-white/20" />
+                  <Bookmark size={26} className="text-white/20" />
                 </div>
-                <p className="text-sm font-semibold text-white/60">You haven't placed any bids yet</p>
-                <p className="text-xs text-muted-foreground max-w-[220px]">Find something you love and place your first bid.</p>
+                <p className="text-sm font-semibold text-white/60">{t("no_saved_yet")}</p>
+                <p className="text-xs text-muted-foreground max-w-[220px]">{t("no_saved_yet_sub")}</p>
                 <motion.button
                   whileTap={{ scale: 0.96 }}
                   onClick={() => setLocation("/feed")}
                   className="mt-1 px-6 py-3 rounded-xl bg-primary text-white text-sm font-bold shadow-[0_0_20px_rgba(139,92,246,0.3)]"
                 >
-                  Start exploring auctions
+                  {t("explore_auctions")}
                 </motion.button>
               </div>
             )
@@ -398,7 +389,7 @@ export default function Profile() {
 
         {/* ── Account section ── */}
         <div className="px-5 pt-2 pb-3">
-          <p className="text-[10px] font-bold text-white/25 uppercase tracking-widest mb-2 px-1">Account</p>
+          <p className="text-[10px] font-bold text-white/25 uppercase tracking-widest mb-2 px-1">{t("account_section")}</p>
           <div className="rounded-2xl bg-white/4 border border-white/8 divide-y divide-white/6 overflow-hidden">
 
             {/* Settings */}
@@ -423,7 +414,7 @@ export default function Profile() {
               <div className="w-8 h-8 rounded-xl bg-white/6 border border-white/10 flex items-center justify-center shrink-0">
                 <Shield size={15} className="text-white/50" />
               </div>
-              <span className="text-sm text-white/70 font-medium flex-1">Privacy Policy</span>
+              <span className="text-sm text-white/70 font-medium flex-1">{t("privacy_policy")}</span>
               <ChevronRight size={14} className="text-white/25" />
             </motion.button>
 
@@ -449,7 +440,7 @@ export default function Profile() {
             className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-red-500/15 text-xs font-semibold text-red-500/40 hover:text-red-400 hover:border-red-500/25 transition-colors"
           >
             <Trash2 size={13} />
-            Delete Account
+            {t("delete_account")}
           </button>
         </div>
 
@@ -489,7 +480,7 @@ export default function Profile() {
                   <Trash2 size={18} className="text-red-400" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-white text-base">Delete Account</h3>
+                  <h3 className="font-bold text-white text-base">{t("delete_account")}</h3>
                   <p className="text-xs text-white/40">This cannot be undone</p>
                 </div>
               </div>

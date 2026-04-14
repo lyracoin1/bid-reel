@@ -1,0 +1,111 @@
+We are continuing BidReel production work.
+
+Completed so far:
+
+* auth / onboarding fixes
+* email confirmation fix
+* profile restructuring
+* empty states pass
+* bidding system refactor (increment-only)
+* feed overlay improvements
+* reel action stack polish
+* profile completion progress and trust signal polish
+* seller contact / WhatsApp UX polish
+* admin analytics foundation
+* stale user cache fix after profile completion
+
+Now proceed to:
+
+## Phase 6 / Part 2: Admin auction detail polish
+
+IMPORTANT:
+
+* Do NOT build a giant analytics dashboard
+* Do NOT over-engineer
+* Do NOT redesign the whole admin app
+* This phase is about making individual auction inspection more useful for admin workflows
+
+## Goal
+
+Allow the admin to inspect a specific auction more clearly and understand its performance and state without relying only on the auctions table.
+
+The admin should be able to quickly understand:
+
+* auction status
+* seller
+* current price
+* bid count
+* interest signals
+* save count if available
+* timeline context
+* any obvious moderation-relevant context
+
+## Required audit
+
+Inspect the current admin app and identify:
+
+1. whether an admin auction detail page already exists
+2. whether clicking an auction row currently opens anything
+3. what auction-level fields are already available in admin APIs
+4. whether bid history, engagement counts, or seller context are already available or partially available
+5. whether the admin currently has to rely entirely on the auctions list table
+
+## Then implement a minimal safe second pass
+
+### 1) Improve auction inspection
+
+If there is already an auction detail route/page, improve it.
+If there is no detail view, add the smallest safe inspection surface possible using existing routes/components patterns.
+
+This should NOT become a massive reporting page.
+
+### 2) Show useful per-auction data
+
+Expose useful fields such as:
+
+* title
+* seller
+* status
+* category
+* current bid / start price
+* bid count
+* interested count
+* not interested count
+* save count if already available
+* created at / ends at
+
+Only show what truly exists.
+
+### 3) Make moderation context easier
+
+If safe and already available, include lightweight context that helps admin understand whether an auction is healthy, ended, stale, or heavily engaged.
+
+### 4) Reuse existing backend where possible
+
+Prefer existing admin endpoints.
+Only add lightweight backend support if clearly necessary.
+
+## Deliverables BEFORE code
+
+Before implementation:
+
+1. say whether an auction detail view exists today
+2. list currently available per-auction fields
+3. explain what is missing
+4. propose the minimal safe implementation plan
+
+## Deliverables AFTER code
+
+After implementation:
+
+* summarize exactly what changed
+* list touched files
+* say whether backend changes were needed
+* list what the admin can now inspect per auction
+
+## Constraints
+
+* production safe
+* no giant dashboard
+* no fake metrics
+* no unnecessary new architecture

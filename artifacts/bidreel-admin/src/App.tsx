@@ -51,8 +51,11 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
           .maybeSingle();
         profile = data;
       } catch {
-        // Supabase unreachable — deny access rather than leaving spinner forever
-        if (!cancelled) { await supabase.auth.signOut(); setStatus("denied"); setLocation("/login"); }
+        // Supabase unreachable — deny access rather than leaving spinner forever.
+        // Use local scope only: don't invalidate the server-side refresh token in
+        // case this is a regular user who was misrouted here by a misconfigured
+        // Supabase Site URL (their session must remain usable on the main app).
+        if (!cancelled) { await supabase.auth.signOut({ scope: "local" }); setStatus("denied"); setLocation("/login"); }
         return;
       }
 
@@ -61,7 +64,11 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
       if (profile?.is_admin) {
         setStatus("ok");
       } else {
-        await supabase.auth.signOut();
+        // Non-admin user reached the admin panel (e.g. misrouted by Supabase
+        // Site URL after email confirmation). Sign out locally only — do NOT
+        // call a global signOut which would invalidate their refresh token on
+        // the server and strand them with a dead session on the main app.
+        await supabase.auth.signOut({ scope: "local" });
         setStatus("denied");
         setLocation("/login");
       }

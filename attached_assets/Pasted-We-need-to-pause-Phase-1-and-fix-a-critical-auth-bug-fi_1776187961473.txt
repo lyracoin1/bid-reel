@@ -1,0 +1,85 @@
+We need to pause Phase 1 and fix a critical auth bug first.
+
+## Bug
+
+When a normal new user signs up and receives the Supabase email confirmation email, clicking the confirmation link redirects to the admin login page:
+
+* admin.bid-reel.com/login
+
+This is wrong.
+
+A normal user email confirmation flow must never redirect to the admin domain.
+
+## Required task
+
+Fully audit and fix the email confirmation redirect flow for normal user signup.
+
+## What to inspect
+
+### 1) Supabase Auth configuration
+
+Check:
+
+* Site URL
+* Redirect URLs
+* any auth callback configuration
+
+The default auth confirmation flow for normal users must resolve to the main app domain, not the admin domain.
+
+Expected main domain:
+
+* https://www.bid-reel.com
+
+Admin domain must not be used as the default confirmation destination for regular users.
+
+### 2) Frontend signup code
+
+Inspect the normal user signup flow and find whether `signUp()` is passing:
+
+* `emailRedirectTo`
+* `redirectTo`
+* or any equivalent redirect override
+
+If so, verify whether it incorrectly points to the admin domain.
+
+### 3) Admin app auth config
+
+Inspect whether the admin app is sharing or overriding auth callback behavior in a way that causes user confirmation links to land on the admin login page.
+
+### 4) Callback handling
+
+Inspect all callback / auth handler routes in both:
+
+* main app
+* admin app
+
+Make sure regular user confirmation resolves into the main app flow only.
+
+## Deliverables before code
+
+Before changing anything:
+
+1. identify the exact root cause
+2. say whether this is caused by:
+
+   * Supabase Site URL
+   * redirect URLs
+   * signup code redirect override
+   * admin callback conflict
+   * or a combination
+3. explain the minimal safe fix
+
+## Deliverables after fix
+
+After implementing:
+
+* summarize exactly what changed
+* list touched files
+* mention any Supabase dashboard settings that must be updated manually
+* explain how to test the flow safely
+
+## Important
+
+Do not guess.
+Audit the full auth confirmation flow first.
+This is a production auth issue.

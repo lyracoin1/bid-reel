@@ -255,7 +255,9 @@ export function useAuction(id: string) {
 // ─── usePlaceBid ──────────────────────────────────────────────────────────────
 
 export type BidError =
+  | 'INCREMENT_TOO_LOW'
   | 'BID_TOO_LOW'
+  | 'BID_CONFLICT'
   | 'AUCTION_NOT_ACTIVE'
   | 'SELLER_CANNOT_BID'
   | 'NO_TOKEN'
@@ -270,13 +272,15 @@ export function usePlaceBid(options: PlaceBidOptions = {}) {
   const [isPending, setIsPending] = useState(false);
   const [lastError, setLastError] = useState<{ code: BidError; message: string } | null>(null);
 
-  const mutate = async (auctionId: string, amount: number) => {
+  // mutate accepts a bid_increment (how much to add).
+  // The server computes the final price — clients never send it.
+  const mutate = async (auctionId: string, bidIncrement: number) => {
     setIsPending(true);
     setLastError(null);
-    console.log(`[usePlaceBid] Submitting bid — auctionId=${auctionId} amount=${amount}`);
+    console.log(`[usePlaceBid] Submitting bid — auctionId=${auctionId} bid_increment=${bidIncrement}`);
 
     try {
-      const result = await placeBidApi(auctionId, amount);
+      const result = await placeBidApi(auctionId, bidIncrement);
 
       // Update local cache with server-confirmed values
       const idx = globalAuctions.findIndex(a => a.id === auctionId);
@@ -315,14 +319,15 @@ export function usePlaceBid(options: PlaceBidOptions = {}) {
         notify();
       }
 
+      // Record the server-confirmed final amount (not the increment) for outbid tracking.
       import('@/hooks/use-bid-polling').then(({ recordUserBid }) => {
-        recordUserBid(auctionId, amount);
+        recordUserBid(auctionId, result.bid.amount);
       });
 
       console.log(
         `[usePlaceBid] ✅ Bid written to DB — bid.id=${result.bid.id}` +
-        ` amount=${result.bid.amount} new_current_bid=${result.auction.current_bid}` +
-        ` new_bid_count=${result.auction.bid_count}`,
+        ` bid_increment=${bidIncrement} final_amount=${result.bid.amount}` +
+        ` new_current_bid=${result.auction.current_bid} new_bid_count=${result.auction.bid_count}`,
       );
       options.onSuccess?.();
 

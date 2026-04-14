@@ -575,36 +575,44 @@ router.delete("/auctions/:id", requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ─── POST /api/bids ───────────────────────────────────────────────────────────
+// ─── Shared bid placement logic ───────────────────────────────────────────────
+//
+// Both POST /api/bids and POST /api/auctions/:id/bids delegate here.
+//
+// Model: clients send a `bid_increment` (how much to add). The server:
+//   1. Reads the current price from the DB (snapshot).
+//   2. Validates the increment is >= the seller-set floor (min_increment, default 1).
+//   3. Computes new_price = current_price + bid_increment.
+//   4. Inserts the bid row (amount = new_price).
+//   5. Atomically updates the auction using an optimistic lock:
+//        UPDATE auctions SET current_bid = new_price … WHERE current_bid = snapshot
+//      If the affected row count is 0 another bid landed simultaneously —
+//      the orphaned bid row is rolled back (deleted) and 409 is returned.
+//
+// The client must NEVER be trusted to send the final price.
+// ─────────────────────────────────────────────────────────────────────────────
 
-const placeBidSchema = z.object({
-  auctionId: z.string().uuid("auctionId must be a valid UUID"),
-  amount: z
-    .number()
-    .int("Amount must be an integer (cents)")
-    .positive("Amount must be positive"),
-});
+interface PlaceBidResult {
+  bid: Record<string, unknown>;
+  auction: Record<string, unknown>;
+}
 
-router.post("/bids", requireAuth, async (req, res) => {
-  // 1. Validate request body
-  const parsed = placeBidSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({
-      error: "VALIDATION_ERROR",
-      message: parsed.error.issues[0]?.message ?? "Invalid request body",
-    });
-    return;
-  }
+type PlaceBidOutcome =
+  | { ok: true; status: 201; body: PlaceBidResult }
+  | { ok: false; status: number; body: Record<string, unknown> };
 
-  const { auctionId, amount } = parsed.data;
-  const userId = req.user!.id;
-
-  // 1b. Run lifecycle cleanup so the status check below is accurate.
+async function executePlaceBid(
+  auctionId: string,
+  userId: string,
+  bidIncrement: number,
+  logTag: string,
+): Promise<PlaceBidOutcome> {
+  // 1. Run lifecycle so status column is accurate.
   await runAuctionLifecycle().catch(err =>
-    logger.warn({ err: String(err) }, "POST /bids: runAuctionLifecycle pre-check failed"),
+    logger.warn({ err: String(err) }, `${logTag}: runAuctionLifecycle pre-check failed`),
   );
 
-  // 2. Fetch auction
+  // 2. Fetch auction.
   const { data: auction, error: auctionErr } = await supabaseAdmin
     .from("auctions")
     .select("*")
@@ -612,45 +620,42 @@ router.post("/bids", requireAuth, async (req, res) => {
     .single();
 
   if (auctionErr || !auction) {
-    res.status(404).json({ error: "AUCTION_NOT_FOUND", message: "Auction not found" });
-    return;
+    return { ok: false, status: 404, body: { error: "AUCTION_NOT_FOUND", message: "Auction not found" } };
   }
 
-  // 3. Auction must be active — check both time window and status column
+  // 3. Auction must be within its active time window.
   if (auction.status === "ended" || !isAuctionActive(auction.starts_at, auction.ends_at)) {
-    res.status(409).json({
-      error: "AUCTION_NOT_ACTIVE",
-      message: "This auction is not currently accepting bids",
-    });
-    return;
+    return { ok: false, status: 409, body: { error: "AUCTION_NOT_ACTIVE", message: "This auction is not currently accepting bids" } };
   }
 
-  // 4. Seller cannot bid on own auction
+  // 4. Seller cannot bid on own auction.
   if (auction.seller_id === userId) {
-    res.status(403).json({
-      error: "SELLER_CANNOT_BID",
-      message: "You cannot bid on your own auction",
-    });
-    return;
+    return { ok: false, status: 403, body: { error: "SELLER_CANNOT_BID", message: "You cannot bid on your own auction" } };
   }
 
-  // 5. Bid must be strictly greater than current price (schema-agnostic)
-  const curBid = getCurrentBid(auction);
-  const minIncrement = getMinIncrement(auction);
-  const minimumBid = curBid + minIncrement;
+  // 5. Validate increment against the seller-set floor (min_increment; default 1).
+  //    min_increment remains meaningful as a per-auction minimum step set at
+  //    auction creation. If it is null/0 we fall back to 1 (any positive amount).
+  const snapshotBid = getCurrentBid(auction);
+  const minIncrement = Math.max(1, getMinIncrement(auction));
 
-  if (amount < minimumBid) {
-    res.status(422).json({
-      error: "BID_TOO_LOW",
-      message: `Bid must be at least ${minimumBid} (current: ${curBid}, increment: ${minIncrement})`,
-      minimumBid,
-      currentBid: curBid,
-      minIncrement,
-    });
-    return;
+  if (bidIncrement < minIncrement) {
+    return {
+      ok: false,
+      status: 422,
+      body: {
+        error: "INCREMENT_TOO_LOW",
+        message: `Increment must be at least ${minIncrement}`,
+        minIncrement,
+        currentBid: snapshotBid,
+      },
+    };
   }
 
-  // 6. Find the current leading bidder (for outbid notification after insert)
+  // 6. Server computes the new price — client-sent amount is never trusted.
+  const newPrice = snapshotBid + bidIncrement;
+
+  // 7. Find the current leading bidder (for outbid notification fired after insert).
   const bCol = await getBidderCol();
   const { data: prevLeader } = await supabaseAdmin
     .from("bids")
@@ -660,80 +665,114 @@ router.post("/bids", requireAuth, async (req, res) => {
     .limit(1)
     .maybeSingle();
 
-  // 7. Insert bid — use the column name that actually exists in this DB
+  // 8. Insert the bid row with the server-computed price.
   const { data: newBid, error: bidErr } = await supabaseAdmin
     .from("bids")
-    .insert({ auction_id: auctionId, [bCol]: userId, amount })
-    .select(`id, auction_id, ${bCol}, amount`)
+    .insert({ auction_id: auctionId, [bCol]: userId, amount: newPrice })
+    .select(`id, auction_id, ${bCol}, amount, created_at`)
     .single();
 
   if (bidErr || !newBid) {
-    logger.error({ err: bidErr, auctionId, userId, amount }, "Bid insert failed");
-    res.status(500).json({ error: "BID_INSERT_FAILED", message: "Failed to record bid" });
-    return;
+    logger.error({ err: bidErr, auctionId, userId, newPrice }, `${logTag}: bid insert failed`);
+    return { ok: false, status: 500, body: { error: "BID_INSERT_FAILED", message: "Failed to record bid" } };
   }
 
-  // 8. Update auction: price counter + winner tracking.
-  //    winner_id is always set (column exists since migration 005/009).
-  //    winner_bid_id is set only if migration 021 has been applied.
+  // 9. Atomic optimistic-lock update.
+  //    The WHERE current_bid = snapshotBid clause means: if any other bid
+  //    landed between steps 2 and 9, the UPDATE affects 0 rows (stale snapshot).
+  //    In that case we delete the just-inserted bid row and return 409 CONFLICT.
   const wbidColExists = await hasWinnerBidIdCol();
   const auctionPatch: Record<string, unknown> = {
-    current_bid: amount,
-    bid_count: auction.bid_count + 1,
+    current_bid: newPrice,
+    bid_count: (auction.bid_count ?? 0) + 1,
     winner_id: userId,
     updated_at: new Date().toISOString(),
   };
   if (wbidColExists) auctionPatch["winner_bid_id"] = newBid.id;
 
-  const { data: updatedAuction, error: updateErr } = await supabaseAdmin
+  const { data: updatedAuction } = await supabaseAdmin
     .from("auctions")
     .update(auctionPatch)
     .eq("id", auctionId)
+    .eq("current_bid", snapshotBid)   // optimistic lock
     .select("*")
     .single();
 
-  if (updateErr || !updatedAuction) {
-    logger.error({ err: updateErr, auctionId }, "Auction price update failed after bid insert");
+  if (!updatedAuction) {
+    // Another bid landed simultaneously. Roll back the orphaned bid row.
+    await supabaseAdmin.from("bids").delete().eq("id", (newBid as { id: string }).id);
+    logger.warn({ auctionId, userId, snapshotBid, newPrice }, `${logTag}: concurrent bid detected — rolled back`);
+    return {
+      ok: false,
+      status: 409,
+      body: {
+        error: "BID_CONFLICT",
+        message: "Someone else just placed a bid — please refresh and try again",
+      },
+    };
   }
 
-  // 9. Fire outbid notification (fire-and-forget, non-fatal)
+  // 10. Fire outbid notification (fire-and-forget, non-fatal).
   const prevLeaderUserId = prevLeader ? getBidderUserId(prevLeader) : null;
   if (prevLeaderUserId && prevLeaderUserId !== userId) {
-    void notifyOutbid(
-      prevLeaderUserId,
-      auctionId,
-      auction.title ?? "this auction",
-      amount,
-    );
+    void notifyOutbid(prevLeaderUserId, auctionId, auction.title ?? "this auction", newPrice);
   }
 
-  const returnedAuction = updatedAuction ?? {
-    id: auctionId,
-    current_bid: amount,
-    bid_count: auction.bid_count + 1,
-  };
+  logger.info(
+    { bidId: (newBid as { id: string }).id, auctionId, userId, bidIncrement, newPrice },
+    `${logTag}: bid placed successfully`,
+  );
 
-  logger.info({ bidId: newBid.id, auctionId, userId, amount }, "Bid placed successfully");
-
-  res.status(201).json({
-    bid: newBid,
-    auction: {
-      ...returnedAuction,
-      // Always expose as current_bid for the frontend regardless of schema
-      current_bid: getCurrentBid(returnedAuction),
-      bid_count: returnedAuction.bid_count,
+  return {
+    ok: true,
+    status: 201,
+    body: {
+      bid: newBid,
+      auction: {
+        ...updatedAuction,
+        current_bid: getCurrentBid(updatedAuction),
+        bid_count: updatedAuction.bid_count,
+      },
     },
-  });
+  };
+}
+
+// ─── POST /api/bids ───────────────────────────────────────────────────────────
+// Legacy flat endpoint. auctionId comes from the request body.
+
+const placeBidSchema = z.object({
+  auctionId: z.string().uuid("auctionId must be a valid UUID"),
+  bid_increment: z
+    .number()
+    .int("bid_increment must be a whole number")
+    .min(1, "bid_increment must be at least 1"),
+});
+
+router.post("/bids", requireAuth, async (req, res) => {
+  const parsed = placeBidSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({
+      error: "VALIDATION_ERROR",
+      message: parsed.error.issues[0]?.message ?? "Invalid request body",
+    });
+    return;
+  }
+
+  const { auctionId, bid_increment } = parsed.data;
+  const userId = req.user!.id;
+
+  const outcome = await executePlaceBid(auctionId, userId, bid_increment, "POST /bids");
+  res.status(outcome.status).json(outcome.body);
 });
 
 // ─── POST /api/auctions/:id/bids ─────────────────────────────────────────────
-// Place a bid on a specific auction. auctionId comes from the URL, not the body.
+// RESTful endpoint. auctionId comes from the URL path parameter.
 
 const auctionBidSchema = z.object({
-  amount: z
+  bid_increment: z
     .number()
-    .int("Amount must be an integer (cents)")
-    .positive("Amount must be positive"),
+    .int("bid_increment must be a whole number")
+    .min(1, "bid_increment must be at least 1"),
 });
 
 router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
@@ -749,115 +788,8 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
     return;
   }
 
-  const { amount } = parsed.data;
-
-  // Run lifecycle cleanup so the status check below is accurate.
-  await runAuctionLifecycle().catch(err =>
-    logger.warn({ err: String(err) }, "POST /auctions/:id/bids: runAuctionLifecycle pre-check failed"),
-  );
-
-  const { data: auction, error: auctionErr } = await supabaseAdmin
-    .from("auctions")
-    .select("*")
-    .eq("id", auctionId)
-    .single();
-
-  if (auctionErr || !auction) {
-    res.status(404).json({ error: "AUCTION_NOT_FOUND", message: "Auction not found" });
-    return;
-  }
-
-  // Check both status column and time window for defense in depth.
-  if (auction.status === "ended" || !isAuctionActive(auction.starts_at, auction.ends_at)) {
-    res.status(409).json({
-      error: "AUCTION_NOT_ACTIVE",
-      message: "This auction is not currently accepting bids",
-    });
-    return;
-  }
-
-  if (auction.seller_id === userId) {
-    res.status(403).json({
-      error: "SELLER_CANNOT_BID",
-      message: "You cannot bid on your own auction",
-    });
-    return;
-  }
-
-  const curBid2 = getCurrentBid(auction);
-  const minIncrement2 = getMinIncrement(auction);
-  const minimumBid2 = curBid2 + minIncrement2;
-
-  if (amount < minimumBid2) {
-    res.status(422).json({
-      error: "BID_TOO_LOW",
-      message: `Bid must be at least ${minimumBid2} (current: ${curBid2}, increment: ${minIncrement2})`,
-      minimumBid: minimumBid2,
-      currentBid: curBid2,
-      minIncrement: minIncrement2,
-    });
-    return;
-  }
-
-  const bCol2 = await getBidderCol();
-  const { data: prevLeader2 } = await supabaseAdmin
-    .from("bids")
-    .select(bCol2)
-    .eq("auction_id", auctionId)
-    .order("amount", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const { data: newBid, error: bidErr } = await supabaseAdmin
-    .from("bids")
-    .insert({ auction_id: auctionId, [bCol2]: userId, amount })
-    .select(`id, auction_id, ${bCol2}, amount`)
-    .single();
-
-  if (bidErr || !newBid) {
-    logger.error({ err: bidErr, auctionId, userId, amount }, "Bid insert failed");
-    res.status(500).json({ error: "BID_INSERT_FAILED", message: "Failed to record bid" });
-    return;
-  }
-
-  // Update auction: price counter + winner tracking.
-  const wbidColExists2 = await hasWinnerBidIdCol();
-  const auctionPatch2: Record<string, unknown> = {
-    current_bid: amount,
-    bid_count: auction.bid_count + 1,
-    winner_id: userId,
-    updated_at: new Date().toISOString(),
-  };
-  if (wbidColExists2) auctionPatch2["winner_bid_id"] = newBid.id;
-
-  const { data: updatedAuction2 } = await supabaseAdmin
-    .from("auctions")
-    .update(auctionPatch2)
-    .eq("id", auctionId)
-    .select("*")
-    .single();
-
-  const prevLeaderUserId2 = prevLeader2 ? getBidderUserId(prevLeader2) : null;
-  if (prevLeaderUserId2 && prevLeaderUserId2 !== userId) {
-    void notifyOutbid(
-      prevLeaderUserId2,
-      auctionId,
-      auction.title ?? "this auction",
-      amount,
-    );
-  }
-
-  logger.info({ bidId: newBid.id, auctionId, userId, amount }, "Bid placed via /auctions/:id/bids");
-
-  const returned2 = updatedAuction2 ?? { id: auctionId, bid_count: auction.bid_count + 1 };
-  res.status(201).json({
-    bid: newBid,
-    auction: {
-      ...returned2,
-      current_bid: getCurrentBid(returned2) || amount,
-      bid_count: returned2.bid_count,
-    },
-  });
+  const outcome = await executePlaceBid(auctionId, userId, parsed.data.bid_increment, "POST /auctions/:id/bids");
+  res.status(outcome.status).json(outcome.body);
 });
 
 // ─── Content Signal endpoints ─────────────────────────────────────────────────

@@ -159,7 +159,8 @@ export default function AuctionDetail() {
   const submitBid = () => {
     if (!selectedInc) return;
     setBidError(null);
-    placeBid(auction.id, bidAmount);
+    // Send the increment — the server computes the new price itself.
+    placeBid(auction.id, selectedInc);
   };
 
   // ── Timer chip ────────────────────────────────────────────────────────────
@@ -363,9 +364,12 @@ export default function AuctionDetail() {
               {/* Panel header */}
               <div className="px-4 pt-4 pb-3 flex items-center justify-between border-b border-white/8">
                 <div>
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Place your bid</p>
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide mb-0.5">How much to add?</p>
                   <p className="text-base font-bold text-white">
-                    Min <span className="text-primary">{fmtPrice(minBid)}</span>
+                    Now <span className="text-white/60">{fmtPrice(displayedBid)}</span>
+                    {selectedInc ? (
+                      <> → <span className="text-primary">{fmtPrice(bidAmount)}</span></>
+                    ) : null}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 bg-primary/12 border border-primary/25 rounded-full px-3 py-1.5">
@@ -444,12 +448,12 @@ export default function AuctionDetail() {
                       ) : selectedInc ? (
                         <>
                           <Gavel size={15} />
-                          Bid {fmtPrice(bidAmount)}
+                          Raise +{fmtPrice(selectedInc)} → {fmtPrice(bidAmount)}
                         </>
                       ) : (
                         <>
                           <ChevronDown size={15} />
-                          Select an amount above
+                          Choose an increment above
                         </>
                       )}
                     </motion.button>

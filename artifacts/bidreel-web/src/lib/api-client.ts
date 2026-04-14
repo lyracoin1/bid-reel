@@ -230,10 +230,13 @@ export async function getAuctionApi(id: string): Promise<{ auction: ApiAuctionRa
 }
 
 // ─── Place bid ────────────────────────────────────────────────────────────────
+//
+// Sends bid_increment (how much to add). The server computes the new price.
+// Client must never send the final amount as the source of truth.
 
 export async function placeBidApi(
   auctionId: string,
-  amount: number,
+  bidIncrement: number,
 ): Promise<PlaceBidResult> {
   const token = await getToken();
 
@@ -249,7 +252,7 @@ export async function placeBidApi(
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ auctionId, amount }),
+    body: JSON.stringify({ auctionId, bid_increment: bidIncrement }),
   });
 
   const data = await res.json() as PlaceBidResult | ApiError;

@@ -1,0 +1,120 @@
+You already have the bidding spec from this chat context.
+
+Do not ask again for the product decision.
+
+## Official bidding model (final)
+
+This is the confirmed product rule:
+
+* the seller sets the starting price
+* bidders do NOT enter the final bid amount
+* bidders enter only the increment amount they want to add
+* the server must calculate the new price itself
+
+### Formula
+
+new_price = current_price + bid_increment
+
+### Validation rules
+
+* bid_increment must be >= 1
+* 0 is invalid
+* negative values are invalid
+* the client must never be trusted to send the final price as the source of truth
+
+## What your audit already found
+
+You correctly found that the current system is mismatched:
+
+* frontend increment UI exists
+* but frontend still sends an absolute/final amount
+* backend still validates against the old flat `min_increment` model
+* so the system is not yet aligned with the official increment-only bidding model
+
+## What to do now
+
+Proceed with the implementation plan for the increment-based bidding refactor.
+
+Do NOT ask for the spec again.
+
+## Implementation direction
+
+### 1) Backend becomes source of truth
+
+Refactor bidding submission so the client sends:
+
+* `bid_increment`
+
+NOT:
+
+* final bid amount
+* absolute bid value as source of truth
+
+The backend must:
+
+* read current auction price
+* validate increment >= 1
+* compute new_price = current_price + bid_increment
+* persist the bid correctly
+* update auction current price correctly
+
+### 2) Frontend bid UI
+
+Update the bid UI so all wording reflects increment-only bidding.
+
+The user must clearly see:
+
+* current price
+* entered increment
+* preview of resulting new price
+
+Wording should reflect:
+
+* "How much do you want to increase?"
+  not:
+* "Enter your bid"
+
+If there are preset increment buttons, they should fill/select the increment value only.
+
+### 3) Remove old model dependency
+
+Audit and remove old assumptions where appropriate:
+
+* flat `min_increment` enforcement as the main bidding rule
+* trusting client-sent final amount
+* any UI text implying final-price input
+
+If `min_increment` is still needed for business rules, explain exactly how.
+Otherwise propose whether it should be deprecated.
+
+### 4) Concurrency and integrity
+
+Implement bidding safely:
+
+* avoid race conditions
+* ensure atomic update of auction price
+* prevent stale price overwrite if two users bid nearly simultaneously
+
+### 5) Full impact audit while implementing
+
+Make sure the new increment-only model is reflected correctly in:
+
+* auction detail page
+* bid history
+* notifications
+* admin views
+* feed price display
+* API client / hooks
+
+## Deliverables now
+
+Do the work in this order:
+
+1. identify exact files to change
+2. explain whether DB migration is needed
+3. implement the backend refactor first
+4. then implement frontend submission changes
+5. then update UI text and preview
+6. then summarize all touched files and risks
+
+Do not pause for more clarification unless there is a true blocker.

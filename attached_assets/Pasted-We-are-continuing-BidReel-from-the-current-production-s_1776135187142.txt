@@ -1,0 +1,199 @@
+We are continuing BidReel from the current production state.
+
+Current status:
+
+* Main app login/signup works
+* Admin login works
+* Normal user flow works
+* Admin user exists and `is_admin = true`
+* International phone input was fixed
+* Sensitive phone placeholder was removed/masked
+* Notification bell was moved to the bottom nav
+* Admin preview layout was fixed
+* Root cause of admin `Failed to fetch` was identified and fixed:
+  Vercel file-based `api/admin/*` functions were bypassing Express CORS and returning 405 to OPTIONS
+* Shared CORS helper was added to all standalone `api/admin/*` Vercel functions
+* Vercel deployment is now catching up / being redeployed
+
+Now move to the NEXT PHASE:
+
+==================================================
+PHASE — ADMIN STABILIZATION + FINAL HARDENING
+=============================================
+
+This phase is NOT about adding new features.
+This phase is about making the admin panel fully stable, production-safe, and free of hidden loading/data errors.
+
+You must audit and verify the admin panel end-to-end after the CORS fix.
+
+==================================================
+PART 1 — VERIFY ALL ADMIN PAGES ACTUALLY LOAD
+=============================================
+
+Audit and test these admin sections one by one:
+
+1. Dashboard
+2. Users
+3. Auctions
+4. Reports
+5. Stats
+6. Actions / activity log
+7. Notifications / notification-related areas if present
+8. Account settings
+9. Logout flow
+
+For each page:
+
+* verify requests succeed
+* verify no CORS issues remain
+* verify no incorrect 401/403/500 handling
+* verify page does not stay blank
+* verify spinner does not hang forever
+* verify empty arrays do not crash rendering
+* verify the UI shows a correct empty state if the database is empty
+
+If any page still fails:
+
+* find the exact request
+* find the exact response code or browser failure
+* apply the minimal production-safe fix
+
+==================================================
+PART 2 — ADMIN ERROR HANDLING HARDENING
+=======================================
+
+Audit the admin frontend error handling carefully.
+
+Required behavior:
+
+* 401 must mean session expired / unauthorized
+* 403 must mean authenticated but not admin
+* 404 must be surfaced truthfully if endpoint/data not found
+* 5xx must be shown as backend/server problem
+* network/CORS failure must not be mislabeled as password/auth failure
+* no raw generic "Failed to fetch" should remain if the actual cause can be surfaced more precisely
+
+Also verify:
+
+* no swallowed exceptions in page loaders
+* no silent failures in hooks/services
+* no page-level crash caused by failed async request
+* no infinite spinner caused by unresolved promise branches
+
+==================================================
+PART 3 — EMPTY STATES + DATA SAFETY
+===================================
+
+Assume the database may be nearly empty except for the admin.
+
+Verify the admin behaves correctly when there are:
+
+* zero users beyond admin
+* zero auctions
+* zero reports
+* zero actions
+* zero notifications
+* zero stats-worthy business data
+
+Every page must:
+
+* render cleanly
+* not crash
+* not show misleading fake/demo text
+* not show stale placeholder data
+* not use hidden fallback mock values
+* not imply missing data is an error if it is a valid empty state
+
+If empty states are weak or missing:
+
+* add clear, minimal, production-safe empty-state UI
+* keep it visually consistent with BidReel admin
+
+==================================================
+PART 4 — SESSION / ADMIN GUARD / REQUEST TIMING
+===============================================
+
+Do a final audit of the admin auth/session flow:
+
+* session restore on page refresh
+* admin guard on initial load
+* logout
+* redirect to login when session expires
+* requests that need token must not fire before session is ready
+* requests must not silently fail if Supabase session retrieval throws
+
+Check for:
+
+* race conditions
+* duplicate requests
+* stale token usage
+* mixed session state between main app and admin
+* incorrect storageKey usage
+* guard loops
+* redirect loops
+
+If anything is fragile:
+
+* fix it minimally and safely
+
+==================================================
+PART 5 — PRODUCTION PATH VERIFICATION
+=====================================
+
+Treat Vercel production as the source of truth.
+
+Verify the current repo and deployment assumptions for admin production:
+
+* admin frontend calling main domain API correctly
+* no `/api/api` double-prefix anywhere
+* all standalone `api/admin/*` Vercel functions now respond to OPTIONS correctly
+* all admin GET/POST responses include correct CORS behavior where required
+* no route is still bypassing the intended CORS handling
+* no old file-based function remains unpatched
+* no rewrite/config mismatch still affects admin production
+
+If you find any remaining risky route:
+
+* fix it now
+
+==================================================
+PART 6 — CODE HYGIENE FOR THIS PHASE
+====================================
+
+Important restrictions:
+
+* Do NOT add unrelated features
+* Do NOT refactor large areas
+* Do NOT touch user-facing business logic unless required for admin stability
+* Do NOT reintroduce phone-auth or dev-auth
+* Do NOT leave diagnostic logs noisy in production unless clearly useful and harmless
+* Do NOT keep temporary hacks
+* Do NOT duplicate UI logic
+* Do NOT break the main app while fixing admin
+
+Only make targeted, justified edits.
+
+==================================================
+REQUIRED OUTPUT
+===============
+
+When finished, return a strict report with:
+
+1. exact issues found
+2. exact pages affected
+3. exact files changed
+4. exact fixes applied
+5. whether all admin pages now load correctly
+6. whether any manual Vercel/Supabase step is still required
+7. exact git commands I should run next
+
+Before claiming success, verify all of this explicitly:
+
+* no remaining admin CORS failures
+* no remaining generic `Failed to fetch` on admin pages
+* no blank admin pages caused by empty data
+* no hanging spinners
+* no misleading auth error messages
+* admin session restore still works after refresh
+
+Be exhaustive, production-safe, and precise.

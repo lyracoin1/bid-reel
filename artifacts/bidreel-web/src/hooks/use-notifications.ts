@@ -11,12 +11,17 @@
  *     prepended without a refetch.
  *  3. Exposes helpers to mark all as read.
  *
+ * Race condition fix: if the user cache is not yet populated at mount time
+ * (common when BottomNav mounts before use-current-user resolves), we
+ * subscribe to user-cache changes via subscribeToUserChange and set up
+ * the Realtime channel as soon as the userId becomes available.
+ *
  * Falls back gracefully when Supabase credentials or the auth token are absent.
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { getCurrentUserId } from "@/hooks/use-current-user";
+import { getCurrentUserId, subscribeToUserChange } from "@/hooks/use-current-user";
 import { API_BASE, getToken } from "@/lib/api-client";
 
 export type NotificationType =
@@ -49,9 +54,23 @@ export interface UseNotificationsReturn {
 export function useNotifications(): UseNotificationsReturn {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+
+  // Track the user ID as state so that the Realtime subscription effect
+  // re-runs when the user cache populates (fixes the mount-time race condition
+  // where getCurrentUserId() returns null before the profile fetch completes).
+  const [userId, setUserId] = useState<string | null>(() => getCurrentUserId());
+
   const channelRef = useRef<ReturnType<NonNullable<typeof supabase>["channel"]> | null>(null);
 
   const unreadCount = notifications.filter(n => !n.read).length;
+
+  // ── Subscribe to user cache so we get the userId once it resolves ────────────
+  useEffect(() => {
+    const unsub = subscribeToUserChange(() => {
+      setUserId(getCurrentUserId());
+    });
+    return unsub;
+  }, []);
 
   // ── Historical fetch on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -92,13 +111,17 @@ export function useNotifications(): UseNotificationsReturn {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Supabase Realtime subscription ──────────────────────────────────────────
+  // ── Supabase Realtime subscription — re-runs when userId becomes available ───
   useEffect(() => {
     const sb = supabase;
-    if (!sb) return;
+    if (!sb || !userId) return;
 
-    const userId = getCurrentUserId();
-    if (!userId) return;
+    // Tear down any existing channel before creating a new one (safety net for
+    // the case where userId changes, though in practice it only goes null→string).
+    if (channelRef.current) {
+      void sb.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
 
     const channelName = `notifications:${userId}`;
 
@@ -151,7 +174,7 @@ export function useNotifications(): UseNotificationsReturn {
       channelRef.current = null;
       setIsConnected(false);
     };
-  }, []);
+  }, [userId]);
 
   // ── Mark all read ────────────────────────────────────────────────────────────
   const markAllRead = useCallback(() => {

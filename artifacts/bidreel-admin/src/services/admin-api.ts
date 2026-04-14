@@ -27,8 +27,14 @@ const API_BASE = _origin ? `${_origin}/api` : "/api";
 async function adminHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (!supabase) return headers;
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+  } catch {
+    // Session unavailable — send unauthenticated; the server will return 401
+    // and the AdminGuard will redirect to /login on next navigation.
+    console.warn("[admin-api] getSession() threw — sending request without Authorization header");
+  }
   return headers;
 }
 

@@ -1,0 +1,115 @@
+Good. The previous fixes are complete.
+
+Now move to PHASE 2 — SYSTEM STABILIZATION.
+
+Do not refactor. Do not add features. Focus only on stability, correctness, and production readiness.
+
+==================================================
+TASK 1 — AUTH FLOW VALIDATION (END-TO-END)
+==========================================
+
+Verify and fix the FULL auth lifecycle:
+
+* signup
+* email confirmation
+* login
+* session persistence
+* token refresh
+* logout
+
+Ensure:
+
+1. No "Network error" is used as a fallback
+2. All auth errors are specific and accurate
+3. Supabase session is restored correctly after refresh
+4. AuthSync does NOT clear token incorrectly
+5. Authorization header is always attached correctly to API calls
+6. Admin and main app behave consistently
+
+==================================================
+TASK 2 — ADMIN ACCESS FLOW (CRITICAL)
+=====================================
+
+Audit and verify:
+
+* admin login
+* session load
+* profile lookup
+* is_admin validation
+
+Ensure:
+
+1. No valid admin gets blocked incorrectly
+2. No non-admin gets access
+3. All failure states have correct messages
+4. No silent failures
+5. No dependency on outdated schema assumptions
+
+==================================================
+TASK 3 — API REQUEST STABILITY
+==============================
+
+Audit ALL fetch chains in:
+
+* main app
+* admin app
+
+Fix:
+
+1. Any missing Authorization header
+2. Any incorrect base URL usage
+3. Any race condition before token is ready
+4. Any generic "Failed to fetch" masking real errors
+
+Ensure:
+
+* consistent error handling
+* proper retry logic if needed
+* no broken endpoints
+
+==================================================
+TASK 4 — CORS + OPTIONS FINAL VERIFICATION
+==========================================
+
+Verify ALL admin endpoints:
+
+* /api/admin/users
+* /api/admin/stats
+* /api/admin/notifications
+
+Ensure:
+
+* OPTIONS returns 200/204 for ALL
+* correct headers present
+* no 405 responses remain
+
+==================================================
+TASK 5 — EMPTY STATE HARDENING
+==============================
+
+Ensure app does NOT break when DB is empty:
+
+* no auctions
+* no bids
+* no notifications
+* no followers
+
+UI must:
+
+* show proper empty states
+* not crash
+* not show fake/misleading data
+
+==================================================
+OUTPUT REQUIRED
+===============
+
+Return:
+
+1. exact issues found
+2. exact files changed
+3. exact fixes applied
+4. any remaining risks
+5. whether system is ready for production deployment
+
+Do NOT say "everything works" without verifying all flows.

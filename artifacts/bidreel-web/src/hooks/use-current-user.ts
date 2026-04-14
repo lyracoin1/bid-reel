@@ -45,6 +45,16 @@ export function clearCurrentUserCache(): void {
   console.log("[auth] user cache cleared");
 }
 
+/**
+ * Subscribe to user cache changes (load, refresh, clear).
+ * Returns an unsubscribe function.
+ * Use this in hooks that need to react when the user ID becomes available.
+ */
+export function subscribeToUserChange(callback: () => void): () => void {
+  listeners.add(callback);
+  return () => listeners.delete(callback);
+}
+
 async function loadCurrentUser(): Promise<ApiUserProfile | null> {
   if (cachedUser) return cachedUser;
   if (fetchPromise) return fetchPromise;

@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RefreshCw, ArrowDown } from "lucide-react";
+import { RefreshCw, ArrowDown, Gavel } from "lucide-react";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { FeedCard } from "@/components/feed/FeedCard";
-import { NotificationBell } from "@/components/NotificationBell";
 import { useAuctions } from "@/hooks/use-auctions";
 import { useBidPolling } from "@/hooks/use-bid-polling";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
@@ -43,11 +42,6 @@ export default function Feed() {
 
   return (
     <MobileLayout noPadding>
-
-      {/* ── Persistent notification bell (top-right, overlays all cards) ── */}
-      <div className="absolute top-3 right-4 z-[70]" style={{ top: "max(12px, env(safe-area-inset-top, 12px))" }}>
-        <NotificationBell />
-      </div>
 
       {/* ── Pull-to-refresh indicator ──────────────────────────────────────── */}
       <AnimatePresence>
@@ -115,8 +109,28 @@ export default function Feed() {
           </div>
         ))}
 
-        {/* ── End-of-feed card ──────────────────────────────────────────────── */}
-        {!isLoading && (
+        {/* ── Empty state — DB has no active auctions ───────────────────────── */}
+        {!isLoading && auctions.length === 0 && (
+          <div className="w-full h-[100dvh] snap-always flex flex-col items-center justify-center bg-background px-6 text-center">
+            <div className="w-20 h-20 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-6">
+              <Gavel size={32} className="text-primary/60" />
+            </div>
+            <h3 className="text-2xl font-bold mb-2">No auctions yet</h3>
+            <p className="text-muted-foreground mb-8 max-w-xs">Be the first to list something — or check back shortly for new drops.</p>
+            <motion.button
+              whileTap={{ scale: 0.94 }}
+              onClick={refresh}
+              disabled={isRefreshing}
+              className="flex items-center gap-2 px-6 py-3 rounded-full bg-primary/15 border border-primary/30 text-primary text-sm font-bold disabled:opacity-50 transition-opacity"
+            >
+              <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
+              {isRefreshing ? "Checking…" : "Refresh"}
+            </motion.button>
+          </div>
+        )}
+
+        {/* ── End-of-feed card — only shown when auctions exist ────────────── */}
+        {!isLoading && auctions.length > 0 && (
           <div className="w-full h-[100dvh] snap-always flex flex-col items-center justify-center bg-background px-6 text-center">
             <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-6">
               <span className="text-2xl">🎉</span>

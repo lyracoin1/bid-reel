@@ -109,14 +109,22 @@ export default function Login() {
       });
 
       if (authError) {
-        if (authError.message.includes("Invalid login credentials")) {
+        if (
+          authError.message.includes("Invalid login credentials") ||
+          authError.message.includes("invalid_credentials")
+        ) {
+          // Supabase GoTrue v2 returns this for BOTH wrong credentials AND
+          // unconfirmed email (intentional obfuscation to prevent enumeration).
           setError(lang === "ar"
-            ? "البريد الإلكتروني أو كلمة المرور غير صحيحة"
-            : "Incorrect email or password.");
-        } else if (authError.message.includes("Email not confirmed")) {
+            ? "البريد الإلكتروني أو كلمة المرور غير صحيحة. إذا سجّلت حديثاً، تأكد من تفعيل بريدك الإلكتروني أولاً."
+            : "Incorrect email or password. If you signed up recently, confirm your email first.");
+        } else if (
+          authError.message.includes("Email not confirmed") ||
+          authError.message.includes("email_not_confirmed")
+        ) {
           setError(lang === "ar"
-            ? "يرجى تأكيد بريدك الإلكتروني أولاً — تحقق من صندوق الوارد"
-            : "Please verify your email first — check your inbox.");
+            ? "يرجى تأكيد بريدك الإلكتروني أولاً — تحقق من صندوق الوارد وانقر رابط التفعيل"
+            : "Please verify your email first — check your inbox and click the confirmation link.");
         } else if (
           authError.message === "Failed to fetch" ||
           authError.message.toLowerCase().includes("network") ||

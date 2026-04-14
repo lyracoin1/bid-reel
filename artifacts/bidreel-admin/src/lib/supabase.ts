@@ -24,6 +24,10 @@ export const supabase = (supabaseUrl && supabaseAnonKey)
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
+        // Distinct key so the admin session never collides with the main web app's
+        // Supabase session when both are opened on the same browser domain (e.g.
+        // in the Replit dev environment where both services share a host).
+        storageKey: "bidreel:admin:supabase:session",
       },
     })
   : null;

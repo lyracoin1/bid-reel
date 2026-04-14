@@ -28,18 +28,33 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
+      let session;
+      try {
+        const { data } = await supabase.auth.getSession();
+        session = data.session;
+      } catch {
+        if (!cancelled) { setStatus("denied"); setLocation("/login"); }
+        return;
+      }
 
       if (!session) {
         if (!cancelled) { setStatus("denied"); setLocation("/login"); }
         return;
       }
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("is_admin")
-        .eq("id", session.user.id)
-        .maybeSingle();
+      let profile: { is_admin: boolean } | null = null;
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        profile = data;
+      } catch {
+        // Supabase unreachable — deny access rather than leaving spinner forever
+        if (!cancelled) { await supabase.auth.signOut(); setStatus("denied"); setLocation("/login"); }
+        return;
+      }
 
       if (cancelled) return;
 

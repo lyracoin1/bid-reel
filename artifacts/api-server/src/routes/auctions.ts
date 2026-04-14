@@ -15,6 +15,7 @@ import { notifyOutbid, notifyAuctionStarted } from "../lib/notifications";
 import { getBidderCol, getBidderUserId, hasWinnerBidIdCol } from "../lib/dbSchema";
 import { deleteMediaFile } from "../lib/media-lifecycle";
 import { runAuctionLifecycle } from "../lib/auction-lifecycle";
+import { processVideoAsync } from "../lib/video-processing";
 
 const router = Router();
 
@@ -432,6 +433,16 @@ router.post("/auctions", requireAuth, async (req, res) => {
   }
 
   logger.info({ auctionId: auction.id, sellerId }, "Auction created");
+
+  // ── Async video processing (fire-and-forget) ───────────────────────────────
+  // Detects whether videoUrl is a video by file extension.
+  // If yes: compresses to 720p H.264, extracts thumbnail, updates DB URLs.
+  // The original URL is valid immediately; processing happens in the background.
+  const isVideoUpload = /\.(mp4|mov|webm|avi)(\?|$)/i.test(videoUrl);
+  if (isVideoUpload) {
+    void processVideoAsync(auction.id, videoUrl, sellerId)
+      .catch(err => logger.error({ err: String(err), auctionId: auction.id }, "video-processing: unhandled crash"));
+  }
 
   // Notify seller's followers that a new auction is live (fire-and-forget, non-fatal).
   // Fetches follower_ids from user_follows where following_id = sellerId.

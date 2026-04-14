@@ -1,0 +1,137 @@
+We are continuing BidReel from a production-stable feed system.
+
+Confirmed completed:
+
+* Cursor-based pagination
+* Infinite scroll
+* Signal-aware ranking
+* Admin stability
+* Auth system
+* Location integration
+
+Do NOT revisit these.
+
+==================================================
+NEXT PHASE — MEDIA PROCESSING PIPELINE
+(VIDEO + IMAGE COMPRESSION)
+===========================
+
+We now need a production-grade media handling system similar to TikTok/Instagram/YouTube.
+
+This is CRITICAL for:
+
+* storage cost
+* performance
+* upload speed
+* playback experience
+
+==================================================
+PART 1 — CURRENT MEDIA FLOW AUDIT
+=================================
+
+Analyze the current upload pipeline:
+
+1. how videos are uploaded
+2. how images are uploaded
+3. whether any compression exists
+4. file sizes being stored
+5. formats being used (mp4, jpg, png, etc.)
+6. whether processing is happening client-side or server-side
+
+==================================================
+PART 2 — IMAGE OPTIMIZATION (REQUIRED)
+======================================
+
+Implement:
+
+1. Convert images to modern format (WebP or AVIF if safe)
+
+2. Resize images to reasonable max dimensions
+
+3. Compress images to reduce size
+
+4. Generate at least:
+
+   * thumbnail version
+   * display version
+
+5. Ensure:
+
+   * no visible quality loss
+   * fast loading in feed
+
+==================================================
+PART 3 — VIDEO PROCESSING STRATEGY
+==================================
+
+Design a SAFE and REALISTIC pipeline:
+
+Option A (recommended):
+
+* Upload original video
+* Process AFTER upload (server-side or worker)
+
+Tasks:
+
+1. compress video (reduce bitrate)
+2. generate lower resolution version (e.g. 720p)
+3. optionally generate preview thumbnail
+4. ensure playback is smooth
+
+Important:
+
+* do NOT block user upload waiting for heavy processing
+* do NOT over-engineer full streaming/HLS yet unless needed
+
+==================================================
+PART 4 — STORAGE STRATEGY (R2)
+==============================
+
+Ensure:
+
+1. original file can be kept OR replaced
+2. processed versions are stored cleanly
+3. naming is consistent (e.g. video_720.mp4, thumb.webp)
+4. old large files are not unnecessarily duplicated
+
+==================================================
+PART 5 — FRONTEND INTEGRATION
+=============================
+
+Update:
+
+1. feed uses optimized media (NOT raw heavy files)
+2. fallback logic exists if processing not finished
+3. loading is smooth
+4. mobile data usage is reduced
+
+==================================================
+PART 6 — SAFETY RULES
+=====================
+
+* Do NOT break current upload flow
+* Do NOT introduce unstable libraries
+* Do NOT require heavy infrastructure unless justified
+* Prefer simple, reliable, scalable approach
+
+==================================================
+REQUIRED OUTPUT
+===============
+
+Return:
+
+1. current media pipeline diagnosis
+2. exact compression strategy chosen
+3. exact tools/libraries used
+4. exact files changed
+5. whether processing is sync or async
+6. storage structure design
+7. risks or limitations
+8. exact git commands to run
+
+Before claiming success verify:
+
+* images are smaller in size
+* videos are reduced significantly
+* feed loads faster
+* playback is smooth

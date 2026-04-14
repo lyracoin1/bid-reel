@@ -122,6 +122,17 @@ Scheduled jobs (run at startup and every minute):
 - **media-lifecycle** — deletes expired auction media from Supabase Storage
 - **profile-cleanup** — removes incomplete profiles older than 24h
 
+**Media processing pipeline** (`src/lib/video-processing.ts`):
+- Triggered fire-and-forget after a video auction is created (detected by `.mp4/.mov/.webm/.avi` extension in `videoUrl`)
+- Downloads original video from Supabase Storage to `/tmp/bidreel-{jobId}/`
+- Probes height with `ffprobe`, caps to 720p (never upscales)
+- Re-encodes with `libx264 CRF 28 veryfast`, AAC 128 kbps, `-movflags +faststart`
+- Extracts JPEG thumbnail at 1 s (falls back to frame 0 for short clips), scaled to 640 px wide
+- Uploads compressed video + thumbnail to `processed/{userId}/{jobId}_*` in `auction-media` bucket
+- Updates `auctions.video_url` and `auctions.thumbnail_url` in DB
+- Deletes original file from storage
+- Fails silently — original URL stays valid if processing fails
+
 ### `artifacts/bidreel-web` (`@workspace/bidreel-web`)
 
 Main user-facing React app. Served at `/`.

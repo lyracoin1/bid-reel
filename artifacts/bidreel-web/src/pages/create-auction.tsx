@@ -16,8 +16,62 @@ import { reverseGeocodeCountry, getCurrencyForCountry, type CurrencyInfo } from 
 type PostType = "video" | "photos";
 
 // ─── File size limits (client-side enforcement) ───────────────────────────────
-const MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20 MB
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20 MB — pre-compression raw limit
 const MAX_VIDEO_BYTES = 20 * 1024 * 1024; // 20 MB
+
+// ─── Client-side image compression ───────────────────────────────────────────
+// Uses the browser's Canvas API (zero dependencies) to:
+//   • Resize to maxPx on the longest side (maintaining aspect ratio)
+//   • Convert to WebP at the given quality (0.0–1.0)
+// Returns a new File in image/webp format. Falls back to the original on error.
+async function compressImage(
+  file: File,
+  opts: { maxPx: number; quality: number },
+): Promise<File> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+
+      let { width, height } = img;
+      // Scale down if either dimension exceeds maxPx — never upscale
+      if (width > opts.maxPx || height > opts.maxPx) {
+        const scale = opts.maxPx / Math.max(width, height);
+        width  = Math.round(width  * scale);
+        height = Math.round(height * scale);
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width  = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { resolve(file); return; } // canvas unavailable — use original
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { resolve(file); return; } // compression failed — use original
+          const baseName = file.name.replace(/\.[^.]+$/, "");
+          const compressed = new File([blob], `${baseName}.webp`, { type: "image/webp" });
+          // Only use the compressed version if it's actually smaller
+          resolve(compressed.size < file.size ? compressed : file);
+        },
+        "image/webp",
+        opts.quality,
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(file); // fall back to original if load fails
+    };
+
+    img.src = objectUrl;
+  });
+}
 
 // ─── Allowed categories ───────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -242,15 +296,32 @@ export default function CreateAuction() {
         }
 
         const uploadedUrls: string[] = [];
+        let coverThumbnailUrl = "";
+
         for (let i = 0; i < photoFiles.length; i++) {
+          // ── Compress to WebP before uploading (client-side, zero deps) ───
+          setUploadProgress(lang === "ar"
+            ? `جارٍ ضغط الصورة ${i + 1} من ${photoFiles.length}…`
+            : `Optimizing photo ${i + 1} of ${photoFiles.length}…`);
+
+          // Display version: max 1920 px on the longest side, 85 % quality
+          const displayFile = await compressImage(photoFiles[i], { maxPx: 1920, quality: 0.85 });
+
           setUploadProgress(lang === "ar"
             ? `جارٍ رفع الصورة ${i + 1} من ${photoFiles.length}…`
             : `Uploading photo ${i + 1} of ${photoFiles.length}…`);
-          const url = await uploadFile(photoFiles[i], "image");
+          const url = await uploadFile(displayFile, "image");
           uploadedUrls.push(url);
+
+          // Cover photo: also upload a 640 px thumbnail for fast feed loading
+          if (i === 0) {
+            const thumbFile = await compressImage(photoFiles[i], { maxPx: 640, quality: 0.80 });
+            setUploadProgress(lang === "ar" ? "جارٍ رفع الصورة المصغرة…" : "Uploading cover thumbnail…");
+            coverThumbnailUrl = await uploadFile(thumbFile, "image");
+          }
         }
-        videoUrl = uploadedUrls[0];
-        thumbnailUrl = uploadedUrls[0];
+        videoUrl     = uploadedUrls[0];
+        thumbnailUrl = coverThumbnailUrl || uploadedUrls[0];
       }
 
       setUploadProgress(lang === "ar" ? "جارٍ نشر المزاد…" : "Publishing your auction…");

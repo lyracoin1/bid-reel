@@ -88,7 +88,7 @@ const updateProfileSchema = z.object({
   // Phone stored as profile data (WhatsApp contact). Must be E.164 format.
   phone: z
     .string()
-    .regex(e164Regex, "Phone must be in international format starting with + (e.g. +201060088141)")
+    .regex(e164Regex, "Phone must be in international E.164 format starting with + (e.g. +966500000000)")
     .optional(),
 });
 

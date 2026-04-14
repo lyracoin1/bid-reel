@@ -28,10 +28,18 @@ export default function Login() {
       });
 
       if (authError) {
-        if (authError.message.includes("Invalid login credentials")) {
-          setError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
-        } else if (authError.message.includes("Email not confirmed")) {
-          setError("يرجى تأكيد بريدك الإلكتروني أولاً قبل تسجيل الدخول");
+        if (
+          authError.message.includes("Invalid login credentials") ||
+          authError.message.includes("invalid_credentials")
+        ) {
+          // Supabase returns this for both wrong credentials AND unconfirmed
+          // email (GoTrue v2 hides the distinction to prevent enumeration).
+          setError("البريد الإلكتروني أو كلمة المرور غير صحيحة. إذا كنت تسجّل لأول مرة، تأكد من تفعيل بريدك الإلكتروني أولاً.");
+        } else if (
+          authError.message.includes("Email not confirmed") ||
+          authError.message.includes("email_not_confirmed")
+        ) {
+          setError("يرجى تأكيد بريدك الإلكتروني أولاً — تحقق من صندوق الوارد وانقر رابط التفعيل");
         } else {
           setError(authError.message);
         }
@@ -43,15 +51,27 @@ export default function Login() {
         return;
       }
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("is_admin")
         .eq("id", data.session.user.id)
         .maybeSingle();
 
-      if (!profile?.is_admin) {
+      if (profileError) {
         await supabase.auth.signOut();
-        setError("هذا الحساب لا يملك صلاحيات الإدارة");
+        setError("تعذّر التحقق من صلاحيات الحساب — يرجى المحاولة مرة أخرى");
+        return;
+      }
+
+      if (!profile) {
+        await supabase.auth.signOut();
+        setError("لم يُعثر على ملف المستخدم. تأكد أن الحساب مرتبط بمشروع Supabase الصحيح.");
+        return;
+      }
+
+      if (!profile.is_admin) {
+        await supabase.auth.signOut();
+        setError("هذا الحساب لا يملك صلاحيات الإدارة (is_admin = false). راجع لوحة Supabase لمنح الصلاحية.");
         return;
       }
 

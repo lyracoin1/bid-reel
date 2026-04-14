@@ -1,0 +1,200 @@
+We are now in a production-polish and correction phase for BidReel. Do not improvise, do not make unrelated changes, and do not break any working logic.
+
+You must fix the following EXACT issues in a clean, production-safe way.
+
+PROJECT CONTEXT
+
+* Main app: https://www.bid-reel.com
+* Admin: https://admin.bid-reel.com
+* Auth is email-first
+* Phone is required as a profile/contact field only, NOT login identity
+* Do not reintroduce phone-auth
+* Do not add temporary hacks
+* Do not touch unrelated business logic
+
+==================================================
+ISSUE 1 — PHONE INPUT MUST BE INTERNATIONAL, NOT EGYPT-ONLY
+===========================================================
+
+Observed problem:
+
+* During profile completion / account data entry, the phone field behaves as if it is Egypt-only
+* The phone must support INTERNATIONAL format for all users
+* Example valid formatting should be like:
+  +20...
+  +963...
+  +966...
+  etc.
+
+Required fix:
+
+1. Audit the phone input component(s), validation schema(s), form defaults, placeholders, and backend validation
+2. Remove any assumption that the phone is Egypt-only
+3. Ensure the accepted format is international E.164-style phone format:
+
+   * starts with +
+   * followed by country code
+   * followed by digits
+4. Keep validation strict enough to reject invalid junk input, but do not hardcode Egypt
+5. Make sure frontend and backend validation match
+6. Make sure saving/editing profile still works correctly
+7. If there is any normalization logic, make it international-safe
+
+Important:
+
+* Do NOT use phone as auth identity
+* This is only profile/contact data
+* Do NOT silently rewrite numbers into Egypt format
+
+==================================================
+ISSUE 2 — REMOVE OR MASK THE EXAMPLE PHONE / SENSITIVE PLACEHOLDER
+==================================================================
+
+Observed problem:
+
+* There is a visible transparent example/sample phone value in the UI
+* This can leak or suggest real data
+* It must be removed or replaced with a safe masked placeholder
+
+Required fix:
+
+1. Find any placeholder/example/default phone number shown in the UI
+2. Replace it with either:
+
+   * a neutral masked placeholder like ***************
+     OR
+   * a generic international example that cannot leak any real person’s number
+3. Prefer masking / neutral placeholder rather than realistic personal-looking values
+4. Also check:
+
+   * profile form
+   * signup/profile completion
+   * admin preview
+   * any mock/demo UI state
+
+Important:
+
+* No real-looking phone number should remain in placeholders, previews, sample states, or seeded display values
+
+==================================================
+ISSUE 3 — ADMIN LOGIN SAYS PASSWORD IS WRONG EVEN THOUGH CREDENTIALS ARE CORRECT
+================================================================================
+
+Observed problem:
+
+* The admin account credentials are correct
+* But admin login still returns an "email or password invalid" type error
+
+Important interpretation:
+
+* Do NOT assume the password itself is wrong
+* Investigate the FULL admin auth chain carefully
+
+Your task:
+
+1. Audit the admin login flow end-to-end:
+
+   * Supabase sign-in
+   * session retrieval
+   * admin session boot
+   * admin role/is_admin verification
+   * profile lookup
+   * any post-login rejection logic
+2. Identify whether the failure is truly bad credentials OR:
+
+   * account not confirmed
+   * admin role lookup failing
+   * profile mismatch
+   * wrong environment/project mismatch
+   * admin guard rejecting after successful sign-in
+   * stale session logic
+3. If the password is actually valid but the user is rejected later, fix the logic so the error message is accurate
+4. Ensure the admin account:
+
+   * [lyracoin950@gmail.com](mailto:lyracoin950@gmail.com)
+     can log in successfully if credentials are correct and is_admin/profile linkage is correct
+5. Verify the admin flow does NOT incorrectly show "wrong password" for role/authorization/config problems
+6. Keep error handling truthful and precise
+
+Important:
+
+* Do not weaken security
+* Do not bypass real auth
+* Do not hardcode fake success
+* Do not create a second hidden admin flow
+* Fix the real cause only
+
+==================================================
+ISSUE 4 — MOVE NOTIFICATIONS BELL TO THE BOTTOM NAV
+===================================================
+
+Current desired bottom navigation layout:
+
+* CENTER: plus button
+* RIGHT SIDE: Profile + Notifications bell
+* LEFT SIDE: Home + Search
+
+Desired final order in RTL visual layout:
+Right side:
+
+1. Profile
+2. Notifications bell
+
+Center:
+3. Plus button
+
+Left side:
+4. Search
+5. Home
+
+Your task:
+
+1. Audit the current bottom navigation in the main app
+2. Move the notifications bell into the bottom navigation beside the profile tab
+3. Keep the plus button centered
+4. Keep home and search on the opposite side
+5. Remove the old top placement of the bell if it is duplicated there
+6. Make sure the new bottom nav layout works visually and functionally in Arabic and English
+7. Preserve active states, routing, badges/unread indicators, and touch targets
+8. Ensure the nav stays balanced and visually clean on mobile
+
+Important:
+
+* This is a MOVE, not a duplicate
+* Do not leave two notification buttons
+* Keep RTL/LTR behavior intentional and stable
+* Bottom nav must remain production-quality, not cramped or misaligned
+
+==================================================
+IMPLEMENTATION QUALITY RULES
+============================
+
+* Make minimal, precise, production-safe edits
+* Do not refactor unrelated files
+* Do not break working auth
+* Do not break app layout
+* Do not reintroduce legacy dev auth
+* Do not leave dead code behind
+* Check both Arabic and English UI
+* Check both app behavior and admin behavior
+* Check responsive/mobile layout
+
+==================================================
+REQUIRED OUTPUT
+===============
+
+After implementing, respond with:
+
+1. Exact diagnosis for each issue
+2. Exact files changed
+3. Exact fix applied
+4. Any validation/schema changes made
+5. Whether any manual step is still needed from me
+6. Exact git commands I should run next
+
+Before finishing, verify:
+
+* International phone works
+* No unsafe phone placeholder remains
+* Admin login error reflects the real cause and the real admin can log in if credentials are valid
+* Notifications bell is moved to bottom nav correctly

@@ -16,8 +16,6 @@ function normalizePhone(raw: string): string {
   const cleaned = raw.replace(/[\s\-\(\)\.]/g, "");
   if (cleaned.startsWith("+")) return cleaned;
   if (cleaned.startsWith("00")) return "+" + cleaned.slice(2);
-  if (/^0\d{9,10}$/.test(cleaned)) return "+20" + cleaned.slice(1);
-  if (/^\d{10,14}$/.test(cleaned)) return "+" + cleaned;
   return cleaned;
 }
 
@@ -158,7 +156,7 @@ export default function Interests() {
     // Validate + normalize phone
     const normalizedPhone = normalizePhone(phone.trim());
     if (!E164_REGEX.test(normalizedPhone)) {
-      setSubmitError("Enter a valid phone number with country code (e.g. +201060088141 or 01060088141 for Egypt).");
+      setSubmitError("Enter a valid international phone number starting with + and country code (e.g. +966500000000 or +201060000000).");
       return;
     }
 
@@ -397,13 +395,13 @@ export default function Interests() {
                   autoComplete="tel"
                   value={phone}
                   onChange={e => { setPhone(e.target.value); setSubmitError(null); }}
-                  placeholder="01060088141 or +201060088141"
+                  placeholder="+966 ••• ••• ••• or +963 ••• ••• •••"
                   dir="ltr"
                   className="w-full bg-white/5 border border-white/10 focus:border-primary/60 rounded-2xl pl-10 pr-4 py-4 text-white text-base font-medium placeholder:text-white/20 focus:outline-none transition-colors"
                 />
               </div>
               <p className="mt-1.5 text-xs text-white/30">
-                Used for seller/buyer contact via WhatsApp · Egyptian numbers auto-detected
+                Used for seller/buyer contact via WhatsApp · include country code (e.g. +966, +963, +20)
               </p>
             </motion.div>
 

@@ -5,7 +5,6 @@ import { useLocation } from "wouter";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { formatAuctionPrice } from "@/lib/geo";
 import { HamburgerMenu } from "@/components/HamburgerMenu";
-import { NotificationBell } from "@/components/NotificationBell";
 import { useCurrentUser, clearCurrentUserCache } from "@/hooks/use-current-user";
 import { useAuctions } from "@/hooks/use-auctions";
 import { getUserBidsApi, clearToken, deleteAccountApi, type ApiMyBidEntry } from "@/lib/api-client";
@@ -119,7 +118,6 @@ export default function Profile() {
 
             {/* Action buttons row */}
             <div className="flex items-center gap-2">
-              <NotificationBell />
               <HamburgerMenu />
             </div>
           </div>

@@ -191,16 +191,28 @@ export interface ApiAuctionBid {
 
 // ─── Auction list ─────────────────────────────────────────────────────────────
 
-export async function getAuctionsApi(): Promise<ApiAuctionRaw[]> {
+export interface GetAuctionsResult {
+  auctions: ApiAuctionRaw[];
+  /** ISO timestamp cursor for the next page, or null when no more pages exist. */
+  nextCursor: string | null;
+}
+
+export async function getAuctionsApi(opts?: { before?: string }): Promise<GetAuctionsResult> {
   const headers = await authHeaders();
-  const res = await fetch(`${API_BASE}/auctions`, { headers });
+  const url = new URL(`${API_BASE}/auctions`);
+  if (opts?.before) url.searchParams.set("before", opts.before);
+  const res = await fetch(url.toString(), { headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as ApiError;
     throw new Error(err.message ?? "Failed to fetch auctions");
   }
-  const data = await res.json() as { auctions: ApiAuctionRaw[] };
-  console.log(`[api-client] ✅ GET /auctions → ${data.auctions.length} auctions`);
-  return data.auctions;
+  const data = await res.json() as { auctions: ApiAuctionRaw[]; nextCursor: string | null };
+  console.log(
+    `[api-client] ✅ GET /auctions → ${data.auctions.length} auctions` +
+    (opts?.before ? " (load-more)" : " (initial)") +
+    (data.nextCursor ? ` nextCursor=${data.nextCursor}` : " [last page]"),
+  );
+  return { auctions: data.auctions, nextCursor: data.nextCursor ?? null };
 }
 
 // ─── Auction detail ───────────────────────────────────────────────────────────

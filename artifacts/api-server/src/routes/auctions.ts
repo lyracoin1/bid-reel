@@ -104,15 +104,30 @@ router.get("/auctions", async (req, res) => {
     logger.warn({ err: String(err) }, "GET /auctions: runAuctionLifecycle background call failed"),
   );
 
+  // ── Pagination cursor ─────────────────────────────────────────────────────
+  // The client passes ?before=<ISO timestamp> to fetch the next page.
+  // Items are fetched in created_at DESC order so "before" means "older than".
+  // Page size is 20 — small enough for fast initial load, large enough for variety.
+  const PAGE_SIZE = 20;
+  const before = typeof req.query.before === "string" && req.query.before.length > 0
+    ? req.query.before
+    : null;
+
   // Exclude soft-deleted ('removed') and archived auctions from the public feed.
   // Ended auctions are kept visible (they show as "ended" for up to 7 days).
-  const { data: auctions, error } = await supabaseAdmin
+  let dbQuery = supabaseAdmin
     .from("auctions")
     .select("*")
     .neq("status", "removed")
     .neq("status", "archived")
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(PAGE_SIZE);
+
+  if (before) {
+    dbQuery = dbQuery.lt("created_at", before);
+  }
+
+  const { data: auctions, error } = await dbQuery;
 
   if (error) {
     logger.error({ err: error }, "GET /auctions failed");
@@ -137,7 +152,16 @@ router.get("/auctions", async (req, res) => {
     user_signal: "interested" | "not_interested" | null;
   };
 
-  let feed: AuctionWithMeta[] = (auctions ?? []).map((a) => ({
+  // ── Cursor for next page ──────────────────────────────────────────────────
+  // Captured from the RAW DB result (before signal re-ranking) so the client
+  // can request the next page of older items without gaps or duplicates.
+  // We return null when fewer than PAGE_SIZE items came back (= no more pages).
+  const rawItems = auctions ?? [];
+  const nextCursor: string | null = rawItems.length === PAGE_SIZE
+    ? (rawItems[rawItems.length - 1].created_at as string)
+    : null;
+
+  let feed: AuctionWithMeta[] = rawItems.map((a) => ({
     ...normalizeAuction(a),
     seller: profileMap.get(a.seller_id) ?? null,
     user_signal: null as "interested" | "not_interested" | null,
@@ -192,8 +216,8 @@ router.get("/auctions", async (req, res) => {
     }
   }
 
-  logger.info({ count: feed.length }, "GET /auctions → returning auctions");
-  res.json({ auctions: feed });
+  logger.info({ count: feed.length, hasNextCursor: nextCursor !== null }, "GET /auctions → returning auctions");
+  res.json({ auctions: feed, nextCursor });
 });
 
 // ─── GET /api/auctions/:id ────────────────────────────────────────────────────

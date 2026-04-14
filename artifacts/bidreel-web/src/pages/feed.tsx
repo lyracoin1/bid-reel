@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RefreshCw, ArrowDown, Gavel } from "lucide-react";
+import { RefreshCw, ArrowDown, Gavel, Loader2 } from "lucide-react";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { FeedCard } from "@/components/feed/FeedCard";
 import { useAuctions } from "@/hooks/use-auctions";
 import { useBidPolling } from "@/hooks/use-bid-polling";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 
+// Trigger a load-more fetch when the user is this many cards from the end.
+const LOAD_MORE_THRESHOLD = 5;
+
 export default function Feed() {
-  const { data: auctions, isLoading } = useAuctions();
+  const { data: auctions, isLoading, loadMore, hasMore, isLoadingMore } = useAuctions();
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -19,6 +22,9 @@ export default function Feed() {
 
   const showPullIndicator = pullDistance > 4 || isPulling;
 
+  // ── IntersectionObserver — tracks the active card for play/pause ───────────
+  // Dep is auctions.length (not the full auctions array) so the observer only
+  // re-registers when new cards are added, not on every bid-count update.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -38,7 +44,22 @@ export default function Feed() {
     const cards = container.querySelectorAll(".feed-card");
     cards.forEach((card) => observer.observe(card));
     return () => observer.disconnect();
-  }, [auctions]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auctions.length]);
+
+  // ── Infinite scroll trigger ────────────────────────────────────────────────
+  // When the user is within LOAD_MORE_THRESHOLD cards of the end, fetch the
+  // next page. The check is a no-op if hasMore=false or already loading.
+  useEffect(() => {
+    if (
+      auctions.length > 0 &&
+      activeIndex >= auctions.length - LOAD_MORE_THRESHOLD &&
+      hasMore &&
+      !isLoadingMore
+    ) {
+      loadMore();
+    }
+  }, [activeIndex, auctions.length, hasMore, isLoadingMore, loadMore]);
 
   return (
     <MobileLayout noPadding>
@@ -93,12 +114,14 @@ export default function Feed() {
           transition: isPulling ? "none" : "transform 0.35s cubic-bezier(0.25,0.1,0.25,1)",
         }}
       >
+        {/* ── Initial loading spinner ──────────────────────────────────────── */}
         {isLoading && auctions.length === 0 && (
           <div className="w-full h-[100dvh] snap-always flex items-center justify-center bg-black">
             <RefreshCw size={28} className="text-primary animate-spin" />
           </div>
         )}
 
+        {/* ── Auction cards ─────────────────────────────────────────────────── */}
         {auctions.map((auction, index) => (
           <div key={auction.id} data-index={index} className="feed-card w-full h-[100dvh] snap-always">
             <FeedCard
@@ -108,6 +131,13 @@ export default function Feed() {
             />
           </div>
         ))}
+
+        {/* ── Load-more in-progress indicator ──────────────────────────────── */}
+        {isLoadingMore && (
+          <div className="w-full h-[100dvh] snap-always flex items-center justify-center bg-black">
+            <Loader2 size={28} className="text-primary animate-spin" />
+          </div>
+        )}
 
         {/* ── Empty state — DB has no active auctions ───────────────────────── */}
         {!isLoading && auctions.length === 0 && (
@@ -129,8 +159,8 @@ export default function Feed() {
           </div>
         )}
 
-        {/* ── End-of-feed card — only shown when auctions exist ────────────── */}
-        {!isLoading && auctions.length > 0 && (
+        {/* ── End-of-feed card — only shown when all pages are loaded ──────── */}
+        {!isLoading && !isLoadingMore && !hasMore && auctions.length > 0 && (
           <div className="w-full h-[100dvh] snap-always flex flex-col items-center justify-center bg-background px-6 text-center">
             <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-6">
               <span className="text-2xl">🎉</span>

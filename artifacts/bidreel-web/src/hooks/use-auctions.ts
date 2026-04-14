@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { type User, type Auction, type Bid } from '@/lib/mock-data';
 import {
   placeBidApi,
@@ -13,6 +13,13 @@ import { getCurrentUserId, getCachedCurrentUser } from '@/hooks/use-current-user
 
 // ─── Module-level cache ───────────────────────────────────────────────────────
 let globalAuctions: Auction[] = [];
+
+// Pagination state — shared across all subscribers.
+// feedCursor: the ISO timestamp to pass as ?before= on the next load-more request.
+// feedHasMore: false when the last page returned fewer than PAGE_SIZE items.
+let feedCursor: string | null = null;
+let feedHasMore = true;
+
 type Listeners = Set<() => void>;
 const listeners: Listeners = new Set();
 const notify = () => listeners.forEach(l => l());
@@ -95,16 +102,52 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
   };
 }
 
-// ─── Global refresh (also used by bid polling) ────────────────────────────────
+// ─── Global refresh (initial load + pull-to-refresh) ─────────────────────────
+// Replaces the full cache and resets pagination state back to page 1.
+// Do NOT call this on a timer — it would discard pages the user has already
+// scrolled through. Manual refresh (pull-to-refresh) intentionally resets.
 
 export async function refreshAuctions(): Promise<void> {
   try {
-    const auctions = await getAuctionsApi();
+    const { auctions, nextCursor } = await getAuctionsApi();
     globalAuctions = auctions.map(a => backendToAuction(a));
-    console.log(`[use-auctions] ✅ Refreshed — ${globalAuctions.length} auctions from DB`);
+    feedCursor = nextCursor;
+    feedHasMore = nextCursor !== null;
+    console.log(
+      `[use-auctions] ✅ Refreshed — ${globalAuctions.length} auctions from DB` +
+      (feedHasMore ? ` | nextCursor=${feedCursor}` : ' | [last page]'),
+    );
     notify();
   } catch (err) {
     console.error('[use-auctions] ❌ Failed to refresh auctions:', err);
+  }
+}
+
+// ─── Load more (pagination / infinite scroll) ────────────────────────────────
+// Fetches the next page of older auctions and appends them to the cache.
+// Signal ranking is applied per-page (the server ranks each page independently).
+// Duplicate IDs are filtered out as a safety net for overlapping cursors.
+
+export async function loadMoreAuctions(): Promise<void> {
+  if (!feedCursor || !feedHasMore) return;
+  try {
+    const { auctions: more, nextCursor } = await getAuctionsApi({ before: feedCursor });
+    const existingIds = new Set(globalAuctions.map(a => a.id));
+    const newItems = more
+      .map(a => backendToAuction(a))
+      .filter(a => !existingIds.has(a.id));
+    globalAuctions = [...globalAuctions, ...newItems];
+    feedCursor = nextCursor;
+    feedHasMore = nextCursor !== null;
+    console.log(
+      `[use-auctions] ✅ Loaded more — ${newItems.length} new auctions` +
+      ` (total=${globalAuctions.length})` +
+      (feedHasMore ? ` | nextCursor=${feedCursor}` : ' | [last page]'),
+    );
+    notify();
+  } catch (err) {
+    console.error('[use-auctions] ❌ loadMoreAuctions failed:', err);
+    throw err; // re-throw so the hook can clear isLoadingMore
   }
 }
 
@@ -113,24 +156,49 @@ export async function refreshAuctions(): Promise<void> {
 export function useAuctions() {
   const [auctions, setAuctions] = useState<Auction[]>(globalAuctions);
   const [isLoading, setIsLoading] = useState(globalAuctions.length === 0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  // Mirror module-level feedHasMore in component state so the feed can react.
+  const [hasMore, setHasMore] = useState(feedHasMore);
 
   useEffect(() => {
-    const handler = () => setAuctions([...globalAuctions]);
+    // Sync component state whenever the global cache or pagination state changes.
+    const handler = () => {
+      setAuctions([...globalAuctions]);
+      setHasMore(feedHasMore);
+    };
     listeners.add(handler);
 
+    // Only trigger an initial fetch if the cache is empty.
+    // If the cache is already warm (e.g. navigating back to feed), skip the fetch.
     if (globalAuctions.length === 0) {
+      setIsLoading(true);
       refreshAuctions().finally(() => setIsLoading(false));
     }
 
-    const interval = setInterval(refreshAuctions, 30_000);
+    // Note: No setInterval here. The 30s auto-refresh was removed because it
+    // would discard paginated pages the user has scrolled through.
+    // Bid count freshness is maintained by useBidPolling's checkOutbids().
+    // Users can always pull-to-refresh for the latest data.
 
     return () => {
       listeners.delete(handler);
-      clearInterval(interval);
     };
   }, []);
 
-  return { data: auctions, isLoading };
+  const loadMore = useCallback(async () => {
+    if (isLoadingMore || !feedHasMore || !feedCursor) return;
+    setIsLoadingMore(true);
+    try {
+      await loadMoreAuctions();
+      // hasMore is synced by the notify() handler above — no need to set it here.
+    } catch {
+      // Error is already logged in loadMoreAuctions.
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isLoadingMore]);
+
+  return { data: auctions, isLoading, loadMore, hasMore, isLoadingMore };
 }
 
 // ─── useAuction ───────────────────────────────────────────────────────────────

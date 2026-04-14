@@ -1,0 +1,107 @@
+We are continuing BidReel from the current stable production state.
+
+Confirmed already completed:
+
+* Email auth works
+* Google auth wiring works
+* Location field exists and is integrated
+* Profile completeness gate works
+* Admin panel is stable
+* User delete exists in admin
+* Interested / Not Interested signals are stored
+* Feed now uses signal-aware three-tier ranking
+* userSignal is included in the feed payload
+
+Do NOT go backward.
+Do NOT revisit completed auth/CORS/admin fixes unless a real regression appears.
+
+==================================================
+NEXT PHASE — FEED QUALITY + PAGINATION + PERFORMANCE
+====================================================
+
+This phase is about making the feed more production-ready.
+
+Current feed status:
+
+* ranking is now signal-aware
+* but we still need better feed loading behavior and scalability
+
+==================================================
+PART 1 — AUDIT CURRENT FEED LOADING
+===================================
+
+Inspect the current feed loading behavior and identify:
+
+1. how many auctions are fetched at once
+2. whether loading is fixed-limit only
+3. whether there is pagination or infinite scroll
+4. whether the current approach can scale safely
+5. whether unnecessary data is being fetched
+6. whether the signal-aware ranking still behaves correctly as feed size grows
+
+==================================================
+PART 2 — IMPLEMENT PAGINATION / INFINITE SCROLL SAFELY
+======================================================
+
+Add a production-safe feed loading improvement:
+
+1. Introduce pagination or infinite scroll
+2. Keep current signal-aware ranking intact
+3. Preserve stable ordering
+4. Avoid duplicates between pages
+5. Avoid breaking current user experience
+6. Make sure active feed scrolling remains smooth
+
+Important:
+
+* Do NOT rewrite the whole feed architecture unless necessary
+* Do NOT break current bidding/feed card behavior
+* Keep the implementation incremental and stable
+
+==================================================
+PART 3 — PERFORMANCE HARDENING
+==============================
+
+Audit and improve:
+
+1. over-fetching
+2. unnecessary re-renders
+3. repeated API calls
+4. wasteful realtime or signal logic
+5. payload size where practical
+
+If improvements are small and safe, apply them.
+If some should be deferred, explain clearly.
+
+==================================================
+PART 4 — EMPTY / EDGE CASE FEED BEHAVIOR
+========================================
+
+Ensure the feed behaves correctly when:
+
+* there are very few auctions
+* there are zero auctions
+* the user has many "not interested" signals
+* the user has no signals at all
+* loading the next page returns empty
+
+==================================================
+PART 5 — REQUIRED OUTPUT
+========================
+
+Return:
+
+1. current feed loading diagnosis
+2. exact pagination/infinite-scroll logic added
+3. exact files changed
+4. any performance fixes applied
+5. any trade-offs or deferred items
+6. exact git commands I should run next
+
+Before claiming success, verify:
+
+* no duplicates across feed loading
+* signal-aware ranking still works
+* feed remains smooth
+* zero/low-data cases render correctly
+* current feed actions are not broken

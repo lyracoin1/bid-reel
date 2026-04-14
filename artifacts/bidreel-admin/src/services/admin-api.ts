@@ -25,8 +25,9 @@ const API_BASE = _origin ? `${_origin}/api` : "/api";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function adminHeaders(): Promise<Record<string, string>> {
-  const { data: { session } } = await supabase.auth.getSession();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (!supabase) return headers;
+  const { data: { session } } = await supabase.auth.getSession();
   if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
   return headers;
 }

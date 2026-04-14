@@ -13,6 +13,12 @@ export default function ForgotPassword() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!supabase) {
+      setError("خدمة المصادقة غير مهيأة.");
+      return;
+    }
+
     setLoading(true);
 
     try {

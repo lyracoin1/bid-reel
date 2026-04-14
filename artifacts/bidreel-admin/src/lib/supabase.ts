@@ -6,15 +6,24 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error(
     "[BidReel Admin] Supabase credentials are missing from the build.\n" +
-    "Expected env vars at build time: SUPABASE_URL and SUPABASE_ANON_KEY\n" +
+    "Set SUPABASE_URL and SUPABASE_ANON_KEY in the Vercel project → Settings → Environment Variables.\n" +
     "Current values — URL: " + (supabaseUrl || "(empty)") + ", KEY: " + (supabaseAnonKey ? "(set)" : "(empty)"),
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-  },
-});
+/**
+ * Supabase client for the admin panel.
+ *
+ * Returns null when credentials are missing from the build so that callers
+ * can show a clear "not configured" error rather than making broken requests
+ * to a relative URL that returns index.html (causing a cryptic "Network error").
+ */
+export const supabase = (supabaseUrl && supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
+      },
+    })
+  : null;

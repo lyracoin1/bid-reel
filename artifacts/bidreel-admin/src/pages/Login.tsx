@@ -13,6 +13,12 @@ export default function Login() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!supabase) {
+      setError("خدمة المصادقة غير مهيأة. تأكد من ضبط متغيرات البيئة في لوحة Vercel.");
+      return;
+    }
+
     setLoading(true);
 
     try {

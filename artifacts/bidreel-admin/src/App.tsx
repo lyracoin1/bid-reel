@@ -23,6 +23,11 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     async function checkAuth() {
+      if (!supabase) {
+        if (!cancelled) { setStatus("denied"); setLocation("/login"); }
+        return;
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {

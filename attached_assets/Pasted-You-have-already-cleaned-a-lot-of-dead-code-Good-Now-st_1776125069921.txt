@@ -1,0 +1,81 @@
+You have already cleaned a lot of dead code. Good.
+
+Now stop summarizing and directly FIX the two active live problems.
+
+ACTIVE PROBLEMS TO FIX:
+
+1. Main app login/signup shows: "Network error. Check your connection."
+2. Admin panel shows: "Failed to fetch"
+
+Do not treat local Replit success as proof. Treat this as a production-path debugging task.
+
+Your mission is to find the exact cause and fix both issues by auditing and correcting the full request chain from frontend to Vercel API.
+
+SEARCH AND FIX IN THESE EXACT AREAS:
+
+A) VERCEL / DEPLOYMENT / ROUTING
+
+* Inspect vercel.json carefully
+* Verify api/index.mjs is the real serverless entrypoint
+* Verify all /api routes are actually mounted under the Express app served by api/index.mjs
+* Verify rewrites do not accidentally break API routing
+* Verify no old config or duplicate config is causing frontend to deploy while API routes fail
+* Verify the current repo structure matches what Vercel expects in production
+
+B) CORS / OPTIONS / EXPRESS ORDER
+
+* Verify CORS middleware is registered before route mounting
+* Verify preflight OPTIONS requests are handled before protected/admin routes
+* Verify allowed origins include both:
+
+  * https://www.bid-reel.com
+  * https://admin.bid-reel.com
+* Verify credentials / headers / methods are correctly allowed
+* Verify nothing returns 404 for OPTIONS on /api/admin/*
+
+C) ENV / RUNTIME / STARTUP
+
+* Verify all required env vars are referenced correctly
+* Identify any missing env assumptions that would cause runtime startup failure or rejected requests
+* Check for anything that can make the API boot locally but fail on Vercel
+* Focus especially on Supabase env usage and any startup guards
+
+D) FRONTEND REQUEST PATHS
+
+* Audit the main app and admin frontend request code
+* Verify the API base URL used in production is correct
+* Verify no stale localhost/Replit/dev fallback survives in production
+* Verify auth requests and admin requests hit the real /api path expected by Vercel
+* Verify fetch wrappers attach Authorization correctly and do not fail early
+
+E) AUTH / TIMING / ADMIN BOOT
+
+* Audit admin boot/loading sequence
+* Verify admin does not fetch protected data before token/session is ready
+* Verify token retrieval fallback is still correct
+* Verify INITIAL_SESSION vs SIGNED_OUT logic is not causing request failure
+* Verify generic "Failed to fetch" and "Network error" are not hiding a more specific upstream problem
+
+WHAT I WANT YOU TO DO:
+
+1. Find the exact root cause for BOTH issues
+2. Apply only minimal, precise, production-safe fixes
+3. Rebuild locally and verify the request chain again
+4. Tell me exactly which files you changed
+5. Tell me whether the repo is now ready to push to GitHub and deploy to Vercel
+
+IMPORTANT RULES:
+
+* Do NOT reintroduce phone auth
+* Do NOT add temporary hacks
+* Do NOT use Replit deploy
+* Do NOT change business logic unrelated to request flow/deployment
+* Do NOT give me a generic summary before checking the real suspected files
+* Assume the root cause is somewhere in deployment/routing/CORS/env/request flow until disproven
+
+OUTPUT FORMAT:
+
+* Exact diagnosis
+* Exact files changed
+* Exact fix applied
+* Exact command(s) I should run next

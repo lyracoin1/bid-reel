@@ -13,6 +13,7 @@ export default function AccountSettings() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
+    if (!supabase) return;
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user?.email) setEmail(session.user.email);
     });
@@ -22,6 +23,11 @@ export default function AccountSettings() {
     e.preventDefault();
     setError(null);
     setSuccess(false);
+
+    if (!supabase) {
+      setError("خدمة المصادقة غير مهيأة.");
+      return;
+    }
 
     if (newPassword.length < 8) {
       setError("كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل");

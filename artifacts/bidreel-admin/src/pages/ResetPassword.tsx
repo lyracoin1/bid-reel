@@ -13,6 +13,7 @@ export default function ResetPassword() {
   const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
+    if (!supabase) return;
     supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
         setSessionReady(true);
@@ -23,6 +24,11 @@ export default function ResetPassword() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!supabase) {
+      setError("خدمة المصادقة غير مهيأة.");
+      return;
+    }
 
     if (password.length < 8) {
       setError("كلمة المرور يجب أن تكون 8 أحرف على الأقل");

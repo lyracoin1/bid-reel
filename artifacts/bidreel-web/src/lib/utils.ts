@@ -64,15 +64,16 @@ export function getTimeRemaining(endsAt: string | Date): {
 }
 
 /** Builds a wa.me deep-link that opens a direct WhatsApp chat with the seller.
- *  Includes a standardised prefilled message so the buyer doesn't need to type.
+ *  Includes a contextual prefilled message so the buyer doesn't need to type.
+ *  When itemTitle is supplied the message references the specific auction.
  *  Returns "#" when no phone is available so the link is safe to render. */
-export function getWhatsAppUrl(phone: string, _itemTitle?: string): string {
+export function getWhatsAppUrl(phone: string, itemTitle?: string): string {
   const digits = phone.replace(/\D/g, "");
   if (!digits) return "#";
-  const message = encodeURIComponent(
-    "Hi, I saw your auction on BidReel and I'm interested.",
-  );
-  return `https://wa.me/${digits}?text=${message}`;
+  const text = itemTitle
+    ? `Hi, I'm interested in your BidReel auction: "${itemTitle}"`
+    : "Hi, I saw your auction on BidReel and I'm interested.";
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 }
 
 /**

@@ -57,7 +57,9 @@ export type TKey =
   // Interests onboarding
   | "interests_title" | "interests_subtitle" | "interests_skip" | "interests_done"
   // Time
-  | "time_ended" | "time_s" | "time_m" | "time_h" | "time_d";
+  | "time_ended" | "time_s" | "time_m" | "time_h" | "time_d"
+  // Contact / messaging
+  | "contact_seller_ended_hint";
 
 type Translations = Record<TKey, string>;
 
@@ -99,6 +101,7 @@ const en: Translations = {
   search_placeholder: "Search for anything…", no_results: "No results found", search_hint: "Try a title or description",
   interests_title: "Choose what interests you", interests_subtitle: "Select topics you'd love to bid on",
   interests_skip: "Skip", interests_done: "Done",
+  contact_seller_ended_hint: "For pickup, payment or delivery questions",
 };
 
 const ar: Translations = {
@@ -139,6 +142,7 @@ const ar: Translations = {
   search_placeholder: "ابحث عن أي منتج...", no_results: "لا توجد نتائج", search_hint: "ابحث بالعنوان أو الوصف",
   interests_title: "اختر ما يهمك", interests_subtitle: "حدد مواضيع تريد المزايدة عليها",
   interests_skip: "تخطى", interests_done: "تم",
+  contact_seller_ended_hint: "للاستفسار عن الاستلام أو الدفع أو التوصيل",
 };
 
 const ru: Translations = {
@@ -179,6 +183,7 @@ const ru: Translations = {
   search_placeholder: "Поиск товаров…", no_results: "Ничего не найдено", search_hint: "Попробуйте название или описание",
   interests_title: "Выберите интересы", interests_subtitle: "Темы, на которые вы хотите делать ставки",
   interests_skip: "Пропустить", interests_done: "Готово",
+  contact_seller_ended_hint: "По вопросам получения, оплаты или доставки",
 };
 
 const es: Translations = {
@@ -219,6 +224,7 @@ const es: Translations = {
   search_placeholder: "Buscar cualquier producto…", no_results: "Sin resultados", search_hint: "Prueba con un título o descripción",
   interests_title: "Elige tus intereses", interests_subtitle: "Selecciona temas en los que quieres pujar",
   interests_skip: "Saltar", interests_done: "Hecho",
+  contact_seller_ended_hint: "Para preguntas de recogida, pago o entrega",
 };
 
 const fr: Translations = {
@@ -259,6 +265,7 @@ const fr: Translations = {
   search_placeholder: "Rechercher un produit…", no_results: "Aucun résultat", search_hint: "Essayez un titre ou une description",
   interests_title: "Choisissez vos intérêts", interests_subtitle: "Sélectionnez les sujets sur lesquels vous souhaitez enchérir",
   interests_skip: "Ignorer", interests_done: "Terminer",
+  contact_seller_ended_hint: "Pour les questions de retrait, paiement ou livraison",
 };
 
 export const TRANSLATIONS: Record<Language, Translations> = { en, ar, ru, es, fr };

@@ -387,7 +387,7 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
             <div className="w-12 h-12 rounded-full bg-[#25D366]/15 backdrop-blur-md border border-[#25D366]/50 flex items-center justify-center shadow-[0_0_14px_rgba(37,211,102,0.3)]">
               <WhatsAppIcon />
             </div>
-            <span className="text-[11px] font-semibold text-white/80">{t("chat")}</span>
+            <span className="text-[11px] font-semibold text-[#25D366]/90">WhatsApp</span>
           </motion.a>
         )}
 

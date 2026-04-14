@@ -1,0 +1,150 @@
+We are continuing BidReel production work.
+
+Completed so far:
+
+* auth / onboarding fixes
+* email confirmation fix
+* profile restructuring
+* empty states pass
+* bidding system refactor (increment-only)
+* feed overlay improvements
+* reel action stack polish
+* profile completion progress and trust signal polish
+
+Now proceed to:
+
+## Phase 5 / Part 1: Messaging access + seller contact polish
+
+IMPORTANT:
+
+* Do NOT build a full in-app chat system
+* Do NOT change backend or database unless absolutely necessary
+* Do NOT invent messaging pages that do not exist
+* This phase is about improving seller contact UX using the current product direction
+
+## Product reality
+
+BidReel currently uses seller contact access primarily through WhatsApp / direct contact patterns, not a full internal messaging platform.
+
+So this phase must improve:
+
+* contact clarity
+* access points
+* contact-state UX
+* seller communication discoverability
+
+without pretending a full messaging system already exists.
+
+## Goal
+
+Make seller contact feel intentional, trustworthy, and easy.
+
+Users should understand:
+
+* how to contact the seller
+* when contact is available
+* whether contact still makes sense based on auction state
+* where seller contact access exists across the app
+
+---
+
+## Required audit
+
+Inspect all current seller-contact / WhatsApp-related UX across the app and identify:
+
+1. all files/components where WhatsApp or seller contact appears
+2. all entry points to contact the seller:
+
+   * feed reel action stack
+   * auction detail page
+   * profile pages if any
+   * bids / listings if any
+3. how seller phone availability is currently handled
+4. how contact action behaves for:
+
+   * active auctions
+   * upcoming auctions
+   * ended auctions
+   * archived auctions if shown
+5. whether wording, icons, or button states are inconsistent
+6. whether some screens are missing a logical contact entry point while already having the required data
+
+---
+
+## Then implement a minimal safe polish pass
+
+### 1) Contact consistency
+
+Standardize seller contact wording and visual treatment where appropriate.
+
+The action should feel consistently like:
+
+* Contact seller
+* WhatsApp seller
+* or another short, clear wording
+
+Do not leave mixed or vague wording across screens.
+
+### 2) Auction-state-aware contact UX
+
+Audit whether contact should appear or behave differently for:
+
+* active auctions
+* upcoming auctions
+* ended auctions
+
+If a contact action remains available after auction end, make sure the UI still makes sense and does not mislead the user.
+
+### 3) Discoverability
+
+If there is already a safe place where contact should be more clearly accessible using existing data/components, improve that.
+
+Examples:
+
+* auction detail
+* seller identity area
+* reel action labeling or affordance
+  Do NOT invent a full messaging architecture.
+
+### 4) Trust / clarity polish
+
+Where helpful and safe:
+
+* improve microcopy
+* improve labels
+* improve state handling
+* reduce ambiguity around what happens when the user taps contact
+
+### 5) Preserve current architecture
+
+Do not add a fake Messages page if none exists.
+Do not invent backend threads.
+Do not add database tables for chat.
+
+---
+
+## Deliverables BEFORE code
+
+Before implementing:
+
+1. identify exact files controlling seller contact / WhatsApp actions
+2. explain current behavior across major screens
+3. identify UX inconsistencies or gaps
+4. propose the minimal safe polish plan
+
+## Deliverables AFTER code
+
+After implementation:
+
+* summarize exactly what changed
+* list touched files
+* confirm no fake messaging system was introduced
+* explain any auction-state-dependent behavior
+
+## Constraints
+
+* production safe
+* minimal changes
+* no fake chat system
+* no unnecessary backend work
+* preserve reels-first product direction

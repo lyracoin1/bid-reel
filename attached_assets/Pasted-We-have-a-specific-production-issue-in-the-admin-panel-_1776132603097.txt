@@ -1,0 +1,102 @@
+We have a specific production issue in the admin panel:
+
+"Failed to fetch" still appears in admin pages (users, stats, etc.)
+
+Auth is confirmed working:
+
+* admin login succeeds
+* session exists
+* is_admin = true
+* preview works
+
+So the issue is strictly in admin API requests.
+
+==================================================
+TASK — DEBUG ADMIN FETCH (NO REFACTOR)
+======================================
+
+Do NOT refactor anything.
+Only diagnose and fix the exact cause.
+
+==================================================
+STEP 1 — LOG EVERYTHING (CRITICAL)
+==================================
+
+In admin-api.ts (or wherever adminFetch is defined):
+
+Add FULL logging before each request:
+
+* final URL
+* method
+* headers (especially Authorization)
+* token presence (length only, not full value)
+
+Also log:
+
+* response status
+* response body (if possible)
+
+==================================================
+STEP 2 — VERIFY API URL
+=======================
+
+Check how API base URL is built.
+
+Ensure:
+
+* NO double "/api/api"
+* If VITE_API_URL is used, it must be:
+  https://www.bid-reel.com
+
+NOT:
+https://www.bid-reel.com/api
+
+If double prefix exists → fix it.
+
+==================================================
+STEP 3 — VERIFY AUTH HEADER
+===========================
+
+Ensure every admin request includes:
+
+Authorization: Bearer <token>
+
+If token is null or empty:
+→ delay request until session is ready
+
+==================================================
+STEP 4 — HANDLE SESSION RACE
+============================
+
+If getSession() is async:
+
+* Ensure admin pages WAIT until session is loaded
+* Do NOT fire API calls on first render if session is not ready
+
+==================================================
+STEP 5 — FIX ERROR MASKING
+==========================
+
+Replace any generic:
+
+"Failed to fetch"
+
+With real error output:
+
+* 401 → "Unauthorized"
+* 403 → "Forbidden"
+* network → "Network error"
+* others → actual response text
+
+==================================================
+OUTPUT REQUIRED
+===============
+
+Return:
+
+1. exact root cause (URL / token / timing)
+2. exact file causing it
+3. exact fix applied
+4. example of a working request (final URL + headers)
+
+Do NOT say "fixed" without identifying the root cause.

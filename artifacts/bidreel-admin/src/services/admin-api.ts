@@ -4,36 +4,58 @@ import { supabase } from "@/lib/supabase";
 //
 // Resolution order (first truthy value wins):
 //   1. VITE_API_URL build-time env var — set in Vercel dashboard if needed.
+//      IMPORTANT: set this to the ORIGIN only (https://www.bid-reel.com),
+//      NOT including /api — the /api segment is appended below.
+//      If /api is accidentally included it is stripped to prevent double-prefix.
 //   2. Auto-detect: when running on admin.bid-reel.com, API lives on the same
 //      root domain (www.bid-reel.com) as a Vercel serverless function.
 //   3. Relative /api — used in local Replit dev where the Replit proxy routes
 //      /api/* to the Express server on port 8080.
 //
-// Full URL constructed for each call: {API_BASE}/admin/{path}
+// Final URL for each call: {API_BASE}/admin/{path}
 //   Dev                : /api/admin/stats
 //   admin.bid-reel.com : https://www.bid-reel.com/api/admin/stats
-//   VITE_API_URL set   : {VITE_API_URL}/api/admin/stats
+//   VITE_API_URL set   : https://www.bid-reel.com/api/admin/stats
 
-const _envOrigin = (import.meta.env.VITE_API_URL as string | undefined) || "";
-const _autoOrigin =
-  typeof window !== "undefined" && window.location.hostname === "admin.bid-reel.com"
-    ? "https://www.bid-reel.com"
-    : "";
+const _rawEnvOrigin = (import.meta.env.VITE_API_URL as string | undefined) || "";
+// Strip trailing /api or /api/ — prevents the double-prefix /api/api/admin/*
+// that occurs when VITE_API_URL is mistakenly set to https://host.com/api.
+const _envOrigin = _rawEnvOrigin.replace(/\/api\/?$/, "").replace(/\/$/, "");
+
+const _hostname = typeof window !== "undefined" ? window.location.hostname : "";
+const _autoOrigin = _hostname === "admin.bid-reel.com" ? "https://www.bid-reel.com" : "";
+
 const _origin = _envOrigin || _autoOrigin;
-const API_BASE = _origin ? `${_origin}/api` : "/api";
+export const API_BASE = _origin ? `${_origin}/api` : "/api";
+
+// Log the resolved API base at startup — visible in browser console and helpful
+// for diagnosing "Failed to fetch" issues in production.
+console.info(
+  `[admin-api] API_BASE = "${API_BASE}"` +
+  ` | VITE_API_URL="${_rawEnvOrigin || "(not set)"}"` +
+  ` | hostname="${_hostname || "ssr"}"` +
+  (_rawEnvOrigin && _rawEnvOrigin !== _envOrigin
+    ? ` | ⚠️  trailing /api stripped from VITE_API_URL to prevent double-prefix`
+    : ""),
+);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function adminHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (!supabase) return headers;
+  if (!supabase) {
+    console.warn("[admin-api] supabase client is null — missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY");
+    return headers;
+  }
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
-  } catch {
-    // Session unavailable — send unauthenticated; the server will return 401
-    // and the AdminGuard will redirect to /login on next navigation.
-    console.warn("[admin-api] getSession() threw — sending request without Authorization header");
+    if (session?.access_token) {
+      headers["Authorization"] = `Bearer ${session.access_token}`;
+    } else {
+      console.warn("[admin-api] getSession() returned no session — Authorization header will be absent");
+    }
+  } catch (err) {
+    console.warn("[admin-api] getSession() threw — sending request without Authorization header:", err);
   }
   return headers;
 }
@@ -41,27 +63,88 @@ async function adminHeaders(): Promise<Record<string, string>> {
 async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = await adminHeaders();
   const url = `${API_BASE}/admin${path}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: { ...headers, ...((options.headers as Record<string, string>) ?? {}) },
-  });
+  const method = (options.method ?? "GET").toUpperCase();
+
+  const hasAuth = "Authorization" in headers;
+  const tokenSnippet = hasAuth
+    ? `Bearer …(${(headers["Authorization"] as string).length - 7} chars)`
+    : "⚠️  MISSING";
+
+  console.info(`[admin-api] → ${method} ${url} | Authorization: ${tokenSnippet}`);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers: { ...headers, ...((options.headers as Record<string, string>) ?? {}) },
+    });
+  } catch (err) {
+    // fetch() itself threw — no HTTP response received.
+    // Most common causes:
+    //   1. CORS preflight OPTIONS was blocked (check Network tab → OPTIONS request)
+    //   2. API server unreachable / not deployed (check www.bid-reel.com/api/healthz)
+    //   3. Network offline
+    const rawMsg = (err as Error)?.message ?? "Unknown network error";
+    console.error(
+      `[admin-api] ✗ Network error — fetch() threw for ${method} ${url}\n` +
+      `  Raw error: ${rawMsg}\n` +
+      `  Auth header present: ${hasAuth}\n` +
+      `  Likely causes:\n` +
+      `    • CORS preflight (OPTIONS) rejected — check Network tab for the OPTIONS request\n` +
+      `    • API server not deployed or env vars missing at www.bid-reel.com\n` +
+      `    • Browser is offline\n` +
+      `  Diagnosis: open DevTools → Network tab → filter "admin" → look for a red OPTIONS request`,
+      err,
+    );
+    throw new Error(
+      `Network error: cannot reach ${url}. ` +
+      `Open DevTools → Network tab and look for a failed OPTIONS preflight. ` +
+      `If missing CORS headers, redeploy www.bid-reel.com.`,
+    );
+  }
+
+  console.info(`[admin-api] ← ${res.status} ${res.statusText} | ${method} ${url}`);
 
   // Detect HTML responses before attempting JSON.parse — this surfaces a clear
-  // error instead of the cryptic "Unexpected token '<'" message.
+  // error instead of the cryptic "Unexpected token '<'" message, and usually
+  // means the URL resolved to a CDN/SPA index.html fallback (wrong API_BASE).
   const contentType = res.headers.get("content-type") ?? "";
   if (contentType.includes("text/html")) {
+    console.error(
+      `[admin-api] ✗ Received HTML instead of JSON from ${url} (status ${res.status}).\n` +
+      `  This usually means the API_BASE is wrong and the request hit a CDN/SPA fallback.\n` +
+      `  Current API_BASE: "${API_BASE}"\n` +
+      `  Check VITE_API_URL in Vercel → Settings → Environment Variables.`,
+    );
     throw new Error(
-      `Admin API misroute: received HTML instead of JSON from ${url}. ` +
-      `Check that VITE_API_URL is set correctly in the Vercel dashboard and redeploy. ` +
-      `Status: ${res.status}`,
+      `API misroute (${res.status}): received HTML from ${url}. ` +
+      `API_BASE="${API_BASE}" — check VITE_API_URL in Vercel dashboard.`,
     );
   }
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string; error?: string };
+    let errBody: { message?: string; error?: string } = {};
+    try {
+      errBody = await res.json();
+    } catch {
+      // Non-JSON error body (rare)
+    }
+
+    const humanStatus = {
+      400: "Bad request",
+      401: "Unauthorized — session may have expired, try logging out and back in",
+      403: "Forbidden — your account does not have admin access",
+      404: "Not found — check API_BASE and Vercel deployment",
+      429: "Too many requests — slow down",
+      500: "Internal server error — check Vercel function logs",
+      503: "API server unavailable — check Vercel environment variables (SUPABASE_URL etc.)",
+    }[res.status];
+
+    const message = errBody.message ?? humanStatus ?? `HTTP ${res.status}`;
+    console.error(`[admin-api] ✗ ${res.status} from ${method} ${url}: ${message}`);
     throw Object.assign(
-      new Error(err.message ?? `Admin API error: ${res.status}`),
-      { statusCode: res.status, code: err.error },
+      new Error(message),
+      { statusCode: res.status, code: errBody.error ?? `http_${res.status}` },
     );
   }
 

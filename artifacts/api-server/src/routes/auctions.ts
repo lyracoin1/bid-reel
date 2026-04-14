@@ -131,13 +131,69 @@ router.get("/auctions", async (req, res) => {
 
   const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
 
-  const auctionsWithSellers = (auctions ?? []).map((a) => ({
+  // Base list — ordered by created_at DESC from the DB query (already stable).
+  type AuctionWithMeta = ReturnType<typeof normalizeAuction> & {
+    seller: (typeof profileMap extends Map<string, infer V> ? V : null) | null;
+    user_signal: "interested" | "not_interested" | null;
+  };
+
+  let feed: AuctionWithMeta[] = (auctions ?? []).map((a) => ({
     ...normalizeAuction(a),
     seller: profileMap.get(a.seller_id) ?? null,
+    user_signal: null as "interested" | "not_interested" | null,
   }));
 
-  logger.info({ count: auctionsWithSellers.length }, "GET /auctions → returning auctions");
-  res.json({ auctions: auctionsWithSellers });
+  // ── Signal-aware personalization (optional — skipped for unauthenticated) ──
+  //
+  // We verify the Bearer token without hard-requiring auth so that anonymous
+  // users still receive the default recency-ordered feed.
+  //
+  // Ranking tiers (stable — created_at order is preserved within each tier):
+  //   0 → "interested"      (boosted to top)
+  //   1 → neutral / unknown (default position)
+  //   2 → "not_interested"  (pushed to bottom, still visible)
+  const authHeader = req.headers["authorization"];
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    const { data: { user } } = await supabaseAdmin.auth.getUser(token);
+
+    if (user) {
+      const auctionIds = feed.map((a) => (a as { id: string }).id);
+
+      const { data: signals } = await supabaseAdmin
+        .from("content_signals")
+        .select("auction_id, signal")
+        .eq("user_id", user.id)
+        .in("auction_id", auctionIds);
+
+      if (signals && signals.length > 0) {
+        const signalMap = new Map<string, "interested" | "not_interested">(
+          signals.map((s) => [s.auction_id as string, s.signal as "interested" | "not_interested"]),
+        );
+
+        // Tag each auction with the user's saved signal.
+        feed = feed.map((a) => ({
+          ...a,
+          user_signal: signalMap.get((a as { id: string }).id) ?? null,
+        }));
+
+        // Stable three-tier sort.  Array.sort is stable in V8 (Node ≥ 11),
+        // so items within each tier keep their original created_at DESC order.
+        const tierOf = (sig: "interested" | "not_interested" | null) =>
+          sig === "interested" ? 0 : sig === "not_interested" ? 2 : 1;
+
+        feed.sort((a, b) => tierOf(a.user_signal) - tierOf(b.user_signal));
+
+        logger.info(
+          { userId: user.id, signalCount: signals.length },
+          "GET /auctions → personalized with signal ranking",
+        );
+      }
+    }
+  }
+
+  logger.info({ count: feed.length }, "GET /auctions → returning auctions");
+  res.json({ auctions: feed });
 });
 
 // ─── GET /api/auctions/:id ────────────────────────────────────────────────────

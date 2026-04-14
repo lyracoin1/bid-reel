@@ -1,0 +1,128 @@
+We are continuing BidReel from the current stable state.
+
+Confirmed already working:
+
+* Email login
+* Google login code path
+* Location in onboarding/profile
+* Profile completeness gate
+* Admin users management
+* Admin delete user
+* Interested / Not Interested storage
+* Admin signal counts
+
+Do NOT revisit completed auth/CORS/admin stability work unless a direct regression is found.
+
+==================================================
+NEXT PHASE — FEED PERSONALIZATION USING SIGNALS
+===============================================
+
+We now want to make the feed smarter using the existing user preference signals:
+
+* Interested
+* Not Interested
+
+This phase should be practical and incremental.
+Do NOT build an overcomplicated ranking engine yet.
+Do NOT break the current feed.
+
+==================================================
+PART 1 — AUDIT CURRENT FEED ORDERING
+====================================
+
+Inspect how the feed is currently ordered and fetched.
+
+Identify:
+
+1. what data currently drives ordering
+2. whether feed is global, recent-first, random, or mixed
+3. where signals can be integrated with minimal safe impact
+
+==================================================
+PART 2 — APPLY BASIC SIGNAL-AWARE RANKING
+=========================================
+
+Implement a simple production-safe ranking improvement:
+
+1. Auctions the user marked "interested"
+
+   * should rank higher
+
+2. Auctions the user marked "not_interested"
+
+   * should rank lower
+   * or be filtered down significantly
+
+3. Neutral auctions
+
+   * remain in the feed normally
+
+4. Do NOT fully hide content permanently unless clearly justified
+
+5. Keep behavior explainable and stable
+
+Important:
+
+* this is a preference boost/downrank system
+* not a like system
+* not a report system
+* not a hard moderation action
+
+==================================================
+PART 3 — PRESERVE FEED QUALITY
+==============================
+
+While adding signal-aware ranking, make sure:
+
+1. active auctions still appear
+2. the feed does not become too sparse
+3. recently active/relevant auctions are not destroyed by over-filtering
+4. there is still healthy variety
+
+==================================================
+PART 4 — OPTIONAL USER SIGNAL STATE IN FEED UI
+==============================================
+
+Audit whether it is now worth returning the current user's existing signal with each auction payload.
+
+If this can be added cleanly:
+
+* return userSignal in the feed payload
+* so buttons render with the saved state on reload/scroll
+
+If it would cause too much complexity right now:
+
+* clearly explain that and defer it intentionally
+
+==================================================
+PART 5 — ADMIN / ANALYTICS READINESS
+====================================
+
+If useful, expose enough structure so future admin analytics can understand:
+
+* how many interested
+* how many not interested
+* possible feed quality direction
+
+Do not clutter the admin UI in this phase.
+
+==================================================
+REQUIRED OUTPUT
+===============
+
+Return:
+
+1. current feed ordering diagnosis
+2. exact ranking logic implemented
+3. exact files changed
+4. whether userSignal was added to feed payload or deferred
+5. any trade-offs or remaining risks
+6. exact git commands I should run next
+
+Before claiming success, verify:
+
+* interested content ranks higher
+* not interested content ranks lower
+* neutral content still appears
+* feed does not break
+* existing bidding/feed flows remain intact

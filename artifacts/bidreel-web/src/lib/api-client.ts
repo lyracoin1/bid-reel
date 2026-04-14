@@ -165,6 +165,9 @@ export interface ApiAuctionRaw {
   lng?: number | null;
   currency_code?: string | null;
   currency_label?: string | null;
+  /** The authenticated user's saved signal for this auction.
+   *  Returned by GET /auctions when a valid Bearer token is present. */
+  user_signal?: "interested" | "not_interested" | null;
   seller: {
     id: string;
     username: string | null;

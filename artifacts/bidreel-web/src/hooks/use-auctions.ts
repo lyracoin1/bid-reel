@@ -91,6 +91,7 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
     lng: r.lng ?? null,
     currencyCode: r.currency_code ?? null,
     currencyLabel: r.currency_label ?? null,
+    userSignal: (r.user_signal as "interested" | "not_interested" | null | undefined) ?? null,
   };
 }
 

@@ -36,4 +36,6 @@ export interface Auction {
   lng?: number | null;
   currencyCode?: string | null;
   currencyLabel?: string | null;
+  /** The current user's saved signal for this auction, or null if they haven't signaled. */
+  userSignal?: "interested" | "not_interested" | null;
 }

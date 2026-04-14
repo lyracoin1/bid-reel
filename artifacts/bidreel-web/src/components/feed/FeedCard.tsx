@@ -108,7 +108,11 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   const isVideo = auction.type === "video";
 
   // ── Content signal (Interested / Not Interested) ──────────────────────────
-  const [localSignal, setLocalSignal] = useState<ContentSignal | null>(null);
+  // Initialise from the server-returned userSignal so the button state is
+  // accurate on first render without a separate API round-trip.
+  const [localSignal, setLocalSignal] = useState<ContentSignal | null>(
+    (auction.userSignal as ContentSignal | null | undefined) ?? null,
+  );
 
   const handleSignal = useCallback((s: ContentSignal) => {
     if (localSignal === s) {

@@ -1,0 +1,126 @@
+We are continuing the BidReel production work.
+
+We have completed the auth hotfix and Supabase configuration fix.
+
+Now we proceed to:
+
+## Phase 1 / Part 1: Profile restructuring
+
+IMPORTANT:
+
+* Do NOT change the bottom navigation
+* Do NOT touch backend or database
+* This is a frontend-only, production-safe UX improvement
+
+## Goal
+
+Transform the Profile page into a clear "user control hub" while preserving all existing functionality.
+
+## Current direction
+
+The bottom navigation remains:
+
+* Profile
+* Notifications
+* Add Auction (+)
+* Search
+* Home
+
+We are NOT changing it.
+
+## Required work
+
+### 1) Audit current profile implementation
+
+Identify:
+
+* the file responsible for rendering the profile page
+* existing components used inside it
+* routes for:
+
+  * My Auctions
+  * Messages
+  * Saved
+  * Settings
+  * Edit Profile / Complete Profile
+
+### 2) Restructure Profile UI
+
+Refactor the profile page into 3 clear sections:
+
+#### A) Header
+
+* avatar
+* display name
+* username
+* location
+* edit profile button
+
+#### B) Light stats section
+
+If data already exists, show:
+
+* auctions count
+* saved count (optional)
+  Do NOT add backend queries if not already present.
+
+#### C) Action sections (main part)
+
+Create clean, clickable rows for:
+
+* My Auctions
+* Messages
+* Saved
+* Settings
+* Logout
+
+Each row:
+
+* icon + label
+* clickable
+* navigates to existing routes
+
+Reuse existing pages/components. Do NOT rebuild features.
+
+### 3) Profile completeness hint (important)
+
+If user profile is incomplete:
+
+* show a small non-intrusive banner inside the profile page:
+  "Complete your profile to start selling"
+
+This must NOT block usage.
+This is only a visual hint aligned with the create-auction restriction.
+
+### 4) Routing safety
+
+* Do not break existing routes
+* Do not delete pages
+* Only improve access and organization
+
+### 5) Keep it clean
+
+* no clutter
+* no marketplace-style dashboards
+* keep it modern and minimal
+* reels-first feel
+
+## Deliverables BEFORE code
+
+1. list files controlling profile page
+2. explain current structure
+3. propose minimal safe UI refactor plan
+
+## Deliverables AFTER code
+
+* summary of changes
+* list of modified files
+* routes reused
+* any UI improvements suggested (optional)
+
+## Constraints
+
+* production safe
+* no bottom nav changes
+* no backend changes
+* no feature rewrites

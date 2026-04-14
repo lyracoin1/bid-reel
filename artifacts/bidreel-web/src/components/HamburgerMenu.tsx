@@ -17,10 +17,19 @@ const LANG_FLAG: Record<Language, string> = {
 
 interface HamburgerMenuProps {
   className?: string;
+  /** Controlled mode: pass open state from the parent. When omitted the component is self-controlled. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function HamburgerMenu({ className = "" }: HamburgerMenuProps) {
-  const [open, setOpen] = useState(false);
+export function HamburgerMenu({ className = "", open: controlledOpen, onOpenChange }: HamburgerMenuProps) {
+  const isControlled = controlledOpen !== undefined;
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = isControlled ? controlledOpen! : internalOpen;
+  const setOpen = (v: boolean) => {
+    if (isControlled) { onOpenChange?.(v); }
+    else { setInternalOpen(v); }
+  };
   const { lang, setLang, t } = useLang();
 
   const drawer = (
@@ -114,9 +123,14 @@ export function HamburgerMenu({ className = "" }: HamburgerMenuProps) {
     </AnimatePresence>
   );
 
+  // Controlled mode: caller manages open state — render only the drawer portal (no button).
+  if (isControlled) {
+    return typeof document !== "undefined" ? createPortal(drawer, document.body) : null;
+  }
+
   return (
     <>
-      {/* Trigger button */}
+      {/* Trigger button — self-controlled mode only */}
       <motion.button
         whileTap={{ scale: 0.88 }}
         onClick={() => setOpen(true)}

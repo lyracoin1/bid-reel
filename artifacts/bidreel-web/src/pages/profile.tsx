@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
-import { Grid, Gavel, LogOut, ShieldCheck, Trash2, Shield, MapPin } from "lucide-react";
+import {
+  Grid, Gavel, LogOut, ShieldCheck, Trash2, Shield, MapPin,
+  Pencil, Settings, ChevronRight, AlertCircle,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import { MobileLayout } from "@/components/layout/MobileLayout";
@@ -26,6 +29,7 @@ export default function Profile() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [, setLocation] = useLocation();
   const { t } = useLang();
 
@@ -46,6 +50,7 @@ export default function Profile() {
       setIsDeleting(false);
     }
   }
+
   const { data: allAuctions, isLoading: auctionsLoading } = useAuctions();
 
   const myListings = user
@@ -67,12 +72,22 @@ export default function Profile() {
 
   const isLoading = userLoading || auctionsLoading;
 
+  function handleLogout() {
+    void deleteNativeFcmToken();
+    clearCurrentUserCache();
+    clearAdminSession();
+    clearToken();
+    setLocation("/login");
+  }
+
+  const isIncomplete = !isLoading && user && !user.isCompleted;
+
   return (
     <MobileLayout>
       <div className="min-h-full bg-background">
 
         {/* ── Hero header ── */}
-        <div className="relative px-5 pt-14 pb-6 overflow-hidden">
+        <div className="relative px-5 pt-14 pb-5 overflow-hidden">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 bg-primary/12 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative z-10 flex items-start justify-between mb-5">
@@ -91,6 +106,7 @@ export default function Profile() {
                 )}
                 <div className="absolute -bottom-1.5 -right-1.5 w-5 h-5 rounded-full bg-emerald-400 border-2 border-background" />
               </div>
+
               <div>
                 {isLoading ? (
                   <>
@@ -122,15 +138,39 @@ export default function Profile() {
               </div>
             </div>
 
-            {/* Action buttons row */}
-            <div className="flex items-center gap-2">
-              <HamburgerMenu />
-            </div>
+            {/* Edit profile button */}
+            <motion.button
+              whileTap={{ scale: 0.90 }}
+              onClick={() => setLocation("/interests")}
+              aria-label="Edit profile"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/8 border border-white/12 text-xs font-semibold text-white/60 hover:text-white hover:bg-white/12 transition shrink-0"
+            >
+              <Pencil size={13} />
+              Edit
+            </motion.button>
           </div>
+
+          {/* ── Profile completeness banner (non-blocking) ── */}
+          <AnimatePresence>
+            {isIncomplete && (
+              <motion.button
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                onClick={() => setLocation("/interests")}
+                className="relative z-10 w-full flex items-center gap-3 px-4 py-3 mb-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left"
+              >
+                <AlertCircle size={16} className="text-amber-400 shrink-0" />
+                <span className="text-sm text-amber-300 font-medium flex-1">
+                  Complete your profile to start selling
+                </span>
+                <ChevronRight size={14} className="text-amber-400/60 shrink-0" />
+              </motion.button>
+            )}
+          </AnimatePresence>
 
           {/* Stats row — Listings | Followers | Following */}
           <div className="grid grid-cols-3 gap-3 relative z-10">
-            {/* Listings */}
             <div className="bg-white/5 border border-white/8 rounded-2xl py-3 text-center">
               {isLoading ? (
                 <div className="h-6 w-8 bg-white/10 rounded animate-pulse mx-auto mb-1" />
@@ -142,7 +182,6 @@ export default function Profile() {
               <p className="text-[11px] text-muted-foreground mt-1 font-medium">{t("listings")}</p>
             </div>
 
-            {/* Followers — clickable */}
             <button
               className="bg-white/5 border border-white/8 rounded-2xl py-3 text-center active:bg-white/8 transition-colors"
               onClick={() => user && setFollowModal("followers")}
@@ -156,7 +195,6 @@ export default function Profile() {
               <p className="text-[11px] text-muted-foreground mt-1 font-medium">{t("followers")}</p>
             </button>
 
-            {/* Following — clickable */}
             <button
               className="bg-white/5 border border-white/8 rounded-2xl py-3 text-center active:bg-white/8 transition-colors"
               onClick={() => user && setFollowModal("following")}
@@ -297,30 +335,63 @@ export default function Profile() {
           )}
         </div>
 
-        {/* Logout + settings footer */}
-        <div className="px-5 pb-8 space-y-3">
-          <button onClick={() => { void deleteNativeFcmToken(); clearCurrentUserCache(); clearAdminSession(); clearToken(); setLocation("/login"); }}
-            className="w-full py-3.5 rounded-2xl border border-white/8 bg-white/3 flex items-center justify-center gap-2 text-sm font-semibold text-white/50 hover:text-white/80 hover:bg-white/6 transition">
-            <LogOut size={16} />{t("log_out")}
-          </button>
+        {/* ── Account section ── */}
+        <div className="px-5 pt-2 pb-3">
+          <p className="text-[10px] font-bold text-white/25 uppercase tracking-widest mb-2 px-1">Account</p>
+          <div className="rounded-2xl bg-white/4 border border-white/8 divide-y divide-white/6 overflow-hidden">
 
-          <div className="flex items-center justify-between">
-            <button
+            {/* Settings */}
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setSettingsOpen(true)}
+              className="w-full flex items-center gap-3 px-4 py-4 text-left hover:bg-white/5 active:bg-white/8 transition-colors"
+            >
+              <div className="w-8 h-8 rounded-xl bg-white/6 border border-white/10 flex items-center justify-center shrink-0">
+                <Settings size={15} className="text-white/50" />
+              </div>
+              <span className="text-sm text-white/70 font-medium flex-1">{t("settings")}</span>
+              <ChevronRight size={14} className="text-white/25" />
+            </motion.button>
+
+            {/* Privacy Policy */}
+            <motion.button
+              whileTap={{ scale: 0.98 }}
               onClick={() => setLocation("/privacy")}
-              className="flex items-center gap-1.5 text-xs text-white/30 hover:text-white/50 transition py-1"
+              className="w-full flex items-center gap-3 px-4 py-4 text-left hover:bg-white/5 active:bg-white/8 transition-colors"
             >
-              <Shield size={11} />
-              Privacy Policy
-            </button>
-            <button
-              onClick={() => { setDeleteError(null); setShowDeleteConfirm(true); }}
-              className="flex items-center gap-1.5 text-xs text-red-500/50 hover:text-red-400 transition py-1"
+              <div className="w-8 h-8 rounded-xl bg-white/6 border border-white/10 flex items-center justify-center shrink-0">
+                <Shield size={15} className="text-white/50" />
+              </div>
+              <span className="text-sm text-white/70 font-medium flex-1">Privacy Policy</span>
+              <ChevronRight size={14} className="text-white/25" />
+            </motion.button>
+
+            {/* Log out */}
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-4 text-left hover:bg-white/5 active:bg-white/8 transition-colors"
             >
-              <Trash2 size={11} />
-              Delete Account
-            </button>
+              <div className="w-8 h-8 rounded-xl bg-white/6 border border-white/10 flex items-center justify-center shrink-0">
+                <LogOut size={15} className="text-white/50" />
+              </div>
+              <span className="text-sm text-white/70 font-medium">{t("log_out")}</span>
+            </motion.button>
+
           </div>
         </div>
+
+        {/* ── Danger zone ── */}
+        <div className="px-5 pb-10">
+          <button
+            onClick={() => { setDeleteError(null); setShowDeleteConfirm(true); }}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-red-500/15 text-xs font-semibold text-red-500/40 hover:text-red-400 hover:border-red-500/25 transition-colors"
+          >
+            <Trash2 size={13} />
+            Delete Account
+          </button>
+        </div>
+
       </div>
 
       {/* Follow list modals */}
@@ -331,6 +402,9 @@ export default function Profile() {
           onClose={() => setFollowModal(null)}
         />
       )}
+
+      {/* Settings drawer — controlled from the Account section */}
+      <HamburgerMenu open={settingsOpen} onOpenChange={setSettingsOpen} />
 
       {/* Delete Account confirmation modal */}
       <AnimatePresence>

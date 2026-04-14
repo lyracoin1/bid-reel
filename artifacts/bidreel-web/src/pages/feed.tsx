@@ -11,7 +11,7 @@ import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 const LOAD_MORE_THRESHOLD = 5;
 
 export default function Feed() {
-  const { data: auctions, isLoading, loadMore, hasMore, isLoadingMore } = useAuctions();
+  const { data: auctions, isLoading, loadMore, hasMore, isLoadingMore, isError } = useAuctions();
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -139,14 +139,20 @@ export default function Feed() {
           </div>
         )}
 
-        {/* ── Empty state — DB has no active auctions ───────────────────────── */}
+        {/* ── Empty / Error state ───────────────────────────────────────────── */}
         {!isLoading && auctions.length === 0 && (
           <div className="w-full h-[100dvh] snap-always flex flex-col items-center justify-center bg-background px-6 text-center">
-            <div className="w-20 h-20 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-6">
-              <Gavel size={32} className="text-primary/60" />
+            <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mb-6 ${isError ? "bg-red-500/10 border border-red-500/20" : "bg-primary/10 border border-primary/20"}`}>
+              <Gavel size={32} className={isError ? "text-red-400/60" : "text-primary/60"} />
             </div>
-            <h3 className="text-2xl font-bold mb-2">No auctions yet</h3>
-            <p className="text-muted-foreground mb-8 max-w-xs">Be the first to list something — or check back shortly for new drops.</p>
+            <h3 className="text-2xl font-bold mb-2">
+              {isError ? "Couldn't load auctions" : "No auctions yet"}
+            </h3>
+            <p className="text-muted-foreground mb-8 max-w-xs">
+              {isError
+                ? "Check your connection and try again."
+                : "Be the first to list something — or check back shortly for new drops."}
+            </p>
             <motion.button
               whileTap={{ scale: 0.94 }}
               onClick={refresh}
@@ -154,7 +160,7 @@ export default function Feed() {
               className="flex items-center gap-2 px-6 py-3 rounded-full bg-primary/15 border border-primary/30 text-primary text-sm font-bold disabled:opacity-50 transition-opacity"
             >
               <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
-              {isRefreshing ? "Checking…" : "Refresh"}
+              {isRefreshing ? "Checking…" : "Try again"}
             </motion.button>
           </div>
         )}

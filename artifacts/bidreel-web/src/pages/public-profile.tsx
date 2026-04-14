@@ -256,9 +256,19 @@ export default function PublicProfilePage() {
                   })}
                 </div>
               ) : (
-                <div className="py-12 text-center">
-                  <Grid size={28} className="text-white/15 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">{t("no_listings")}</p>
+                <div className="py-12 flex flex-col items-center text-center gap-3">
+                  <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/8 flex items-center justify-center mb-1">
+                    <Grid size={22} className="text-white/20" />
+                  </div>
+                  <p className="text-sm font-semibold text-white/50">No active auctions</p>
+                  <p className="text-xs text-muted-foreground">This seller hasn't listed anything yet.</p>
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
+                    onClick={() => setLocation("/explore")}
+                    className="mt-1 px-5 py-2.5 rounded-xl bg-white/8 border border-white/10 text-sm font-semibold text-white/60 hover:text-white hover:bg-white/12 transition"
+                  >
+                    Browse other auctions
+                  </motion.button>
                 </div>
               )}
             </div>

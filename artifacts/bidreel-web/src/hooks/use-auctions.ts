@@ -20,6 +20,10 @@ let globalAuctions: Auction[] = [];
 let feedCursor: string | null = null;
 let feedHasMore = true;
 
+// True when the last refreshAuctions() call threw a network/API error.
+// Reset to false on any successful refresh.
+let lastRefreshError = false;
+
 type Listeners = Set<() => void>;
 const listeners: Listeners = new Set();
 const notify = () => listeners.forEach(l => l());
@@ -113,6 +117,7 @@ export async function refreshAuctions(): Promise<void> {
     globalAuctions = auctions.map(a => backendToAuction(a));
     feedCursor = nextCursor;
     feedHasMore = nextCursor !== null;
+    lastRefreshError = false;
     console.log(
       `[use-auctions] ✅ Refreshed — ${globalAuctions.length} auctions from DB` +
       (feedHasMore ? ` | nextCursor=${feedCursor}` : ' | [last page]'),
@@ -120,6 +125,8 @@ export async function refreshAuctions(): Promise<void> {
     notify();
   } catch (err) {
     console.error('[use-auctions] ❌ Failed to refresh auctions:', err);
+    lastRefreshError = true;
+    notify();
   }
 }
 
@@ -159,12 +166,15 @@ export function useAuctions() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   // Mirror module-level feedHasMore in component state so the feed can react.
   const [hasMore, setHasMore] = useState(feedHasMore);
+  // True when the last refresh failed with a network/API error.
+  const [isError, setIsError] = useState(lastRefreshError);
 
   useEffect(() => {
     // Sync component state whenever the global cache or pagination state changes.
     const handler = () => {
       setAuctions([...globalAuctions]);
       setHasMore(feedHasMore);
+      setIsError(lastRefreshError);
     };
     listeners.add(handler);
 
@@ -198,7 +208,7 @@ export function useAuctions() {
     }
   }, [isLoadingMore]);
 
-  return { data: auctions, isLoading, loadMore, hasMore, isLoadingMore };
+  return { data: auctions, isLoading, loadMore, hasMore, isLoadingMore, isError };
 }
 
 // ─── useAuction ───────────────────────────────────────────────────────────────

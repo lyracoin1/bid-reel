@@ -1,0 +1,171 @@
+We are continuing BidReel production work.
+
+Phase 1 / Part 1 (Profile restructuring) is DONE and already pushed.
+
+Now we proceed to:
+
+## Phase 1 / Part 2: Empty States + UX clarity
+
+IMPORTANT:
+
+* Do NOT change bottom navigation
+* Do NOT touch backend or database
+* Do NOT introduce new APIs
+* Do NOT invent features that don’t exist
+* Only improve UX, clarity, and visual feedback
+
+---
+
+## Goal
+
+Make the app feel complete, responsive, and intentional even when there is no data.
+
+Every empty state must:
+
+* explain what is happening
+* guide the user to the next action
+* never feel broken or unfinished
+
+---
+
+## Scope of this phase
+
+We will improve empty states across the app, especially:
+
+### 1) Profile → Listings tab (My Auctions)
+
+Case: user has no auctions
+
+Current problem:
+
+* likely blank or unclear
+
+Required:
+
+* clear empty state UI
+* short message
+* strong CTA button → /create
+
+Example behavior:
+
+* icon or illustration
+* text: "You haven’t created any auctions yet"
+* button: "Create your first auction"
+
+---
+
+### 2) Profile → Bids tab
+
+Case: user has no bids
+
+Required:
+
+* message explaining no activity yet
+* CTA → /feed
+
+Example:
+
+* "You haven’t placed any bids yet"
+* button: "Start exploring auctions"
+
+---
+
+### 3) Feed (critical)
+
+Case: no auctions returned OR loading failure
+
+Handle:
+
+* loading state (skeleton or spinner)
+* empty state (no auctions available)
+* error state (network / API failure)
+
+Do NOT leave blank screen.
+
+---
+
+### 4) Search page
+
+Cases:
+
+* no query yet
+* no results
+
+Handle both:
+
+* before search → suggestion UI
+* after empty result → "No results found"
+
+---
+
+### 5) Notifications (important)
+
+If notifications list is empty:
+
+* show friendly empty state
+* "No notifications yet"
+
+Do not leave blank page
+
+---
+
+### 6) Any existing list-based UI
+
+Audit all:
+
+* auctions lists
+* grids
+* followers modal
+* any list rendering
+
+Ensure:
+
+* consistent empty handling everywhere
+
+---
+
+## UX rules
+
+* consistent spacing and typography
+* consistent CTA style (primary button)
+* minimal, not noisy
+* no fake data
+* no backend calls added
+
+---
+
+## Deliverables BEFORE code
+
+1. list all screens/components that render lists
+2. identify which ones lack empty states
+3. propose exact UI behavior for each
+
+---
+
+## Deliverables AFTER code
+
+* list all modified files
+* describe each empty state added
+* confirm no routes or logic were broken
+* confirm no backend changes
+
+---
+
+## Constraints
+
+* production safe
+* frontend only
+* no navigation changes
+* no feature invention
+* no breaking existing behavior
+
+---
+
+## After this phase
+
+We will proceed to:
+Phase 2: Feed Enhancement (video UX, overlays, seller info, interactions)
+
+Do NOT implement Phase 2 yet.
+
+Focus only on Phase 1 / Part 2.

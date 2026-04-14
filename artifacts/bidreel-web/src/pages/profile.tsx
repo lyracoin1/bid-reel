@@ -266,11 +266,19 @@ export default function Profile() {
                 })}
               </div>
             ) : (
-              <div className="py-16 text-center">
-                <p className="text-muted-foreground text-sm">{t("no_listings")}</p>
-                <button onClick={() => setLocation("/create")} className="mt-4 px-6 py-3 rounded-xl bg-primary text-white text-sm font-bold">
+              <div className="py-16 flex flex-col items-center text-center gap-3">
+                <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/8 flex items-center justify-center mb-1">
+                  <Grid size={26} className="text-white/20" />
+                </div>
+                <p className="text-sm font-semibold text-white/60">You haven't created any auctions yet</p>
+                <p className="text-xs text-muted-foreground max-w-[220px]">List your first item and start selling to bidders around you.</p>
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => setLocation("/create")}
+                  className="mt-1 px-6 py-3 rounded-xl bg-primary text-white text-sm font-bold shadow-[0_0_20px_rgba(139,92,246,0.3)]"
+                >
                   {t("create_first")}
-                </button>
+                </motion.button>
               </div>
             )
           )}
@@ -324,12 +332,19 @@ export default function Profile() {
                 })}
               </div>
             ) : (
-              <div className="py-16 text-center">
-                <Gavel size={32} className="text-white/20 mx-auto mb-3" />
-                <p className="text-muted-foreground text-sm">No bids placed yet</p>
-                <button onClick={() => setLocation("/feed")} className="mt-4 px-6 py-3 rounded-xl bg-primary text-white text-sm font-bold">
-                  Browse auctions
-                </button>
+              <div className="py-16 flex flex-col items-center text-center gap-3">
+                <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/8 flex items-center justify-center mb-1">
+                  <Gavel size={26} className="text-white/20" />
+                </div>
+                <p className="text-sm font-semibold text-white/60">You haven't placed any bids yet</p>
+                <p className="text-xs text-muted-foreground max-w-[220px]">Find something you love and place your first bid.</p>
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => setLocation("/feed")}
+                  className="mt-1 px-6 py-3 rounded-xl bg-primary text-white text-sm font-bold shadow-[0_0_20px_rgba(139,92,246,0.3)]"
+                >
+                  Start exploring auctions
+                </motion.button>
               </div>
             )
           )}

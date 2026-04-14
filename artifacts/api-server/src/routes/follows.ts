@@ -49,6 +49,66 @@ router.get("/users/me/following-ids", requireAuth, async (req, res) => {
   res.json({ followingIds: ids });
 });
 
+// ─── GET /api/users/me/mutual-follows ─────────────────────────────────────────
+// Returns profiles for users who mutually follow the caller (caller follows them
+// AND they follow caller). Used by the "Mention" sheet in the reel action menu.
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.get("/users/me/mutual-follows", requireAuth, async (req, res) => {
+  const callerId = req.user!.id;
+
+  // Step 1: get all IDs of people who follow the caller
+  const { data: followerRows, error: err1 } = await supabaseAdmin
+    .from("user_follows")
+    .select("follower_id")
+    .eq("following_id", callerId);
+
+  if (err1) {
+    logger.error({ err: err1.message, callerId }, "GET mutual-follows: step1 failed");
+    res.status(500).json({ error: "FETCH_FAILED", message: "Could not fetch mutual follows." });
+    return;
+  }
+
+  const followerIds = (followerRows ?? []).map((r: { follower_id: string }) => r.follower_id);
+  if (followerIds.length === 0) {
+    res.json({ mutualFollows: [] });
+    return;
+  }
+
+  // Step 2: from people the caller follows, keep only those who also follow the caller
+  const { data: mutualRows, error: err2 } = await supabaseAdmin
+    .from("user_follows")
+    .select("following_id")
+    .eq("follower_id", callerId)
+    .in("following_id", followerIds);
+
+  if (err2) {
+    logger.error({ err: err2.message, callerId }, "GET mutual-follows: step2 failed");
+    res.status(500).json({ error: "FETCH_FAILED", message: "Could not fetch mutual follows." });
+    return;
+  }
+
+  const mutualIds = (mutualRows ?? []).map((r: { following_id: string }) => r.following_id);
+  if (mutualIds.length === 0) {
+    res.json({ mutualFollows: [] });
+    return;
+  }
+
+  // Step 3: fetch their profiles
+  const { data: profiles, error: err3 } = await supabaseAdmin
+    .from("profiles")
+    .select("id, username, display_name, avatar_url")
+    .in("id", mutualIds);
+
+  if (err3) {
+    logger.error({ err: err3.message, callerId }, "GET mutual-follows: step3 failed");
+    res.status(500).json({ error: "FETCH_FAILED", message: "Could not fetch mutual follows." });
+    return;
+  }
+
+  res.json({ mutualFollows: profiles ?? [] });
+});
+
 // ─── POST /api/users/:userId/follow ──────────────────────────────────────────
 // Follow a user. Idempotent — returns 200 if already following.
 // ─────────────────────────────────────────────────────────────────────────────

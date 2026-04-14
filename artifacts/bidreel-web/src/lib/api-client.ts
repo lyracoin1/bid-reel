@@ -765,6 +765,59 @@ export async function removeSignalApi(auctionId: string): Promise<void> {
   }
 }
 
+// ─── Report system ────────────────────────────────────────────────────────────
+
+/**
+ * Submit a content violation report for an auction.
+ * Throws with a human-readable message on failure (including 409 Already Reported).
+ */
+export async function submitReportApi(data: {
+  auctionId: string;
+  reason: string;
+  details?: string;
+}): Promise<void> {
+  const token = await getToken();
+  if (!token) throw new Error("Not authenticated");
+  const res = await fetch(`${API_BASE}/reports`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to submit report");
+  }
+}
+
+// ─── Mutual follows (for mention system) ─────────────────────────────────────
+
+export interface ApiMutualFollow {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
+/**
+ * Return profiles of users who mutually follow the authenticated user
+ * (caller follows them AND they follow caller).
+ * Returns [] on error — non-throwing.
+ */
+export async function getMutualFollowsApi(): Promise<ApiMutualFollow[]> {
+  const token = await getToken();
+  if (!token) return [];
+  try {
+    const res = await fetch(`${API_BASE}/users/me/mutual-follows`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { mutualFollows: ApiMutualFollow[] };
+    return data.mutualFollows ?? [];
+  } catch {
+    return [];
+  }
+}
+
 /** Permanently delete the authenticated user's account and all associated data. */
 export async function deleteAccountApi(): Promise<void> {
   const token = await getToken();

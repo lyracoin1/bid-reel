@@ -1,0 +1,267 @@
+We are now implementing a full, production-grade reel action menu system.
+
+This is NOT a UI tweak.
+This is a behavioral system affecting feed logic, moderation, and user interaction.
+
+Do a full audit BEFORE writing any code.
+
+---
+
+# CONTEXT
+
+Currently:
+
+* There is a share button already visible on the reel UI
+* The three-dots menu contains inconsistent actions
+* Some actions are duplicated (share appears twice)
+* Some actions are missing (report)
+* Some actions are not real (interested/not_interested are not properly enforced)
+* Owner vs viewer logic is not separated correctly
+
+We are fixing ALL of this properly.
+
+---
+
+# CRITICAL RULE 1 — REMOVE SHARE DUPLICATION
+
+There is already a dedicated Share button on the reel.
+
+### REQUIRED:
+
+* REMOVE "Share" from the three-dots menu completely
+* Do NOT duplicate share functionality
+* Keep share ONLY as the main action button in the reel UI
+
+If share appears in both places → this is a bug
+
+---
+
+# CRITICAL RULE 2 — MENU MUST CHANGE BASED ON USER ROLE
+
+We have TWO completely different menu states:
+
+## CASE A — VIEWER (user is NOT the owner of the auction)
+
+Menu MUST contain ONLY:
+
+1. Report
+2. Interested
+3. Not Interested
+4. Mention users
+
+NOT allowed here:
+
+* Delete
+* Owner actions
+* Duplicate share
+
+---
+
+## CASE B — OWNER (user IS the creator of the auction)
+
+Menu MUST contain ONLY:
+
+1. Delete
+2. Share (optional here ONLY if we decide owner needs it — otherwise rely on main share button)
+
+NOT allowed:
+
+* Report (cannot report your own content)
+* Interested / Not Interested (nonsense on own content)
+* Mention (optional — only if product decision allows)
+
+Also:
+
+* REMOVE "Download" completely (not needed for own content)
+
+---
+
+# CRITICAL RULE 3 — REPORT SYSTEM (FULL IMPLEMENTATION)
+
+This must be REAL, not visual.
+
+## When user taps "Report":
+
+Open a modal / bottom sheet with:
+
+### Step 1 — Reason selection
+
+Examples:
+
+* Spam
+* Inappropriate content
+* Fraud / scam
+* Misleading listing
+* Other
+
+### Step 2 — Optional text input
+
+"Add more details"
+
+### Step 3 — Submit
+
+## Backend requirements:
+
+* Store:
+
+  * reporter_id
+  * auction_id
+  * reason
+  * optional message
+  * timestamp
+
+## UX requirements:
+
+* Show success message after submit
+* Prevent spamming (disable multiple rapid submissions)
+* Close modal after success
+
+## Admin:
+
+* Must appear in admin reports page (already exists)
+* Must be actionable later
+
+---
+
+# CRITICAL RULE 4 — INTERESTED / NOT INTERESTED (REAL SIGNALS)
+
+These are NOT buttons — they are feed signals.
+
+## Requirements:
+
+### Interested:
+
+* Send signal → content_signals table (already exists)
+* Mark visually active
+* Remove "not interested" if previously selected
+
+### Not Interested:
+
+* Send negative signal
+* Immediately reduce visibility in feed (existing system supports this)
+* Mark visually active
+
+### UX:
+
+* Only ONE state active at a time
+* Toggle behavior must be correct
+* No duplicate requests
+
+---
+
+# CRITICAL RULE 5 — MENTION SYSTEM (STRICT RULE)
+
+User requested HARD constraint:
+
+### Mention ONLY allowed when:
+
+* I follow the user
+* AND the user follows me
+
+This is a mutual-follow relationship.
+
+## Required behavior:
+
+### When opening "Mention":
+
+* Show ONLY users where:
+  mutual_follow = true
+
+### NOT allowed:
+
+* One-way follow
+* Random users
+* Full user list
+
+## UI:
+
+* Search field
+* List of eligible users only
+
+## If no eligible users:
+
+* Show empty state:
+  "You can only mention users who follow you back"
+
+---
+
+# CRITICAL RULE 6 — REMOVE DOWNLOAD (UNLESS JUSTIFIED)
+
+Download is currently shown.
+
+### REQUIRED:
+
+* Remove it completely from owner menu
+* Re-evaluate if it should exist at all
+
+For now:
+→ REMOVE download
+
+---
+
+# CRITICAL RULE 7 — DO NOT BREAK EXISTING ACTION STACK
+
+We recently fixed:
+
+* action order
+* bid button priority
+* layout spacing
+
+### DO NOT:
+
+* move main buttons randomly
+* break layout
+* overlap UI
+
+All changes must be scoped ONLY to the three-dots menu system.
+
+---
+
+# FILES TO AUDIT FIRST
+
+Before coding, identify:
+
+1. FeedCard.tsx (action menu rendering)
+2. Any menu/dropdown component used
+3. content_signals handling
+4. report-related backend routes
+5. user_follows table (for mutual logic)
+
+---
+
+# DELIVERABLES BEFORE CODE
+
+1. Exact file locations of menu logic
+2. Current condition checks for owner vs viewer
+3. Whether report system exists or needs creation
+4. How signals are currently stored
+5. Whether mutual follow can be derived from existing tables
+
+---
+
+# DELIVERABLES AFTER CODE
+
+* List of modified files
+* Confirmation:
+
+  * share duplication removed
+  * report works end-to-end
+  * interested/not interested works with real signals
+  * mention restricted to mutual follows
+  * owner vs viewer menu fully separated
+  * download removed
+
+---
+
+# CONSTRAINTS
+
+* production safe
+* no fake UI
+* no partial implementation
+* no breaking feed or bidding
+* no duplicate actions
+
+---
+
+This is a core product behavior change.
+Accuracy is critical.

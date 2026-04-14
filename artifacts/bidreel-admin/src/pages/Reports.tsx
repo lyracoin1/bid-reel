@@ -11,10 +11,12 @@ function formatDate(iso: string) {
 }
 
 const REASON_LABELS: Record<string, string> = {
-  spam_or_fake:      "محتوى مزيف",
-  offensive_content: "محتوى مسيء",
-  prohibited_item:   "عنصر محظور",
-  other:             "أخرى",
+  spam_or_fake:        "محتوى مزيف أو مزعج",
+  offensive_content:   "محتوى مسيء",
+  prohibited_item:     "عنصر محظور",
+  fraud_scam:          "احتيال أو نصب",
+  misleading_listing:  "إعلان مضلل",
+  other:               "أخرى",
 };
 
 const STATUS_META: Record<string, { label: string; style: string }> = {

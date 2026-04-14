@@ -16,6 +16,8 @@ const VALID_REASONS = [
   "spam_or_fake",
   "offensive_content",
   "prohibited_item",
+  "fraud_scam",
+  "misleading_listing",
   "other",
 ] as const;
 

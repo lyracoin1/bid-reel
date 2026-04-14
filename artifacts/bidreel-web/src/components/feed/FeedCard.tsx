@@ -269,7 +269,13 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
           </button>
         )}
         {/* 3-dot menu — 44dp touch target */}
-        <AuctionMenu auctionId={auction.id} auctionTitle={auction.title} mediaUrl={auction.mediaUrl} isOwner={isOwner} />
+        <AuctionMenu
+          auctionId={auction.id}
+          auctionTitle={auction.title}
+          isOwner={isOwner}
+          currentSignal={localSignal}
+          onSignal={handleSignal}
+        />
       </div>
 
       {/* ── LEFT action stack ─────────────────────────────────────────────── */}

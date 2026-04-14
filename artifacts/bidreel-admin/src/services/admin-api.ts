@@ -210,6 +210,15 @@ export async function adminUpdateUser(
   return data.user;
 }
 
+/**
+ * Permanently delete a user and all their content.
+ * The server handles cascade deletion in the correct FK order.
+ * Self-delete is blocked server-side (returns 403).
+ */
+export async function adminDeleteUser(id: string): Promise<void> {
+  await adminFetch(`/users/${id}`, { method: "DELETE" });
+}
+
 // ─── Auctions ─────────────────────────────────────────────────────────────────
 
 export interface AdminAuction {

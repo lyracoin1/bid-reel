@@ -1,8 +1,13 @@
-import { useEffect, useState, useMemo } from "react";
-import { Loader2, AlertCircle, Shield, User, Ban, MoreHorizontal, CheckCircle, Search, X, AlertTriangle } from "lucide-react";
+import { useEffect, useRef, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
+import {
+  Loader2, AlertCircle, Shield, User, Ban, MoreHorizontal,
+  CheckCircle, Search, X, AlertTriangle, Trash2,
+} from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { adminGetUsers, adminUpdateUser, type AdminUser } from "@/services/admin-api";
+import { adminGetUsers, adminUpdateUser, adminDeleteUser, type AdminUser } from "@/services/admin-api";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { supabase } from "@/lib/supabase";
 
 interface ConfirmAction {
   label: string;
@@ -11,29 +16,40 @@ interface ConfirmAction {
   onConfirm: () => Promise<void>;
 }
 
-type RoleFilter = "all" | "admin" | "user";
+type RoleFilter   = "all" | "admin" | "user";
 type StatusFilter = "all" | "active" | "banned" | "incomplete";
+
+type MenuAnchor = {
+  top?: number;
+  bottom?: number;
+  right: number;
+};
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 export default function Users() {
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [confirm, setConfirm] = useState<ConfirmAction | null>(null);
+  const [users, setUsers]           = useState<AdminUser[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState<string | null>(null);
+  const [toast, setToast]           = useState<{ msg: string; ok: boolean } | null>(null);
+  const [confirm, setConfirm]       = useState<ConfirmAction | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [openMenu, setOpenMenu]     = useState<string | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
+  const [search, setSearch]         = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [currentAdminId, setCurrentAdminId] = useState<string | null>(null);
 
-  function showToast(msg: string, ok = true) {
-    setToast({ msg, ok });
-    setTimeout(() => setToast(null), 3000);
-  }
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.id) setCurrentAdminId(session.user.id);
+    });
+  }, []);
 
   useEffect(() => {
     adminGetUsers()
@@ -42,22 +58,62 @@ export default function Users() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (!openMenu) return;
+    function onMouseDown(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenu(null);
+        setMenuAnchor(null);
+      }
+    }
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [openMenu]);
+
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 3500);
+  }
+
+  function openMenuAtButton(userId: string, e: React.MouseEvent<HTMLButtonElement>) {
+    if (openMenu === userId) {
+      setOpenMenu(null);
+      setMenuAnchor(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuHeight = 145;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpward = spaceBelow < menuHeight + 8;
+    setOpenMenu(userId);
+    setMenuAnchor(
+      openUpward
+        ? { bottom: window.innerHeight - rect.top + 4, right: window.innerWidth - rect.right }
+        : { top: rect.bottom + 4,                       right: window.innerWidth - rect.right },
+    );
+  }
+
+  function closeMenu() {
+    setOpenMenu(null);
+    setMenuAnchor(null);
+  }
+
   const incompleteCount = useMemo(() => users.filter(u => !u.isCompleted).length, [users]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return users.filter(u => {
       if (q) {
-        const nameMatch = (u.displayName ?? "").toLowerCase().includes(q);
+        const nameMatch  = (u.displayName ?? "").toLowerCase().includes(q);
         const phoneMatch = (u.phone ?? "").includes(q);
-        const idMatch = u.id.toLowerCase().includes(q);
-        const userMatch = (u.username ?? "").toLowerCase().includes(q);
+        const idMatch    = u.id.toLowerCase().includes(q);
+        const userMatch  = (u.username ?? "").toLowerCase().includes(q);
         if (!nameMatch && !phoneMatch && !idMatch && !userMatch) return false;
       }
       if (roleFilter !== "all" && u.role !== roleFilter) return false;
-      if (statusFilter === "active" && (u.isBanned || !u.isCompleted)) return false;
-      if (statusFilter === "banned" && !u.isBanned) return false;
-      if (statusFilter === "incomplete" && u.isCompleted) return false;
+      if (statusFilter === "active"     && (u.isBanned || !u.isCompleted)) return false;
+      if (statusFilter === "banned"     && !u.isBanned)   return false;
+      if (statusFilter === "incomplete" &&  u.isCompleted) return false;
       return true;
     });
   }, [users, search, roleFilter, statusFilter]);
@@ -68,7 +124,7 @@ export default function Users() {
   }
 
   function runConfirm(action: ConfirmAction) {
-    setOpenMenu(null);
+    closeMenu();
     setConfirm(action);
   }
 
@@ -87,6 +143,8 @@ export default function Users() {
   }
 
   const hasFilters = search.trim() || roleFilter !== "all" || statusFilter !== "all";
+
+  const openMenuUser = openMenu ? users.find(u => u.id === openMenu) ?? null : null;
 
   return (
     <AdminLayout title="المستخدمون">
@@ -174,7 +232,7 @@ export default function Users() {
           <p className="text-sm">{users.length === 0 ? "لا مستخدمين بعد" : "لا نتائج تطابق البحث"}</p>
         </div>
       ) : (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden overflow-x-auto">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
           <table className="w-full text-sm min-w-[780px]">
             <thead>
               <tr className="border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wider">
@@ -246,50 +304,109 @@ export default function Users() {
                   </td>
                   <td className="px-4 py-3.5 text-gray-400 text-xs">{formatDate(u.createdAt)}</td>
                   <td className="px-4 py-3.5">
-                    <div className="relative">
-                      <button
-                        onClick={() => setOpenMenu(openMenu === u.id ? null : u.id)}
-                        className="p-1.5 rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
-                      >
-                        <MoreHorizontal size={16} />
-                      </button>
-                      {openMenu === u.id && (
-                        <div className="absolute right-0 top-8 z-20 w-48 bg-gray-800 border border-gray-700 rounded-xl shadow-xl overflow-hidden" dir="rtl">
-                          {u.role !== "admin" ? (
-                            <button onClick={() => runConfirm({ label: "ترقية إلى أدمن", description: "هل تريد منح صلاحيات الأدمن لهذا المستخدم؟", variant: "warning", onConfirm: () => applyUpdate(u.id, { role: "admin" }) })}
-                              className="w-full text-right px-4 py-2.5 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2">
-                              <Shield size={14} className="text-violet-400" /> ترقية إلى أدمن
-                            </button>
-                          ) : (
-                            <button onClick={() => runConfirm({ label: "تخفيض الدور إلى مستخدم", description: "هل تريد إزالة صلاحيات الأدمن من هذا المستخدم؟", variant: "danger", onConfirm: () => applyUpdate(u.id, { role: "user" }) })}
-                              className="w-full text-right px-4 py-2.5 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2">
-                              <User size={14} className="text-amber-400" /> إزالة الأدمن
-                            </button>
-                          )}
-                          {!u.isBanned ? (
-                            <button onClick={() => runConfirm({ label: "حظر المستخدم", description: "سيتم منع هذا المستخدم من الوصول إلى المنصة.", variant: "danger", onConfirm: () => applyUpdate(u.id, { isBanned: true }) })}
-                              className="w-full text-right px-4 py-2.5 text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2">
-                              <Ban size={14} /> حظر المستخدم
-                            </button>
-                          ) : (
-                            <button onClick={async () => {
-                              setOpenMenu(null);
-                              try { await applyUpdate(u.id, { isBanned: false }); showToast("تم رفع الحظر عن المستخدم"); }
-                              catch (err) { showToast((err as Error).message, false); }
-                            }}
-                              className="w-full text-right px-4 py-2.5 text-sm text-emerald-400 hover:bg-gray-700 flex items-center gap-2">
-                              <CheckCircle size={14} /> رفع الحظر
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    <button
+                      onClick={e => openMenuAtButton(u.id, e)}
+                      className="p-1.5 rounded-lg hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
+                    >
+                      <MoreHorizontal size={16} />
+                    </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {openMenu && menuAnchor && openMenuUser && createPortal(
+        <div
+          ref={menuRef}
+          style={{
+            position: "fixed",
+            top:    menuAnchor.top,
+            bottom: menuAnchor.bottom,
+            right:  menuAnchor.right,
+            zIndex: 9999,
+          }}
+          className="w-52 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl overflow-hidden"
+          dir="rtl"
+        >
+          {openMenuUser.role !== "admin" ? (
+            <button
+              onClick={() => runConfirm({
+                label: "ترقية إلى أدمن",
+                description: "هل تريد منح صلاحيات الأدمن لهذا المستخدم؟",
+                variant: "warning",
+                onConfirm: () => applyUpdate(openMenuUser.id, { role: "admin" }),
+              })}
+              className="w-full text-right px-4 py-2.5 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+            >
+              <Shield size={14} className="text-violet-400" /> ترقية إلى أدمن
+            </button>
+          ) : (
+            <button
+              onClick={() => runConfirm({
+                label: "تخفيض الدور إلى مستخدم",
+                description: "هل تريد إزالة صلاحيات الأدمن من هذا المستخدم؟",
+                variant: "danger",
+                onConfirm: () => applyUpdate(openMenuUser.id, { role: "user" }),
+              })}
+              className="w-full text-right px-4 py-2.5 text-sm text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+            >
+              <User size={14} className="text-amber-400" /> إزالة الأدمن
+            </button>
+          )}
+
+          {!openMenuUser.isBanned ? (
+            <button
+              onClick={() => runConfirm({
+                label: "حظر المستخدم",
+                description: "سيتم منع هذا المستخدم من الوصول إلى المنصة.",
+                variant: "danger",
+                onConfirm: () => applyUpdate(openMenuUser.id, { isBanned: true }),
+              })}
+              className="w-full text-right px-4 py-2.5 text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2"
+            >
+              <Ban size={14} /> حظر المستخدم
+            </button>
+          ) : (
+            <button
+              onClick={async () => {
+                closeMenu();
+                try {
+                  await applyUpdate(openMenuUser.id, { isBanned: false });
+                  showToast("تم رفع الحظر عن المستخدم");
+                } catch (err) {
+                  showToast((err as Error).message, false);
+                }
+              }}
+              className="w-full text-right px-4 py-2.5 text-sm text-emerald-400 hover:bg-gray-700 flex items-center gap-2"
+            >
+              <CheckCircle size={14} /> رفع الحظر
+            </button>
+          )}
+
+          {currentAdminId !== openMenuUser.id && (
+            <>
+              <div className="border-t border-gray-700 mx-3 my-1" />
+              <button
+                onClick={() => runConfirm({
+                  label: "حذف المستخدم نهائياً",
+                  description: `سيتم حذف حساب "${openMenuUser.displayName ?? openMenuUser.username ?? openMenuUser.id.slice(0, 8)}" وجميع بياناته (مزاداته، مزايداته، متابعاته) بشكل لا رجعة فيه. هذا الإجراء لا يمكن التراجع عنه.`,
+                  variant: "danger",
+                  onConfirm: async () => {
+                    await adminDeleteUser(openMenuUser.id);
+                    setUsers(prev => prev.filter(u => u.id !== openMenuUser.id));
+                  },
+                })}
+                className="w-full text-right px-4 py-2.5 text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-2 font-semibold"
+              >
+                <Trash2 size={14} /> حذف المستخدم نهائياً
+              </button>
+            </>
+          )}
+        </div>,
+        document.body,
       )}
     </AdminLayout>
   );

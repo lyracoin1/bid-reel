@@ -1,0 +1,112 @@
+We are fixing two specific issues in the Admin Users page.
+
+Do NOT refactor unrelated areas.
+Do NOT change working auth/session logic.
+Do NOT touch completed features outside this scope.
+
+==================================================
+ISSUE 1 — ADD DELETE USER ACTION TO THE MENU
+============================================
+
+Current state:
+
+* The user actions menu only shows two actions:
+
+  * Promote to admin
+  * Ban user
+
+Required change:
+
+* Add a third action:
+
+  * Delete user
+
+Requirements:
+
+1. Add a DELETE admin API route for users:
+
+   * DELETE /api/admin/users/:id
+2. This must be a real deletion flow, not a fake UI action
+3. Use server-side Supabase service role only
+4. Delete the Auth user properly through the admin/server layer
+5. Remove or clean the related profile row and dependent data according to existing schema/cascade behavior
+6. Add a clear confirmation dialog before deletion:
+
+   * strong warning
+   * irreversible action wording
+7. After successful delete:
+
+   * remove the user row from the UI immediately or refetch the list
+8. Handle failure cleanly:
+
+   * show clear error message
+9. Keep this action restricted to admin only
+10. Do not expose sensitive server logic to the frontend
+
+Important:
+
+* Do NOT delete the currently logged-in admin accidentally without a clear safeguard
+* If needed, prevent self-delete from this menu or require an extra guard
+* Do NOT leave the UI inconsistent after delete
+
+==================================================
+ISSUE 2 — FIX THE DROPDOWN MENU BEING CLIPPED
+=============================================
+
+Current state:
+
+* The 3-dot actions menu does open
+* But for rows near the bottom of the table, the menu is clipped/cut off
+* Only part of the menu is visible because the table/container hides the rest
+
+Required fix:
+
+1. Make the dropdown fully visible for all rows, especially the last rows
+2. The menu must not be clipped by the table container, scroll area, or page layout
+3. Keep the menu aligned correctly in RTL layout
+4. Make sure it remains clickable and visually stable
+
+Preferred implementation approach:
+A. Best option:
+
+* Render the menu using a React portal to document.body
+
+B. If not using a portal:
+
+* Use fixed positioning
+* Compute position from the trigger button bounding rect
+* Open upward when there is not enough space below
+
+Also ensure:
+
+* high enough z-index
+* no overflow clipping from parent containers
+* menu does not open off-screen
+* menu works for bottom rows and edge cases
+
+==================================================
+IMPLEMENTATION SAFETY RULES
+===========================
+
+* Do NOT redesign the whole Users page
+* Do NOT break existing Promote/Ban actions
+* Do NOT touch unrelated admin pages
+* Keep the change minimal and production-safe
+* Keep Arabic/RTL layout correct
+* Use existing UI patterns where possible
+* If there is already a reusable popover/dropdown component, prefer reusing it
+
+==================================================
+REQUIRED OUTPUT
+===============
+
+When finished, return:
+
+1. exact root cause of the clipping issue
+2. exact file(s) changed
+3. exact implementation of the delete route
+4. exact confirmation UI added
+5. whether self-delete was blocked or specially handled
+6. fix approach used for the menu clipping (portal / fixed / overflow fix)
+7. confirmation that the last rows now show the full menu
+8. exact git commands I should run next

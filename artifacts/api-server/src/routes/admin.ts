@@ -224,6 +224,69 @@ adminRouter.patch("/users/:id", async (req, res) => {
   }
 });
 
+// ─── DELETE /users/:id ────────────────────────────────────────────────────────
+//
+// Permanently removes a user from BidReel:
+//   1. Fetches all auction IDs belonging to the user (seller_id).
+//   2. Deletes bids on those auctions (bids.auction_id CASCADE would handle
+//      this when the auction is deleted, but we need to be explicit to avoid
+//      FK RESTRICT on bidder_id when deleting the profile).
+//   3. Deletes reports referencing those auctions.
+//   4. Deletes the user's auctions (unblocked now that bids are gone).
+//   5. Deletes any remaining bids placed BY the user on other auctions
+//      (bids.bidder_id → profiles RESTRICT — must clear before auth delete).
+//   6. Calls supabaseAdmin.auth.admin.deleteUser() which cascades to:
+//        profiles  (ON DELETE CASCADE)
+//        likes, content_signals, user_follows, saved_auctions  (CASCADE via profiles)
+//        reports.reporter_id / resolved_by  (SET NULL)
+//        auctions.winner_id  (SET NULL)
+//
+// Self-delete is blocked: admins may not delete their own account.
+
+adminRouter.delete("/users/:id", async (req, res) => {
+  const { id: targetId } = req.params;
+
+  // Block self-delete at the server level.
+  if (targetId === req.user!.id) {
+    res.status(403).json({ error: "SELF_DELETE", message: "You cannot delete your own account." });
+    return;
+  }
+
+  try {
+    // 1. Fetch auction IDs owned by this user.
+    const { data: auctionRows } = await supabaseAdmin
+      .from("auctions")
+      .select("id")
+      .eq("seller_id", targetId);
+
+    const auctionIds = (auctionRows ?? []).map((r) => r.id as string);
+
+    // 2. Delete bids on those auctions (clears RESTRICT on bids.auction_id→auctions).
+    if (auctionIds.length > 0) {
+      await supabaseAdmin.from("bids").delete().in("auction_id", auctionIds);
+      await supabaseAdmin.from("reports").delete().in("auction_id", auctionIds);
+    }
+
+    // 3. Delete the user's auctions (seller_id RESTRICT is now clear).
+    await supabaseAdmin.from("auctions").delete().eq("seller_id", targetId);
+
+    // 4. Delete bids placed BY this user on OTHER auctions (bidder_id RESTRICT).
+    await supabaseAdmin.from("bids").delete().eq("bidder_id", targetId);
+
+    // 5. Delete the auth user — cascades to profiles and all CASCADE-linked tables.
+    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(targetId);
+    if (authError) throw authError;
+
+    logger.info({ targetId, adminId: req.user!.id }, "Admin permanently deleted user");
+    await logAdminAction(req.user!.id, "delete_user", "user", targetId, "Permanently deleted");
+
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err, targetId }, "DELETE /admin/users/:id failed");
+    res.status(500).json({ error: "DELETE_FAILED", message: (err instanceof Error ? err.message : "Failed to delete user") });
+  }
+});
+
 // ─── GET /auctions ────────────────────────────────────────────────────────────
 
 adminRouter.get("/auctions", async (_req, res) => {

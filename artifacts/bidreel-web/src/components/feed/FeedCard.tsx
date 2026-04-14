@@ -193,10 +193,12 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
     if (state === "ended") {
       return { className: "bg-white/10 text-white/50 border-white/10", dot: "bg-white/30", label: t("time_ended") };
     }
+    // Active — urgent: just the countdown (colour conveys urgency).
+    // Active — normal: prefix with "Active ·" so the status is explicit.
     return {
       className: timeInfo.isUrgent ? "bg-red-500/20 text-red-400 border-red-500/30" : "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
-      dot: timeInfo.isUrgent ? "bg-red-400 animate-pulse" : "bg-emerald-400",
-      label: timeInfo.text,
+      dot: timeInfo.isUrgent ? "bg-red-400 animate-pulse" : "bg-emerald-400 animate-pulse",
+      label: timeInfo.isUrgent ? timeInfo.text : `Active · ${timeInfo.text}`,
     };
   })();
 
@@ -429,15 +431,23 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
       {/* ── Bottom info area ───────────────────────────────────────────────── */}
       {/* left-[76px] leaves room for the 48px action stack at left-3 + gap   */}
       <div
-        className="absolute bottom-36 left-[76px] right-4 z-10 flex flex-col gap-2 cursor-pointer"
+        className="absolute bottom-36 left-[76px] right-4 z-10 flex flex-col gap-1.5 cursor-pointer"
         onClick={() => setLocation(`/auction/${auction.id}`)}
       >
+        {/* Seller name — compact, above the title */}
+        <span className="text-[12px] font-semibold text-white/55 leading-none truncate">
+          {auction.seller.name}
+          {auction.seller.handle ? (
+            <span className="font-normal text-white/35"> {auction.seller.handle}</span>
+          ) : null}
+        </span>
+
         <h2 className="text-[21px] font-bold text-white leading-snug line-clamp-2 drop-shadow-sm">
           {auction.title}
         </h2>
 
         {state === "upcoming" ? (
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-0.5 mt-0.5">
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold text-white tracking-tight">{fmtPrice(auction.startingBid)}</span>
               <span className="text-xs font-medium text-white/50 uppercase tracking-wide">{t("starting_at")}</span>
@@ -445,14 +455,19 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
             <span className="text-xs font-semibold text-amber-400">{t("bid_opens_soon")}</span>
           </div>
         ) : state === "ended" ? (
-          <div className="flex items-baseline gap-2.5">
-            <span className="text-3xl font-bold text-white tracking-tight">{fmtPrice(auction.currentBid)}</span>
-            <span className="text-xs font-medium text-white/40 uppercase tracking-wide">{t("final_price")}</span>
+          <div className="flex flex-col gap-0.5 mt-0.5">
+            <span className="text-[10px] font-bold text-white/35 uppercase tracking-widest">{t("final_price")}</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-white tracking-tight">{fmtPrice(auction.currentBid)}</span>
+            </div>
           </div>
         ) : (
-          <div className="flex items-baseline gap-2.5">
-            <span className="text-3xl font-bold text-white tracking-tight">{fmtPrice(auction.currentBid)}</span>
-            <span className="text-xs font-medium text-white/50 uppercase tracking-wide">{auction.bidCount} {t("bids_count")}</span>
+          <div className="flex flex-col gap-0.5 mt-0.5">
+            <span className="text-[10px] font-bold text-emerald-400/80 uppercase tracking-widest">{t("current_bid")}</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-white tracking-tight">{fmtPrice(auction.currentBid)}</span>
+              <span className="text-xs font-medium text-white/50">{auction.bidCount} {t("bids_count")}</span>
+            </div>
           </div>
         )}
 

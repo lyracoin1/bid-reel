@@ -1,0 +1,109 @@
+We are continuing BidReel production work.
+
+Completed so far:
+
+* auth / onboarding hotfixes
+* email confirmation redirect fix
+* profile restructuring
+* empty states pass
+* bidding system refactor to increment-only bidding
+
+Now proceed to:
+
+## Phase 3 / Part 1: Auction video overlay + seller context
+
+IMPORTANT:
+
+* Do NOT change backend or database
+* Do NOT change bottom navigation
+* Do NOT redesign the entire feed
+* This is a frontend-only UX enhancement for the reels experience
+
+## Goal
+
+Make each auction in the feed easier to understand instantly, without adding clutter.
+
+The user should immediately understand:
+
+* the auction status
+* the current price
+* who the seller is
+
+All of this should fit the reels-first product direction.
+
+## Required work
+
+### 1) Audit the current feed/video card UI
+
+Inspect the current feed item / reel / video overlay implementation and identify:
+
+* which file renders the auction video card
+* which components already render:
+
+  * title
+  * seller name
+  * current price
+  * actions
+  * auction state
+
+### 2) Add / improve auction status visibility
+
+Show a clear status label on the auction UI, using existing auction data only.
+
+Expected statuses:
+
+* Active
+* Ended
+* Archived
+
+This should be visually clear but lightweight.
+
+### 3) Improve current price visibility
+
+Make the current auction price more prominent within the reel UI.
+
+Do not make it bulky.
+Do not use heavy card styling.
+Keep it elegant and mobile-first.
+
+### 4) Improve seller context
+
+Enhance seller identity presentation using existing data only:
+
+* avatar if already available
+* display name and/or username
+* keep it compact
+
+If a follow entry/action already exists and can be reused safely, inspect whether it fits here.
+Do NOT invent new backend work in this phase.
+
+### 5) Preserve reels feel
+
+The UI must remain lightweight and immersive.
+Do not turn the reel into a marketplace card.
+Do not block the video excessively.
+
+## Deliverables BEFORE code
+
+Before implementing:
+
+1. identify the exact files controlling the reel/feed auction UI
+2. explain the current structure
+3. propose the minimal safe UI enhancement plan
+
+## Deliverables AFTER code
+
+After implementation:
+
+* summarize exactly what changed
+* list touched files
+* confirm no backend changes
+* mention any follow-up opportunities for a later phase
+
+## Constraints
+
+* production safe
+* frontend only
+* no backend changes
+* no navigation changes
+* no feature overreach

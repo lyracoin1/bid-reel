@@ -231,7 +231,6 @@ export default function AuctionDetail() {
             <AuctionMenu
               auctionId={auction.id}
               auctionTitle={auction.title}
-              mediaUrl={auction.mediaUrl}
               isOwner={isSeller}
               onDeleted={() => setLocation("/feed")}
             />

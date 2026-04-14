@@ -1,0 +1,70 @@
+We need to fix a Capacitor Android Google Sign-In callback bug.
+
+Do NOT treat this as a generic web-only issue.
+
+## Real context
+
+This project has an Android app wrapper built with Capacitor.
+The bug happens in the Android app flow.
+
+Yes, Google auth opens an external browser/custom tab/web callback as part of OAuth, but the real problem is that the authenticated result does NOT return correctly into the Capacitor Android app.
+
+So this is an Android/Capacitor OAuth return problem, not just a normal website login problem.
+
+## Bug
+
+Inside the Android app:
+
+* user taps "Sign in with Google"
+* Google auth opens externally
+* user completes login successfully
+* login succeeds in the browser/web callback
+* but the app does NOT get the authenticated session
+* when user returns to the app, Google button keeps spinning
+* app is still unauthenticated
+
+## Required audit
+
+Audit the full Android Capacitor auth return flow:
+
+1. the Google sign-in trigger in the app
+2. the Supabase OAuth configuration
+3. the redirectTo used for Google sign-in
+4. Capacitor deep-link / app URL open handling
+5. Android intent filters / app scheme / app links
+6. how the app listens for the OAuth callback after browser login
+7. how session is restored into the app after returning from external auth
+8. why the loading spinner never stops when callback handling fails
+
+## Important
+
+Do NOT answer this as a generic browser auth issue.
+Treat it as:
+
+* Capacitor Android app
+* external OAuth browser flow
+* failed return/callback/session handoff back to app
+
+## Required fix goals
+
+* Google login started from Android app must finish inside Android app
+* callback must return into Capacitor app correctly
+* app must restore/read session after callback
+* loading state must stop correctly
+* failed callback must not leave endless spinner
+
+## Deliverables BEFORE code
+
+1. identify the exact files controlling Google sign-in in the Capacitor app
+2. identify the exact redirect/callback URL currently used
+3. identify whether Capacitor appUrlOpen or equivalent deep-link handling exists
+4. identify whether Android intent filter / scheme is configured correctly
+5. explain the exact root cause
+
+## Deliverables AFTER code
+
+* list changed files
+* explain how callback now returns into the Android app
+* explain how session is restored in-app
+* confirm loading spinner no longer gets stuck
+* provide exact Android test steps

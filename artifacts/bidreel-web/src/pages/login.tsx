@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, Mail, Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { useLang } from "@/contexts/LanguageContext";
 import { setToken, API_BASE } from "@/lib/api-client";
 import { supabase } from "@/lib/supabase";
+import { isNative, OAUTH_REDIRECT_URL } from "@/lib/capacitor-app";
 
 function GoogleIcon() {
   return (
@@ -109,6 +110,25 @@ export default function Login() {
   // ── Google Sign-In ────────────────────────────────────────────────────────────
   const [googleLoading, setGoogleLoading] = useState(false);
 
+  // On Capacitor (Android/iOS): when the user returns from the Google OAuth
+  // Custom Tab — whether they completed auth or pressed Back to cancel — the
+  // app receives a "resume" DOM event.  If auth succeeded, CapacitorOAuthHandler
+  // in App.tsx will have already navigated away (unmounting this component) so
+  // the setGoogleLoading call is a harmless no-op.  If the user cancelled, this
+  // resets the stuck spinner so they can try again.
+  useEffect(() => {
+    if (!googleLoading || !isNative()) return;
+
+    function onResume() {
+      // Give CapacitorOAuthHandler a brief window to fire appUrlOpen first.
+      // If navigation happened, this component is already unmounted.
+      setTimeout(() => setGoogleLoading(false), 800);
+    }
+
+    document.addEventListener("resume", onResume);
+    return () => document.removeEventListener("resume", onResume);
+  }, [googleLoading]);
+
   async function handleGoogleSignIn() {
     if (!supabase) {
       setError("Authentication is not configured. Contact support.");
@@ -117,19 +137,27 @@ export default function Login() {
     setGoogleLoading(true);
     setError(null);
     try {
+      // On Capacitor (native Android/iOS): use a custom URL scheme so the OAuth
+      // callback can be routed back into the app via the intent filter registered
+      // in AndroidManifest.xml.  CapacitorOAuthHandler in App.tsx listens for
+      // the appUrlOpen event and completes the session handshake.
+      //
+      // On the web: use the standard origin-based redirect.  OAuthCallbackHandler
+      // in App.tsx handles the code/token → session flow on page reload.
+      const redirectTo = isNative()
+        ? OAUTH_REDIRECT_URL
+        : `${window.location.origin}${import.meta.env.BASE_URL}`;
+
       const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: {
-          // After Google auth, Supabase redirects back here.
-          // OAuthCallbackHandler in App.tsx handles the rest (ensure-profile → route).
-          redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}`,
-        },
+        options: { redirectTo },
       });
       if (authError) {
         setError(authError.message);
         setGoogleLoading(false);
       }
-      // On success Supabase redirects the page away — no need to set loading=false.
+      // Web: Supabase redirects the page away — no need to set loading=false.
+      // Native: the Custom Tab opens; resume listener above handles spinner reset.
     } catch {
       setError(copy.networkErr);
       setGoogleLoading(false);

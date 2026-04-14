@@ -60,9 +60,25 @@
             android:exported="true"
             android:windowSoftInputMode="adjustResize">
 
+            <!-- App launcher -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+                OAuth deep-link callback handler.
+                When Google / Supabase redirect to com.bidreel.app://auth/callback,
+                Android routes the intent here (launchMode="singleTask" brings the
+                existing activity to the foreground rather than creating a new one).
+                The Capacitor bridge then fires the "appUrlOpen" JS event so the
+                web layer can exchange the auth code / tokens with Supabase.
+            -->
+            <intent-filter android:label="BidReel OAuth Callback">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.bidreel.app" />
             </intent-filter>
 
         </activity>

@@ -8,6 +8,7 @@ import { NotificationBannerProvider } from "@/contexts/NotificationBannerContext
 import { useFcmToken } from "@/hooks/use-fcm-token";
 import { supabase } from "@/lib/supabase";
 import { setToken, clearToken, API_BASE } from "@/lib/api-client";
+import { CapApp, isNative, OAUTH_SCHEME } from "@/lib/capacitor-app";
 
 // Core user pages — loaded eagerly (always needed)
 import Splash from "@/pages/splash";
@@ -137,6 +138,120 @@ function OAuthCallbackHandler() {
   return null;
 }
 
+/**
+ * Handles the OAuth deep-link return inside the Capacitor Android app.
+ *
+ * Flow:
+ *   1. User taps "Sign in with Google" → signInWithOAuth redirects the WebView
+ *      to Supabase's auth endpoint, which opens Google in a Chrome Custom Tab.
+ *   2. Google auth completes → Chrome redirects to com.bidreel.app://auth/callback
+ *      with either ?code= (PKCE) or #access_token= (implicit) in the URL.
+ *   3. Android routes the custom-scheme intent to MainActivity (single-task) and
+ *      Capacitor fires the "appUrlOpen" event on the JS bridge.
+ *   4. This handler receives the URL, exchanges the code / sets the session,
+ *      calls ensure-profile, then navigates to /interests (new user) or /feed.
+ *
+ * getLaunchUrl() also handles the cold-start case where the app was killed and
+ * then relaunched directly from the OAuth redirect intent.
+ *
+ * Only mounted on native platforms (isNative() === false → early return).
+ */
+function CapacitorOAuthHandler() {
+  const [, setWouterLocation] = useLocation();
+  const handled = useRef(false);
+
+  useEffect(() => {
+    if (!isNative() || !supabase) return;
+
+    let mounted = true;
+
+    async function handleUrl(url: string) {
+      if (!url.startsWith(OAUTH_SCHEME + "://")) return;
+      if (handled.current || !supabase) return;
+      handled.current = true;
+
+      console.log("[CapacitorOAuth] Deep link received:", url);
+
+      try {
+        // Normalise: replace the custom scheme with https so URL() can parse it.
+        const parsed = new URL(url.replace(OAUTH_SCHEME + "://", "https://placeholder.invalid/"));
+        let session: { access_token: string; refresh_token: string } | null = null;
+
+        // ── PKCE flow: ?code=... ─────────────────────────────────────────────
+        const code = parsed.searchParams.get("code");
+        if (code) {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) {
+            console.error("[CapacitorOAuth] PKCE exchange failed:", error.message);
+          } else if (data.session) {
+            session = data.session;
+          }
+        }
+
+        // ── Implicit flow: #access_token=...&refresh_token=... ───────────────
+        if (!session) {
+          const hash = parsed.hash.startsWith("#") ? parsed.hash.slice(1) : parsed.hash;
+          const params = new URLSearchParams(hash);
+          const at = params.get("access_token");
+          const rt = params.get("refresh_token");
+          if (at && rt) {
+            const { data, error } = await supabase.auth.setSession({ access_token: at, refresh_token: rt });
+            if (error) {
+              console.error("[CapacitorOAuth] Session set failed:", error.message);
+            } else if (data.session) {
+              session = data.session;
+            }
+          }
+        }
+
+        if (!session || !mounted) return;
+        setToken(session.access_token);
+        console.log("[CapacitorOAuth] Session established — calling ensure-profile");
+
+        // ── ensure-profile → route (same logic as OAuthCallbackHandler) ─────
+        try {
+          const res = await fetch(`${API_BASE}/auth/ensure-profile`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
+          if (res.ok) {
+            const data = await res.json() as { isNewUser: boolean; user: { isCompleted: boolean } };
+            const isNewUser = data.isNewUser ?? false;
+            const isComplete = data.user?.isCompleted ?? false;
+            if (mounted) setWouterLocation(isNewUser && !isComplete ? "/interests" : "/feed");
+          } else {
+            if (mounted) setWouterLocation("/feed");
+          }
+        } catch {
+          if (mounted) setWouterLocation("/feed");
+        }
+      } catch (err) {
+        console.error("[CapacitorOAuth] Deep link processing error:", err);
+        handled.current = false;
+      }
+    }
+
+    // ── Cold start: app was killed, relaunched via the deep link intent ──────
+    CapApp.getLaunchUrl()
+      .then(({ url }) => { if (url) handleUrl(url); })
+      .catch(() => {});
+
+    // ── Warm start: app in background, brought to foreground via deep link ───
+    const listenerHandle = CapApp.addListener("appUrlOpen", ({ url }) => handleUrl(url));
+
+    return () => {
+      mounted = false;
+      listenerHandle.then(h => h.remove()).catch(() => {});
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return null;
+}
+
 /** Keeps the api-client Bearer token in sync with Supabase session refreshes. */
 function AuthSync() {
   useEffect(() => {
@@ -168,6 +283,7 @@ function App() {
               <AuthSync />
               <FcmInit />
               <OAuthCallbackHandler />
+              <CapacitorOAuthHandler />
               <Router />
             </WouterRouter>
             <Toaster />

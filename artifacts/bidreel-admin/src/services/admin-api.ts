@@ -239,6 +239,8 @@ export interface AdminAuction {
   seller: { id: string; displayName: string | null } | null;
   interestedCount: number;
   notInterestedCount: number;
+  /** Number of users who have saved this auction. */
+  saveCount: number;
 }
 
 export async function adminGetAuctions(): Promise<AdminAuction[]> {

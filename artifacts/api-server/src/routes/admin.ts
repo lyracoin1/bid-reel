@@ -291,7 +291,7 @@ adminRouter.delete("/users/:id", async (req, res) => {
 
 adminRouter.get("/auctions", async (_req, res) => {
   try {
-    const [{ data, error }, { data: signalRows }] = await Promise.all([
+    const [{ data, error }, { data: signalRows }, { data: saveRows }] = await Promise.all([
       supabaseAdmin
         .from("auctions")
         .select("*, seller:profiles!seller_id(id, display_name)")
@@ -299,6 +299,10 @@ adminRouter.get("/auctions", async (_req, res) => {
       supabaseAdmin
         .from("content_signals")
         .select("auction_id, signal"),
+      // Count saves per auction from the saved_auctions table
+      supabaseAdmin
+        .from("saved_auctions")
+        .select("auction_id"),
     ]);
 
     if (error) throw error;
@@ -311,6 +315,13 @@ adminRouter.get("/auctions", async (_req, res) => {
       if (!signalMap[aId]) signalMap[aId] = { interested: 0, not_interested: 0 };
       if (sig === "interested") signalMap[aId].interested++;
       else if (sig === "not_interested") signalMap[aId].not_interested++;
+    }
+
+    // Aggregate save counts per auction
+    const saveMap: Record<string, number> = {};
+    for (const s of saveRows ?? []) {
+      const aId = s["auction_id"] as string;
+      saveMap[aId] = (saveMap[aId] ?? 0) + 1;
     }
 
     const auctions = (data ?? []).map((row: Record<string, unknown>) => {
@@ -335,6 +346,7 @@ adminRouter.get("/auctions", async (_req, res) => {
         seller: seller ? { id: seller.id, displayName: seller.display_name } : null,
         interestedCount: signalMap[aId]?.interested ?? 0,
         notInterestedCount: signalMap[aId]?.not_interested ?? 0,
+        saveCount: saveMap[aId] ?? 0,
       };
     });
 

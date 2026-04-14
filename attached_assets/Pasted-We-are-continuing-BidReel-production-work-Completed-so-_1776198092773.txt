@@ -1,0 +1,135 @@
+We are continuing BidReel production work.
+
+Completed so far:
+
+* auth / onboarding fixes
+* email confirmation fix
+* profile restructuring
+* empty states pass
+* bidding system refactor (increment-only)
+* feed overlay improvements
+* reel action stack polish
+* profile completion progress and trust signal polish
+* seller contact / WhatsApp UX polish
+
+Now proceed to:
+
+## Phase 6 / Part 1: Admin / Analytics foundation
+
+IMPORTANT:
+
+* Do NOT over-engineer
+* Do NOT redesign the entire admin panel
+* Do NOT add speculative analytics systems
+* This phase is about exposing useful existing operational insight using the data we already have
+
+## Goal
+
+Give the admin a clearer understanding of auction performance and user interest behavior.
+
+The admin should be able to understand, at a minimum:
+
+* which auctions are attracting engagement
+* how interest signals are distributed
+* how bidding activity is performing
+* whether auction performance is visible in a useful, operational way
+
+## Context
+
+We already have important underlying product systems implemented:
+
+* interested / not interested signals
+* bids
+* saves
+* follows
+* auction lifecycle states
+* feed intelligence
+
+Now the admin side needs a first practical visibility layer.
+
+## Required audit
+
+Inspect the current admin implementation and identify:
+
+1. which admin pages already exist for auctions / users / moderation
+2. where auction lists are rendered in the admin
+3. whether the admin currently shows any of the following per auction:
+
+   * bid count
+   * current price
+   * save count
+   * interested count
+   * not interested count
+   * seller info
+   * status
+4. which backend/admin endpoints already exist that expose auction-level metrics
+5. whether these metrics are already available in the main API or admin API but simply not displayed
+6. whether additional lightweight backend aggregation is necessary
+
+## Then implement a minimal safe first pass
+
+### 1) Auction performance visibility
+
+Improve the admin auction list/detail experience so the admin can quickly understand performance.
+
+Useful per-auction information may include:
+
+* current bid / current price
+* bid count
+* auction status
+* seller
+* save count if already available
+* interest / not interested counts if safely available
+
+Do not invent metrics that do not exist.
+
+### 2) Interest-signal visibility
+
+Expose the hidden preference data in a safe admin-only way where useful.
+
+At minimum audit whether we can show:
+
+* interested count
+* not interested count
+
+If exact counts are not already exposed safely, explain the minimal backend change needed.
+
+### 3) Lightweight insights, not big dashboards
+
+Do NOT build a huge dashboard yet.
+Focus on making auction-level performance easier to inspect first.
+
+### 4) Reuse existing data and routes where possible
+
+Prefer:
+
+* existing admin pages
+* existing API responses
+* lightweight additions
+
+Do not create a giant analytics subsystem.
+
+## Deliverables BEFORE code
+
+Before implementation:
+
+1. list existing admin pages related to auctions
+2. identify current available auction metrics
+3. identify what is missing
+4. propose the minimal safe implementation plan
+
+## Deliverables AFTER code
+
+After implementation:
+
+* summarize exactly what changed
+* list touched files
+* say whether backend changes were needed
+* list which metrics are now visible to admin
+
+## Constraints
+
+* production safe
+* minimal analytics first
+* no overbuilt dashboard
+* no fake metrics

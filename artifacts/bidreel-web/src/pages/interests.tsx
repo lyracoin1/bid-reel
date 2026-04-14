@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLang } from "@/contexts/LanguageContext";
-import { Camera, CheckCircle2, XCircle, Loader2, ArrowRight, Phone, User, MapPin } from "lucide-react";
+import { Camera, CheckCircle2, XCircle, Loader2, ArrowRight, Phone, User, MapPin, Navigation } from "lucide-react";
 import {
   updateProfileApi,
   checkUsernameApi,
@@ -10,6 +10,7 @@ import {
   getUploadUrlApi,
   uploadFileToStorage,
 } from "@/lib/api-client";
+import { reverseGeocodeCity } from "@/lib/geo";
 
 /** Normalize raw phone input to E.164 format */
 function normalizePhone(raw: string): string {
@@ -67,6 +68,11 @@ export default function Interests() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Geolocation auto-fill for location field ──
+  type GeoLocStatus = "idle" | "requesting" | "resolved" | "denied" | "unavailable";
+  const [geoLocStatus, setGeoLocStatus] = useState<GeoLocStatus>("idle");
+  const autoRequestedRef = useRef(false);
+
   // ── Interests state (step 1) ──
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -76,6 +82,42 @@ export default function Interests() {
       if (avatarPreview) URL.revokeObjectURL(avatarPreview);
     };
   }, [avatarPreview]);
+
+  // ── Geolocation — request city name and auto-fill location field ──
+  const requestGeoLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setGeoLocStatus("unavailable");
+      return;
+    }
+    setGeoLocStatus("requesting");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setGeoLocStatus("resolved");
+        try {
+          const city = await reverseGeocodeCity(pos.coords.latitude, pos.coords.longitude);
+          if (city) {
+            setLocation2(city);
+            setSubmitError(null);
+          }
+        } catch {
+          // Nominatim failed — user can still type manually
+        }
+      },
+      () => {
+        setGeoLocStatus("denied");
+      },
+      { timeout: 8000, maximumAge: 300_000 },
+    );
+  }, []);
+
+  // Auto-request once on mount if the location field is empty
+  useEffect(() => {
+    if (autoRequestedRef.current) return;
+    autoRequestedRef.current = true;
+    if (location.trim().length >= 2) return; // already filled
+    requestGeoLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Username validation + debounced availability check ──
   const handleUsernameChange = useCallback((raw: string) => {
@@ -233,7 +275,7 @@ export default function Interests() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, displayName, phone, username, usernameState, avatarFile]);
+  }, [isSubmitting, displayName, phone, location, username, usernameState, avatarFile]);
 
   // ── Interests helpers ──
   const toggleInterest = (id: string) => {
@@ -442,12 +484,33 @@ export default function Interests() {
                   value={location}
                   onChange={e => { setLocation2(e.target.value); setSubmitError(null); }}
                   placeholder="Riyadh, Cairo, Dubai…"
-                  className="w-full bg-white/5 border border-white/10 focus:border-primary/60 rounded-2xl pl-10 pr-4 py-4 text-white text-base font-medium placeholder:text-white/20 focus:outline-none transition-colors"
+                  className={`w-full bg-white/5 border border-white/10 focus:border-primary/60 rounded-2xl pl-10 py-4 text-white text-base font-medium placeholder:text-white/20 focus:outline-none transition-colors ${location.trim().length < 2 ? "pr-12" : "pr-4"}`}
                 />
+                {/* Inline geo button — visible when the location field is empty */}
+                {location.trim().length < 2 && (
+                  <button
+                    type="button"
+                    onClick={requestGeoLocation}
+                    disabled={geoLocStatus === "requesting"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/10 transition-colors disabled:opacity-40"
+                    aria-label="Detect my location"
+                  >
+                    {geoLocStatus === "requesting"
+                      ? <Loader2 size={16} className="animate-spin" />
+                      : <Navigation size={16} />
+                    }
+                  </button>
+                )}
               </div>
-              <p className="mt-1.5 text-xs text-white/30">
-                Your city or region · helps buyers and sellers find nearby items
-              </p>
+              {geoLocStatus === "denied" || geoLocStatus === "unavailable" ? (
+                <p className="mt-1.5 text-xs text-white/40">
+                  Location access was denied — type your city manually, or enable location in your browser settings.
+                </p>
+              ) : (
+                <p className="mt-1.5 text-xs text-white/30">
+                  Your city or region · helps buyers and sellers find nearby items
+                </p>
+              )}
             </motion.div>
 
             {/* Username input */}

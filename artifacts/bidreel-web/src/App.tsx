@@ -8,7 +8,6 @@ import { NotificationBannerProvider } from "@/contexts/NotificationBannerContext
 import { useFcmToken } from "@/hooks/use-fcm-token";
 import { supabase } from "@/lib/supabase";
 import { setToken, clearToken, API_BASE } from "@/lib/api-client";
-import { useCurrentUser } from "@/hooks/use-current-user";
 
 // Core user pages — loaded eagerly (always needed)
 import Splash from "@/pages/splash";
@@ -38,35 +37,17 @@ const _isOAuthCallback =
     window.location.hash.includes("access_token="));
 
 /**
- * Profile completeness gate — enforced at the app routing level.
+ * Onboarding guard — profile completeness is enforced at the action level
+ * (e.g. create-auction page), NOT globally here.
  *
- * If the current user is loaded and their profile is incomplete (missing any
- * of: username, display_name, phone, avatar_url), they are redirected to
- * /interests to complete onboarding regardless of which route they tried to
- * access. This prevents bypassing onboarding via direct URL, app reload, or
- * manipulating the hasSeenInterests localStorage flag.
+ * Existing users with incomplete profiles (e.g. missing the location field
+ * added in migration 023) enter the app normally and are only blocked when
+ * they attempt a restricted action such as creating an auction.
  *
- * Public routes (splash, login, interests, privacy) are excluded from the gate
- * so the user can actually complete their profile and log out.
+ * New users are routed to /interests by login.tsx afterSignIn / OAuthCallbackHandler
+ * based on the isNewUser flag returned by POST /auth/ensure-profile.
  */
-const PUBLIC_PATHS = new Set(["/", "/login", "/interests", "/privacy"]);
-
 function OnboardingGuard({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useCurrentUser();
-  const [location, setLocation] = useLocation();
-
-  useEffect(() => {
-    if (isLoading) return;
-    if (!user) return;
-    if (PUBLIC_PATHS.has(location)) return;
-
-    if (!user.isCompleted) {
-      // Clear the interests-seen flag so they go through the full onboarding flow
-      localStorage.removeItem("hasSeenInterests");
-      setLocation("/interests");
-    }
-  }, [user, isLoading, location, setLocation]);
-
   return <>{children}</>;
 }
 
@@ -131,16 +112,19 @@ function OAuthCallbackHandler() {
               },
             });
             if (res.ok) {
-              const data = await res.json() as { user: { isCompleted: boolean } };
+              const data = await res.json() as { isNewUser: boolean; user: { isCompleted: boolean } };
+              const isNewUser = data.isNewUser ?? false;
               const isComplete = data.user?.isCompleted ?? false;
-              // Use server-side isCompleted as the single source of truth.
-              // The localStorage flag is not reliable across devices/browsers.
-              setWouterLocation(isComplete ? "/feed" : "/interests");
+              // Only route genuinely new users to /interests for onboarding.
+              // Existing users (even with an incomplete profile) go to /feed —
+              // missing fields are enforced at the action level (create-auction).
+              setWouterLocation(isNewUser && !isComplete ? "/interests" : "/feed");
             } else {
-              setWouterLocation("/interests");
+              // Ensure-profile failed — let the user into the app anyway.
+              setWouterLocation("/feed");
             }
           } catch {
-            setWouterLocation("/interests");
+            setWouterLocation("/feed");
           }
         }
       },

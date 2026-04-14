@@ -1,0 +1,163 @@
+You are working on the BidReel production codebase.
+
+This is a hotfix + UX improvement task that must be implemented carefully without breaking any working auth or profile flows.
+
+## Context
+
+BidReel uses:
+
+* React + Vite frontend
+* Express API
+* Supabase auth
+* Existing profile completeness rules
+* Existing restriction that incomplete profiles should not be allowed to create auctions
+
+A bug was observed:
+
+### Current incorrect behavior
+
+When logging into an existing account, the app is sometimes treating the user like a first-time user and forcing them back into the initial profile-completion / onboarding flow.
+
+This is wrong.
+
+An existing user must NOT be treated as a first-time user just because some profile fields are incomplete.
+
+For example:
+
+* the user already has an account
+* the user already has an avatar
+* the user can log in successfully
+* but the app still sends them through first-time completion again
+
+This must be fixed.
+
+## Required behavior
+
+### 1) Separate login from profile completeness
+
+Implement a strict separation between:
+
+* successful login
+* first-time onboarding
+* profile completeness gating for restricted actions
+
+Correct behavior:
+
+#### Existing user
+
+If the user successfully logs in and already has an existing account/profile record:
+
+* allow them to enter the app normally
+* do NOT force first-time onboarding again
+* do NOT block app entry only because some profile fields are incomplete
+
+#### New user
+
+Only true first-time users with no existing usable profile state should be routed through the initial completion flow.
+
+#### Incomplete existing user
+
+If an existing user has missing required profile fields:
+
+* let them enter the app
+* let them browse normally
+* but block restricted actions like creating an auction
+* when they try to create an auction, redirect them to complete missing profile fields
+
+### 2) Keep auction creation protected
+
+Do not remove profile completeness protection from auction creation.
+
+Instead:
+
+* gate auction creation
+* if required fields are missing, show a clear explanation of what is missing
+* then route the user to complete profile data
+
+This is the correct place to enforce completeness.
+
+### 3) Improve location field UX
+
+On the profile completion / profile edit screen:
+
+If the location field is empty:
+
+* automatically attempt to request geolocation permission once when the screen opens
+* if permission is granted:
+
+  * get the user's current coordinates
+  * resolve them into a human-readable city/region if possible
+  * auto-fill the location field
+  * hide the location permission/request button
+
+If permission is denied, unavailable, ignored, or the request does not appear:
+
+* show a small inline button inside the location input on the right side
+* this button should allow the user to request location access again
+
+Behavior of the inline location button:
+
+* visible only when location is empty or auto-location has not succeeded yet
+* hidden immediately once a valid location value exists
+* hidden also if the user manually types a valid location
+
+Important:
+
+* manual location entry must always remain available
+* geolocation should assist, not block
+* do not spam permission prompts repeatedly on every render
+* request automatically only once per screen entry, then only on manual button click
+
+### 4) Error/help behavior
+
+If browser/app geolocation is denied permanently or unavailable:
+
+* show a small helpful message under the field
+* explain that the user can either type location manually or enable location permission in browser/app settings
+
+## Implementation goals
+
+Make the smallest safe production change necessary.
+
+Do NOT:
+
+* break current auth flows
+* reintroduce fake onboarding logic
+* block normal app access for existing users
+* remove create-auction completeness checks
+
+## What to inspect and fix
+
+Please inspect all relevant places involved in:
+
+* post-login routing
+* onboarding detection
+* profile completeness checks
+* create-auction access gating
+* profile edit / completion screen location field behavior
+
+Likely areas include:
+
+* auth redirect logic
+* route guards
+* onboarding/profile-completion decision logic
+* create-auction entry point
+* profile completion form component
+* location input UI/state
+
+## Deliverables
+
+Before writing code:
+
+1. identify the exact root cause of the incorrect existing-user redirect
+2. explain which files need changes
+3. explain the minimal safe implementation plan
+
+Then implement.
+
+After implementation:
+
+* summarize exactly what changed
+* list touched files
+* explain any edge cases or risks
+* do not make unrelated refactors

@@ -17,8 +17,13 @@ export default function Splash() {
         setLocation("/login");
         return;
       }
-      const seen = localStorage.getItem("hasSeenInterests");
-      setLocation(seen ? "/feed" : "/interests");
+      // Authenticated users always go to /feed.
+      // New-user onboarding routing is handled by login.tsx afterSignIn based
+      // on the isNewUser flag from POST /auth/ensure-profile. The hasSeenInterests
+      // localStorage flag is no longer used for routing — it was unreliable (cleared
+      // by storage wipe or cross-device) and caused existing users to be sent back
+      // through the onboarding flow incorrectly.
+      setLocation("/feed");
     };
     void run();
     return () => { cancelled = true; };

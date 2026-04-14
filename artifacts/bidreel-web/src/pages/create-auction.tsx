@@ -10,6 +10,7 @@ import { MobileLayout } from "@/components/layout/MobileLayout";
 import { useCreateAuction } from "@/hooks/use-auctions";
 import { getUploadUrlApi, uploadFileToStorage } from "@/lib/api-client";
 import { useLang } from "@/contexts/LanguageContext";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import { cn } from "@/lib/utils";
 import { reverseGeocodeCountry, getCurrencyForCountry, type CurrencyInfo } from "@/lib/geo";
 
@@ -117,6 +118,7 @@ export default function CreateAuction() {
   const [, setLocation] = useLocation();
   const { mutate: create, isPending: isCreating } = useCreateAuction();
   const { t, lang } = useLang();
+  const { user, isLoading: userLoading } = useCurrentUser();
 
   const videoInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -193,6 +195,58 @@ export default function CreateAuction() {
   useEffect(() => {
     requestLocation();
   }, [requestLocation]);
+
+  // ── Profile completeness gate ─────────────────────────────────────────────────
+  // All hooks must be called BEFORE this conditional return (React rules).
+  if (!userLoading && user && !user.isCompleted) {
+    const missing: string[] = [];
+    if (!user.username)    missing.push("Username (@handle)");
+    if (!user.displayName) missing.push("Display name");
+    if (!user.avatarUrl)   missing.push("Profile photo");
+    if (!user.location)    missing.push("Location");
+    // Phone is not returned by the API for privacy; if all above are present but
+    // isCompleted is still false, the missing field must be the phone number.
+    if (missing.length === 0) missing.push("WhatsApp phone number");
+
+    return (
+      <MobileLayout>
+        <div className="flex flex-col items-center justify-center min-h-[70dvh] px-6 text-center">
+          <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-5">
+            <AlertCircle size={28} className="text-amber-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">
+            {lang === "ar" ? "الملف الشخصي غير مكتمل" : "Profile Incomplete"}
+          </h2>
+          <p className="text-sm text-white/50 mb-5 max-w-xs">
+            {lang === "ar"
+              ? "يجب اكتمال ملفك الشخصي قبل نشر مزاد."
+              : "You need to complete your profile before creating an auction."
+            }
+          </p>
+          <ul className="text-sm text-white/60 mb-7 space-y-1 text-left w-full max-w-xs">
+            {missing.map(field => (
+              <li key={field} className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                {field}
+              </li>
+            ))}
+          </ul>
+          <button
+            onClick={() => setLocation("/interests")}
+            className="w-full max-w-xs bg-primary text-white font-semibold py-3.5 rounded-2xl"
+          >
+            {lang === "ar" ? "أكمل ملفك الشخصي" : "Complete Profile"}
+          </button>
+          <button
+            onClick={() => setLocation("/feed")}
+            className="mt-3 text-sm text-white/40 hover:text-white/60 transition-colors"
+          >
+            {lang === "ar" ? "رجوع" : "Go back"}
+          </button>
+        </div>
+      </MobileLayout>
+    );
+  }
 
   const set = (key: keyof typeof form) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>

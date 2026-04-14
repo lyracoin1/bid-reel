@@ -89,6 +89,38 @@ export function getCurrencyForCountry(countryCode: string): CurrencyInfo {
 
 // ─── Reverse geocoding (Nominatim — free, no key) ─────────────────────────────
 
+/**
+ * Returns a human-readable city/region name for the given coordinates.
+ * Uses zoom=10 (city level) to get the most useful place name.
+ * Returns null on error or when no recognisable place is found.
+ */
+export async function reverseGeocodeCity(lat: number, lng: number): Promise<string | null> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`;
+    const res = await fetch(url, {
+      headers: { "Accept-Language": "en", "User-Agent": "BidReel/1.0" },
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as {
+      address?: {
+        city?: string;
+        town?: string;
+        village?: string;
+        suburb?: string;
+        county?: string;
+        state?: string;
+      };
+    };
+    const addr = data.address;
+    if (!addr) return null;
+    const place = addr.city ?? addr.town ?? addr.village ?? addr.suburb ?? addr.county;
+    if (!place) return addr.state ?? null;
+    return place;
+  } catch {
+    return null;
+  }
+}
+
 /** Returns the ISO 3166-1 alpha-2 country code (lower-case) for given coords. */
 export async function reverseGeocodeCountry(lat: number, lng: number): Promise<string> {
   try {

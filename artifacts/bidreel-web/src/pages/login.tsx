@@ -89,19 +89,20 @@ export default function Login() {
 
       if (res.ok) {
         const data = await res.json() as { isNewUser: boolean; user: { isCompleted: boolean } };
+        const isNewUser = data.isNewUser ?? false;
         const isComplete = data.user?.isCompleted ?? false;
-        // Route to /feed for complete profiles, /interests for incomplete ones.
-        // Server-side isCompleted is the authoritative signal — no need to
-        // double-check the localStorage flag here (that flag is for new-device
-        // sessions and is cleared by OnboardingGuard on re-entry anyway).
-        setLocation(isComplete ? "/feed" : "/interests");
+        // Only route genuinely new users to /interests for onboarding.
+        // Existing users (isNewUser === false) go straight to /feed even if some
+        // profile fields are missing — incomplete-profile enforcement happens at
+        // the action level (e.g. create-auction), not at login time.
+        setLocation(isNewUser && !isComplete ? "/interests" : "/feed");
       } else {
-        // Profile creation failed — still redirect to interests for setup
-        setLocation("/interests");
+        // Profile creation failed — let the user into the app anyway.
+        setLocation("/feed");
       }
     } catch {
-      // Network error on ensure-profile — still let user in
-      setLocation("/interests");
+      // Network error on ensure-profile — let user in, don't block at login.
+      setLocation("/feed");
     }
   }
 

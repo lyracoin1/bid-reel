@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,6 +8,7 @@ import { NotificationBannerProvider } from "@/contexts/NotificationBannerContext
 import { useFcmToken } from "@/hooks/use-fcm-token";
 import { supabase } from "@/lib/supabase";
 import { setToken, clearToken } from "@/lib/api-client";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 // Core user pages — loaded eagerly (always needed)
 import Splash from "@/pages/splash";
@@ -24,22 +25,57 @@ import PrivacyPolicy from "@/pages/privacy";
 
 const queryClient = new QueryClient();
 
+/**
+ * Profile completeness gate — enforced at the app routing level.
+ *
+ * If the current user is loaded and their profile is incomplete (missing any
+ * of: username, display_name, phone, avatar_url), they are redirected to
+ * /interests to complete onboarding regardless of which route they tried to
+ * access. This prevents bypassing onboarding via direct URL, app reload, or
+ * manipulating the hasSeenInterests localStorage flag.
+ *
+ * Public routes (splash, login, interests, privacy) are excluded from the gate
+ * so the user can actually complete their profile and log out.
+ */
+const PUBLIC_PATHS = new Set(["/", "/login", "/interests", "/privacy"]);
+
+function OnboardingGuard({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useCurrentUser();
+  const [location, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (!user) return;
+    if (PUBLIC_PATHS.has(location)) return;
+
+    if (!user.isCompleted) {
+      // Clear the interests-seen flag so they go through the full onboarding flow
+      localStorage.removeItem("hasSeenInterests");
+      setLocation("/interests");
+    }
+  }, [user, isLoading, location, setLocation]);
+
+  return <>{children}</>;
+}
+
 function Router() {
   return (
-    <Switch>
-      <Route path="/login" component={Login} />
-      <Route path="/" component={Splash} />
-      <Route path="/feed" component={Feed} />
-      <Route path="/explore" component={Explore} />
-      <Route path="/auction/:id" component={AuctionDetail} />
-      <Route path="/create" component={CreateAuction} />
-      <Route path="/profile" component={Profile} />
-      <Route path="/users/:userId" component={PublicProfilePage} />
-      <Route path="/interests" component={Interests} />
-      <Route path="/privacy" component={PrivacyPolicy} />
+    <OnboardingGuard>
+      <Switch>
+        <Route path="/login" component={Login} />
+        <Route path="/" component={Splash} />
+        <Route path="/feed" component={Feed} />
+        <Route path="/explore" component={Explore} />
+        <Route path="/auction/:id" component={AuctionDetail} />
+        <Route path="/create" component={CreateAuction} />
+        <Route path="/profile" component={Profile} />
+        <Route path="/users/:userId" component={PublicProfilePage} />
+        <Route path="/interests" component={Interests} />
+        <Route path="/privacy" component={PrivacyPolicy} />
 
-      <Route component={NotFound} />
-    </Switch>
+        <Route component={NotFound} />
+      </Switch>
+    </OnboardingGuard>
   );
 }
 

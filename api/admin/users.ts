@@ -28,7 +28,7 @@ export default async function handler(
 
     const { data, error } = await supabaseAdmin
       .from("profiles")
-      .select("id, display_name, phone, avatar_url, is_admin, is_banned, ban_reason, created_at")
+      .select("id, username, display_name, phone, avatar_url, is_admin, is_banned, ban_reason, created_at")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -37,16 +37,29 @@ export default async function handler(
       return;
     }
 
-    const users = (data ?? []).map((row: Record<string, unknown>) => ({
-      id: row["id"],
-      displayName: row["display_name"] ?? null,
-      phone: row["phone"] ?? null,
-      avatarUrl: row["avatar_url"] ?? null,
-      role: row["is_admin"] ? "admin" : "user",
-      isBanned: row["is_banned"] ?? false,
-      banReason: row["ban_reason"] ?? null,
-      createdAt: row["created_at"],
-    }));
+    const users = (data ?? []).map((row: Record<string, unknown>) => {
+      const missingFields: string[] = [];
+      if (!row["username"])     missingFields.push("username");
+      if (!row["display_name"]) missingFields.push("display_name");
+      if (!row["phone"])        missingFields.push("phone");
+      if (!row["avatar_url"])   missingFields.push("avatar_url");
+      // location is pending (migration 023) — include as always-missing until added
+      // missingFields.push("location"); // TODO(migration-023)
+
+      return {
+        id: row["id"],
+        username: row["username"] ?? null,
+        displayName: row["display_name"] ?? null,
+        phone: row["phone"] ?? null,
+        avatarUrl: row["avatar_url"] ?? null,
+        role: row["is_admin"] ? "admin" : "user",
+        isBanned: row["is_banned"] ?? false,
+        banReason: row["ban_reason"] ?? null,
+        isCompleted: missingFields.length === 0,
+        missingFields,
+        createdAt: row["created_at"],
+      };
+    });
 
     res.status(200).json({ users });
   } catch (err) {

@@ -160,6 +160,12 @@ export default function Interests() {
       return;
     }
 
+    // Validate avatar (required)
+    if (!avatarFile) {
+      setSubmitError("Profile photo is required. Please upload a photo.");
+      return;
+    }
+
     // Validate username
     const trimmed = username.trim();
 
@@ -259,6 +265,7 @@ export default function Interests() {
     USERNAME_REGEX.test(username) &&
     usernameState !== "taken" &&
     usernameState !== "checking" &&
+    avatarFile !== null &&
     !isSubmitting;
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -342,8 +349,8 @@ export default function Interests() {
                     Remove photo
                   </button>
                 ) : (
-                  <p className="text-xs text-white/30">
-                    Profile photo · optional · JPG, PNG, WebP
+                  <p className="text-xs text-white/50">
+                    Profile photo <span className="text-primary">*</span> · JPG, PNG, WebP
                   </p>
                 )}
                 {avatarError && (

@@ -1,0 +1,63 @@
+Important new production rule discovered from live admin data:
+
+We still have users that appear to be using only phone or otherwise incomplete profile data.
+This is NOT allowed.
+
+From now on, a BidReel account must NOT be considered fully active unless ALL required profile fields are present.
+
+MANDATORY REQUIRED FIELDS
+A user account is only considered complete/active if it has ALL of the following:
+
+* email
+* phone
+* username
+* avatar/image
+* location
+
+If any of these is missing, the account must be treated as INCOMPLETE.
+
+Your task:
+
+1. Audit the full account/profile completion flow across:
+
+   * signup
+   * first login
+   * profile completion/onboarding
+   * session restore
+   * admin user listing
+2. Identify exactly why incomplete users are currently able to exist and appear as normal users
+3. Enforce a strict profile completeness gate:
+
+   * incomplete users must be redirected to profile completion
+   * they must not bypass onboarding into the normal app flow
+4. Ensure the gate checks all required fields:
+
+   * email
+   * phone
+   * username
+   * avatar_url (or equivalent profile image field)
+   * location
+5. If location is not yet fully implemented, prepare the code structure so it becomes part of the mandatory gate and clearly mark the temporary state
+6. In the admin users page:
+
+   * clearly distinguish incomplete users from complete users
+   * do not present incomplete users as if they are normal fully activated accounts
+7. Audit backend and frontend validation so these requirements are consistent
+8. Find any legacy users or seed/test users that violate this rule and report them clearly
+
+Important:
+
+* Do NOT reintroduce phone auth
+* Phone remains a profile/contact field only
+* This is about profile completeness, not login identity
+* Keep changes production-safe and minimal
+* Do not break existing auth/session logic
+
+Required output:
+
+1. exact root cause
+2. exact files changed
+3. exact completeness rule implemented
+4. how incomplete users are handled in app flow
+5. how incomplete users are shown in admin
+6. whether any migration or manual cleanup is needed

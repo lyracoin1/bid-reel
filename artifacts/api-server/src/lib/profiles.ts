@@ -45,6 +45,7 @@ interface ProfileRow {
   id: string;
   username: string | null;
   display_name: string | null;
+  phone: string | null;
   avatar_url: string | null;
   bio: string | null;
   is_admin: boolean;
@@ -54,7 +55,7 @@ interface ProfileRow {
 
 // ─── Column selects ──────────────────────────────────────────────────────────
 
-const PROFILE_COLS = "id, username, display_name, avatar_url, bio, is_admin, is_banned, created_at";
+const PROFILE_COLS = "id, username, display_name, phone, avatar_url, bio, is_admin, is_banned, created_at";
 
 // ─── Stats helpers ────────────────────────────────────────────────────────────
 
@@ -118,6 +119,32 @@ async function fetchProfileStats(userId: string): Promise<{
 
 // ─── Mappers ─────────────────────────────────────────────────────────────────
 
+/**
+ * Profile completeness rule (enforced here, in the onboarding UI, and in the
+ * admin user list). A user account is only "complete" when ALL of these fields
+ * are present:
+ *
+ *   1. username     — unique handle, set during onboarding step 1
+ *   2. display_name — public name, set during onboarding step 1
+ *   3. phone        — E.164 WhatsApp number, set during onboarding step 1
+ *   4. avatar_url   — profile image, set during onboarding step 1
+ *   5. location     — [PENDING] not yet in DB; migration 023 will add the
+ *                     column and include it here once deployed.
+ *
+ * email is authenticated via Supabase Auth at sign-in time and is therefore
+ * implicitly guaranteed for every session — it does not need to be re-checked
+ * in profile data.
+ */
+function isProfileComplete(row: ProfileRow): boolean {
+  return (
+    row.username !== null &&
+    row.display_name !== null &&
+    row.phone !== null &&
+    row.avatar_url !== null
+    // TODO(migration-023): add `&& row.location !== null` once column exists
+  );
+}
+
 function toOwnProfile(row: ProfileRow, stats: Awaited<ReturnType<typeof fetchProfileStats>>): OwnProfile {
   return {
     id: row.id,
@@ -126,9 +153,7 @@ function toOwnProfile(row: ProfileRow, stats: Awaited<ReturnType<typeof fetchPro
     avatarUrl: row.avatar_url,
     bio: row.bio,
     isAdmin: row.is_admin ?? false,
-    // isCompleted is derived: a user is complete once they have set a username.
-    // This avoids a hard dependency on the is_completed DB column being present.
-    isCompleted: row.username !== null,
+    isCompleted: isProfileComplete(row),
     createdAt: row.created_at,
     ...stats,
   };
@@ -142,7 +167,7 @@ function toPublicProfile(row: ProfileRow, stats: Awaited<ReturnType<typeof fetch
     avatarUrl: row.avatar_url,
     bio: row.bio,
     isBanned: row.is_banned ?? false,
-    isCompleted: row.username !== null,
+    isCompleted: isProfileComplete(row),
     createdAt: row.created_at,
     ...stats,
   };

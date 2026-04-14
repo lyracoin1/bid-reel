@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Loader2, AlertCircle, Shield, User, Ban, MoreHorizontal, CheckCircle, Search, X } from "lucide-react";
+import { Loader2, AlertCircle, Shield, User, Ban, MoreHorizontal, CheckCircle, Search, X, AlertTriangle } from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { adminGetUsers, adminUpdateUser, type AdminUser } from "@/services/admin-api";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -12,7 +12,7 @@ interface ConfirmAction {
 }
 
 type RoleFilter = "all" | "admin" | "user";
-type StatusFilter = "all" | "active" | "banned";
+type StatusFilter = "all" | "active" | "banned" | "incomplete";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -42,6 +42,8 @@ export default function Users() {
       .finally(() => setLoading(false));
   }, []);
 
+  const incompleteCount = useMemo(() => users.filter(u => !u.isCompleted).length, [users]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return users.filter(u => {
@@ -49,11 +51,13 @@ export default function Users() {
         const nameMatch = (u.displayName ?? "").toLowerCase().includes(q);
         const phoneMatch = (u.phone ?? "").includes(q);
         const idMatch = u.id.toLowerCase().includes(q);
-        if (!nameMatch && !phoneMatch && !idMatch) return false;
+        const userMatch = (u.username ?? "").toLowerCase().includes(q);
+        if (!nameMatch && !phoneMatch && !idMatch && !userMatch) return false;
       }
       if (roleFilter !== "all" && u.role !== roleFilter) return false;
-      if (statusFilter === "active" && u.isBanned) return false;
+      if (statusFilter === "active" && (u.isBanned || !u.isCompleted)) return false;
       if (statusFilter === "banned" && !u.isBanned) return false;
+      if (statusFilter === "incomplete" && u.isCompleted) return false;
       return true;
     });
   }, [users, search, roleFilter, statusFilter]);
@@ -142,7 +146,8 @@ export default function Users() {
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as StatusFilter)}
             className="px-3 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-sm text-white focus:outline-none focus:border-violet-500 transition" dir="rtl">
             <option value="all">كل الحالات</option>
-            <option value="active">نشط</option>
+            <option value="active">مكتمل ونشط</option>
+            <option value="incomplete">غير مكتمل ({incompleteCount})</option>
             <option value="banned">محظور</option>
           </select>
 
@@ -170,30 +175,35 @@ export default function Users() {
         </div>
       ) : (
         <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden overflow-x-auto">
-          <table className="w-full text-sm min-w-[700px]">
+          <table className="w-full text-sm min-w-[780px]">
             <thead>
               <tr className="border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wider">
                 <th className="text-left px-5 py-3 font-semibold">المستخدم</th>
                 <th className="text-left px-4 py-3 font-semibold">الهاتف</th>
                 <th className="text-left px-4 py-3 font-semibold">الدور</th>
                 <th className="text-left px-4 py-3 font-semibold">الحالة</th>
+                <th className="text-left px-4 py-3 font-semibold">الاكتمال</th>
                 <th className="text-left px-4 py-3 font-semibold">تاريخ الإنشاء</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
               {filtered.map(u => (
-                <tr key={u.id} className="hover:bg-gray-800/50 transition-colors">
+                <tr key={u.id} className={`hover:bg-gray-800/50 transition-colors ${!u.isCompleted ? "bg-amber-950/10" : ""}`}>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
                       <UserAvatar src={u.avatarUrl} name={u.displayName ?? u.phone ?? "?"} size={32} className="rounded-lg shrink-0" />
                       <div>
-                        <div className="font-medium text-white">{u.displayName ?? "—"}</div>
-                        <div className="text-xs text-gray-500 font-mono">{u.id.slice(0, 8)}…</div>
+                        <div className="font-medium text-white">{u.displayName ?? <span className="text-gray-600 italic">بدون اسم</span>}</div>
+                        <div className="text-xs text-gray-500">
+                          {u.username ? <span className="text-gray-400">@{u.username}</span> : <span className="text-gray-700 italic">بدون معرّف</span>}
+                          <span className="mx-1 text-gray-700">·</span>
+                          <span className="font-mono">{u.id.slice(0, 8)}…</span>
+                        </div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3.5 text-gray-300 font-mono text-xs">{u.phone ?? "—"}</td>
+                  <td className="px-4 py-3.5 text-gray-300 font-mono text-xs">{u.phone ?? <span className="text-gray-700 italic">—</span>}</td>
                   <td className="px-4 py-3.5">
                     {u.role === "admin" ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-600/20 text-violet-300 text-xs font-semibold border border-violet-600/30">
@@ -214,6 +224,24 @@ export default function Users() {
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-600/20 text-emerald-400 text-xs font-medium border border-emerald-600/30">
                         <CheckCircle size={10} /> نشط
                       </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    {u.isCompleted ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-600/10 text-emerald-500 text-xs font-medium border border-emerald-600/20">
+                        <CheckCircle size={10} /> مكتمل
+                      </span>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-600/20 text-amber-400 text-xs font-semibold border border-amber-600/30">
+                          <AlertTriangle size={10} /> غير مكتمل
+                        </span>
+                        {u.missingFields.length > 0 && (
+                          <span className="text-[10px] text-gray-600 leading-tight">
+                            ناقص: {u.missingFields.join(", ")}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </td>
                   <td className="px-4 py-3.5 text-gray-400 text-xs">{formatDate(u.createdAt)}</td>

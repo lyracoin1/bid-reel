@@ -176,12 +176,17 @@ export async function adminGetStats(): Promise<AdminStats> {
 
 export interface AdminUser {
   id: string;
+  username: string | null;
   displayName: string | null;
   phone: string | null;
   avatarUrl: string | null;
   role: "admin" | "user";
   isBanned: boolean;
   banReason: string | null;
+  /** True only when ALL required fields are present: username, display_name, phone, avatar_url. */
+  isCompleted: boolean;
+  /** List of field names that are missing for this user. Empty when isCompleted = true. */
+  missingFields: string[];
   createdAt: string;
 }
 

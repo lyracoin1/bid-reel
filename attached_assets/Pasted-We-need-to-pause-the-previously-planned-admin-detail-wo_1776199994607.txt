@@ -1,0 +1,202 @@
+We need to pause the previously planned admin detail work and fix a new group of user-facing issues first.
+
+These are now higher priority because they affect real usage, trust, and product clarity.
+
+## Priority bundle: profile completion truth + profile tab semantics + full i18n audit + privacy policy alignment
+
+Do a full audit before changing anything.
+
+---
+
+## Issue 1 — Profile still shows incomplete after saving all required fields
+
+Observed behavior:
+
+* user completes profile
+* fills avatar, display name, phone, location, username
+* taps save
+* returns to profile
+* profile still shows incomplete
+* sometimes it specifically says the avatar is missing even though the avatar is visibly present
+
+This must be audited end-to-end.
+
+### Required audit
+
+Inspect:
+
+1. which exact fields are used by the profile completeness card
+2. which exact fields are used by the create-auction gate
+3. which exact fields are used by backend/server completeness logic
+4. whether avatar mapping is inconsistent (e.g. avatarUrl vs avatar_url vs stale user object vs partial save response)
+5. whether cache invalidation is still incomplete somewhere beyond the previous fix
+
+### Required fix
+
+Unify the source of truth for profile completeness.
+
+The same real logic must be used consistently across:
+
+* profile page completeness UI
+* create auction access gate
+* backend completeness checks
+
+If phone is truly required for auction creation, the profile completeness UI must reflect that too.
+If avatar is present, it must never be shown as missing.
+
+No misleading "75%" or "incomplete" states after a successful save with the required fields present.
+
+---
+
+## Issue 2 — Profile tab naming is semantically wrong / duplicated
+
+Current user feedback:
+
+* the current tab names are confusing and partially duplicate each other in meaning
+* the section representing the auctions created by the user should be clearly named "My Auctions"
+* the second main tab should be saved auctions/bookmarks, not a duplicated label that feels like the same thing again
+
+### Required audit
+
+Inspect the current profile tabs and what data they show today.
+
+### Required implementation direction
+
+Refactor the primary profile tabs so they clearly represent distinct concepts.
+
+Preferred direction:
+
+* My Auctions = auctions created/published by the user
+* Saved = auctions the user saved/bookmarked
+
+If "My Bids" currently exists as a tab:
+
+* inspect whether it should remain as a secondary section, separate page, or later enhancement
+* do not keep two primary tabs that feel like the same thing in Arabic
+
+Do not guess.
+Audit the current routes and available data first.
+
+---
+
+## Issue 3 — Empty state copy must match the actual tab meaning
+
+Example observed:
+
+* a screen says "You haven't placed any bids yet"
+* but the user expects this tab to represent saved auctions
+
+This is incorrect UX.
+
+### Required fix
+
+After the tab semantics are corrected, update the empty states so they match the actual feature:
+
+* Saved tab → saved/bookmarked auctions messaging
+* My Auctions tab → create/publish messaging
+
+No mismatched copy.
+
+---
+
+## Issue 4 — Full language switching audit
+
+Observed behavior:
+
+* after switching from English to Arabic, some text in the app still does not change
+* the user wants a full verification pass from the smallest text to the biggest surface
+
+### Required audit
+
+Do a full i18n audit across the user app.
+
+Inspect:
+
+* profile page
+* feed / reel overlays
+* action stack labels
+* create auction flow
+* onboarding / interests flow
+* notifications
+* empty states
+* seller contact / WhatsApp copy
+* any modals
+* any hardcoded strings
+* any mixed-language UI when toggling language
+
+### Required fix
+
+Replace all remaining hardcoded UI strings in the main app with translation keys where appropriate.
+Verify language switching updates every visible text surface correctly.
+
+This must be thorough.
+Do not do a partial pass.
+
+---
+
+## Issue 5 — Privacy policy content is out of sync with real app behavior
+
+The current privacy policy text says:
+
+* location is optional
+* location is not stored on our servers
+* used only for approximate country / currency suggestion
+
+But the app currently appears to:
+
+* require location for profile completion / selling
+* store location in the user profile
+
+This is a trust/legal mismatch.
+
+### Required audit
+
+Inspect:
+
+1. the current privacy policy page/content source
+2. the real current app behavior around:
+
+   * location
+   * phone
+   * profile requirements
+   * stored profile fields
+3. whether the privacy policy is outdated
+
+### Required fix
+
+Update the privacy policy text so it accurately reflects the real product behavior.
+
+Do not write fake legal claims.
+Do not keep statements that contradict the app.
+
+---
+
+## Deliverables BEFORE code
+
+Before implementing:
+
+1. identify the exact root cause of the incomplete-profile mismatch
+2. list the files controlling profile completeness UI and create-auction gating
+3. explain the current profile tab structure and what data each tab really represents
+4. identify all remaining untranslated / hardcoded user-facing strings
+5. identify where the privacy policy text lives and what is inaccurate
+
+## Deliverables AFTER code
+
+After implementation:
+
+* summarize exactly what changed
+* list touched files
+* explain the final profile completeness logic
+* explain the final tab semantics
+* confirm the empty states now match the tab meaning
+* confirm language switching was audited across the user app
+* summarize privacy policy corrections
+
+## Constraints
+
+* production safe
+* do not over-engineer
+* do not invent data that doesn't exist
+* do not leave profile completion logic inconsistent
+* do not leave hardcoded user-facing strings in major app surfaces

@@ -78,7 +78,7 @@ export default function Dashboard() {
       <div className="flex h-full overflow-hidden">
 
         {/* ── LEFT: Live app preview ─────────────────────────────────────────── */}
-        <div className="w-[300px] shrink-0 border-r border-border bg-[#08080f] p-4 flex flex-col overflow-hidden">
+        <div className="w-[320px] shrink-0 border-r border-border bg-[#08080f] p-4 flex flex-col overflow-hidden">
           <AppPreviewPanel />
         </div>
 

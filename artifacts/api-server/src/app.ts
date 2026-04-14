@@ -53,15 +53,42 @@ const corsOptions: cors.CorsOptions = {
     // handler is not triggered and the preflight still gets a proper 200/204.
     cb(null, allowed);
   },
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
 };
 
-// Respond to all OPTIONS preflight requests before they reach any route.
-// This must come before app.use("/api", router) so that preflight requests
-// are answered immediately and never hit the 404 catch-all.
-app.options("/{*path}", cors(corsOptions));
+// Intercept ALL OPTIONS preflight requests before they reach any route handler.
+//
+// Rationale for using app.use() instead of app.options("/{*path}", cors()):
+//   • app.use() is middleware — it runs for every request regardless of method
+//     and path, making it strictly more reliable than a method-specific route.
+//   • When the cors() origin callback returns false (rejected origin), it calls
+//     next() without ending the response. In Express 5 this causes 405 for paths
+//     that only have GET/POST handlers. The explicit inline handler below always
+//     terminates OPTIONS requests, eliminating the fall-through entirely.
+//   • This also handles the case where Vercel CDN forwards OPTIONS before the
+//     serverless function's own OPTIONS handling can fire.
+app.use((req, res, next) => {
+  if (req.method !== "OPTIONS") return next();
+
+  const origin = req.headers.origin as string | undefined;
+  if (origin) {
+    const allowed = ALLOWED_ORIGINS.some((p) =>
+      typeof p === "string" ? origin === p : p.test(origin),
+    );
+    if (allowed) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+    }
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  res.setHeader("Access-Control-Max-Age", "86400");
+  res.setHeader("Vary", "Origin");
+  res.sendStatus(204);
+});
+
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

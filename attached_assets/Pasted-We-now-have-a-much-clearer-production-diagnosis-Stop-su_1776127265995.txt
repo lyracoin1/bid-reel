@@ -1,0 +1,82 @@
+We now have a much clearer production diagnosis. Stop summarizing and fix these three exact issues.
+
+ISSUE 1 — EMAIL CONFIRMATION REDIRECT GOES TO ADMIN INSTEAD OF MAIN APP
+Observed behavior:
+
+* User signs up in the main app
+* Supabase sends confirmation email
+* Clicking the confirmation link opens the admin login / wrong destination instead of the main app confirmation/login flow
+
+Your task:
+
+1. Audit the main app signup flow and identify how Supabase signUp is called
+2. Check whether emailRedirectTo is explicitly set
+3. If not set, add the correct explicit redirect for the MAIN APP
+4. Identify any config/constants/env usage that may accidentally point auth redirects to admin
+5. Tell me exactly what Supabase dashboard settings must be:
+
+   * Site URL
+   * Redirect URLs
+     for BOTH:
+   * https://www.bid-reel.com
+   * https://admin.bid-reel.com
+
+Important:
+
+* The main app signup confirmation must return to the main app, not admin
+* Admin auth pages must remain separate and not hijack main app auth confirmation links
+
+ISSUE 2 — ADMIN STILL HAS FAILED TO FETCH
+Browser evidence:
+
+* OPTIONS preflight for notifications returns 204
+* OPTIONS preflight for users returns 405
+* OPTIONS preflight for stats returns 405
+* Then fetch becomes CORS error
+
+This means CORS/preflight handling is only working for some routes, not all.
+
+Your task:
+
+1. Inspect the full Express app and route mounting order
+2. Verify CORS middleware is global and runs before ALL routes
+3. Verify a global OPTIONS handler exists for ALL /api/* routes, not just some paths
+4. Inspect specifically these route groups:
+
+   * /api/admin/users
+   * /api/admin/stats
+   * /api/admin/notifications
+5. Find why some endpoints return 204 for preflight while others return 405
+6. Apply the minimal production-safe fix so ALL admin endpoints respond correctly to preflight
+7. Rebuild and locally verify:
+
+   * OPTIONS /api/admin/users -> 200/204
+   * OPTIONS /api/admin/stats -> 200/204
+   * OPTIONS /api/admin/notifications -> 200/204
+     with correct CORS headers
+
+Important:
+
+* Do not treat partial CORS success as done
+* Fix the route chain completely
+* Preserve auth protection for actual GET/POST requests; only preflight must succeed globally
+
+ISSUE 3 — ADMIN APP PREVIEW IS STILL HALF A PHONE
+Observed behavior:
+
+* The device preview area is still too narrow / clipped / half-phone
+
+Your task:
+
+1. Audit the admin preview container/layout/CSS
+2. Fix the preview so the phone frame and app viewport display at a correct readable width and height
+3. Ensure the preview is responsive but not tiny
+4. Do not break the surrounding admin layout
+
+OUTPUT FORMAT:
+
+* Exact diagnosis for each of the 3 issues
+* Exact files changed
+* Exact fix applied
+* Exact manual Supabase settings I must set
+* Exact git commands I should run next

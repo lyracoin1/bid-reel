@@ -25,6 +25,8 @@ PORT=8080 pnpm --filter @workspace/api-server run dev & PORT=24694 BASE_PATH=/ p
 
 **Email-first auth** (Supabase email + password). Phone is a profile/contact field only — never used for authentication. Login uses `supabase.auth.signInWithPassword({ email, password })`. The `handle_new_auth_user` trigger on `auth.users` auto-creates a `profiles` row on signup.
 
+**Google Sign-In** is also supported via Supabase OAuth (`supabase.auth.signInWithOAuth({ provider: "google" })`). After the OAuth redirect, `OAuthCallbackHandler` in `App.tsx` fires, calls `ensure-profile`, and routes the user to `/interests` (if onboarding incomplete) or `/feed`.
+
 Admin account: `lyracoin950@gmail.com` — `is_admin=true`, `is_completed=true` set by migration 019.
 
 ## Environment Variables

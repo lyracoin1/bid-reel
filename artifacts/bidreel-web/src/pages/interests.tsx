@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLang } from "@/contexts/LanguageContext";
-import { Camera, CheckCircle2, XCircle, Loader2, ArrowRight, Phone, User } from "lucide-react";
+import { Camera, CheckCircle2, XCircle, Loader2, ArrowRight, Phone, User, MapPin } from "lucide-react";
 import {
   updateProfileApi,
   checkUsernameApi,
@@ -56,6 +56,7 @@ export default function Interests() {
   // ── Profile setup state (step 0) ──
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone]             = useState("");
+  const [location, setLocation2]      = useState("");
   const [username, setUsername]       = useState("");
   const [usernameState, setUsernameState] = useState<UsernameState>("idle");
   const [avatarFile, setAvatarFile]   = useState<File | null>(null);
@@ -160,6 +161,13 @@ export default function Interests() {
       return;
     }
 
+    // Validate location (required)
+    const trimmedLocation = location.trim();
+    if (trimmedLocation.length < 2) {
+      setSubmitError("Location must be at least 2 characters (e.g. Riyadh, Cairo, Dubai).");
+      return;
+    }
+
     // Validate avatar (required)
     if (!avatarFile) {
       setSubmitError("Profile photo is required. Please upload a photo.");
@@ -208,6 +216,7 @@ export default function Interests() {
         username: trimmed,
         displayName: trimmedName,
         phone: normalizedPhone,
+        location: trimmedLocation,
         ...(avatarUrl ? { avatarUrl } : {}),
       });
 
@@ -261,6 +270,7 @@ export default function Interests() {
   const canSubmitProfile =
     displayName.trim().length >= 2 &&
     phone.trim().length >= 7 &&
+    location.trim().length >= 2 &&
     username.length >= 3 &&
     USERNAME_REGEX.test(username) &&
     usernameState !== "taken" &&
@@ -412,11 +422,39 @@ export default function Interests() {
               </p>
             </motion.div>
 
-            {/* Username input */}
+            {/* Location input */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: 0.18 }}
+              className="mb-4"
+            >
+              <label className="block text-xs font-semibold text-white/50 mb-2 tracking-wide uppercase">
+                Location <span className="text-primary">*</span>
+              </label>
+              <div className="relative">
+                <MapPin size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
+                <input
+                  type="text"
+                  inputMode="text"
+                  autoComplete="address-level2"
+                  maxLength={100}
+                  value={location}
+                  onChange={e => { setLocation2(e.target.value); setSubmitError(null); }}
+                  placeholder="Riyadh, Cairo, Dubai…"
+                  className="w-full bg-white/5 border border-white/10 focus:border-primary/60 rounded-2xl pl-10 pr-4 py-4 text-white text-base font-medium placeholder:text-white/20 focus:outline-none transition-colors"
+                />
+              </div>
+              <p className="mt-1.5 text-xs text-white/30">
+                Your city or region · helps buyers and sellers find nearby items
+              </p>
+            </motion.div>
+
+            {/* Username input */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, delay: 0.2 }}
               className="mb-2"
             >
               <label className="block text-xs font-semibold text-white/50 mb-2 tracking-wide uppercase">

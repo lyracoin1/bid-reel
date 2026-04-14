@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { Gavel, Bell, MapPin, Volume2, VolumeX, Bookmark } from "lucide-react";
+import { Gavel, Bell, MapPin, Volume2, VolumeX, Bookmark, ThumbsUp, ThumbsDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type Auction } from "@/lib/mock-data";
 import { getWhatsAppUrl, cn, getPublicBaseUrl } from "@/lib/utils";
@@ -17,6 +17,7 @@ import { AuctionMenu } from "@/components/AuctionMenu";
 import type { AuctionState } from "@/lib/utils";
 import { useViewerLocation } from "@/hooks/use-viewer-location";
 import { haversineDistance, formatDistance, formatAuctionPrice } from "@/lib/geo";
+import { sendSignalApi, removeSignalApi, type ContentSignal } from "@/lib/api-client";
 
 function AlbumIcon({ size = 20 }: { size?: number }) {
   return (
@@ -105,6 +106,19 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   const watching = isWatching(auction.id);
   const saved = isSaved(auction.id);
   const isVideo = auction.type === "video";
+
+  // ── Content signal (Interested / Not Interested) ──────────────────────────
+  const [localSignal, setLocalSignal] = useState<ContentSignal | null>(null);
+
+  const handleSignal = useCallback((s: ContentSignal) => {
+    if (localSignal === s) {
+      setLocalSignal(null);
+      void removeSignalApi(auction.id);
+    } else {
+      setLocalSignal(s);
+      void sendSignalApi(auction.id, s);
+    }
+  }, [localSignal, auction.id]);
 
   // Local state mirrors globalMuted so React re-renders the icon correctly.
   // Initialise from globalMuted so cards that mount after the user has already
@@ -444,6 +458,37 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
             <span className="text-[11px] font-medium text-white/40">{distanceText}</span>
           </div>
         )}
+      </div>
+
+      {/* ── Signal strip: Interested / Not Interested ─────────────────────── */}
+      {/* Positioned below the action stack and info area, above the nav bar. */}
+      <div className="absolute bottom-[4.5rem] left-0 right-0 z-20 flex gap-2.5 px-4">
+        <motion.button
+          whileTap={{ scale: 0.93 }}
+          onClick={(e) => { e.stopPropagation(); handleSignal("not_interested"); }}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border text-xs font-semibold backdrop-blur-md transition-colors",
+            localSignal === "not_interested"
+              ? "bg-red-500/25 border-red-500/50 text-red-300"
+              : "bg-black/40 border-white/15 text-white/55"
+          )}
+        >
+          <ThumbsDown size={13} />
+          {lang === "ar" ? "غير مهتم" : "Not Interested"}
+        </motion.button>
+        <motion.button
+          whileTap={{ scale: 0.93 }}
+          onClick={(e) => { e.stopPropagation(); handleSignal("interested"); }}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border text-xs font-semibold backdrop-blur-md transition-colors",
+            localSignal === "interested"
+              ? "bg-emerald-500/25 border-emerald-500/50 text-emerald-300"
+              : "bg-black/40 border-white/15 text-white/55"
+          )}
+        >
+          <ThumbsUp size={13} />
+          {lang === "ar" ? "مهتم" : "Interested"}
+        </motion.button>
       </div>
     </div>
   );

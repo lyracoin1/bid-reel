@@ -90,6 +90,13 @@ const updateProfileSchema = z.object({
     .string()
     .regex(e164Regex, "Phone must be in international E.164 format starting with + (e.g. +966500000000)")
     .optional(),
+  // City / region the user is based in. Free text, max 100 chars.
+  location: z
+    .string()
+    .min(2, "Location must be at least 2 characters")
+    .max(100, "Location must be 100 characters or fewer")
+    .trim()
+    .optional(),
 });
 
 router.patch("/users/me", requireAuth, async (req, res) => {
@@ -106,7 +113,7 @@ router.patch("/users/me", requireAuth, async (req, res) => {
   if (Object.keys(parsed.data).length === 0) {
     res.status(400).json({
       error: "EMPTY_UPDATE",
-      message: "Provide at least one field to update: username, displayName, avatarUrl, bio, or phone.",
+      message: "Provide at least one field to update: username, displayName, avatarUrl, bio, phone, or location.",
     });
     return;
   }

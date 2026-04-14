@@ -202,18 +202,34 @@ adminRouter.patch("/users/:id", async (req, res) => {
 
 adminRouter.get("/auctions", async (_req, res) => {
   try {
-    const { data, error } = await supabaseAdmin
-      .from("auctions")
-      .select("*, seller:profiles!seller_id(id, display_name)")
-      .order("created_at", { ascending: false });
+    const [{ data, error }, { data: signalRows }] = await Promise.all([
+      supabaseAdmin
+        .from("auctions")
+        .select("*, seller:profiles!seller_id(id, display_name)")
+        .order("created_at", { ascending: false }),
+      supabaseAdmin
+        .from("content_signals")
+        .select("auction_id, signal"),
+    ]);
 
     if (error) throw error;
 
+    // Aggregate signal counts per auction
+    const signalMap: Record<string, { interested: number; not_interested: number }> = {};
+    for (const s of signalRows ?? []) {
+      const aId = s["auction_id"] as string;
+      const sig = s["signal"] as string;
+      if (!signalMap[aId]) signalMap[aId] = { interested: 0, not_interested: 0 };
+      if (sig === "interested") signalMap[aId].interested++;
+      else if (sig === "not_interested") signalMap[aId].not_interested++;
+    }
+
     const auctions = (data ?? []).map((row: Record<string, unknown>) => {
+      const aId = row["id"] as string;
       const currentBid = (row["current_bid"] as number | null) ?? 0;
       const seller = row["seller"] as { id: string; display_name: string | null } | null;
       return {
-        id: row["id"],
+        id: aId,
         title: row["title"],
         category: row["category"],
         status: row["status"],
@@ -228,6 +244,8 @@ adminRouter.get("/auctions", async (_req, res) => {
         lat: row["lat"] ?? null,
         lng: row["lng"] ?? null,
         seller: seller ? { id: seller.id, displayName: seller.display_name } : null,
+        interestedCount: signalMap[aId]?.interested ?? 0,
+        notInterestedCount: signalMap[aId]?.not_interested ?? 0,
       };
     });
 

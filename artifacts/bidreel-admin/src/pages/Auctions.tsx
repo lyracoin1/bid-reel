@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import {
   Loader2, AlertCircle, Gavel, MoreHorizontal, EyeOff, Trash2, CheckCircle, Search, X,
+  ThumbsUp, ThumbsDown,
 } from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { adminGetAuctions, adminUpdateAuction, adminDeleteAuction, type AdminAuction } from "@/services/admin-api";
@@ -168,6 +169,7 @@ export default function Auctions() {
                 <th className="text-left px-4 py-3 font-semibold">البائع</th>
                 <th className="text-left px-4 py-3 font-semibold">أعلى مزايدة</th>
                 <th className="text-left px-4 py-3 font-semibold">الحالة</th>
+                <th className="text-left px-4 py-3 font-semibold">الإشارات</th>
                 <th className="text-left px-4 py-3 font-semibold">تاريخ الإنشاء</th>
                 <th className="text-left px-4 py-3 font-semibold">ينتهي</th>
                 <th className="px-4 py-3" />
@@ -186,6 +188,16 @@ export default function Auctions() {
                     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold border ${STATUS_STYLES[a.status] ?? "bg-gray-700 text-gray-300"}`}>
                       {STATUS_LABELS[a.status] ?? a.status}
                     </span>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center gap-1 text-emerald-400 text-xs font-semibold">
+                        <ThumbsUp size={11} /> {a.interestedCount}
+                      </span>
+                      <span className="flex items-center gap-1 text-red-400 text-xs font-semibold">
+                        <ThumbsDown size={11} /> {a.notInterestedCount}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-4 py-3.5 text-gray-400 text-xs">{formatDate(a.createdAt)}</td>
                   <td className="px-4 py-3.5 text-gray-400 text-xs">{formatDate(a.endsAt)}</td>

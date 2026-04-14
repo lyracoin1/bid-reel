@@ -748,4 +748,58 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
   });
 });
 
+// ─── Content Signal endpoints ─────────────────────────────────────────────────
+//
+// POST   /api/auctions/:id/signal  — record or update viewer's signal
+// DELETE /api/auctions/:id/signal  — remove (neutral) viewer's signal
+//
+// A signal is one of: 'interested' | 'not_interested'.
+// One signal per (user, auction) pair — upserted on conflict.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const signalSchema = z.object({
+  signal: z.enum(["interested", "not_interested"]),
+});
+
+router.post("/auctions/:id/signal", requireAuth, async (req, res) => {
+  const parsed = signalSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({
+      error: "VALIDATION_ERROR",
+      message: 'signal must be "interested" or "not_interested"',
+    });
+    return;
+  }
+
+  const { error } = await supabaseAdmin
+    .from("content_signals")
+    .upsert(
+      {
+        user_id: req.user!.id,
+        auction_id: req.params.id,
+        signal: parsed.data.signal,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,auction_id" },
+    );
+
+  if (error) {
+    logger.error({ err: error }, "POST /auctions/:id/signal — upsert failed");
+    res.status(500).json({ error: "SIGNAL_FAILED", message: "Failed to record signal." });
+    return;
+  }
+
+  res.json({ ok: true, signal: parsed.data.signal });
+});
+
+router.delete("/auctions/:id/signal", requireAuth, async (req, res) => {
+  await supabaseAdmin
+    .from("content_signals")
+    .delete()
+    .eq("user_id", req.user!.id)
+    .eq("auction_id", req.params.id);
+
+  res.json({ ok: true });
+});
+
 export default router;

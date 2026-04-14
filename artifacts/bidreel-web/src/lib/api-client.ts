@@ -377,6 +377,7 @@ export interface ApiUserProfile {
   displayName: string | null;
   avatarUrl: string | null;
   bio: string | null;
+  location: string | null;
   auctionCount: number;
   totalLikesReceived: number;
   bidsPlacedCount: number;
@@ -412,6 +413,8 @@ export interface UpdateProfilePayload {
   bio?: string;
   /** Phone in E.164 format (e.g. +201060088141). Used for WhatsApp contact links. */
   phone?: string;
+  /** City / region the user is based in (e.g. "Riyadh", "Cairo"). Free text, max 100 chars. */
+  location?: string;
 }
 
 export class UsernameTakenError extends Error {
@@ -474,6 +477,7 @@ export interface ApiPublicProfile {
   displayName: string | null;
   avatarUrl: string | null;
   bio: string | null;
+  location: string | null;
   auctionCount: number;
   totalLikesReceived: number;
   followersCount: number;
@@ -701,6 +705,46 @@ export async function unsaveAuctionApi(auctionId: string): Promise<ApiSaveResult
     throw new Error(err.message ?? "Failed to unsave auction");
   }
   return res.json() as Promise<ApiSaveResult>;
+}
+
+// ─── Content Signal system (Interested / Not Interested) ─────────────────────
+
+export type ContentSignal = "interested" | "not_interested";
+
+/**
+ * Record or update the viewer's signal for an auction.
+ * One signal per user per auction — subsequent calls upsert the value.
+ * Fire-and-forget: non-throwing on network errors.
+ */
+export async function sendSignalApi(auctionId: string, signal: ContentSignal): Promise<void> {
+  const token = await getToken();
+  if (!token) return;
+  try {
+    await fetch(`${API_BASE}/auctions/${auctionId}/signal`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ signal }),
+    });
+  } catch {
+    console.warn("[api-client] sendSignalApi failed — server unreachable");
+  }
+}
+
+/**
+ * Remove the viewer's signal for an auction (neutral / undecided).
+ * Fire-and-forget: non-throwing on network errors.
+ */
+export async function removeSignalApi(auctionId: string): Promise<void> {
+  const token = await getToken();
+  if (!token) return;
+  try {
+    await fetch(`${API_BASE}/auctions/${auctionId}/signal`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    console.warn("[api-client] removeSignalApi failed — server unreachable");
+  }
 }
 
 /** Permanently delete the authenticated user's account and all associated data. */

@@ -28,7 +28,7 @@ export default async function handler(
 
     const { data, error } = await supabaseAdmin
       .from("profiles")
-      .select("id, username, display_name, phone, avatar_url, is_admin, is_banned, ban_reason, created_at")
+      .select("id, username, display_name, phone, avatar_url, location, is_admin, is_banned, ban_reason, created_at")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -43,8 +43,7 @@ export default async function handler(
       if (!row["display_name"]) missingFields.push("display_name");
       if (!row["phone"])        missingFields.push("phone");
       if (!row["avatar_url"])   missingFields.push("avatar_url");
-      // location is pending (migration 023) — include as always-missing until added
-      // missingFields.push("location"); // TODO(migration-023)
+      if (!row["location"])     missingFields.push("location");
 
       return {
         id: row["id"],

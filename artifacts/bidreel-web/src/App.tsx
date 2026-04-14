@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -7,7 +7,7 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import { NotificationBannerProvider } from "@/contexts/NotificationBannerContext";
 import { useFcmToken } from "@/hooks/use-fcm-token";
 import { supabase } from "@/lib/supabase";
-import { setToken, clearToken } from "@/lib/api-client";
+import { setToken, clearToken, API_BASE } from "@/lib/api-client";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
 // Core user pages — loaded eagerly (always needed)
@@ -24,6 +24,18 @@ import NotFound from "@/pages/not-found";
 import PrivacyPolicy from "@/pages/privacy";
 
 const queryClient = new QueryClient();
+
+/**
+ * Detected at module-load time (before Supabase can clear the URL) so we know
+ * whether the current page load is an OAuth callback redirect.
+ *
+ * PKCE flow:  Supabase appends ?code=... to the redirect URL.
+ * Implicit flow: Supabase appends #access_token=... to the hash.
+ */
+const _isOAuthCallback =
+  typeof window !== "undefined" &&
+  (window.location.search.includes("code=") ||
+    window.location.hash.includes("access_token="));
 
 /**
  * Profile completeness gate — enforced at the app routing level.
@@ -84,6 +96,62 @@ function FcmInit() {
   return null;
 }
 
+/**
+ * Handles the OAuth redirect callback (Google Sign-In and any future OAuth provider).
+ *
+ * When the user is redirected back from the OAuth provider, Supabase appends
+ * OAuth tokens / codes to the URL.  We detect this at module load time (_isOAuthCallback)
+ * before Supabase clears the URL, then subscribe to the first SIGNED_IN or
+ * INITIAL_SESSION event to obtain the session and run the standard afterSignIn flow
+ * (ensure-profile → redirect to /interests or /feed).
+ *
+ * Must be rendered inside <WouterRouter> so useLocation is available.
+ */
+function OAuthCallbackHandler() {
+  const [, setWouterLocation] = useLocation();
+  const handled = useRef(false);
+
+  useEffect(() => {
+    if (!_isOAuthCallback || handled.current || !supabase) return;
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session && !handled.current) {
+          handled.current = true;
+          subscription.unsubscribe();
+
+          setToken(session.access_token);
+
+          try {
+            const res = await fetch(`${API_BASE}/auth/ensure-profile`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session.access_token}`,
+              },
+            });
+            if (res.ok) {
+              const data = await res.json() as { user: { isCompleted: boolean } };
+              const seen = localStorage.getItem("hasSeenInterests");
+              const isComplete = data.user?.isCompleted ?? false;
+              setWouterLocation((!isComplete || !seen) ? "/interests" : "/feed");
+            } else {
+              setWouterLocation("/interests");
+            }
+          } catch {
+            setWouterLocation("/interests");
+          }
+        }
+      },
+    );
+
+    return () => subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return null;
+}
+
 /** Keeps the api-client Bearer token in sync with Supabase session refreshes. */
 function AuthSync() {
   useEffect(() => {
@@ -114,6 +182,7 @@ function App() {
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
               <AuthSync />
               <FcmInit />
+              <OAuthCallbackHandler />
               <Router />
             </WouterRouter>
             <Toaster />

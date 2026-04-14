@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Grid, Gavel, LogOut, ShieldCheck, Trash2, Shield } from "lucide-react";
+import { Grid, Gavel, LogOut, ShieldCheck, Trash2, Shield, MapPin } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import { MobileLayout } from "@/components/layout/MobileLayout";
@@ -105,6 +105,12 @@ export default function Profile() {
                     <p className="text-sm text-muted-foreground mt-1">
                       @{user?.username ?? user?.id.slice(0, 8) ?? "…"}
                     </p>
+                    {user?.location && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <MapPin size={12} className="text-white/40 shrink-0" />
+                        <span className="text-xs text-white/40">{user.location}</span>
+                      </div>
+                    )}
                     {user?.isAdmin && (
                       <div className="flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full bg-violet-500/20 border border-violet-500/30 w-fit">
                         <ShieldCheck size={13} className="text-violet-400" />

@@ -12,6 +12,7 @@ export interface OwnProfile {
   displayName: string | null;
   avatarUrl: string | null;
   bio: string | null;
+  location: string | null;
   auctionCount: number;
   totalLikesReceived: number;
   bidsPlacedCount: number;
@@ -32,6 +33,7 @@ export interface PublicProfile {
   displayName: string | null;
   avatarUrl: string | null;
   bio: string | null;
+  location: string | null;
   auctionCount: number;
   totalLikesReceived: number;
   followersCount: number;
@@ -48,6 +50,7 @@ interface ProfileRow {
   phone: string | null;
   avatar_url: string | null;
   bio: string | null;
+  location: string | null;
   is_admin: boolean;
   is_banned: boolean;
   created_at: string;
@@ -55,7 +58,7 @@ interface ProfileRow {
 
 // ─── Column selects ──────────────────────────────────────────────────────────
 
-const PROFILE_COLS = "id, username, display_name, phone, avatar_url, bio, is_admin, is_banned, created_at";
+const PROFILE_COLS = "id, username, display_name, phone, avatar_url, bio, location, is_admin, is_banned, created_at";
 
 // ─── Stats helpers ────────────────────────────────────────────────────────────
 
@@ -140,8 +143,8 @@ function isProfileComplete(row: ProfileRow): boolean {
     row.username !== null &&
     row.display_name !== null &&
     row.phone !== null &&
-    row.avatar_url !== null
-    // TODO(migration-023): add `&& row.location !== null` once column exists
+    row.avatar_url !== null &&
+    row.location !== null
   );
 }
 
@@ -152,6 +155,7 @@ function toOwnProfile(row: ProfileRow, stats: Awaited<ReturnType<typeof fetchPro
     displayName: row.display_name,
     avatarUrl: row.avatar_url,
     bio: row.bio,
+    location: row.location ?? null,
     isAdmin: row.is_admin ?? false,
     isCompleted: isProfileComplete(row),
     createdAt: row.created_at,
@@ -166,6 +170,7 @@ function toPublicProfile(row: ProfileRow, stats: Awaited<ReturnType<typeof fetch
     displayName: row.display_name,
     avatarUrl: row.avatar_url,
     bio: row.bio,
+    location: row.location ?? null,
     isBanned: row.is_banned ?? false,
     isCompleted: isProfileComplete(row),
     createdAt: row.created_at,
@@ -263,6 +268,8 @@ export interface UpdateProfileInput {
   bio?: string;
   /** Phone number in E.164 format (e.g. +201060088141). Used for WhatsApp contact links. */
   phone?: string;
+  /** City / region the user is based in (e.g. "Riyadh", "Cairo"). Free text, max 100 chars. */
+  location?: string;
 }
 
 export class UsernameTakenError extends Error {
@@ -302,6 +309,7 @@ export async function updateProfile(
   if (input.avatarUrl !== undefined) patch["avatar_url"] = input.avatarUrl;
   if (input.bio !== undefined) patch["bio"] = input.bio;
   if (input.phone !== undefined) patch["phone"] = input.phone;
+  if (input.location !== undefined) patch["location"] = input.location;
 
   if (Object.keys(patch).length === 0) {
     return getOwnProfile(userId);

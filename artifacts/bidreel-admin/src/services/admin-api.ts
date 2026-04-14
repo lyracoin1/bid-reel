@@ -224,6 +224,8 @@ export interface AdminAuction {
   lat: number | null;
   lng: number | null;
   seller: { id: string; displayName: string | null } | null;
+  interestedCount: number;
+  notInterestedCount: number;
 }
 
 export async function adminGetAuctions(): Promise<AdminAuction[]> {

@@ -1,0 +1,216 @@
+We are continuing BidReel from the current production-safe state.
+
+Current confirmed status:
+
+* Main app auth works
+* Admin auth works
+* Admin CORS issue was fixed
+* Profile completeness gate now exists
+* Users missing required fields are now treated as incomplete
+* Migration 023 was successfully run
+* `location` column now exists in `profiles`
+* But `location` is not yet enforced end-to-end in the app flow
+* We now want to continue with the next planned phase in a structured, production-safe way
+
+==================================================
+PHASE — ONBOARDING + LOCATION + GOOGLE SIGN-IN + INTEREST SIGNALS
+=================================================================
+
+This phase has 4 connected goals:
+
+1. Add `location` properly to onboarding/profile flow
+2. Keep `location` visible in the user profile (must not be hidden)
+3. Add Google Sign-In alongside Email Sign-In
+4. Add "Interested / Not Interested" interaction groundwork similar to TikTok/Facebook preference signals
+
+Do NOT break existing auth, onboarding, or admin behavior.
+Do NOT reintroduce phone-auth.
+Do NOT improvise large refactors.
+Make minimal, well-structured, production-safe changes.
+
+==================================================
+PART 1 — LOCATION AS A REQUIRED PROFILE FIELD
+=============================================
+
+We already added the `location` column to the database.
+Now implement it properly in the product.
+
+Requirements:
+
+1. Add `location` to the onboarding/profile completion UI
+2. It must be required, just like:
+
+   * username
+   * phone
+   * avatar
+3. The user must not complete onboarding without providing location
+4. Location must be stored in the profile
+5. Location must be treated as a normal visible profile field, not hidden metadata
+6. Location should be a user-friendly public location field such as:
+
+   * city
+   * area
+   * country/city style text
+     not precise GPS coordinates
+7. Add validation that is practical and not overly strict
+8. Make sure frontend and backend validation are aligned
+9. After implementing location end-to-end, enable it in the completeness gate:
+
+   * backend profile completeness logic
+   * admin missingFields logic
+   * DB trigger / backfill follow-up if needed
+
+Important:
+
+* Do NOT use exact address or dangerous precise location
+* This is a public profile location field
+* Keep the UX simple and clean
+
+==================================================
+PART 2 — LOCATION MUST REMAIN VISIBLE IN PROFILE
+================================================
+
+This is a strict product requirement:
+Location must appear inside the profile and must not disappear after onboarding.
+
+Your task:
+
+1. Add location display to the user profile UI
+2. Keep it clearly visible in the profile information area
+3. Ensure it appears consistently after save/reload/session restore
+4. Ensure it can be edited later through profile/account editing if such flow exists
+5. Make sure missing location cannot be silently ignored after the gate is enabled
+
+Important:
+
+* Location is part of the profile identity/presence
+* Do not bury it in a hidden modal or secondary view only
+
+==================================================
+PART 3 — GOOGLE SIGN-IN + EMAIL SIGN-IN
+=======================================
+
+We want the app to support both:
+
+* Email sign-in
+* Google sign-in
+
+This must be implemented carefully.
+
+Your task:
+
+1. Audit the current auth architecture
+2. Add Google Sign-In to the main app auth flow
+3. Keep Email Sign-In fully working
+4. Make sure both methods converge cleanly into the same profile/onboarding flow
+5. Ensure a user signing in with Google still goes through profile completion if required fields are missing
+6. Avoid duplicate profile/user creation problems
+7. Ensure session persistence still works
+8. Ensure logout works for both auth methods
+9. Make the UI clear and professional:
+
+   * Email sign in remains
+   * Google sign in is added as another option
+10. Do not implement a fake button — wire the real flow properly
+
+Also provide in your report:
+
+* exact manual steps I must do in Supabase dashboard for Google provider setup
+* redirect URLs I must configure
+* anything needed in Vercel env vars if applicable
+
+Important:
+
+* Do NOT add Apple/Facebook/etc now
+* Only Google + Email
+* Keep admin auth flow separate unless there is a justified shared benefit
+* Do not break email confirmation flow for email-based users
+
+==================================================
+PART 4 — "INTERESTED / NOT INTERESTED" SIGNAL SYSTEM
+====================================================
+
+We want to begin building the interest feedback mechanism similar in spirit to Facebook/TikTok:
+
+* "Interested"
+* "Not interested"
+
+This does NOT have to fully implement advanced ranking yet,
+but it must establish the correct foundation.
+
+Your task:
+
+1. Audit the feed item actions and data model
+2. Design and implement a clean minimal system for per-user preference signals on content
+3. Add two user actions:
+
+   * Interested
+   * Not interested
+4. Ensure these actions are stored in a proper backend/data structure
+5. Prevent duplicate/conflicting records for the same user + same content
+6. Make the UX clean and unobtrusive
+7. Do not make this look like reporting/blocking unless intentionally separate
+8. Do not over-engineer ranking yet
+9. But structure it so it can later influence feed ranking/recommendations
+
+At minimum, return:
+
+* schema/data model used
+* API route(s) added or modified
+* frontend UI placement
+* how future ranking could read from this signal
+
+Important:
+
+* This is not a "like"
+* This is not a "report"
+* This is a content preference signal
+* Keep it distinct from bidding, follows, and notifications
+
+==================================================
+PART 5 — ADMIN VISIBILITY FOR NEW DATA
+======================================
+
+Where appropriate, ensure admin can understand the new profile completeness state and future user/profile quality:
+
+* users with missing location should show as incomplete once location enforcement is enabled
+* if interest-signal data is useful for future moderation/analytics, structure it cleanly now
+* do not clutter the admin UI unnecessarily in this phase
+
+==================================================
+PART 6 — IMPLEMENTATION SAFETY RULES
+====================================
+
+* Do NOT break existing login/signup
+* Do NOT break admin
+* Do NOT reintroduce phone-auth
+* Do NOT add payments
+* Do NOT add large speculative ranking logic yet
+* Do NOT add precise geolocation tracking
+* Do NOT store unsafe hidden personal data
+* Do NOT remove the current email-first auth support
+* Keep all changes incremental and production-safe
+
+==================================================
+REQUIRED OUTPUT
+===============
+
+When finished, return:
+
+1. exact diagnosis / design decisions for each of the 4 parts
+2. exact files changed
+3. exact schema / migration changes
+4. exact auth/provider setup needed from me
+5. exact follow-up SQL if location is now enforced in completeness
+6. exact git commands I should run next
+7. any remaining risks or manual deployment steps
+
+Before claiming success, verify:
+
+* onboarding requires location
+* profile shows location visibly
+* email login still works
+* Google sign-in is wired properly
+* incomplete Google users still go through onboarding
+* interested/not interested actions save correctly
+* no existing working flow is broken

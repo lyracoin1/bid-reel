@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { ArrowLeft, Grid } from "lucide-react";
+import { ArrowLeft, Grid, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { useLocation, useRoute } from "wouter";
 import { MobileLayout } from "@/components/layout/MobileLayout";
@@ -133,6 +133,12 @@ export default function PublicProfilePage() {
                         {profile?.displayName ?? "Unknown"}
                       </h2>
                       <p className="text-xs text-muted-foreground mt-0.5">@{profile?.username ?? userId.slice(0, 8)}</p>
+                      {profile?.location && (
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <MapPin size={11} className="text-white/35 shrink-0" />
+                          <span className="text-xs text-white/40">{profile.location}</span>
+                        </div>
+                      )}
                       {profile?.bio && (
                         <p className="text-xs text-white/60 mt-1.5 line-clamp-2">{profile.bio}</p>
                       )}

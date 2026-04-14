@@ -283,9 +283,11 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
       {/*   Order (top → bottom = low → high product priority):               */}
       {/*     Share → Like → Follow → Save → WhatsApp → Bid                  */}
       {/*   The primary Bid CTA is at the bottom — closest to the thumb.      */}
+      {/*   bottom uses env(safe-area-inset-bottom) so the stack always clears */}
+      {/*   the signal strip (96px base) + strip height (44px) + 36px margin. */}
       <div
-        className="absolute left-3 bottom-36 z-20 flex flex-col items-center gap-4"
-        style={{ direction: "ltr" }}
+        className="absolute left-3 z-20 flex flex-col items-center gap-4"
+        style={{ direction: "ltr", bottom: "calc(11rem + env(safe-area-inset-bottom, 0px))" }}
       >
 
         {/* 1. Share — TikTok paper-plane arrow (lowest priority, furthest from thumb) */}
@@ -449,8 +451,10 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
 
       {/* ── Bottom info area ───────────────────────────────────────────────── */}
       {/* left-[76px] leaves room for the 48px action stack at left-3 + gap   */}
+      {/* bottom mirrors action stack so title/price always align with stack.  */}
       <div
-        className="absolute bottom-36 left-[76px] right-4 z-10 flex flex-col gap-1.5 cursor-pointer"
+        className="absolute left-[76px] right-4 z-10 flex flex-col gap-1.5 cursor-pointer"
+        style={{ bottom: "calc(11rem + env(safe-area-inset-bottom, 0px))" }}
         onClick={() => setLocation(`/auction/${auction.id}`)}
       >
         {/* Seller name — compact, above the title */}
@@ -499,11 +503,15 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
       </div>
 
       {/* ── Signal strip: Interested / Not Interested ─────────────────────── */}
-      {/* Uses calc() with env(safe-area-inset-bottom) so it always clears the  */}
-      {/* BottomNav (~92px standard, ~106px on iPhone with home indicator).     */}
+      {/* env(safe-area-inset-bottom, 0px): returns 0px on standard devices   */}
+      {/* (the 0px fallback only applies to browsers not supporting env()).    */}
+      {/* Standard: 96px (4px above 92px nav). iPhone: 130px (24px above nav) */}
+      {/* Action stack sits at calc(11rem + safe-area) = 176-210px, giving    */}
+      {/* 36px of clearance above this strip's top edge (140-174px) on all    */}
+      {/* devices — signal strip never overlaps the nav or the action stack.  */}
       <div
         className="absolute left-0 right-0 z-20 flex gap-2.5 px-4"
-        style={{ bottom: "calc(76px + env(safe-area-inset-bottom, 20px))" }}
+        style={{ bottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}
       >
         <motion.button
           whileTap={{ scale: 0.93 }}

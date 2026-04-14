@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Grid, Gavel, LogOut, ShieldCheck, Trash2, Shield, MapPin,
-  Pencil, Settings, ChevronRight, AlertCircle,
+  Pencil, Settings, ChevronRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
@@ -80,7 +80,17 @@ export default function Profile() {
     setLocation("/login");
   }
 
-  const isIncomplete = !isLoading && user && !user.isCompleted;
+  // Frontend completeness — 4 core profile fields (matches create-auction gate logic).
+  // Each field contributes 25 points. Computed purely from user data, no API calls.
+  const completenessFields = [
+    { key: "avatar",   label: "Profile photo", done: !!user?.avatarUrl },
+    { key: "username", label: "Username",       done: !!user?.username },
+    { key: "name",     label: "Display name",   done: !!user?.displayName },
+    { key: "location", label: "Location",       done: !!user?.location },
+  ];
+  const completedCount = completenessFields.filter(f => f.done).length;
+  const completePct    = Math.round((completedCount / completenessFields.length) * 100);
+  const missingFields  = completenessFields.filter(f => !f.done);
 
   return (
     <MobileLayout>
@@ -127,6 +137,11 @@ export default function Profile() {
                         <span className="text-xs text-white/40">{user.location}</span>
                       </div>
                     )}
+                    {user?.createdAt && (
+                      <p className="text-[11px] text-white/28 mt-0.5">
+                        Member since {new Date(user.createdAt).getFullYear()}
+                      </p>
+                    )}
                     {user?.isAdmin && (
                       <div className="flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full bg-violet-500/20 border border-violet-500/30 w-fit">
                         <ShieldCheck size={13} className="text-violet-400" />
@@ -150,62 +165,93 @@ export default function Profile() {
             </motion.button>
           </div>
 
-          {/* ── Profile completeness banner (non-blocking) ── */}
+          {/* ── Profile completeness card (non-blocking, frontend-computed) ── */}
           <AnimatePresence>
-            {isIncomplete && (
+            {!isLoading && user && completePct < 100 && (
               <motion.button
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 onClick={() => setLocation("/interests")}
-                className="relative z-10 w-full flex items-center gap-3 px-4 py-3 mb-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left"
+                className="relative z-10 w-full flex flex-col gap-2.5 px-4 py-3.5 mb-4 rounded-2xl bg-amber-500/8 border border-amber-500/18 text-left"
               >
-                <AlertCircle size={16} className="text-amber-400 shrink-0" />
-                <span className="text-sm text-amber-300 font-medium flex-1">
-                  Complete your profile to start selling
-                </span>
-                <ChevronRight size={14} className="text-amber-400/60 shrink-0" />
+                {/* Header: percentage + chevron */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-amber-300">
+                    Profile {completePct}% complete
+                  </span>
+                  <ChevronRight size={14} className="text-amber-400/60 shrink-0" />
+                </div>
+
+                {/* Progress bar */}
+                <div className="h-1 w-full rounded-full bg-white/8 overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${completePct}%` }}
+                    transition={{ duration: 0.6, ease: "easeOut" }}
+                    className="h-full rounded-full bg-amber-400"
+                  />
+                </div>
+
+                {/* Missing field pills — up to 3 shown */}
+                {missingFields.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {missingFields.slice(0, 3).map(f => (
+                      <span
+                        key={f.key}
+                        className="text-[10px] font-semibold text-amber-400/70 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/15"
+                      >
+                        + {f.label}
+                      </span>
+                    ))}
+                    {missingFields.length > 3 && (
+                      <span className="text-[10px] font-semibold text-amber-400/50">
+                        +{missingFields.length - 3} more
+                      </span>
+                    )}
+                  </div>
+                )}
               </motion.button>
             )}
           </AnimatePresence>
 
           {/* Stats row — Listings | Followers | Following */}
           <div className="grid grid-cols-3 gap-3 relative z-10">
-            <div className="bg-white/5 border border-white/8 rounded-2xl py-3 text-center">
+            <div className="bg-white/5 border border-white/8 rounded-2xl py-3.5 text-center">
               {isLoading ? (
-                <div className="h-6 w-8 bg-white/10 rounded animate-pulse mx-auto mb-1" />
+                <div className="h-7 w-10 bg-white/10 rounded animate-pulse mx-auto mb-1" />
               ) : (
-                <p className="text-xl font-bold text-white leading-none">
+                <p className="text-2xl font-bold text-white leading-none tracking-tight">
                   {user?.auctionCount ?? myListings.length}
                 </p>
               )}
-              <p className="text-[11px] text-muted-foreground mt-1 font-medium">{t("listings")}</p>
+              <p className="text-[11px] text-muted-foreground mt-1.5 font-medium">{t("listings")}</p>
             </div>
 
             <button
-              className="bg-white/5 border border-white/8 rounded-2xl py-3 text-center active:bg-white/8 transition-colors"
+              className="bg-white/5 border border-white/8 rounded-2xl py-3.5 text-center active:bg-white/8 transition-colors"
               onClick={() => user && setFollowModal("followers")}
               disabled={isLoading || !user}
             >
               {isLoading ? (
-                <div className="h-6 w-8 bg-white/10 rounded animate-pulse mx-auto mb-1" />
+                <div className="h-7 w-10 bg-white/10 rounded animate-pulse mx-auto mb-1" />
               ) : (
-                <p className="text-xl font-bold text-white leading-none">{user?.followersCount ?? 0}</p>
+                <p className="text-2xl font-bold text-white leading-none tracking-tight">{user?.followersCount ?? 0}</p>
               )}
-              <p className="text-[11px] text-muted-foreground mt-1 font-medium">{t("followers")}</p>
+              <p className="text-[11px] text-muted-foreground mt-1.5 font-medium">{t("followers")}</p>
             </button>
 
             <button
-              className="bg-white/5 border border-white/8 rounded-2xl py-3 text-center active:bg-white/8 transition-colors"
+              className="bg-white/5 border border-white/8 rounded-2xl py-3.5 text-center active:bg-white/8 transition-colors"
               onClick={() => user && setFollowModal("following")}
               disabled={isLoading || !user}
             >
               {isLoading ? (
-                <div className="h-6 w-8 bg-white/10 rounded animate-pulse mx-auto mb-1" />
+                <div className="h-7 w-10 bg-white/10 rounded animate-pulse mx-auto mb-1" />
               ) : (
-                <p className="text-xl font-bold text-white leading-none">{user?.followingCount ?? 0}</p>
+                <p className="text-2xl font-bold text-white leading-none tracking-tight">{user?.followingCount ?? 0}</p>
               )}
-              <p className="text-[11px] text-muted-foreground mt-1 font-medium">{t("following")}</p>
+              <p className="text-[11px] text-muted-foreground mt-1.5 font-medium">{t("following")}</p>
             </button>
           </div>
         </div>

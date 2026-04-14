@@ -1,0 +1,144 @@
+We are continuing BidReel production work.
+
+Completed so far:
+
+* auth / onboarding fixes
+* email confirmation fix
+* profile restructuring
+* empty states
+* bidding system refactor (increment-only)
+* feed overlay improvements
+* reel action stack polish
+
+Now proceed to:
+
+## Phase 4 / Part 1: Profile stats + account strength polish
+
+IMPORTANT:
+
+* Do NOT change backend or database
+* Do NOT introduce new APIs
+* Do NOT break existing profile layout
+* This is a frontend-only enhancement using existing user data
+
+## Goal
+
+Make the profile feel more complete, trustworthy, and informative.
+
+The user should understand:
+
+* how complete their profile is
+* what is missing
+* basic trust signals
+* their activity at a glance
+
+---
+
+## Required work
+
+### 1) Profile completeness progress
+
+Currently there is a simple "incomplete profile" banner.
+
+Replace or upgrade it into a clearer system:
+
+* show a progress percentage (e.g. 60% complete)
+* optionally show a small progress bar
+* optionally list missing items:
+
+  * profile picture
+  * username
+  * location
+  * display name
+
+Use only existing fields from the user/profile object.
+
+Do NOT add backend logic.
+
+---
+
+### 2) Smarter completeness logic
+
+Define completeness based on:
+
+* avatar exists
+* username exists
+* display_name exists
+* location exists
+
+Compute a percentage on the frontend.
+
+Do NOT hardcode fake values.
+
+---
+
+### 3) Improve stats clarity
+
+Audit the current stats row:
+
+* Listings
+* Followers
+* Following
+
+Improve:
+
+* label clarity
+* spacing
+* readability
+
+If safe:
+
+* add subtle visual emphasis (e.g. bolder numbers, better alignment)
+
+Do NOT change behavior or routing.
+
+---
+
+### 4) Add trust signals
+
+Add a lightweight trust indicator using existing data only.
+
+Examples:
+
+* "Member since {year}" if created_at exists
+* or similar safe signal
+
+Keep it subtle and non-intrusive.
+
+---
+
+### 5) Preserve layout integrity
+
+* do NOT redesign the whole profile
+* do NOT move major sections
+* do NOT break tabs or actions
+
+This is a polish layer, not a rebuild.
+
+---
+
+## Deliverables BEFORE code
+
+1. identify where profile completeness is currently handled
+2. identify available user/profile fields
+3. propose the completeness calculation
+4. propose minimal UI changes
+
+---
+
+## Deliverables AFTER code
+
+* list all modified files
+* explain completeness logic
+* confirm no backend changes
+* confirm no broken navigation
+
+---
+
+## Constraints
+
+* production safe
+* frontend only
+* no backend changes
+* no feature overreach
+* no redesign beyond scope

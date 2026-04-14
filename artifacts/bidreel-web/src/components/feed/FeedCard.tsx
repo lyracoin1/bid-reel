@@ -273,21 +273,58 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
       </div>
 
       {/* ── LEFT action stack ─────────────────────────────────────────────── */}
-      {/*   Moved to the left side. LTR direction is explicit so it never      */}
-      {/*   mirrors on Arabic / RTL layouts.                                   */}
+      {/*   LTR direction is explicit so it never mirrors on Arabic / RTL.    */}
+      {/*   Order (top → bottom = low → high product priority):               */}
+      {/*     Share → Like → Follow → Save → WhatsApp → Bid                  */}
+      {/*   The primary Bid CTA is at the bottom — closest to the thumb.      */}
       <div
         className="absolute left-3 bottom-36 z-20 flex flex-col items-center gap-4"
         style={{ direction: "ltr" }}
       >
 
-        {/* 1. Avatar + Follow ("+" badge) — hidden when viewer is owner */}
+        {/* 1. Share — TikTok paper-plane arrow (lowest priority, furthest from thumb) */}
+        <motion.button
+          whileTap={{ scale: 0.8 }}
+          className="flex flex-col items-center gap-1"
+          style={{ minWidth: 44, minHeight: 44 }}
+          aria-label="Share this auction"
+          onClick={handleShare}
+        >
+          <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white">
+            <TikTokShareIcon />
+          </div>
+          <span className="text-[11px] font-semibold text-white/80">{t("share")}</span>
+        </motion.button>
+
+        {/* 2. Like */}
+        <motion.button
+          whileTap={{ scale: 0.75 }}
+          className="flex flex-col items-center gap-1"
+          style={{ minWidth: 44, minHeight: 44 }}
+          aria-label={auction.isLikedByMe ? "Unlike" : "Like"}
+          onClick={(e) => { e.stopPropagation(); toggleLike(auction.id); }}
+        >
+          <motion.div
+            animate={auction.isLikedByMe ? { scale: [1, 1.35, 1] } : { scale: 1 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className={cn(
+              "w-12 h-12 rounded-full flex items-center justify-center border backdrop-blur-md transition-colors",
+              auction.isLikedByMe ? "bg-red-500/20 border-red-500/40" : "bg-black/40 border-white/15"
+            )}
+          >
+            <HeartIcon liked={!!auction.isLikedByMe} />
+          </motion.div>
+          <span className="text-[11px] font-semibold text-white/80">{auction.likes}</span>
+        </motion.button>
+
+        {/* 3. Avatar + Follow ("+" badge) — hidden when viewer is owner */}
         {!isOwner && (
           <motion.button
             whileTap={{ scale: 0.88 }}
             className="relative flex flex-col items-center gap-1"
             style={{ minWidth: 44, minHeight: 44 }}
             onClick={(e) => { e.stopPropagation(); toggleFollow(auction.seller.id); }}
-            aria-label={following ? "Following" : "Follow"}
+            aria-label={following ? "Unfollow seller" : "Follow seller"}
           >
             <div className={cn(
               "w-12 h-12 rounded-full overflow-hidden border-2 transition-all duration-200",
@@ -314,47 +351,12 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
           </motion.button>
         )}
 
-        {/* 2. Like */}
-        <motion.button
-          whileTap={{ scale: 0.75 }}
-          className="flex flex-col items-center gap-1"
-          style={{ minWidth: 44, minHeight: 44 }}
-          onClick={(e) => { e.stopPropagation(); toggleLike(auction.id); }}
-        >
-          <motion.div
-            animate={auction.isLikedByMe ? { scale: [1, 1.35, 1] } : { scale: 1 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            className={cn(
-              "w-12 h-12 rounded-full flex items-center justify-center border backdrop-blur-md transition-colors",
-              auction.isLikedByMe ? "bg-red-500/20 border-red-500/40" : "bg-black/40 border-white/15"
-            )}
-          >
-            <HeartIcon liked={!!auction.isLikedByMe} />
-          </motion.div>
-          <span className="text-[11px] font-semibold text-white/80">{auction.likes}</span>
-        </motion.button>
-
-        {/* 3. WhatsApp — only for active or ended auctions */}
-        {(state === "active" || state === "ended") && auction.seller.phone && (
-          <motion.a
-            href={whatsappUrl} target="_self"
-            whileTap={{ scale: 0.8 }}
-            className="flex flex-col items-center gap-1"
-            style={{ minWidth: 44, minHeight: 44 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-12 h-12 rounded-full bg-[#25D366]/15 backdrop-blur-md border border-[#25D366]/50 flex items-center justify-center shadow-[0_0_14px_rgba(37,211,102,0.3)]">
-              <WhatsAppIcon />
-            </div>
-            <span className="text-[11px] font-semibold text-white/80">{t("chat")}</span>
-          </motion.a>
-        )}
-
         {/* 4. Save / Bookmark */}
         <motion.button
           whileTap={{ scale: 0.8 }}
           className="flex flex-col items-center gap-1"
           style={{ minWidth: 44, minHeight: 44 }}
+          aria-label={saved ? "Unsave auction" : "Save auction"}
           onClick={(e) => { e.stopPropagation(); toggleSave(auction.id); }}
         >
           <motion.div
@@ -365,32 +367,38 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
               saved ? "bg-amber-500/20 border-amber-500/40" : "bg-black/40 border-white/15"
             )}
           >
-            <Bookmark size={22} fill={saved ? "#f59e0b" : "none"} stroke={saved ? "#f59e0b" : "rgba(255,255,255,0.95)"} />
+            <Bookmark size={24} fill={saved ? "#f59e0b" : "none"} stroke={saved ? "#f59e0b" : "rgba(255,255,255,0.95)"} />
           </motion.div>
           <span className={cn("text-[11px] font-semibold", saved ? "text-amber-400" : "text-white/80")}>
             {saved ? t("saved") : t("save")}
           </span>
         </motion.button>
 
-        {/* 5. Share — TikTok paper-plane arrow */}
-        <motion.button
-          whileTap={{ scale: 0.8 }}
-          className="flex flex-col items-center gap-1"
-          style={{ minWidth: 44, minHeight: 44 }}
-          onClick={handleShare}
-        >
-          <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white">
-            <TikTokShareIcon />
-          </div>
-          <span className="text-[11px] font-semibold text-white/80">{t("share")}</span>
-        </motion.button>
+        {/* 5. WhatsApp / Contact — active or ended only, only when seller phone exists */}
+        {(state === "active" || state === "ended") && auction.seller.phone && (
+          <motion.a
+            href={whatsappUrl} target="_self"
+            whileTap={{ scale: 0.8 }}
+            className="flex flex-col items-center gap-1"
+            style={{ minWidth: 44, minHeight: 44 }}
+            aria-label="Contact seller on WhatsApp"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full bg-[#25D366]/15 backdrop-blur-md border border-[#25D366]/50 flex items-center justify-center shadow-[0_0_14px_rgba(37,211,102,0.3)]">
+              <WhatsAppIcon />
+            </div>
+            <span className="text-[11px] font-semibold text-white/80">{t("chat")}</span>
+          </motion.a>
+        )}
 
-        {/* 6. Primary CTA — Bid (active) or Bell (upcoming) */}
+        {/* 6. Primary CTA — Bell (upcoming) · Bid (active) · Ended indicator */}
+        {/*    Bid / Bell is always at the bottom — closest to the thumb.      */}
         {state === "upcoming" ? (
           <motion.button
             whileTap={{ scale: 0.88 }}
             className="flex flex-col items-center gap-1 mt-1"
             style={{ minWidth: 44, minHeight: 44 }}
+            aria-label={watching ? "Remove reminder" : "Remind me when live"}
             onClick={(e) => { e.stopPropagation(); toggleWatch(auction.id); }}
           >
             <div className={cn(
@@ -408,21 +416,26 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
           </motion.button>
         ) : (
           <motion.button
-            whileTap={state === "active" ? { scale: 0.88 } : {}}
+            whileTap={{ scale: 0.88 }}
             className="flex flex-col items-center gap-1 mt-1"
             style={{ minWidth: 44, minHeight: 44 }}
-            onClick={(e) => { e.stopPropagation(); if (state === "active") setLocation(`/auction/${auction.id}`); }}
-            disabled={state === "ended"}
+            aria-label={state === "active" ? "Place a bid" : "View ended auction"}
+            onClick={(e) => { e.stopPropagation(); setLocation(`/auction/${auction.id}`); }}
           >
             <div className={cn(
-              "w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg relative",
-              state === "active" ? "bg-primary shadow-primary/40" : "bg-white/10 shadow-none opacity-40"
+              "w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg relative transition-all duration-200",
+              state === "active"
+                ? "bg-primary shadow-primary/40"
+                : "bg-white/8 border border-white/15 shadow-none"
             )}>
               {state === "active" && <div className="absolute -inset-1 bg-primary/25 rounded-full animate-ping" />}
-              <Gavel size={26} />
+              <Gavel size={26} className={state === "active" ? "" : "opacity-40"} />
             </div>
-            <span className={cn("text-[11px] font-bold", state === "active" ? "text-primary" : "text-white/40")}>
-              {t("bid")}
+            <span className={cn(
+              "text-[11px] font-bold",
+              state === "active" ? "text-primary" : "text-white/35"
+            )}>
+              {state === "active" ? t("bid") : t("ended")}
             </span>
           </motion.button>
         )}

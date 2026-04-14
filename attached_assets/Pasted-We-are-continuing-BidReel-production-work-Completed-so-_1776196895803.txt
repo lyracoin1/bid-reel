@@ -1,0 +1,136 @@
+We are continuing BidReel production work.
+
+Completed so far:
+
+* auth / onboarding hotfixes
+* email confirmation redirect fix
+* profile restructuring
+* empty states pass
+* bidding system refactor to increment-only bidding
+* Phase 3 / Part 1: feed overlay status, seller context, and current bid clarity
+
+Now proceed to:
+
+## Phase 3 / Part 2: Quick actions polish inside the reel
+
+IMPORTANT:
+
+* Do NOT change backend or database
+* Do NOT change bottom navigation
+* Do NOT redesign the full feed layout
+* This is a frontend-only polish pass on the reel action stack and interaction clarity
+
+## Goal
+
+Improve the quick action experience inside each reel so actions feel clearer, better prioritized, and more aligned with auction behavior.
+
+The reel should remain immersive and lightweight, but users should instantly understand:
+
+* what each action does
+* which actions matter most
+* what state each action is currently in
+
+## Audit first
+
+Before making changes, inspect the current reel action stack and identify:
+
+* which actions currently exist
+* which icons/buttons are shown
+* current order and hierarchy
+* current visual states for:
+
+  * follow
+  * save
+  * bid
+  * WhatsApp / contact
+  * share
+  * mute if relevant to interaction understanding
+
+Also inspect whether:
+
+* active / ended / upcoming auction states affect which actions should be shown or emphasized
+* some actions are too visually equal even though product priority differs
+
+## Required work
+
+### 1) Clarify action hierarchy
+
+Improve the action stack so it better reflects product priorities.
+
+Likely priorities should feel something like:
+
+* Bid / auction action
+* Contact seller
+* Save
+* Follow seller
+* Share
+
+Do not blindly reorder unless the audit shows it is safe and clearly beneficial.
+If current order should stay, improve visual hierarchy instead.
+
+### 2) Improve action state clarity
+
+For actions that can be toggled or have state, improve clarity:
+
+* saved vs not saved
+* followed vs not followed
+* disabled / unavailable states for ended auctions
+* upcoming auction behavior if relevant
+
+A user should not need to guess whether an action is active, completed, or unavailable.
+
+### 3) Auction-state-aware action polish
+
+Audit how actions behave for:
+
+* active auctions
+* upcoming auctions
+* ended auctions
+* archived auctions if they can appear
+
+Make the UI clearer in those cases.
+
+Examples:
+
+* bid action should clearly reflect when bidding is unavailable
+* contact action should still make sense if the auction ended, if allowed
+* avoid misleading interactive cues on unavailable actions
+
+### 4) Improve labels / microcopy where needed
+
+If any action text, tooltip, aria label, or visible microcopy is vague, improve it.
+
+Keep copy short and mobile-friendly.
+Do not add clutter.
+
+### 5) Preserve reels feel
+
+Do NOT turn the action stack into a bulky menu.
+Do NOT add heavy cards or panels.
+Keep everything compact and elegant.
+
+## Deliverables BEFORE code
+
+Before implementation:
+
+1. identify the exact file(s) controlling the reel action stack
+2. list the current actions and their current behavior/state handling
+3. propose the minimal safe polish plan
+
+## Deliverables AFTER code
+
+After implementation:
+
+* summarize exactly what changed
+* list touched files
+* confirm no backend changes
+* explain any state-specific action behavior changes
+
+## Constraints
+
+* production safe
+* frontend only
+* no backend changes
+* no navigation changes
+* no feature invention
+* no unnecessary redesign

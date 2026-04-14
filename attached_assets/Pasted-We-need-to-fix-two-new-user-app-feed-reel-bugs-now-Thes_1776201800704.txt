@@ -1,0 +1,88 @@
+We need to fix two new user-app feed/reel bugs now.
+
+These are separate from the admin fixes.
+
+Do a full audit before changing anything.
+
+## Bug 1 — WhatsApp quick action disappeared from the reel
+
+Observed behavior:
+
+* the direct WhatsApp seller contact button is missing from the reel/feed action stack
+* it used to exist and now it is no longer visible where expected
+
+### Required audit
+
+Inspect:
+
+1. the current FeedCard / reel action stack rendering
+2. the exact conditional logic controlling when the WhatsApp action appears
+3. whether recent action-stack reordering or seller-contact UX changes accidentally hid it
+4. whether the auction in the screenshot has seller phone data available
+5. whether the button is being conditionally suppressed by state, owner checks, or layout overlap
+
+### Required fix
+
+Restore the WhatsApp quick action in the correct place in the reel when it should be available.
+
+Expected behavior:
+
+* for auctions where seller contact is allowed and phone exists, WhatsApp should be clearly visible
+* it must not disappear accidentally after recent UI changes
+
+---
+
+## Bug 2 — Feed content is hidden underneath the bottom navigation
+
+Observed behavior:
+
+* there is visible content/UI hidden behind or under the bottom navigation bar
+* something at the bottom of the reel is partially obscured
+* this suggests the reel overlay/content area does not have enough safe bottom padding
+
+### Required audit
+
+Inspect:
+
+1. feed/reel layout structure
+2. bottom overlay/info area
+3. action stack lower area
+4. bottom nav height and safe-area spacing
+5. whether recent overlay additions or profile/feed changes caused content to sit too low
+
+### Required fix
+
+Ensure no important content is hidden under the bottom navigation.
+
+Expected behavior:
+
+* bottom reel info and controls remain fully visible above the bottom nav
+* spacing should work correctly on mobile layouts
+* no clipped text, hidden buttons, or obscured metadata
+
+---
+
+## Deliverables BEFORE code
+
+Before implementation:
+
+1. identify the exact files controlling the reel action stack and lower overlay layout
+2. explain the root cause of the missing WhatsApp button
+3. explain the root cause of content being obscured under the bottom nav
+4. propose the minimal safe implementation plan
+
+## Deliverables AFTER code
+
+After implementation:
+
+* summarize exactly what changed
+* list touched files
+* confirm WhatsApp is restored where appropriate
+* confirm bottom content no longer hides under the bottom nav
+
+## Constraints
+
+* production safe
+* minimal changes
+* no backend changes unless truly necessary
+* do not break recent reel action hierarchy improvements

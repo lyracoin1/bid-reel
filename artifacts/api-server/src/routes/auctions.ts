@@ -142,7 +142,7 @@ router.get("/auctions", async (req, res) => {
   const { data: profiles } = sellerIds.length > 0
     ? await supabaseAdmin
         .from("profiles")
-        .select("id, display_name, avatar_url")
+        .select("id, username, display_name, avatar_url, phone")
         .in("id", sellerIds)
     : { data: [] };
 
@@ -285,7 +285,7 @@ router.get("/auctions/:id", async (req, res) => {
   const { data: profiles } = profileIds.length > 0
     ? await supabaseAdmin
         .from("profiles")
-        .select("id, display_name, avatar_url")
+        .select("id, username, display_name, avatar_url, phone")
         .in("id", profileIds)
     : { data: [] };
 

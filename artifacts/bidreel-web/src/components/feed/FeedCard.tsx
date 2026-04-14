@@ -493,8 +493,12 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
       </div>
 
       {/* ── Signal strip: Interested / Not Interested ─────────────────────── */}
-      {/* Positioned below the action stack and info area, above the nav bar. */}
-      <div className="absolute bottom-[4.5rem] left-0 right-0 z-20 flex gap-2.5 px-4">
+      {/* Uses calc() with env(safe-area-inset-bottom) so it always clears the  */}
+      {/* BottomNav (~92px standard, ~106px on iPhone with home indicator).     */}
+      <div
+        className="absolute left-0 right-0 z-20 flex gap-2.5 px-4"
+        style={{ bottom: "calc(76px + env(safe-area-inset-bottom, 20px))" }}
+      >
         <motion.button
           whileTap={{ scale: 0.93 }}
           onClick={(e) => { e.stopPropagation(); handleSignal("not_interested"); }}

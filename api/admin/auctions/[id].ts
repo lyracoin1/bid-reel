@@ -5,6 +5,7 @@ import { requireAuth } from "../../_lib/requireAuth";
 import { requireAdmin } from "../../_lib/requireAdmin";
 import { ApiError } from "../../_lib/errors";
 import { logger } from "../../_lib/logger";
+import { applyCors } from "../../_lib/cors";
 
 // ---------------------------------------------------------------------------
 // PATCH /api/admin/auctions/:id  — update status
@@ -68,6 +69,7 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<void> {
+  if (applyCors(req, res)) return;
   try {
     const user = await requireAuth(req.headers["authorization"]);
     await requireAdmin(user);

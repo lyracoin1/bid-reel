@@ -4,6 +4,7 @@ import { requireAuth } from "../_lib/requireAuth";
 import { requireAdmin } from "../_lib/requireAdmin";
 import { ApiError } from "../_lib/errors";
 import { logger } from "../_lib/logger";
+import { applyCors } from "../_lib/cors";
 
 // ---------------------------------------------------------------------------
 // GET /api/admin/stats
@@ -17,6 +18,7 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<void> {
+  if (applyCors(req, res)) return;
   try {
     if (req.method !== "GET") {
       res.status(405).json({ error: "METHOD_NOT_ALLOWED", message: "Allowed: GET" });

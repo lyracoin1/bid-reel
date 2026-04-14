@@ -183,9 +183,13 @@ export interface AdminUser {
   role: "admin" | "user";
   isBanned: boolean;
   banReason: string | null;
-  /** True only when ALL required fields are present: username, display_name, phone, avatar_url. */
+  /**
+   * True only when ALL five required fields are present:
+   * username, display_name, phone, avatar_url, location.
+   * Must match isProfileComplete() in api-server/src/lib/profiles.ts.
+   */
   isCompleted: boolean;
-  /** List of field names that are missing for this user. Empty when isCompleted = true. */
+  /** Names of the missing fields. Empty array when isCompleted = true. */
   missingFields: string[];
   createdAt: string;
 }

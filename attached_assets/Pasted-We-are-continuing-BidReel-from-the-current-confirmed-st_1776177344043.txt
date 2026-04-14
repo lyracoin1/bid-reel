@@ -1,0 +1,162 @@
+We are continuing BidReel from the current confirmed state.
+
+IMPORTANT: Do not go backward and do not revisit already completed integrations unless a direct bug is discovered.
+
+CONFIRMED ALREADY COMPLETED
+
+* Main app auth works
+* Admin auth works
+* Admin CORS issue is fixed
+* Admin panel is loading
+* Migration 023 has already been successfully applied in Supabase
+* Migration 024 (content_signals) has already been successfully applied in Supabase
+* Google provider has already been configured in Supabase
+* Location column exists in the database
+* Content signals table exists in the database
+* Notification bell move is done
+* International phone input work has already been done
+* Sensitive phone placeholder cleanup has already been done
+
+So do NOT spend time re-doing:
+
+* Supabase migrations 023/024
+* Google provider setup
+* old CORS debugging
+* old auth cleanup
+* old phone-auth cleanup
+
+==================================================
+NEXT PHASE ONLY
+PROFILE COMPLETENESS ENFORCEMENT + LEGACY USER CLEANUP
+======================================================
+
+We discovered live users that still appear incomplete.
+This is NOT acceptable.
+
+A BidReel account must NOT be treated as a fully active user unless the profile has all required public profile fields.
+
+REQUIRED FIELDS FOR A COMPLETE ACCOUNT
+
+* email
+* phone
+* username
+* avatar/image
+* location
+
+The account may exist in auth.users, but inside the product it must be treated as INCOMPLETE until all required fields are present.
+
+==================================================
+TASK 1 — ENFORCE PROFILE COMPLETENESS IN APP FLOW
+=================================================
+
+Audit and fix the full account flow so that incomplete users cannot bypass onboarding.
+
+You must verify and enforce this in:
+
+* email sign-in
+* Google sign-in
+* session restore
+* page refresh
+* direct URL access
+* app boot after login
+
+Rules:
+
+1. If a user is missing any required profile field, they must be redirected to profile completion/onboarding
+2. They must NOT enter:
+
+   * feed
+   * profile as a normal complete user
+   * bidding flow
+   * normal app experience
+3. This must work consistently for both email auth and Google auth
+4. Remove any path where localStorage or stale flags can bypass onboarding
+5. Ensure location is included in the real completeness rule now that the column exists
+
+==================================================
+TASK 2 — LEGACY / INCOMPLETE USER HANDLING
+==========================================
+
+We already have old users in the system that are incomplete.
+
+Do NOT delete them automatically.
+Instead:
+
+1. Identify all legacy incomplete users
+2. Make sure they are forced back into onboarding
+3. Ensure they are marked clearly as incomplete in app logic and admin logic
+4. Ensure no incomplete user is treated as a valid completed user
+5. If any DB backfill/update is needed to sync is_completed with the new rule, prepare it clearly
+
+==================================================
+TASK 3 — ADMIN VISIBILITY FOR COMPLETENESS
+==========================================
+
+The admin panel must clearly distinguish complete vs incomplete users.
+
+Required behavior:
+
+1. Users page must clearly show:
+
+   * complete
+   * incomplete
+2. Missing fields should be visible or at least identifiable
+3. Incomplete users must not look like normal healthy accounts
+4. Filters for incomplete users should work correctly
+5. Location must now be part of missing-fields logic
+6. Any old users that only have phone or partial data must show as incomplete
+
+==================================================
+TASK 4 — VALIDATION CONSISTENCY
+===============================
+
+Make sure frontend and backend agree on the same required fields.
+
+Check:
+
+* onboarding UI
+* validation schema
+* ensure-profile logic
+* profile completeness function(s)
+* admin user completeness derivation
+* database-backed is_completed logic if applicable
+
+No mismatch is allowed.
+
+==================================================
+TASK 5 — MINIMAL SAFE CHANGES ONLY
+==================================
+
+Important restrictions:
+
+* Do NOT add new features in this phase
+* Do NOT redesign the UI broadly
+* Do NOT touch already-working Google setup unless required by a bug
+* Do NOT revisit content signals unless they block this task
+* Do NOT reintroduce phone-auth
+* Do NOT delete production users automatically
+* Do NOT weaken auth
+* Do NOT leave TODO-based partial logic if location is now ready to be enforced
+
+==================================================
+REQUIRED OUTPUT
+===============
+
+Return a strict report with:
+
+1. exact root cause(s) still allowing incomplete users
+2. exact files changed
+3. exact completeness rule now enforced
+4. whether location is now fully included in the completeness gate
+5. how incomplete users are redirected in app flow
+6. how incomplete users appear in admin
+7. whether any SQL/manual Supabase step is still required
+8. exact git commands I should run next
+
+Before claiming success, verify explicitly:
+
+* incomplete email users are blocked from normal app flow
+* incomplete Google users are blocked from normal app flow
+* complete users enter normally
+* legacy incomplete users are visible as incomplete in admin
+* location is no longer ignored in the completeness rule

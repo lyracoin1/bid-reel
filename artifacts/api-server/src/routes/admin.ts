@@ -112,21 +112,35 @@ adminRouter.get("/users", async (_req, res) => {
   try {
     const { data, error } = await supabaseAdmin
       .from("profiles")
-      .select("id, display_name, phone, avatar_url, is_admin, is_banned, ban_reason, created_at")
+      .select("id, username, display_name, phone, avatar_url, location, is_admin, is_banned, ban_reason, created_at")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
 
-    const users = (data ?? []).map((row) => ({
-      id: row.id,
-      displayName: row.display_name,
-      phone: row.phone,
-      avatarUrl: row.avatar_url,
-      role: row.is_admin ? "admin" : "user",
-      isBanned: row.is_banned,
-      banReason: row.ban_reason,
-      createdAt: row.created_at,
-    }));
+    const users = (data ?? []).map((row) => {
+      // Completeness rule: must match isProfileComplete() in lib/profiles.ts exactly.
+      // Required: username, display_name, phone, avatar_url, location.
+      const missing: string[] = [];
+      if (!row.username)     missing.push("username");
+      if (!row.display_name) missing.push("display_name");
+      if (!row.phone)        missing.push("phone");
+      if (!row.avatar_url)   missing.push("avatar");
+      if (!row.location)     missing.push("location");
+
+      return {
+        id: row.id,
+        username: row.username,
+        displayName: row.display_name,
+        phone: row.phone,
+        avatarUrl: row.avatar_url,
+        role: row.is_admin ? "admin" : "user",
+        isBanned: row.is_banned,
+        banReason: row.ban_reason,
+        createdAt: row.created_at,
+        isCompleted: missing.length === 0,
+        missingFields: missing,
+      };
+    });
 
     res.json({ users });
   } catch (err) {
@@ -162,7 +176,7 @@ adminRouter.patch("/users/:id", async (req, res) => {
       .from("profiles")
       .update(patch)
       .eq("id", id)
-      .select("id, display_name, phone, is_admin, is_banned, ban_reason, created_at")
+      .select("id, username, display_name, phone, avatar_url, location, is_admin, is_banned, ban_reason, created_at")
       .single();
 
     if (error) throw error;
@@ -181,15 +195,27 @@ adminRouter.patch("/users/:id", async (req, res) => {
       await logAdminAction(req.user!.id, "demote_admin", "user", id);
     }
 
+    // Re-derive completeness from the freshly updated row.
+    const patchMissing: string[] = [];
+    if (!data.username)     patchMissing.push("username");
+    if (!data.display_name) patchMissing.push("display_name");
+    if (!data.phone)        patchMissing.push("phone");
+    if (!data.avatar_url)   patchMissing.push("avatar");
+    if (!data.location)     patchMissing.push("location");
+
     res.json({
       user: {
         id: data.id,
+        username: data.username,
         displayName: data.display_name,
         phone: data.phone,
+        avatarUrl: data.avatar_url,
         role: data.is_admin ? "admin" : "user",
         isBanned: data.is_banned,
         banReason: data.ban_reason,
         createdAt: data.created_at,
+        isCompleted: patchMissing.length === 0,
+        missingFields: patchMissing,
       },
     });
   } catch (err) {

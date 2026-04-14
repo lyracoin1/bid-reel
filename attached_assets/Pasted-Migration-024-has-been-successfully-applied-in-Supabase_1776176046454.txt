@@ -1,0 +1,120 @@
+Migration 024 has been successfully applied in Supabase.
+
+The following is now confirmed:
+
+* content_signals table exists
+* indexes are created
+* RLS is enabled
+* policies are in place
+* UNIQUE(user_id, auction_id) constraint is active
+
+I have also pushed all changes to GitHub and Vercel deployment should be in progress or completed.
+
+Now proceed with POST-DEPLOY VERIFICATION and FINAL INTEGRATION CHECK.
+
+==================================================
+TASK — VERIFY SIGNAL SYSTEM + GOOGLE AUTH + LOCATION
+====================================================
+
+Do NOT add new features.
+Do NOT refactor.
+Only verify and fix integration issues if any exist.
+
+==================================================
+PART 1 — SIGNAL SYSTEM (CRITICAL)
+=================================
+
+Verify end-to-end:
+
+1. From frontend (FeedCard):
+
+   * clicking "Interested" sends request
+   * clicking "Not Interested" sends request
+   * toggling works correctly (no duplicates)
+
+2. Backend:
+
+   * POST /api/auctions/:id/signal works
+   * DELETE /api/auctions/:id/signal works
+   * upsert behaves correctly (UNIQUE constraint respected)
+
+3. Database:
+
+   * rows are created in content_signals
+   * only one row per (user_id, auction_id)
+   * signal updates correctly
+
+4. Admin:
+
+   * /api/admin/auctions returns interestedCount / notInterestedCount
+   * counts are correct and not duplicated
+
+==================================================
+PART 2 — GOOGLE SIGN-IN (VALIDATION ONLY)
+=========================================
+
+Do NOT implement anything new.
+
+1. Verify:
+
+   * Google button renders
+   * OAuth redirect flow works
+   * OAuthCallbackHandler runs correctly
+
+2. Ensure:
+
+   * user is created or linked properly
+   * ensure-profile runs
+   * incomplete users are redirected to onboarding
+   * complete users go to feed
+
+3. Check:
+
+   * no duplicate users created
+   * no broken sessions
+   * logout works
+
+If anything depends on missing Supabase setup:
+→ clearly list exact manual steps required
+
+==================================================
+PART 3 — LOCATION INTEGRATION
+=============================
+
+Verify:
+
+1. location is saved during onboarding
+2. location appears in:
+
+   * user profile
+   * public profile
+3. location persists after refresh
+4. location is not silently dropped
+
+DO NOT enforce it in completeness yet (keep current behavior)
+
+==================================================
+PART 4 — ADMIN STABILITY CHECK
+==============================
+
+Re-verify after migration:
+
+* no CORS issues
+* no Failed to fetch
+* all admin pages load:
+  users, auctions, stats, reports
+
+==================================================
+OUTPUT REQUIRED
+===============
+
+Return:
+
+1. signal system status (working / broken / partial)
+2. Google sign-in status (working / missing config / broken)
+3. location integration status
+4. any bugs found
+5. exact files changed (if fixes applied)
+6. any manual steps still required from me
+
+Do NOT say "everything works" without verifying each part explicitly.

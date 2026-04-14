@@ -123,20 +123,25 @@ async function fetchProfileStats(userId: string): Promise<{
 // ─── Mappers ─────────────────────────────────────────────────────────────────
 
 /**
- * Profile completeness rule (enforced here, in the onboarding UI, and in the
- * admin user list). A user account is only "complete" when ALL of these fields
- * are present:
+ * Profile completeness rule — the single source of truth.
+ * Enforced here (server), in OnboardingGuard (client), and mirrored in
+ * the admin GET /users route. A user account is only "complete" when ALL
+ * five fields are present:
  *
- *   1. username     — unique handle, set during onboarding step 1
- *   2. display_name — public name, set during onboarding step 1
- *   3. phone        — E.164 WhatsApp number, set during onboarding step 1
- *   4. avatar_url   — profile image, set during onboarding step 1
- *   5. location     — [PENDING] not yet in DB; migration 023 will add the
- *                     column and include it here once deployed.
+ *   1. username     — unique handle
+ *   2. display_name — public display name
+ *   3. phone        — E.164 WhatsApp number (contact only, never exposed in API)
+ *   4. avatar_url   — profile image
+ *   5. location     — city / region (migration 023 added this column)
  *
- * email is authenticated via Supabase Auth at sign-in time and is therefore
- * implicitly guaranteed for every session — it does not need to be re-checked
- * in profile data.
+ * email is verified by Supabase Auth at sign-in time and is therefore
+ * implicitly guaranteed for every authenticated session.
+ *
+ * ⚠️  If you add a field here you MUST mirror it in:
+ *     - admin.ts  GET /users  (missingFields computation)
+ *     - admin.ts  PATCH /users/:id  (missingFields computation)
+ *     - interests.tsx  (onboarding form validation)
+ *     - AdminUser comment in admin-api.ts
  */
 function isProfileComplete(row: ProfileRow): boolean {
   return (

@@ -89,9 +89,12 @@ export default function Login() {
 
       if (res.ok) {
         const data = await res.json() as { isNewUser: boolean; user: { isCompleted: boolean } };
-        const seen = localStorage.getItem("hasSeenInterests");
         const isComplete = data.user?.isCompleted ?? false;
-        setLocation((!isComplete || !seen) ? "/interests" : "/feed");
+        // Route to /feed for complete profiles, /interests for incomplete ones.
+        // Server-side isCompleted is the authoritative signal — no need to
+        // double-check the localStorage flag here (that flag is for new-device
+        // sessions and is cleared by OnboardingGuard on re-entry anyway).
+        setLocation(isComplete ? "/feed" : "/interests");
       } else {
         // Profile creation failed — still redirect to interests for setup
         setLocation("/interests");

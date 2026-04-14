@@ -132,9 +132,10 @@ function OAuthCallbackHandler() {
             });
             if (res.ok) {
               const data = await res.json() as { user: { isCompleted: boolean } };
-              const seen = localStorage.getItem("hasSeenInterests");
               const isComplete = data.user?.isCompleted ?? false;
-              setWouterLocation((!isComplete || !seen) ? "/interests" : "/feed");
+              // Use server-side isCompleted as the single source of truth.
+              // The localStorage flag is not reliable across devices/browsers.
+              setWouterLocation(isComplete ? "/feed" : "/interests");
             } else {
               setWouterLocation("/interests");
             }

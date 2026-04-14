@@ -1,0 +1,146 @@
+We are continuing BidReel from the current stable state.
+
+Recently completed and confirmed:
+
+* Admin auth works
+* Admin CORS issue is fixed
+* Profile completeness gate is enforced
+* Incomplete users are visible correctly in admin
+* Users page dropdown clipping is fixed
+* Delete user action is added and protected against self-delete
+* Migration 023 is already applied
+* Migration 024 is already applied
+* Google provider is already configured in Supabase
+* Location column exists
+* Content signals table exists
+
+Do NOT go backward.
+Do NOT revisit completed CORS/auth/admin cleanup unless a regression is discovered.
+
+==================================================
+NEXT PHASE — FINAL INTEGRATION CHECK FOR:
+
+1. Google Sign-In
+2. Location UX
+3. Interested / Not Interested
+4. Admin signal visibility
+   ==================================================
+
+This phase is NOT about adding unrelated new features.
+It is about verifying the current new integrations end-to-end and fixing any real gaps.
+
+==================================================
+PART 1 — GOOGLE SIGN-IN END-TO-END
+==================================
+
+Verify the full Google auth flow in the main app:
+
+1. Google button renders correctly
+2. OAuth redirect starts correctly
+3. Callback returns to the app correctly
+4. Session is established correctly
+5. ensure-profile runs correctly after Google sign-in
+6. Incomplete Google users are redirected to onboarding
+7. Complete Google users enter the feed normally
+8. No duplicate users/profiles are created unnecessarily
+9. Logout still works correctly after Google sign-in
+
+If anything is still missing:
+
+* fix only the real integration issue
+* do not rework the whole auth system
+
+Also state clearly:
+
+* whether any remaining manual Google/Supabase setup is still required
+* or whether production is now ready for Google sign-in
+
+==================================================
+PART 2 — LOCATION UX AND PERSISTENCE
+====================================
+
+Verify location end-to-end:
+
+1. Location field appears in onboarding
+2. It is required in onboarding UI
+3. It saves correctly to profile
+4. It persists after refresh/session restore
+5. It appears in:
+
+   * own profile
+   * public profile
+6. It does not disappear after edits/reloads
+7. Validation is clean and user-friendly
+
+If anything is weak:
+
+* fix it minimally and safely
+
+==================================================
+PART 3 — INTERESTED / NOT INTERESTED END-TO-END
+===============================================
+
+Verify the signal system fully:
+
+1. Clicking "Interested" saves correctly
+2. Clicking "Not Interested" saves correctly
+3. Toggling updates correctly
+4. No duplicate records per user + auction
+5. Removing a signal works correctly
+6. UI feedback is accurate
+7. No auth issues on signal requests
+8. No regression in feed interaction
+
+Also verify backend:
+
+* POST /api/auctions/:id/signal
+* DELETE /api/auctions/:id/signal
+
+==================================================
+PART 4 — ADMIN SIGNAL VISIBILITY
+================================
+
+Verify the admin Auctions page:
+
+1. interestedCount shows correctly
+2. notInterestedCount shows correctly
+3. counts match DB rows
+4. empty counts render safely
+5. no crashes if there are zero signals
+
+==================================================
+PART 5 — NO REGRESSION CHECK
+============================
+
+Re-verify that these still work after all recent changes:
+
+* email login
+* session restore
+* onboarding redirect for incomplete users
+* admin users page
+* admin actions menu
+* delete user action
+* users completeness badges
+
+==================================================
+REQUIRED OUTPUT
+===============
+
+Return:
+
+1. exact issues found, if any
+2. exact files changed, if any
+3. status of Google sign-in
+4. status of location integration
+5. status of signal system
+6. status of admin signal visibility
+7. any manual steps still required from me
+8. exact git/deploy commands I should run next
+
+Before claiming success, explicitly verify:
+
+* Google sign-in works or clearly state what blocks it
+* location is persisted and visible
+* signals are saved correctly
+* admin counts are correct
+* no recent feature regressed

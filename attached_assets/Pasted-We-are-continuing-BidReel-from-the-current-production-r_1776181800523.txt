@@ -1,0 +1,142 @@
+We are continuing BidReel from the current production-ready state.
+
+Confirmed already completed:
+
+* Auth system
+* Admin stability
+* Profile completeness gate
+* Location integration
+* Google auth wiring
+* Signals system (Interested / Not Interested)
+* Signal-aware feed ranking
+* Cursor-based feed pagination / infinite scroll
+* Media processing pipeline implementation:
+
+  * client-side image compression to WebP
+  * async FFmpeg video processing after upload
+
+Do NOT go backward.
+Do NOT revisit completed auth/CORS/admin/feed work unless a real regression is found.
+
+==================================================
+NEXT PHASE — LIVE MEDIA PIPELINE VERIFICATION
+=============================================
+
+This phase is NOT about inventing a new media system.
+It is about verifying that the implemented compression/processing pipeline actually works correctly end-to-end in the real product flow.
+
+==================================================
+PART 1 — IMAGE PIPELINE VERIFICATION
+====================================
+
+Verify the current image upload flow end-to-end:
+
+1. user selects images
+2. image compression runs before upload
+3. compressed WebP files are actually uploaded
+4. first image gets:
+
+   * display version
+   * thumbnail version
+5. file sizes are significantly smaller than raw originals
+6. uploaded image URLs are valid
+7. feed/profile/card views use the optimized image versions correctly
+
+Check for:
+
+* broken uploads
+* wrong MIME types
+* bad previews
+* quality loss that is too aggressive
+* fallback behavior if compression fails
+
+==================================================
+PART 2 — VIDEO PIPELINE VERIFICATION
+====================================
+
+Verify the async video processing flow end-to-end:
+
+1. user uploads original video successfully
+2. auction is created immediately without blocking
+3. background FFmpeg process starts correctly
+4. compressed video is generated
+5. thumbnail image is generated
+6. DB is updated from original video URL to processed video URL
+7. original pending file is deleted only after successful processing
+8. if processing fails, the original remains usable
+
+Check:
+
+* real path updates
+* timing behavior
+* job reliability
+* final playback URL correctness
+* thumbnail correctness
+* no broken auction state while processing is pending
+
+==================================================
+PART 3 — STORAGE / PATH / CLEANUP VALIDATION
+============================================
+
+Verify the storage behavior:
+
+1. pending/ paths are used correctly
+2. processed/ paths are used correctly
+3. no duplicate stale files remain unnecessarily
+4. cleanup logic still works with the new path patterns
+5. media-lifecycle / cleanup schedulers remain compatible
+
+==================================================
+PART 4 — FRONTEND BEHAVIOR AFTER PROCESSING
+===========================================
+
+Verify what the user sees:
+
+1. immediately after upload
+
+   * original still works
+2. after processing completes
+
+   * feed uses processed video
+   * thumbnail displays properly
+3. no broken posters
+4. no black blank previews if thumbnail exists
+5. no stale URL caching issue
+
+==================================================
+PART 5 — PERFORMANCE / RISK CHECK
+=================================
+
+Evaluate whether the current implementation is production-safe in practice:
+
+1. processing time expectations
+2. temporary storage use
+3. FFmpeg failure handling
+4. retry behavior if needed
+5. whether any small hardening is still required
+
+Do NOT over-engineer HLS/transcoding farms/etc.
+Only identify realistic next hardening steps if truly needed.
+
+==================================================
+PART 6 — REQUIRED OUTPUT
+========================
+
+Return:
+
+1. current live media pipeline diagnosis
+2. whether image compression is working correctly
+3. whether video compression is working correctly
+4. whether thumbnail generation is working correctly
+5. any bugs found
+6. exact files changed if any fixes were needed
+7. any manual deployment/runtime steps still required from me
+8. exact git/deploy commands I should run next
+
+Before claiming success, explicitly verify:
+
+* images upload compressed
+* videos are processed asynchronously
+* thumbnails are generated
+* processed media is actually served after completion
+* no existing upload flow is broken

@@ -1,0 +1,150 @@
+We are updating the BidReel production roadmap.
+
+A new core product decision is now final:
+
+## Official bidding logic
+
+Bidders must NOT enter the final bid price.
+They only enter the INCREMENT amount they want to add on top of the current price.
+
+### Formula
+
+new_price = current_price + bid_increment
+
+### Rules
+
+* bid_increment must be >= 1
+* 0 is invalid
+* negative values are invalid
+* seller still sets the starting price when creating the auction
+* every later bid is an increment only
+
+This is now the official bidding model for the product.
+
+---
+
+## Important
+
+This is no longer just a UX tweak.
+It is a core bidding-system refactor.
+
+So pause cosmetic work for now and move this into the roadmap as the next major implementation phase.
+
+We have already completed:
+
+* auth / onboarding hotfixes
+* email confirmation redirect fix
+* profile restructuring part 1
+
+Now the next priority should be:
+
+# Phase 2 — Bidding System Refactor
+
+## Your task in this chat
+
+Do NOT implement immediately.
+First do a full audit and migration plan for this new bidding model.
+
+---
+
+## Required audit
+
+Inspect the current bidding implementation across the full stack and identify:
+
+1. how auction price is currently stored
+2. how bids are currently submitted
+3. whether frontend currently sends:
+
+   * final price
+   * absolute bid amount
+   * or something else
+4. how current highest bid is computed
+5. what DB fields/tables are involved
+6. what API routes / handlers are involved
+7. what UI components / modals / forms are involved
+8. whether feed cards, auction details, admin, or notifications depend on the old model
+
+---
+
+## Then produce a safe refactor plan
+
+Design the refactor in 4 sub-parts:
+
+### Part 2.1 — Bid UX refactor
+
+Frontend changes so the bidder sees:
+
+* current price
+* increment input
+* preview of resulting price before submit
+
+Text direction:
+
+* do not say "enter your bid"
+* say "How much do you want to increase?"
+* show preview:
+
+  * Current price: X
+  * Increase: Y
+  * New price: Z
+
+### Part 2.2 — Bid business logic refactor
+
+Refactor backend so:
+
+* client submits increment amount only
+* server calculates final new price
+* server never trusts client-sent final price
+* validation enforces increment >= 1
+
+### Part 2.3 — Concurrency / integrity
+
+Plan safe handling for simultaneous bids:
+
+* avoid race conditions
+* prevent incorrect price overwrites
+* ensure bidding is atomic / consistent
+
+### Part 2.4 — Realtime / refresh impact
+
+Audit how this change affects:
+
+* feed price updates
+* auction detail page
+* bid history
+* notifications
+* admin reporting
+
+---
+
+## Deliverables before code
+
+Before implementing anything, provide:
+
+1. exact current bidding flow
+2. all files involved
+3. all DB tables/fields involved
+4. risks of changing to increment-based bidding
+5. minimal safe implementation plan
+6. whether DB migration is needed or not
+
+---
+
+## Deliverables after the audit
+
+At the end of your analysis, give a recommended execution order:
+
+* what should be changed first
+* what should be changed second
+* how to test safely without breaking production
+
+---
+
+## Constraints
+
+* production-safe thinking only
+* do not guess
+* do not skip any dependency
+* do not implement partial code before the audit
+* do not simplify architecture decisions
+* preserve existing working flows where possible

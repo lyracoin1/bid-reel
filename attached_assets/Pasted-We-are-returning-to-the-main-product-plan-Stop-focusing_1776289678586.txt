@@ -1,0 +1,85 @@
+We are returning to the main product plan. Stop focusing on Google OAuth for now.
+
+I want you to implement the following features in the correct order, cleanly, and without breaking the current app architecture.
+
+GOAL
+Temporarily disable Google auth and continue the product roadmap using email/password only.
+
+FEATURES TO IMPLEMENT IN THIS ORDER
+
+1) TEMPORARILY DISABLE GOOGLE AUTH
+- Hide/remove Google login/signup buttons from active UI
+- Disable entering the Google auth flow
+- Keep the code reversible for later restoration
+- Do not leave broken layout or empty spacing
+
+2) KEEP EMAIL/PASSWORD AS THE ONLY ACTIVE AUTH METHOD
+- Sign up with email/password
+- Sign in with email/password
+- Make sure this flow remains the only active auth path for now
+
+3) ADD LANGUAGE SELECTION EARLY IN ONBOARDING
+- Add a language selection step early in onboarding/profile completion
+- Support Arabic and English
+- Apply the selected language immediately
+- Persist the language properly
+- Reuse the existing i18n system
+- Do not create conflicting sources of truth
+
+4) ADD ONE-TIME RULES / SAFETY SCREEN AFTER LANGUAGE SELECTION
+- Show short auction/safety rules after language selection
+- This is NOT a splash before login
+- It is a one-time onboarding step after login / early onboarding
+- Must support Skip / Next / Finish
+- Must be translation-based
+- Must appear only once unless reopened later
+- Add later access from Settings → Safety & Auction Rules
+
+Suggested rules content:
+- Bid only if you are serious
+- Do not go alone for inspection/pickup
+- Verify item before payment
+- Platform is not responsible for off-platform fraud
+- Fraud or abusive bidding may lead to account suspension
+
+5) ADD REAL CHANGE PASSWORD IN SETTINGS
+- Profile → Settings → Change Password
+- Fields:
+  - current password
+  - new password
+  - confirm new password
+- Must be a real backend/auth-connected feature, not UI only
+- Must validate fields
+- Must show translated success/error states
+- Must work correctly for email/password users
+- If account type does not support password change directly, handle that safely and clearly
+
+6) ADD SETTINGS ENTRY POINTS
+Inside Settings add:
+- Language
+- Safety & Auction Rules
+- Change Password
+
+IMPLEMENTATION ORDER
+Step 1: audit current auth UI, onboarding, settings, and i18n
+Step 2: disable Google auth entry points
+Step 3: ensure email/password remains the only active auth flow
+Step 4: add language selection early in onboarding
+Step 5: add one-time rules screen after language selection
+Step 6: add Safety & Auction Rules page in settings
+Step 7: add real Change Password in settings
+Step 8: verify full flow end-to-end
+
+IMPORTANT
+- Do not break existing onboarding/profile logic
+- Do not hardcode strings
+- Do not build fake backend-less password change
+- Keep everything mobile-friendly and reversible
+- Preserve future ability to restore Google auth later
+
+REQUIRED FINAL RESPONSE
+Return exactly:
+1. files changed
+2. what was implemented
+3. any auth/security limitation discovered
+4. what still needs follow-up

@@ -18,6 +18,10 @@ function GoogleIcon() {
   );
 }
 
+// ── Feature flags ──────────────────────────────────────────────────────────────
+// Set to true to re-enable Google OAuth once the flow is verified in production.
+const GOOGLE_AUTH_ENABLED = false;
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type Mode = "signin" | "signup";
@@ -395,23 +399,27 @@ export default function Login() {
           ))}
         </div>
 
-        {/* Google Sign-In */}
-        <button
-          type="button"
-          onClick={handleGoogleSignIn}
-          disabled={googleLoading || loading}
-          className="w-full flex items-center justify-center gap-3 bg-white/8 hover:bg-white/12 disabled:opacity-50 disabled:cursor-not-allowed border border-white/15 rounded-xl py-3.5 text-white text-sm font-semibold transition-colors"
-        >
-          {googleLoading ? <Loader2 size={16} className="animate-spin" /> : <GoogleIcon />}
-          {googleLoading ? copy.submitting : copy.googleSignIn}
-        </button>
+        {/* Google Sign-In — hidden while GOOGLE_AUTH_ENABLED is false */}
+        {GOOGLE_AUTH_ENABLED && (
+          <>
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={googleLoading || loading}
+              className="w-full flex items-center justify-center gap-3 bg-white/8 hover:bg-white/12 disabled:opacity-50 disabled:cursor-not-allowed border border-white/15 rounded-xl py-3.5 text-white text-sm font-semibold transition-colors"
+            >
+              {googleLoading ? <Loader2 size={16} className="animate-spin" /> : <GoogleIcon />}
+              {googleLoading ? copy.submitting : copy.googleSignIn}
+            </button>
 
-        {/* Divider */}
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-white/10" />
-          <span className="text-xs text-white/30 font-medium">{copy.orContinueWith}</span>
-          <div className="flex-1 h-px bg-white/10" />
-        </div>
+            {/* Divider */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-white/10" />
+              <span className="text-xs text-white/30 font-medium">{copy.orContinueWith}</span>
+              <div className="flex-1 h-px bg-white/10" />
+            </div>
+          </>
+        )}
 
         {/* Form */}
         <AnimatePresence mode="wait">

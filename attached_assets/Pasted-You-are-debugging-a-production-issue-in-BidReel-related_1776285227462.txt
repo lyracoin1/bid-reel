@@ -1,0 +1,108 @@
+You are debugging a production issue in BidReel related to authentication and user creation.
+
+Do NOT guess. Do NOT focus only on Android or UI.  
+You must analyze the full Supabase auth + database + frontend flow.
+
+----------------------------------
+CURRENT PROBLEM
+----------------------------------
+
+We are seeing the following behavior:
+
+1) Existing users (older accounts) can sign in normally
+2) Newly created users (email/password) CANNOT sign in later
+3) Google sign-in:
+   - opens Google
+   - returns to app
+   - but user is NOT logged in
+   - no usable session
+4) Newly created users are NOT fully appearing in app tables (like profiles)
+5) Error shown in UI is always:
+   "Incorrect email or password"
+   even when that is likely not the real cause
+
+----------------------------------
+IMPORTANT OBSERVATIONS
+----------------------------------
+
+- Manual login works ONLY for older users
+- New users behave like “half-created”
+- Data is NOT properly written into tables after signup
+- Google OAuth also fails at the same stage
+
+----------------------------------
+STRONG SUSPICIONS (YOU MUST CHECK THESE)
+----------------------------------
+
+1) EMAIL CONFIRMATION ISSUE
+- Supabase may require email confirmation
+- Free plan may delay or limit email sending
+- New users may remain UNCONFIRMED
+- Frontend may incorrectly show "incorrect email/password" instead of "confirm your email"
+
+2) AUTH USERS VS PROFILES MISMATCH
+- User exists in auth.users but NOT in profiles table
+- Bootstrap logic may be broken
+
+3) TRIGGER / FUNCTION FAILURE
+- A trigger like handle_new_user may exist
+- It may fail silently
+- It may be blocked by RLS
+- It may insert incomplete or invalid data
+
+4) RLS (ROW LEVEL SECURITY)
+- Inserts into profiles may be rejected
+- Select queries may hide new users
+- Policies may be incorrect
+
+5) GOOGLE OAUTH BOOTSTRAP FAILURE
+- OAuth returns successfully
+- BUT profile/bootstrap logic fails afterward
+- So user has auth but app rejects them
+
+6) FRONTEND ERROR HANDLING
+- All errors are mapped to "Incorrect email or password"
+- Real Supabase errors are hidden
+
+----------------------------------
+YOUR TASK (STRICT)
+----------------------------------
+
+You MUST audit the full flow:
+
+Signup / OAuth → auth.users → session → profile/bootstrap → app user fetch → UI state
+
+----------------------------------
+CHECK EXACTLY:
+----------------------------------
+
+- Supabase Auth settings (email confirmation ON/OFF)
+- Status of newly created users (confirmed or not)
+- Whether profiles row is created for new users
+- Whether triggers/functions are firing or failing
+- Whether RLS is blocking inserts or selects
+- Exact error returned by Supabase on login
+- Whether frontend hides real error
+
+----------------------------------
+REQUIRED OUTPUT
+----------------------------------
+
+Return EXACTLY:
+
+1) Root cause for email/password new users
+2) Root cause for Google sign-in
+3) Whether both issues share the same backend failure
+4) Which file / SQL / trigger is responsible
+5) Minimal exact fix (code or SQL or config)
+6) If Supabase settings must be changed (and how)
+
+----------------------------------
+IMPORTANT
+----------------------------------
+
+Do NOT suggest rebuild
+Do NOT focus only on mobile
+Do NOT give general advice
+
+This is a backend/auth/bootstrap issue — find the exact failure point.

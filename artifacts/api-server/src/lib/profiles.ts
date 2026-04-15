@@ -203,7 +203,13 @@ export async function upsertProfile(
 
   if (existing) {
     const stats = await fetchProfileStats(userId);
-    return { isNewUser: false, profile: toOwnProfile(existing, stats) };
+    // A profile row was found — but if username is still null the user has not
+    // completed onboarding yet.  The DB trigger (migration 019) creates an empty
+    // row at signup time, so presence alone is not a reliable "returning user"
+    // signal.  We treat username === null as "new user still in onboarding" so
+    // they are always routed to /interests to finish their profile.
+    const isNewUser = existing.username === null;
+    return { isNewUser, profile: toOwnProfile(existing, stats) };
   }
 
   // Profile row not present — create it (fallback for accounts predating the signup trigger).

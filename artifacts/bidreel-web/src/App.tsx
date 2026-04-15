@@ -200,11 +200,14 @@ function CapacitorOAuthHandler() {
         let session: { access_token: string; refresh_token: string } | null = null;
 
         // ── PKCE flow: ?code=... ─────────────────────────────────────────────
+        // Pass the full normalised URL — the SDK extracts the code internally
+        // and also retrieves the code_verifier from storage via the same path.
+        // Passing just the raw code string is fragile across SDK versions.
         const code = parsed.searchParams.get("code");
         console.log("[CapacitorOAuth] PKCE code present:", !!code);
         if (code) {
-          console.log("[CapacitorOAuth] Attempting exchangeCodeForSession…");
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          console.log("[CapacitorOAuth] Attempting exchangeCodeForSession (full URL)…");
+          const { data, error } = await supabase.auth.exchangeCodeForSession(normalised);
           if (error) {
             console.error("[CapacitorOAuth] PKCE exchange failed:", error.message, error);
           } else if (data.session) {
@@ -238,7 +241,10 @@ function CapacitorOAuthHandler() {
 
         if (!session) {
           console.error("[CapacitorOAuth] Could not establish session from deep link URL — no code and no tokens found");
+          // Reset so a retry is possible, then navigate back to login so the
+          // user gets visual feedback instead of being silently stuck.
           handled.current = false;
+          if (mounted) setWouterLocation("/login");
           return;
         }
         if (!mounted) {

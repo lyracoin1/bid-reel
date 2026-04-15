@@ -3,7 +3,8 @@
 	"appName": "BidReel",
 	"webDir": "dist/public",
 	"server": {
-		"androidScheme": "https"
+		"url": "https://www.bid-reel.com",
+		"cleartext": true
 	},
 	"plugins": {
 		"SplashScreen": {

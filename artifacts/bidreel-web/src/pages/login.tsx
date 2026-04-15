@@ -5,7 +5,7 @@ import { Loader2, Mail, Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { useLang } from "@/contexts/LanguageContext";
 import { setToken, API_BASE } from "@/lib/api-client";
 import { supabase } from "@/lib/supabase";
-import { isNative, OAUTH_REDIRECT_URL } from "@/lib/capacitor-app";
+import { isNative, OAUTH_REDIRECT_URL, openInBrowser } from "@/lib/capacitor-app";
 
 function GoogleIcon() {
   return (
@@ -166,9 +166,12 @@ export default function Login() {
           setGoogleLoading(false);
           return;
         }
-        console.log("[GoogleSignIn] Opening OAuth URL in external browser:", data.url);
-        // Opens Chrome Custom Tab on Android; keeps the WebView on the React app.
-        window.open(data.url, "_blank");
+        console.log("[GoogleSignIn] Opening OAuth URL in Chrome Custom Tab:", data.url);
+        // openInBrowser uses @capacitor/browser which opens a true Chrome Custom
+        // Tab (not an in-app WebView).  This guarantees that when Google redirects
+        // to com.bidreel.app://auth/callback, Android's intent system routes it
+        // to MainActivity and Capacitor fires appUrlOpen on the JS bridge.
+        await openInBrowser(data.url);
         // Spinner is reset by the resume event listener above when the user returns.
       } else {
         // On the web: let Supabase redirect the page — OAuthCallbackHandler in

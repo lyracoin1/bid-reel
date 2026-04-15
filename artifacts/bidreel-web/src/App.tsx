@@ -8,7 +8,7 @@ import { NotificationBannerProvider } from "@/contexts/NotificationBannerContext
 import { useFcmToken } from "@/hooks/use-fcm-token";
 import { supabase } from "@/lib/supabase";
 import { setToken, clearToken, API_BASE } from "@/lib/api-client";
-import { CapApp, isNative, OAUTH_SCHEME } from "@/lib/capacitor-app";
+import { CapApp, isNative, OAUTH_SCHEME, closeBrowser } from "@/lib/capacitor-app";
 
 // Core user pages — loaded eagerly (always needed)
 import Splash from "@/pages/splash";
@@ -180,6 +180,11 @@ function CapacitorOAuthHandler() {
         return;
       }
       handled.current = true;
+
+      // Dismiss the Chrome Custom Tab immediately so the user sees the app
+      // (not a blank/loading Custom Tab) while the code exchange is in flight.
+      console.log("[CapacitorOAuth] Closing Custom Tab…");
+      closeBrowser();
 
       console.log("[CapacitorOAuth] Deep link received:", url);
 

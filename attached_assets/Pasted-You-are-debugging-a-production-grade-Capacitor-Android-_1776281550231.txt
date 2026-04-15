@@ -1,0 +1,138 @@
+You are debugging a production-grade Capacitor Android app using Supabase Google OAuth.
+
+DO NOT guess. DO NOT give generic advice. Analyze the real runtime flow step-by-step.
+
+----------------------------------
+PROBLEM
+----------------------------------
+
+Google Sign-In behaves like this:
+
+1. User clicks "Continue with Google"
+2. Google screen opens
+3. User logs in successfully
+4. App returns correctly to the app (deep link works)
+5. BUT:
+   - No session is created
+   - User is still unauthenticated
+   - UI does not update
+   - No visible error
+
+This means:
+- Deep link is working
+- Build is fine
+- The problem is ONLY in runtime auth handling
+
+----------------------------------
+POSSIBLE FAILURE POINTS
+----------------------------------
+
+The issue MUST be in one of these:
+
+- appUrlOpen is not capturing callback correctly
+- code is not extracted from callback URL
+- exchangeCodeForSession is not called or failing
+- setSession is not working or not persisting
+- auth state listener is not updating UI
+- Supabase mobile OAuth config is wrong
+
+----------------------------------
+YOUR TASK (STRICT)
+----------------------------------
+
+1) TRACE THE FULL FLOW
+
+From:
+Button click → Google → callback → exchange → session → UI
+
+You MUST verify:
+
+- Where appUrlOpen is registered
+- Whether callback URL is received
+- Whether "code" is extracted
+- Whether exchangeCodeForSession(code) runs
+- Whether it succeeds or fails
+- Whether session is stored
+- Whether auth state changes
+
+----------------------------------
+2) ADD DEBUG LOGS
+
+Add logs at ALL critical points:
+
+console.log("OAUTH STEP:", "before open google")
+console.log("OAUTH STEP:", "appUrlOpen triggered", url)
+console.log("OAUTH STEP:", "parsed code", code)
+console.log("OAUTH STEP:", "before exchange")
+console.log("OAUTH STEP:", "exchange result", result)
+console.log("OAUTH STEP:", "session set")
+console.log("OAUTH STEP:", "auth state changed", session)
+
+----------------------------------
+3) VERIFY SUPABASE CONFIG
+
+- Redirect URL EXACTLY:
+  com.bidreel.app://auth/callback
+
+- Must exist in Supabase → Auth → Redirect URLs
+
+- No mismatch with web config
+- No web-only OAuth helpers used in mobile
+
+----------------------------------
+4) VERIFY CAPACITOR SETUP
+
+- appUrlOpen listener exists and runs ONCE
+- Registered early (not inside unmounted component)
+- Intent filter matches scheme exactly
+
+----------------------------------
+5) VERIFY AUTH STATE
+
+- There MUST be:
+
+supabase.auth.onAuthStateChange(...)
+
+- Does it fire after login?
+- Is state stored properly?
+- Is UI listening to it?
+
+----------------------------------
+6) CHECK FOR SILENT FAILURES
+
+- Is exchangeCodeForSession failing silently?
+- Is promise not awaited?
+- Any try/catch swallowing errors?
+
+----------------------------------
+FORBIDDEN
+----------------------------------
+
+- Do NOT suggest rebuilding
+- Do NOT change keystore
+- Do NOT give theory
+- Do NOT skip logs
+
+----------------------------------
+REQUIRED OUTPUT
+----------------------------------
+
+Give EXACTLY:
+
+1. Root cause
+2. File + exact location of bug
+3. Minimal code fix
+4. Checklist:
+
+[ ] callback captured
+[ ] code extracted
+[ ] exchange success
+[ ] session stored
+[ ] UI updated
+
+----------------------------------
+IMPORTANT
+----------------------------------
+
+Treat this as a real production mobile app.
+Fix must be stable and correct for Android and future iOS.

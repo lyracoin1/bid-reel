@@ -1,0 +1,64 @@
+You are now focusing ONLY on the Google sign-in problem in BidReel.
+
+Do NOT reopen unrelated issues.
+Do NOT talk about admin, listings, upload, or settings unless directly required.
+Do NOT guess.
+Audit the exact current Google auth flow in the current codebase.
+
+## Current project reality
+- Email/password auth is currently the stable active path
+- Google auth was temporarily hidden/disabled from the visible UI
+- The app is a Capacitor Android app
+- Supabase Auth is used
+- Earlier history showed:
+  - Google screen opens
+  - user authenticates
+  - app returns
+  - but usable session is not reliably established inside the app
+- Earlier suspected/fixed areas included:
+  - Browser vs window.open
+  - deep link callback handling
+  - exchangeCodeForSession usage
+  - redirect URLs
+  - silent failure after callback
+
+## Your task
+I want a clean, production-safe plan to restore Google sign-in correctly.
+
+You must audit the current code and answer based on the current implementation, not on old assumptions.
+
+### Check exactly:
+1. Is Google auth code still present but only hidden from UI?
+2. What files currently control:
+   - Google button visibility
+   - Google sign-in launch
+   - callback handling
+   - exchangeCodeForSession
+   - auth state update after callback
+3. Is the redirect URL for mobile correct and still aligned with Supabase?
+4. Is the Capacitor deep link handling currently correct?
+5. If Google were re-enabled right now, what exact failure point would still remain?
+6. What exact code changes are needed to make Google sign-in production-safe again?
+
+## Important
+I do NOT want generic theory.
+I want:
+- exact root cause or remaining blockers
+- exact files involved
+- exact code changes required
+- exact manual steps I must do myself in Supabase / Android / Google console if needed
+
+## Required output
+Return exactly:
+
+1. Current state of Google auth in the codebase
+2. Exact remaining blocker(s)
+3. Exact files to change
+4. Exact manual configuration steps required from me
+5. Whether rebuild will be required after your fix
+6. A safe step-by-step restoration plan
+
+## Extra requirement
+At the end, clearly separate:
+- "What I will change in code"
+- "What you must do manually"

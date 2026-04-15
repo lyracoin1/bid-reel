@@ -20,7 +20,7 @@ function GoogleIcon() {
 
 // ── Feature flags ──────────────────────────────────────────────────────────────
 // Set to true to re-enable Google OAuth once the flow is verified in production.
-const GOOGLE_AUTH_ENABLED = false;
+const GOOGLE_AUTH_ENABLED = true;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

@@ -1,0 +1,66 @@
+We now have a much more specific mobile upload error after the latest push/deploy:
+
+"Failed to construct 'URL': Invalid URL"
+
+Important context:
+1. The previous "Listings = 2 but My Auctions empty" issue partially changed after deploy without rebuild:
+   - the 2 auctions appeared
+   - then I deleted those 2 auctions from My Auctions, but the Listings count did not clear immediately
+   - only after deleting them from the admin panel did both the auctions and the Listings count clear correctly
+   This means backend/data behavior is affecting the app immediately, and the issue was at least partly server-side/data-side.
+
+2. The upload issue is still NOT fixed.
+   The error is no longer "Network error during upload".
+   It is now specifically:
+   "Failed to construct 'URL': Invalid URL"
+
+This strongly suggests the new upload proxy flow is building an invalid URL on mobile.
+
+YOUR TASK:
+Trace the exact code path that constructs the upload URL after the latest upload proxy change.
+
+Check these exact things:
+
+1. In the mobile app, inspect the exact value passed into:
+   - new URL(...)
+   - fetch(...)
+   - XHR open(...)
+   for the upload request
+
+2. Verify whether /api/media/upload is being treated as:
+   - relative URL
+   - absolute URL
+   - malformed URL
+   - undefined base URL
+
+3. Verify the API base URL logic used on Android:
+   - is the mobile app using the correct production API base?
+   - is any env var missing inside the built app?
+   - is there a fallback that becomes invalid on Capacitor/Android?
+
+4. Check the new upload proxy client code specifically:
+   - artifacts/bidreel-web/src/lib/api-client.ts
+   - the new uploadMediaApi()
+   - any shared API base URL helper it depends on
+
+5. Check whether the route exists and is deployed:
+   - POST /api/media/upload
+
+6. Determine if the URL construction bug is:
+   - frontend only
+   - env/config only
+   - or a relative-vs-absolute mobile URL bug
+
+REQUIRED OUTPUT:
+Return exactly:
+1. exact root cause of "Invalid URL"
+2. exact file and line area causing it
+3. exact fix
+4. whether rebuild is required
+5. whether any env/config value must be changed
+
+IMPORTANT:
+- Do not answer with generic upload advice
+- Do not focus on old CORS theory now
+- The current failure is specifically URL construction
+- Inspect the exact string/value being turned into a URL

@@ -199,9 +199,10 @@ export interface GetAuctionsResult {
 
 export async function getAuctionsApi(opts?: { before?: string }): Promise<GetAuctionsResult> {
   const headers = await authHeaders();
-  const url = new URL(`${API_BASE}/auctions`);
-  if (opts?.before) url.searchParams.set("before", opts.before);
-  const res = await fetch(url.toString(), { headers });
+  // Use string concatenation — NOT new URL() — to handle relative API_BASE ("/api")
+  // on web builds where new URL(relativeString) throws "Invalid URL" without a base.
+  const qs = opts?.before ? `?before=${encodeURIComponent(opts.before)}` : "";
+  const res = await fetch(`${API_BASE}/auctions${qs}`, { headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as ApiError;
     throw new Error(err.message ?? "Failed to fetch auctions");
@@ -236,9 +237,11 @@ export async function uploadMediaApi(
   const mimeType = (file.type || "").split(";")[0].trim()
     || (fileType === "video" ? "video/mp4" : "image/jpeg");
 
-  const url = new URL(`${API_BASE}/media/upload`);
-  url.searchParams.set("fileType", fileType);
-  url.searchParams.set("mimeType", mimeType);
+  // Build URL with string concatenation — NOT new URL() — so it works with
+  // both relative paths ("/api") used on web AND absolute URLs used on Android.
+  // new URL(relativeString) without a base throws "Invalid URL" on mobile.
+  const qs = new URLSearchParams({ fileType, mimeType }).toString();
+  const uploadEndpoint = `${API_BASE}/media/upload?${qs}`;
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -268,7 +271,7 @@ export async function uploadMediaApi(
       reject(new Error("Network error during upload"));
     });
 
-    xhr.open("POST", url.toString());
+    xhr.open("POST", uploadEndpoint);
     xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     // Content-Type tells the server what kind of file this is;
     // express.raw() on the server reads the raw body regardless of Content-Type.

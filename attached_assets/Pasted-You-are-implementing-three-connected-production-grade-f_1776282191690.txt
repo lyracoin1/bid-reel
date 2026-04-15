@@ -1,0 +1,186 @@
+You are implementing three connected production-grade features in BidReel.
+
+Keep the implementation clean, minimal, and real. Do not build fake UI-only features. Do not break existing auth, onboarding, or profile flows.
+
+We need these three features implemented in the correct order and integrated properly:
+
+==================================================
+FEATURE 1 — LANGUAGE SELECTION EARLY IN ONBOARDING
+==================================================
+
+Goal:
+Add language selection early in the user onboarding flow, before auction rules are shown.
+
+Requirements:
+- User should choose language during the onboarding / profile completion flow
+- Supported initially: Arabic and English
+- The selected language must immediately control visible UI language
+- The selected language must be persisted properly
+- The language choice should be available before showing the rules screen
+- After selection, all next onboarding steps and the app itself should use the selected language
+
+Implementation requirements:
+- Use the existing i18n system, do not hardcode strings
+- Persist language in the appropriate place:
+  - app state
+  - local persistence
+  - and profile if the project already stores user preferences there
+- Do not create conflicting sources of truth for language
+- Make sure returning users keep their previous language
+- Make sure a newly selected language applies immediately without requiring restart
+
+Deliverables:
+1. Add language selection step in onboarding at the correct place
+2. Add all required translation keys
+3. Persist and restore selected language correctly
+
+
+==================================================
+FEATURE 2 — RULES / SAFETY ONBOARDING SCREEN
+==================================================
+
+Goal:
+Show short auction and safety rules after language selection and before entering the app for the first time.
+
+Important product decision:
+This should NOT be a generic splash screen before login.
+It should be a one-time onboarding screen shown after login/profile basics/language selection.
+
+Requirements:
+- Show only once for new users, or until completed/skipped
+- Must appear in the selected language
+- Must support:
+  - Skip
+  - Continue / Next
+  - Finish
+- Use short cards/slides, not long paragraphs
+- Keep it lightweight and mobile-friendly
+- Later the user should still be able to read the rules again from settings
+
+Suggested content structure:
+- Serious bidding only
+- Do not go alone for inspection or pickup
+- Verify item before payment
+- Platform is not responsible for off-platform fraud
+- Fraud or abusive bidding may lead to account suspension
+
+Implementation requirements:
+- Build as a real onboarding step, not a disconnected page
+- Track completion state properly
+- Do not show on every app open
+- Store a rules_seen / safety_onboarding_completed style flag
+- Make the content translation-based
+- Add an entry later in settings like:
+  Settings → Safety & Auction Rules
+
+Deliverables:
+1. One-time rules onboarding flow
+2. Proper translated content
+3. Persisted completion/skip state
+4. Re-openable rules page from settings
+
+
+==================================================
+FEATURE 3 — REAL CHANGE PASSWORD FROM SETTINGS
+==================================================
+
+Goal:
+Add a real and secure “Change Password” feature inside profile settings.
+
+Desired UX:
+Profile → Settings → Change Password
+
+Form fields:
+- Current password
+- New password
+- Confirm new password
+
+Behavior:
+- Must be a real backend-connected feature, not UI only
+- Must validate all fields
+- Must reject incorrect current password
+- Must reject weak/invalid new password if policy requires
+- Must reject mismatch between new password and confirmation
+- Must show translated success and error messages
+- Must work with the actual auth system
+
+Important:
+This is not just a frontend form.
+The implementation must safely verify the old password and then update to the new password.
+
+If Supabase does not directly support “verify current password then change” in one simple client-side call, implement the safest production-appropriate flow supported by the current architecture.
+
+Expected approach:
+- Inspect the current auth architecture first
+- Determine the correct secure method for:
+  1. confirming the user identity/current password
+  2. updating the password
+- Then implement the full flow cleanly
+
+Requirements:
+- Add the settings UI entry
+- Add full form validation
+- Add loading state
+- Add error state
+- Add success state
+- Add i18n keys for all labels and messages
+- Keep the feature mobile-friendly and production-grade
+
+Deliverables:
+1. Settings entry for Change Password
+2. Real change password flow wired to backend/auth
+3. Full translations
+4. Proper validation and UX states
+
+
+==================================================
+IMPLEMENTATION ORDER (IMPORTANT)
+==================================================
+
+Please implement in this order:
+
+Step 1:
+Audit current onboarding, i18n, and settings architecture first.
+
+Step 2:
+Add language selection at the correct onboarding stage.
+
+Step 3:
+Add one-time rules/safety onboarding immediately after language selection.
+
+Step 4:
+Add “Safety & Auction Rules” entry inside settings so users can read them again later.
+
+Step 5:
+Implement the real Change Password feature inside settings.
+
+Step 6:
+Verify the full flow end-to-end:
+- new user chooses language
+- rules appear in correct language
+- app continues in that language
+- rules do not repeat every time
+- settings page can reopen rules
+- password change works correctly
+
+==================================================
+STRICT RULES
+==================================================
+
+- Do not break existing login/onboarding/profile logic
+- Do not hardcode user-facing strings
+- Do not create fake backend-less password change
+- Do not add unnecessary complexity
+- Keep components reusable and mobile-first
+- Preserve future Android/iOS compatibility
+- Reuse existing design system/styles where possible
+
+==================================================
+REQUIRED FINAL RESPONSE
+==================================================
+
+When done, return:
+1. What files were changed
+2. What exactly was implemented
+3. Any auth/security limitation discovered
+4. Any follow-up work still recommended

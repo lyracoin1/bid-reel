@@ -89,6 +89,8 @@ export type TKey =
   | "rule_3_title" | "rule_3_body"
   | "rule_4_title" | "rule_4_body"
   | "rule_5_title" | "rule_5_body"
+  // First listing rules gate
+  | "listing_rules_title" | "listing_rules_subtitle" | "listing_rules_confirm"
   // Settings entries
   | "safety_rules" | "change_password"
   // Change password form
@@ -170,6 +172,9 @@ const en: Translations = {
   rule_4_body: "BidReel is not responsible for off-platform deals, transactions, or agreements.",
   rule_5_title: "Fair play",
   rule_5_body: "Fake bids or abusive behaviour may result in immediate account suspension.",
+  listing_rules_title: "Before Your First Listing",
+  listing_rules_subtitle: "A quick reminder before you go live",
+  listing_rules_confirm: "Got it — publish now",
   safety_rules: "Safety & Auction Rules",
   change_password: "Change Password",
   change_pw_title: "Change Password",
@@ -256,6 +261,9 @@ const ar: Translations = {
   rule_4_body: "BidReel غير مسؤول عن الاتفاقيات أو الصفقات التي تتم خارج التطبيق.",
   rule_5_title: "اللعب النظيف",
   rule_5_body: "المزايدات الوهمية أو السلوك المسيء قد يؤدي إلى تعليق الحساب فوراً.",
+  listing_rules_title: "قبل نشر أول مزاد لك",
+  listing_rules_subtitle: "تذكير سريع قبل النشر",
+  listing_rules_confirm: "فهمت — انشر الآن",
   safety_rules: "قواعد المزاد والسلامة",
   change_password: "تغيير كلمة المرور",
   change_pw_title: "تغيير كلمة المرور",
@@ -342,6 +350,9 @@ const ru: Translations = {
   rule_4_body: "BidReel не несёт ответственности за договорённости и сделки вне приложения.",
   rule_5_title: "Честная игра",
   rule_5_body: "Фиктивные ставки или нарушение правил могут привести к немедленной блокировке аккаунта.",
+  listing_rules_title: "Перед первым лотом",
+  listing_rules_subtitle: "Краткое напоминание перед публикацией",
+  listing_rules_confirm: "Понятно — опубликовать",
   safety_rules: "Правила безопасности аукциона",
   change_password: "Изменить пароль",
   change_pw_title: "Изменить пароль",
@@ -428,6 +439,9 @@ const es: Translations = {
   rule_4_body: "BidReel no es responsable de acuerdos o transacciones realizadas fuera de la aplicación.",
   rule_5_title: "Juego limpio",
   rule_5_body: "Las pujas falsas o el comportamiento abusivo pueden resultar en la suspensión inmediata de la cuenta.",
+  listing_rules_title: "Antes de tu primer anuncio",
+  listing_rules_subtitle: "Un recordatorio rápido antes de publicar",
+  listing_rules_confirm: "Entendido — publicar ahora",
   safety_rules: "Reglas de seguridad y subastas",
   change_password: "Cambiar contraseña",
   change_pw_title: "Cambiar contraseña",
@@ -514,6 +528,9 @@ const fr: Translations = {
   rule_4_body: "BidReel n'est pas responsable des transactions ou accords réalisés en dehors de l'application.",
   rule_5_title: "Fair-play",
   rule_5_body: "Les enchères fictives ou les comportements abusifs peuvent entraîner la suspension immédiate du compte.",
+  listing_rules_title: "Avant votre première annonce",
+  listing_rules_subtitle: "Un rappel rapide avant de publier",
+  listing_rules_confirm: "Compris — publier maintenant",
   safety_rules: "Règles de sécurité et enchères",
   change_password: "Changer le mot de passe",
   change_pw_title: "Changer le mot de passe",

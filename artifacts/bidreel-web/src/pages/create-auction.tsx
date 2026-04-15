@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   ArrowLeft, ArrowRight, Camera, Upload, CheckCircle2, Clock,
   Play, Image as ImageIcon, X, AlertCircle, Loader2, Trash2,
-  MapPin, RefreshCw, DollarSign,
+  MapPin, RefreshCw, DollarSign, ShieldAlert,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
@@ -15,6 +15,19 @@ import { cn } from "@/lib/utils";
 import { reverseGeocodeCountry, getCurrencyForCountry, type CurrencyInfo } from "@/lib/geo";
 
 type PostType = "video" | "photos";
+
+// ─── First-listing rules gate ─────────────────────────────────────────────────
+// localStorage key — set to "1" when the user accepts the rules and publishes
+// their first auction. Once set the modal never shows again.
+const LISTING_RULES_KEY = "bidreel_listing_rules_accepted";
+
+const LISTING_RULES = [
+  { icon: "🤝", titleKey: "rule_1_title", bodyKey: "rule_1_body" },
+  { icon: "👥", titleKey: "rule_2_title", bodyKey: "rule_2_body" },
+  { icon: "🔍", titleKey: "rule_3_title", bodyKey: "rule_3_body" },
+  { icon: "⚠️", titleKey: "rule_4_title", bodyKey: "rule_4_body" },
+  { icon: "🚫", titleKey: "rule_5_title", bodyKey: "rule_5_body" },
+] as const;
 
 // ─── File size limits (client-side enforcement) ───────────────────────────────
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20 MB — pre-compression raw limit
@@ -154,6 +167,9 @@ export default function CreateAuction() {
   // ── Upload / submit state ────────────────────────────────────────────────────
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // ── First-listing rules gate ─────────────────────────────────────────────────
+  const [showRulesModal, setShowRulesModal] = useState(false);
 
   // ── Geolocation + currency detection ─────────────────────────────────────────
   const [geoStatus, setGeoStatus] = useState<GeoStatus>("idle");
@@ -408,6 +424,24 @@ export default function CreateAuction() {
     }
   };
 
+  // ── First-listing gate: intercept Publish click ────────────────────────────
+  // If the user has never accepted the rules, show the modal.
+  // If they have (flag set), go straight to handleSubmit.
+  const handlePublish = () => {
+    if (localStorage.getItem(LISTING_RULES_KEY)) {
+      handleSubmit();
+      return;
+    }
+    setShowRulesModal(true);
+  };
+
+  // Called when the user taps "Got it — publish now" inside the modal.
+  const acceptRulesAndPublish = () => {
+    localStorage.setItem(LISTING_RULES_KEY, "1");
+    setShowRulesModal(false);
+    handleSubmit();
+  };
+
   const isUploading = !!uploadProgress && !isCreating;
   const isSubmitting = isUploading || isCreating;
 
@@ -430,6 +464,7 @@ export default function CreateAuction() {
   }[geoStatus];
 
   return (
+    <>
     <MobileLayout showNav={false}>
       <div className="min-h-full bg-background flex flex-col px-5">
 
@@ -796,7 +831,7 @@ export default function CreateAuction() {
               </div>
 
               {/* Publish button */}
-              <motion.button whileTap={{ scale: 0.97 }} onClick={handleSubmit}
+              <motion.button whileTap={{ scale: 0.97 }} onClick={handlePublish}
                 disabled={!canPublish}
                 className="mt-6 w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-lg shadow-primary/30 disabled:opacity-40 disabled:shadow-none flex items-center justify-center gap-2">
                 {isSubmitting ? (
@@ -831,5 +866,91 @@ export default function CreateAuction() {
         </AnimatePresence>
       </div>
     </MobileLayout>
+
+    {/* ── First-listing rules gate modal ── */}
+    <AnimatePresence>
+      {showRulesModal && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            key="lr-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setShowRulesModal(false)}
+            className="fixed inset-0 z-[9000] bg-black/75 backdrop-blur-sm"
+          />
+
+          {/* Bottom sheet */}
+          <motion.div
+            key="lr-sheet"
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 30, stiffness: 220 }}
+            className="fixed bottom-0 left-0 right-0 z-[9001] bg-[#0e0e1a] border-t border-white/10 rounded-t-3xl max-h-[92dvh] overflow-y-auto"
+          >
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-1 shrink-0">
+              <div className="w-10 h-1 rounded-full bg-white/20" />
+            </div>
+
+            {/* Header */}
+            <div className="px-5 pt-4 pb-5 border-b border-white/8">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center shrink-0">
+                  <ShieldAlert size={22} className="text-amber-400" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white leading-tight mb-0.5">
+                    {t("listing_rules_title")}
+                  </h2>
+                  <p className="text-xs text-white/45">{t("listing_rules_subtitle")}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Rules list */}
+            <div className="px-5 py-4 space-y-2.5">
+              {LISTING_RULES.map((rule, i) => (
+                <motion.div
+                  key={rule.titleKey}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25, delay: 0.05 * i }}
+                  className="flex items-start gap-3.5 p-4 rounded-2xl bg-white/4 border border-white/8"
+                >
+                  <span className="text-xl leading-none mt-0.5 shrink-0">{rule.icon}</span>
+                  <div>
+                    <p className="text-sm font-bold text-white mb-1">{t(rule.titleKey)}</p>
+                    <p className="text-[13px] text-white/55 leading-relaxed">{t(rule.bodyKey)}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Action buttons */}
+            <div className="px-5 pb-10 pt-3 space-y-3">
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={acceptRulesAndPublish}
+                className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-lg shadow-primary/30 flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 size={18} />
+                {t("listing_rules_confirm")}
+              </motion.button>
+              <button
+                onClick={() => setShowRulesModal(false)}
+                className="w-full py-3 text-sm text-white/35 hover:text-white/60 transition-colors"
+              >
+                {lang === "ar" ? "إلغاء" : "Cancel"}
+              </button>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+    </>
   );
 }

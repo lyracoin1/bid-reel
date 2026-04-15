@@ -215,6 +215,22 @@ export async function getAuctionsApi(opts?: { before?: string }): Promise<GetAuc
   return { auctions: data.auctions, nextCursor: data.nextCursor ?? null };
 }
 
+// ─── Seller's own auctions (for Profile → My Auctions tab) ───────────────────
+// Uses GET /api/auctions/mine — auth-gated, returns all non-removed auctions for
+// the logged-in user only. Consistent with the auctionCount stat on /api/users/me.
+
+export async function getMyAuctionsApi(): Promise<ApiAuctionRaw[]> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_BASE}/auctions/mine`, { headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to fetch my auctions");
+  }
+  const data = await res.json() as { auctions: ApiAuctionRaw[] };
+  console.log(`[api-client] ✅ GET /auctions/mine → ${data.auctions.length} auctions`);
+  return data.auctions;
+}
+
 // ─── Auction detail ───────────────────────────────────────────────────────────
 
 export async function getAuctionApi(id: string): Promise<{ auction: ApiAuctionRaw; bids: ApiAuctionBid[] }> {

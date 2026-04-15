@@ -4,6 +4,7 @@ import {
   placeBidApi,
   getAuctionsApi,
   getAuctionApi,
+  getMyAuctionsApi,
   createAuctionApi,
   type ApiAuctionRaw,
   type ApiAuctionBid,
@@ -397,4 +398,42 @@ export function useToggleLike() {
     }
   };
   return { mutate };
+}
+
+// ─── useMyAuctions ────────────────────────────────────────────────────────────
+// Fetches the current authenticated user's own auctions from GET /api/auctions/mine.
+// This endpoint is seller-scoped, auth-gated, and excludes only 'removed' auctions —
+// consistent with the auctionCount stat returned by GET /api/users/me.
+// Unlike useAuctions(), this is NOT a global paginated feed; it returns all of the
+// seller's auctions (active, ended, archived) with no PAGE_SIZE cap.
+
+export function useMyAuctions() {
+  const [auctions, setAuctions] = useState<Auction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoading(true);
+    setError(null);
+    getMyAuctionsApi()
+      .then(raw => {
+        if (!cancelled) {
+          setAuctions(raw.map(a => backendToAuction(a)));
+        }
+      })
+      .catch(err => {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : 'Failed to load your auctions';
+          console.error('[useMyAuctions] ❌', msg);
+          setError(msg);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  return { data: auctions, isLoading, error };
 }

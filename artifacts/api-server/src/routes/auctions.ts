@@ -242,6 +242,46 @@ router.get("/auctions", async (req, res) => {
   res.json({ auctions: feed, nextCursor });
 });
 
+// ─── GET /api/auctions/mine ───────────────────────────────────────────────────
+// Returns the authenticated seller's own auctions.
+// Filter: excludes only 'removed' — consistent with the auctionCount stat in
+// fetchProfileStats (profiles.ts). Includes active, ended, and archived so the
+// seller sees their full history. Not paginated (a single seller rarely has
+// thousands of auctions), and not subject to the global feed's PAGE_SIZE cap.
+
+router.get("/auctions/mine", requireAuth, async (req, res) => {
+  const userId = (req as unknown as { userId: string }).userId;
+
+  const { data: auctions, error } = await supabaseAdmin
+    .from("auctions")
+    .select("*")
+    .eq("seller_id", userId)
+    .neq("status", "removed")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    logger.error({ err: error }, "GET /auctions/mine failed");
+    res.status(500).json({ error: "FETCH_FAILED", message: error.message });
+    return;
+  }
+
+  // Embed the seller's own profile so the response shape matches the public feed.
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("id, username, display_name, avatar_url, phone")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const feed = (auctions ?? []).map((a) => ({
+    ...normalizeAuction(a),
+    seller: profile ?? null,
+    user_signal: null,
+  }));
+
+  logger.info({ userId, count: feed.length }, "GET /auctions/mine → returning seller auctions");
+  res.json({ auctions: feed });
+});
+
 // ─── GET /api/auctions/:id ────────────────────────────────────────────────────
 
 router.get("/auctions/:id", async (req, res) => {

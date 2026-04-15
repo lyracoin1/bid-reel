@@ -9,7 +9,7 @@ import { MobileLayout } from "@/components/layout/MobileLayout";
 import { formatAuctionPrice } from "@/lib/geo";
 import { HamburgerMenu } from "@/components/HamburgerMenu";
 import { useCurrentUser, clearCurrentUserCache } from "@/hooks/use-current-user";
-import { useAuctions } from "@/hooks/use-auctions";
+import { useAuctions, useMyAuctions } from "@/hooks/use-auctions";
 import { getSavedIdsApi, clearToken, deleteAccountApi } from "@/lib/api-client";
 import { clearAdminSession } from "@/pages/admin/admin-session";
 import { deleteNativeFcmToken } from "@/lib/native-fcm";
@@ -51,11 +51,12 @@ export default function Profile() {
     }
   }
 
-  const { data: allAuctions, isLoading: auctionsLoading } = useAuctions();
+  // My Auctions — dedicated seller-scoped endpoint (excludes only 'removed').
+  // Consistent with the auctionCount stat in the profile header (same filter).
+  const { data: myListings, isLoading: myAuctionsLoading } = useMyAuctions();
 
-  const myListings = user
-    ? allAuctions.filter(a => a.seller.id === user.id)
-    : [];
+  // Saved tab — still fetched from the global feed for now.
+  const { data: allAuctions, isLoading: auctionsLoading } = useAuctions();
 
   // Load saved IDs lazily when the saved tab is first activated
   useEffect(() => {
@@ -74,7 +75,7 @@ export default function Profile() {
     { id: "saved",       labelKey: "saved_tab",   icon: Bookmark, count: savedIds.size },
   ];
 
-  const isLoading = userLoading || auctionsLoading;
+  const isLoading = userLoading || auctionsLoading || myAuctionsLoading;
 
   function handleLogout() {
     void deleteNativeFcmToken();

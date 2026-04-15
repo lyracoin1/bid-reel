@@ -79,7 +79,23 @@ export type TKey =
   | "feed_pull" | "feed_release" | "feed_refreshing"
   | "feed_error" | "feed_empty"
   | "feed_error_sub" | "feed_empty_sub"
-  | "feed_try_again" | "feed_checking" | "feed_refresh";
+  | "feed_try_again" | "feed_checking" | "feed_refresh"
+  // Language selection onboarding
+  | "lang_step_title" | "lang_step_subtitle"
+  // Safety / rules onboarding
+  | "rules_step_title" | "rules_step_subtitle" | "rules_done"
+  | "rule_1_title" | "rule_1_body"
+  | "rule_2_title" | "rule_2_body"
+  | "rule_3_title" | "rule_3_body"
+  | "rule_4_title" | "rule_4_body"
+  | "rule_5_title" | "rule_5_body"
+  // Settings entries
+  | "safety_rules" | "change_password"
+  // Change password form
+  | "change_pw_title" | "current_password" | "new_password" | "confirm_new_password"
+  | "change_pw_submit" | "change_pw_success"
+  | "change_pw_wrong_current" | "change_pw_too_short" | "change_pw_mismatch"
+  | "change_pw_same" | "change_pw_no_email_auth";
 
 type Translations = Record<TKey, string>;
 
@@ -139,6 +155,34 @@ const en: Translations = {
   feed_error_sub: "Check your connection and try again.",
   feed_empty_sub: "Be the first to list something — or check back shortly for new drops.",
   feed_try_again: "Try again", feed_checking: "Checking…", feed_refresh: "Refresh feed",
+  lang_step_title: "Choose your language",
+  lang_step_subtitle: "Select how you'd like to use BidReel. You can change this anytime in settings.",
+  rules_step_title: "Auction Safety Rules",
+  rules_step_subtitle: "A quick read before you start",
+  rules_done: "Got it, let's go!",
+  rule_1_title: "Bid seriously",
+  rule_1_body: "Only place a bid if you genuinely intend to purchase the item.",
+  rule_2_title: "Stay safe at meetups",
+  rule_2_body: "Never go alone to inspect or pick up an item. Always bring someone you trust.",
+  rule_3_title: "Verify before paying",
+  rule_3_body: "Inspect the item and confirm it matches the listing before making any payment.",
+  rule_4_title: "Platform scope",
+  rule_4_body: "BidReel is not responsible for off-platform deals, transactions, or agreements.",
+  rule_5_title: "Fair play",
+  rule_5_body: "Fake bids or abusive behaviour may result in immediate account suspension.",
+  safety_rules: "Safety & Auction Rules",
+  change_password: "Change Password",
+  change_pw_title: "Change Password",
+  current_password: "Current Password",
+  new_password: "New Password",
+  confirm_new_password: "Confirm New Password",
+  change_pw_submit: "Update Password",
+  change_pw_success: "Password updated successfully",
+  change_pw_wrong_current: "Current password is incorrect",
+  change_pw_too_short: "Password must be at least 8 characters",
+  change_pw_mismatch: "Passwords do not match",
+  change_pw_same: "New password must differ from your current password",
+  change_pw_no_email_auth: "Password change is only available for email/password accounts",
 };
 
 const ar: Translations = {
@@ -197,6 +241,34 @@ const ar: Translations = {
   feed_error_sub: "تحقق من اتصالك وحاول مجدداً.",
   feed_empty_sub: "كن أول من يضيف — أو تحقق لاحقاً من الإضافات الجديدة.",
   feed_try_again: "إعادة المحاولة", feed_checking: "جارٍ الفحص…", feed_refresh: "تحديث الرئيسية",
+  lang_step_title: "اختر لغتك",
+  lang_step_subtitle: "اختر اللغة التي تريد استخدام BidReel بها. يمكنك تغييرها في أي وقت من الإعدادات.",
+  rules_step_title: "قواعد سلامة المزاد",
+  rules_step_subtitle: "قراءة سريعة قبل البدء",
+  rules_done: "فهمت، هيا بنا!",
+  rule_1_title: "زايد بجدية",
+  rule_1_body: "ضع مزايدتك فقط إذا كنت تنوي فعلاً شراء العنصر.",
+  rule_2_title: "سلامتك أولاً عند الاستلام",
+  rule_2_body: "لا تذهب وحدك لمعاينة أو استلام أي عنصر. اصطحب دائماً شخصاً تثق به.",
+  rule_3_title: "تحقق قبل الدفع",
+  rule_3_body: "تفحص العنصر وتأكد من مطابقته للإعلان قبل تسديد أي مبلغ.",
+  rule_4_title: "نطاق المنصة",
+  rule_4_body: "BidReel غير مسؤول عن الاتفاقيات أو الصفقات التي تتم خارج التطبيق.",
+  rule_5_title: "اللعب النظيف",
+  rule_5_body: "المزايدات الوهمية أو السلوك المسيء قد يؤدي إلى تعليق الحساب فوراً.",
+  safety_rules: "قواعد المزاد والسلامة",
+  change_password: "تغيير كلمة المرور",
+  change_pw_title: "تغيير كلمة المرور",
+  current_password: "كلمة المرور الحالية",
+  new_password: "كلمة المرور الجديدة",
+  confirm_new_password: "تأكيد كلمة المرور الجديدة",
+  change_pw_submit: "تحديث كلمة المرور",
+  change_pw_success: "تم تحديث كلمة المرور بنجاح",
+  change_pw_wrong_current: "كلمة المرور الحالية غير صحيحة",
+  change_pw_too_short: "يجب أن تكون كلمة المرور 8 أحرف على الأقل",
+  change_pw_mismatch: "كلمتا المرور غير متطابقتين",
+  change_pw_same: "يجب أن تختلف كلمة المرور الجديدة عن الحالية",
+  change_pw_no_email_auth: "تغيير كلمة المرور متاح فقط لحسابات البريد الإلكتروني",
 };
 
 const ru: Translations = {
@@ -255,6 +327,34 @@ const ru: Translations = {
   feed_error_sub: "Проверьте соединение и повторите.",
   feed_empty_sub: "Будьте первым или загляните позже за новинками.",
   feed_try_again: "Повторить", feed_checking: "Проверка…", feed_refresh: "Обновить ленту",
+  lang_step_title: "Выберите язык",
+  lang_step_subtitle: "Выберите язык для BidReel. Вы можете изменить его в настройках.",
+  rules_step_title: "Правила безопасности аукциона",
+  rules_step_subtitle: "Быстрое ознакомление перед началом",
+  rules_done: "Понятно, поехали!",
+  rule_1_title: "Серьёзные ставки",
+  rule_1_body: "Делайте ставку только если действительно намерены купить товар.",
+  rule_2_title: "Безопасность при встрече",
+  rule_2_body: "Не ходите одни на осмотр или получение товара. Берите с собой надёжного человека.",
+  rule_3_title: "Проверяйте перед оплатой",
+  rule_3_body: "Осмотрите товар и убедитесь, что он соответствует объявлению, до оплаты.",
+  rule_4_title: "Зона ответственности платформы",
+  rule_4_body: "BidReel не несёт ответственности за договорённости и сделки вне приложения.",
+  rule_5_title: "Честная игра",
+  rule_5_body: "Фиктивные ставки или нарушение правил могут привести к немедленной блокировке аккаунта.",
+  safety_rules: "Правила безопасности аукциона",
+  change_password: "Изменить пароль",
+  change_pw_title: "Изменить пароль",
+  current_password: "Текущий пароль",
+  new_password: "Новый пароль",
+  confirm_new_password: "Подтвердите новый пароль",
+  change_pw_submit: "Обновить пароль",
+  change_pw_success: "Пароль успешно обновлён",
+  change_pw_wrong_current: "Текущий пароль неверен",
+  change_pw_too_short: "Пароль должен содержать не менее 8 символов",
+  change_pw_mismatch: "Пароли не совпадают",
+  change_pw_same: "Новый пароль должен отличаться от текущего",
+  change_pw_no_email_auth: "Изменение пароля доступно только для аккаунтов с email/паролем",
 };
 
 const es: Translations = {
@@ -313,6 +413,34 @@ const es: Translations = {
   feed_error_sub: "Comprueba tu conexión e inténtalo de nuevo.",
   feed_empty_sub: "Sé el primero en publicar, o vuelve pronto para ver nuevas ofertas.",
   feed_try_again: "Intentar de nuevo", feed_checking: "Comprobando…", feed_refresh: "Actualizar feed",
+  lang_step_title: "Elige tu idioma",
+  lang_step_subtitle: "Selecciona el idioma para BidReel. Puedes cambiarlo en cualquier momento en ajustes.",
+  rules_step_title: "Reglas de seguridad de subastas",
+  rules_step_subtitle: "Una lectura rápida antes de empezar",
+  rules_done: "¡Entendido, vamos!",
+  rule_1_title: "Puja en serio",
+  rule_1_body: "Solo puja si realmente tienes intención de comprar el artículo.",
+  rule_2_title: "Seguridad en los encuentros",
+  rule_2_body: "Nunca vayas solo a inspeccionar o recoger un artículo. Lleva siempre a alguien de confianza.",
+  rule_3_title: "Verifica antes de pagar",
+  rule_3_body: "Inspecciona el artículo y confirma que coincide con el anuncio antes de realizar cualquier pago.",
+  rule_4_title: "Alcance de la plataforma",
+  rule_4_body: "BidReel no es responsable de acuerdos o transacciones realizadas fuera de la aplicación.",
+  rule_5_title: "Juego limpio",
+  rule_5_body: "Las pujas falsas o el comportamiento abusivo pueden resultar en la suspensión inmediata de la cuenta.",
+  safety_rules: "Reglas de seguridad y subastas",
+  change_password: "Cambiar contraseña",
+  change_pw_title: "Cambiar contraseña",
+  current_password: "Contraseña actual",
+  new_password: "Nueva contraseña",
+  confirm_new_password: "Confirmar nueva contraseña",
+  change_pw_submit: "Actualizar contraseña",
+  change_pw_success: "Contraseña actualizada correctamente",
+  change_pw_wrong_current: "La contraseña actual es incorrecta",
+  change_pw_too_short: "La contraseña debe tener al menos 8 caracteres",
+  change_pw_mismatch: "Las contraseñas no coinciden",
+  change_pw_same: "La nueva contraseña debe ser diferente a la actual",
+  change_pw_no_email_auth: "El cambio de contraseña solo está disponible para cuentas de email/contraseña",
 };
 
 const fr: Translations = {
@@ -371,6 +499,34 @@ const fr: Translations = {
   feed_error_sub: "Vérifiez votre connexion et réessayez.",
   feed_empty_sub: "Soyez le premier à publier, ou revenez bientôt pour les nouveautés.",
   feed_try_again: "Réessayer", feed_checking: "Vérification…", feed_refresh: "Actualiser le fil",
+  lang_step_title: "Choisissez votre langue",
+  lang_step_subtitle: "Sélectionnez la langue pour BidReel. Vous pouvez la modifier à tout moment dans les paramètres.",
+  rules_step_title: "Règles de sécurité des enchères",
+  rules_step_subtitle: "Une lecture rapide avant de commencer",
+  rules_done: "Compris, c'est parti !",
+  rule_1_title: "Enchérissez sérieusement",
+  rule_1_body: "Ne placez une enchère que si vous avez réellement l'intention d'acheter l'article.",
+  rule_2_title: "Sécurité lors des rendez-vous",
+  rule_2_body: "Ne vous rendez jamais seul pour inspecter ou récupérer un article. Accompagnez-vous d'une personne de confiance.",
+  rule_3_title: "Vérifiez avant de payer",
+  rule_3_body: "Inspectez l'article et confirmez qu'il correspond à l'annonce avant tout paiement.",
+  rule_4_title: "Portée de la plateforme",
+  rule_4_body: "BidReel n'est pas responsable des transactions ou accords réalisés en dehors de l'application.",
+  rule_5_title: "Fair-play",
+  rule_5_body: "Les enchères fictives ou les comportements abusifs peuvent entraîner la suspension immédiate du compte.",
+  safety_rules: "Règles de sécurité et enchères",
+  change_password: "Changer le mot de passe",
+  change_pw_title: "Changer le mot de passe",
+  current_password: "Mot de passe actuel",
+  new_password: "Nouveau mot de passe",
+  confirm_new_password: "Confirmer le nouveau mot de passe",
+  change_pw_submit: "Mettre à jour le mot de passe",
+  change_pw_success: "Mot de passe mis à jour avec succès",
+  change_pw_wrong_current: "Le mot de passe actuel est incorrect",
+  change_pw_too_short: "Le mot de passe doit contenir au moins 8 caractères",
+  change_pw_mismatch: "Les mots de passe ne correspondent pas",
+  change_pw_same: "Le nouveau mot de passe doit être différent du mot de passe actuel",
+  change_pw_no_email_auth: "Le changement de mot de passe n'est disponible que pour les comptes email/mot de passe",
 };
 
 export const TRANSLATIONS: Record<Language, Translations> = { en, ar, ru, es, fr };

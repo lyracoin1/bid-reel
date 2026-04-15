@@ -2,7 +2,8 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLang } from "@/contexts/LanguageContext";
-import { Camera, CheckCircle2, XCircle, Loader2, ArrowRight, Phone, User, MapPin, Navigation } from "lucide-react";
+import { type Language, LANGUAGE_NAMES } from "@/lib/i18n";
+import { Camera, CheckCircle2, XCircle, Loader2, ArrowRight, Phone, User, MapPin, Navigation, Check, ShieldAlert } from "lucide-react";
 import {
   updateProfileApi,
   checkUsernameApi,
@@ -50,10 +51,20 @@ type UsernameState = "idle" | "checking" | "available" | "taken" | "invalid";
 
 export default function Interests() {
   const [, setLocation] = useLocation();
-  const { t } = useLang();
+  const { t, lang, setLang } = useLang();
 
   // ── Step state ──
-  const [step, setStep] = useState<0 | 1>(0);
+  // "lang"  → language selection (new users only, skipped for returning editors)
+  // 0       → profile setup
+  // 1       → interests selection
+  // "rules" → safety rules (new users only, shown once)
+  const [step, setStep] = useState<"lang" | 0 | 1 | "rules">(() =>
+    localStorage.getItem("hasSeenInterests") ? 0 : "lang"
+  );
+
+  // ── Language step helpers ──
+  const LANG_FLAG: Record<Language, string> = { en: "🇺🇸", ar: "🇸🇦", ru: "🇷🇺", es: "🇪🇸", fr: "🇫🇷" };
+  const LANGUAGES: Language[] = ["ar", "en", "ru", "es", "fr"];
 
   // ── Profile setup state (step 0) ──
   const [displayName, setDisplayName] = useState("");
@@ -310,11 +321,21 @@ export default function Interests() {
     });
   };
 
-  const finish = () => {
+  const finishInterests = () => {
+    const wasFirstTime = !localStorage.getItem("hasSeenInterests");
     localStorage.setItem("hasSeenInterests", "1");
-    // Ensure any cached user (which may still have isCompleted: false) is
-    // discarded before navigating away so feed / create-auction see fresh data.
     clearCurrentUserCache();
+    // First-time users who haven't seen safety rules yet → show rules step.
+    // Returning users editing their profile → go straight to feed.
+    if (wasFirstTime && !localStorage.getItem("bidreel_rules_seen")) {
+      setStep("rules");
+    } else {
+      setLocation("/feed");
+    }
+  };
+
+  const finishRules = () => {
+    localStorage.setItem("bidreel_rules_seen", "1");
     setLocation("/feed");
   };
 
@@ -358,6 +379,83 @@ export default function Interests() {
       </div>
 
       <AnimatePresence mode="wait">
+
+        {/* ── STEP LANG: Language Selection (new users only) ── */}
+        {step === "lang" && (
+          <motion.div
+            key="lang-step"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -24 }}
+            transition={{ duration: 0.3 }}
+            className="relative z-10 flex flex-col flex-1 px-5 pt-16 pb-10"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="mb-10 text-center"
+            >
+              <img
+                src={`${import.meta.env.BASE_URL}images/logo-icon.png`}
+                alt="BidReel"
+                className="w-16 h-16 rounded-2xl mx-auto mb-6 box-glow"
+              />
+              <h1 className="text-3xl font-bold text-white leading-tight mb-3">
+                {t("lang_step_title")}
+              </h1>
+              <p className="text-sm text-white/50 leading-relaxed max-w-xs mx-auto">
+                {t("lang_step_subtitle")}
+              </p>
+            </motion.div>
+
+            <div className="rounded-2xl bg-white/4 border border-white/8 overflow-hidden divide-y divide-white/6 mb-8">
+              {LANGUAGES.map((l, i) => {
+                const isActive = lang === l;
+                return (
+                  <motion.button
+                    key={l}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.25, delay: 0.06 * i }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setLang(l)}
+                    className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-white/5 active:bg-white/8 transition-colors"
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <span className="text-2xl leading-none">{LANG_FLAG[l]}</span>
+                      <span className={`text-base font-semibold ${isActive ? "text-white" : "text-white/60"}`}>
+                        {LANGUAGE_NAMES[l]}
+                      </span>
+                    </div>
+                    {isActive && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="w-6 h-6 rounded-full bg-primary flex items-center justify-center shrink-0"
+                      >
+                        <Check size={13} className="text-white" />
+                      </motion.div>
+                    )}
+                  </motion.button>
+                );
+              })}
+            </div>
+
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, delay: 0.35 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => setStep(0)}
+              className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-lg shadow-primary/30 flex items-center justify-center gap-2"
+            >
+              {t("continue")}
+              <ArrowRight size={18} />
+            </motion.button>
+          </motion.div>
+        )}
+
         {/* ── STEP 0: Profile Setup ── */}
         {step === 0 && (
           <motion.div
@@ -711,7 +809,7 @@ export default function Interests() {
             >
               <motion.button
                 whileTap={{ scale: 0.97 }}
-                onClick={finish}
+                onClick={finishInterests}
                 className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-lg shadow-primary/30"
               >
                 {selected.size > 0
@@ -719,7 +817,7 @@ export default function Interests() {
                   : t("interests_done")}
               </motion.button>
               <button
-                onClick={finish}
+                onClick={finishInterests}
                 className="w-full py-3 text-sm text-white/40 font-medium hover:text-white/70 transition-colors"
               >
                 {t("interests_skip")}
@@ -727,6 +825,81 @@ export default function Interests() {
             </motion.div>
           </motion.div>
         )}
+
+        {/* ── STEP RULES: Safety Onboarding (shown once, first-time users only) ── */}
+        {step === "rules" && (
+          <motion.div
+            key="rules-step"
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -40 }}
+            transition={{ duration: 0.3 }}
+            className="relative z-10 flex flex-col flex-1 px-5 pt-14 pb-10 overflow-y-auto"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="mb-8"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center">
+                  <ShieldAlert size={20} className="text-amber-400" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-white leading-tight">{t("rules_step_title")}</h1>
+                  <p className="text-sm text-white/45">{t("rules_step_subtitle")}</p>
+                </div>
+              </div>
+            </motion.div>
+
+            <div className="flex flex-col gap-3 flex-1">
+              {([
+                { icon: "🤝", titleKey: "rule_1_title", bodyKey: "rule_1_body" },
+                { icon: "👥", titleKey: "rule_2_title", bodyKey: "rule_2_body" },
+                { icon: "🔍", titleKey: "rule_3_title", bodyKey: "rule_3_body" },
+                { icon: "⚠️", titleKey: "rule_4_title", bodyKey: "rule_4_body" },
+                { icon: "🚫", titleKey: "rule_5_title", bodyKey: "rule_5_body" },
+              ] as const).map((rule, i) => (
+                <motion.div
+                  key={rule.titleKey}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.06 * i }}
+                  className="flex items-start gap-4 p-4 rounded-2xl bg-white/4 border border-white/8"
+                >
+                  <span className="text-2xl leading-none mt-0.5 shrink-0">{rule.icon}</span>
+                  <div>
+                    <p className="text-sm font-bold text-white mb-1">{t(rule.titleKey)}</p>
+                    <p className="text-xs text-white/50 leading-relaxed">{t(rule.bodyKey)}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.38 }}
+              className="mt-8 flex flex-col gap-3"
+            >
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={finishRules}
+                className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-lg shadow-primary/30"
+              >
+                {t("rules_done")}
+              </motion.button>
+              <button
+                onClick={finishRules}
+                className="w-full py-3 text-sm text-white/40 font-medium hover:text-white/70 transition-colors"
+              >
+                {t("interests_skip")}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+
       </AnimatePresence>
     </div>
   );

@@ -20,6 +20,8 @@ import CreateAuction from "@/pages/create-auction";
 import Profile from "@/pages/profile";
 import PublicProfilePage from "@/pages/public-profile";
 import Interests from "@/pages/interests";
+import SafetyRules from "@/pages/safety-rules";
+import ChangePassword from "@/pages/change-password";
 import NotFound from "@/pages/not-found";
 import PrivacyPolicy from "@/pages/privacy";
 
@@ -65,6 +67,8 @@ function Router() {
         <Route path="/profile" component={Profile} />
         <Route path="/users/:userId" component={PublicProfilePage} />
         <Route path="/interests" component={Interests} />
+        <Route path="/safety-rules" component={SafetyRules} />
+        <Route path="/change-password" component={ChangePassword} />
         <Route path="/privacy" component={PrivacyPolicy} />
 
         <Route component={NotFound} />

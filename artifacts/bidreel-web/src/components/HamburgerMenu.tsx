@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
-import { X, Globe, Check, Menu } from "lucide-react";
+import { X, Globe, Check, Menu, ShieldAlert, Lock } from "lucide-react";
+import { useLocation } from "wouter";
 import { useLang } from "@/contexts/LanguageContext";
 import { type Language, LANGUAGE_NAMES } from "@/lib/i18n";
 
@@ -31,6 +32,12 @@ export function HamburgerMenu({ className = "", open: controlledOpen, onOpenChan
     else { setInternalOpen(v); }
   };
   const { lang, setLang, t } = useLang();
+  const [, navigate] = useLocation();
+
+  const navigateTo = (path: string) => {
+    setOpen(false);
+    navigate(path);
+  };
 
   const drawer = (
     <AnimatePresence>
@@ -108,6 +115,28 @@ export function HamburgerMenu({ className = "", open: controlledOpen, onOpenChan
                       </motion.button>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* Navigation section */}
+              <div>
+                <div className="rounded-2xl bg-white/4 border border-white/8 overflow-hidden divide-y divide-white/6">
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => navigateTo("/safety-rules")}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-white/5"
+                  >
+                    <ShieldAlert size={16} className="text-amber-400 shrink-0" />
+                    <span className="text-sm font-semibold text-white/70">{t("safety_rules")}</span>
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => navigateTo("/change-password")}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-white/5"
+                  >
+                    <Lock size={16} className="text-white/50 shrink-0" />
+                    <span className="text-sm font-semibold text-white/70">{t("change_password")}</span>
+                  </motion.button>
                 </div>
               </div>
 

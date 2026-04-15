@@ -3,10 +3,7 @@
 	"appName": "BidReel",
 	"webDir": "dist/public",
 	"server": {
-		"androidScheme": "https",
-		"allowNavigation": [
-			"*.supabase.co"
-		]
+		"androidScheme": "https"
 	},
 	"plugins": {
 		"SplashScreen": {

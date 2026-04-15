@@ -166,25 +166,43 @@ function CapacitorOAuthHandler() {
     let mounted = true;
 
     async function handleUrl(url: string) {
-      if (!url.startsWith(OAUTH_SCHEME + "://")) return;
-      if (handled.current || !supabase) return;
+      console.log("[CapacitorOAuth] handleUrl called with:", url);
+      if (!url.startsWith(OAUTH_SCHEME + "://")) {
+        console.log("[CapacitorOAuth] URL does not match scheme — ignoring");
+        return;
+      }
+      if (handled.current) {
+        console.log("[CapacitorOAuth] Already handled — ignoring duplicate call");
+        return;
+      }
+      if (!supabase) {
+        console.error("[CapacitorOAuth] Supabase client not available");
+        return;
+      }
       handled.current = true;
 
       console.log("[CapacitorOAuth] Deep link received:", url);
 
       try {
         // Normalise: replace the custom scheme with https so URL() can parse it.
-        const parsed = new URL(url.replace(OAUTH_SCHEME + "://", "https://placeholder.invalid/"));
+        const normalised = url.replace(OAUTH_SCHEME + "://", "https://placeholder.invalid/");
+        console.log("[CapacitorOAuth] Normalised URL for parsing:", normalised);
+        const parsed = new URL(normalised);
         let session: { access_token: string; refresh_token: string } | null = null;
 
         // ── PKCE flow: ?code=... ─────────────────────────────────────────────
         const code = parsed.searchParams.get("code");
+        console.log("[CapacitorOAuth] PKCE code present:", !!code);
         if (code) {
+          console.log("[CapacitorOAuth] Attempting exchangeCodeForSession…");
           const { data, error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) {
-            console.error("[CapacitorOAuth] PKCE exchange failed:", error.message);
+            console.error("[CapacitorOAuth] PKCE exchange failed:", error.message, error);
           } else if (data.session) {
+            console.log("[CapacitorOAuth] PKCE exchange succeeded — session user:", data.session.user?.email);
             session = data.session;
+          } else {
+            console.warn("[CapacitorOAuth] PKCE exchange returned no error and no session");
           }
         }
 
@@ -194,17 +212,30 @@ function CapacitorOAuthHandler() {
           const params = new URLSearchParams(hash);
           const at = params.get("access_token");
           const rt = params.get("refresh_token");
+          console.log("[CapacitorOAuth] Implicit flow — access_token present:", !!at, "refresh_token present:", !!rt);
           if (at && rt) {
+            console.log("[CapacitorOAuth] Attempting setSession (implicit)…");
             const { data, error } = await supabase.auth.setSession({ access_token: at, refresh_token: rt });
             if (error) {
-              console.error("[CapacitorOAuth] Session set failed:", error.message);
+              console.error("[CapacitorOAuth] Session set failed:", error.message, error);
             } else if (data.session) {
+              console.log("[CapacitorOAuth] Implicit session set — user:", data.session.user?.email);
               session = data.session;
+            } else {
+              console.warn("[CapacitorOAuth] setSession returned no error and no session");
             }
           }
         }
 
-        if (!session || !mounted) return;
+        if (!session) {
+          console.error("[CapacitorOAuth] Could not establish session from deep link URL — no code and no tokens found");
+          handled.current = false;
+          return;
+        }
+        if (!mounted) {
+          console.warn("[CapacitorOAuth] Component unmounted before navigation — aborting");
+          return;
+        }
         setToken(session.access_token);
         console.log("[CapacitorOAuth] Session established — calling ensure-profile");
 
@@ -217,15 +248,20 @@ function CapacitorOAuthHandler() {
               Authorization: `Bearer ${session.access_token}`,
             },
           });
+          console.log("[CapacitorOAuth] ensure-profile response status:", res.status);
           if (res.ok) {
             const data = await res.json() as { isNewUser: boolean; user: { isCompleted: boolean } };
             const isNewUser = data.isNewUser ?? false;
             const isComplete = data.user?.isCompleted ?? false;
-            if (mounted) setWouterLocation(isNewUser && !isComplete ? "/interests" : "/feed");
+            const dest = isNewUser && !isComplete ? "/interests" : "/feed";
+            console.log("[CapacitorOAuth] Navigating to:", dest, "| isNewUser:", isNewUser, "| isComplete:", isComplete);
+            if (mounted) setWouterLocation(dest);
           } else {
+            console.warn("[CapacitorOAuth] ensure-profile failed — navigating to /feed anyway");
             if (mounted) setWouterLocation("/feed");
           }
-        } catch {
+        } catch (err) {
+          console.error("[CapacitorOAuth] ensure-profile network error:", err, "— navigating to /feed");
           if (mounted) setWouterLocation("/feed");
         }
       } catch (err) {
@@ -235,12 +271,20 @@ function CapacitorOAuthHandler() {
     }
 
     // ── Cold start: app was killed, relaunched via the deep link intent ──────
+    console.log("[CapacitorOAuth] Mounted — checking getLaunchUrl…");
     CapApp.getLaunchUrl()
-      .then(({ url }) => { if (url) handleUrl(url); })
-      .catch(() => {});
+      .then(({ url }) => {
+        console.log("[CapacitorOAuth] getLaunchUrl result:", url ?? "(null)");
+        if (url) handleUrl(url);
+      })
+      .catch(err => console.warn("[CapacitorOAuth] getLaunchUrl error:", err));
 
     // ── Warm start: app in background, brought to foreground via deep link ───
-    const listenerHandle = CapApp.addListener("appUrlOpen", ({ url }) => handleUrl(url));
+    console.log("[CapacitorOAuth] Registering appUrlOpen listener…");
+    const listenerHandle = CapApp.addListener("appUrlOpen", ({ url }) => {
+      console.log("[CapacitorOAuth] appUrlOpen fired with:", url);
+      handleUrl(url);
+    });
 
     return () => {
       mounted = false;

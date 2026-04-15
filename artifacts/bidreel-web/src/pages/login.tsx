@@ -137,27 +137,53 @@ export default function Login() {
     setGoogleLoading(true);
     setError(null);
     try {
-      // On Capacitor (native Android/iOS): use a custom URL scheme so the OAuth
-      // callback can be routed back into the app via the intent filter registered
-      // in AndroidManifest.xml.  CapacitorOAuthHandler in App.tsx listens for
-      // the appUrlOpen event and completes the session handshake.
-      //
-      // On the web: use the standard origin-based redirect.  OAuthCallbackHandler
-      // in App.tsx handles the code/token → session flow on page reload.
-      const redirectTo = isNative()
-        ? OAUTH_REDIRECT_URL
-        : `${window.location.origin}${import.meta.env.BASE_URL}`;
-
-      const { error: authError } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo },
-      });
-      if (authError) {
-        setError(authError.message);
-        setGoogleLoading(false);
+      if (isNative()) {
+        // On Capacitor (native Android/iOS): use skipBrowserRedirect so Supabase
+        // returns the OAuth URL without navigating the WebView.  We then open the
+        // URL with window.open('_blank') which Capacitor routes to a Chrome Custom
+        // Tab (external browser), keeping the WebView alive on the React app.
+        // When Google completes auth it redirects to com.bidreel.app://auth/callback
+        // which Android routes back into the app via the intent filter in
+        // AndroidManifest.xml, firing the appUrlOpen event that CapacitorOAuthHandler
+        // in App.tsx listens for.
+        console.log("[GoogleSignIn] Native platform — using skipBrowserRedirect flow");
+        const { data, error: authError } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo: OAUTH_REDIRECT_URL,
+            skipBrowserRedirect: true,
+          },
+        });
+        if (authError) {
+          console.error("[GoogleSignIn] signInWithOAuth error:", authError.message);
+          setError(authError.message);
+          setGoogleLoading(false);
+          return;
+        }
+        if (!data.url) {
+          console.error("[GoogleSignIn] No OAuth URL returned from Supabase");
+          setError("Could not start Google Sign-In. Try again.");
+          setGoogleLoading(false);
+          return;
+        }
+        console.log("[GoogleSignIn] Opening OAuth URL in external browser:", data.url);
+        // Opens Chrome Custom Tab on Android; keeps the WebView on the React app.
+        window.open(data.url, "_blank");
+        // Spinner is reset by the resume event listener above when the user returns.
+      } else {
+        // On the web: let Supabase redirect the page — OAuthCallbackHandler in
+        // App.tsx handles the code/token → session flow on page reload.
+        const redirectTo = `${window.location.origin}${import.meta.env.BASE_URL}`;
+        const { error: authError } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo },
+        });
+        if (authError) {
+          setError(authError.message);
+          setGoogleLoading(false);
+        }
+        // Supabase navigates the page away — no need to set loading=false.
       }
-      // Web: Supabase redirects the page away — no need to set loading=false.
-      // Native: the Custom Tab opens; resume listener above handles spinner reset.
     } catch {
       setError(copy.networkErr);
       setGoogleLoading(false);

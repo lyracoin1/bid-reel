@@ -1,0 +1,77 @@
+You are debugging the BidReel Capacitor Android Google OAuth flow.
+
+Current status:
+
+* Android build issue is solved.
+* `pnpm exec cap sync android` works.
+* `./gradlew.bat assembleDebug` now builds successfully.
+* The app opens on Android device correctly.
+* Google sign-in flow has improved:
+
+  * before: app opened Google and did not return to the app
+  * now: app opens Google and DOES return to the app
+* But after returning to the app, the user is NOT signed in.
+* The login screen remains effectively empty / unauthenticated after the return.
+
+This means:
+
+* deep link return is now working
+* the remaining bug is specifically in session completion / session restoration after OAuth callback
+
+Known configuration:
+
+* Supabase redirect URL already includes:
+  `com.bidreel.app://auth/callback`
+* Site URL is the main site, not admin
+* Capacitor Android build is working
+* Firebase Messaging is kept and should not be removed
+* We do NOT want destructive resets or random rewrites
+
+What I need from you:
+
+1. Audit the full Android Google OAuth callback flow end-to-end
+2. Inspect the exact code path after app return:
+
+   * Capacitor app URL listener
+   * Supabase OAuth redirect parsing
+   * PKCE/code exchange
+   * session persistence
+   * auth state propagation into UI
+3. Identify why the app returns but the authenticated session is not committed to the frontend state
+4. Fix it in a production-grade way, not with hacks
+5. Preserve:
+
+   * Capacitor Android
+   * Firebase Messaging
+   * existing login architecture
+6. Add targeted logs around:
+
+   * deep link received
+   * returned URL content
+   * code extraction
+   * exchangeCodeForSession result
+   * setSession result
+   * auth state change result
+   * user/session after callback
+7. Verify there is no mismatch between:
+
+   * `com.bidreel.app`
+   * appId/package name
+   * Android manifest intent filter
+   * Capacitor config
+   * Supabase redirect URL
+8. Check whether the UI remains on login because:
+
+   * session exchange failed
+   * auth store/cache not updated
+   * callback handled but ignored
+   * app resumes before session hydrate completes
+
+Important:
+
+* Do not remove features
+* Do not suggest starting from scratch
+* Do not break Android build
+* Do not remove Firebase Messaging
+* Explain the exact root cause once found
+* Then implement the precise fix

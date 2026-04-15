@@ -215,6 +215,68 @@ export async function getAuctionsApi(opts?: { before?: string }): Promise<GetAuc
   return { auctions: data.auctions, nextCursor: data.nextCursor ?? null };
 }
 
+// ─── Server-proxied file upload ───────────────────────────────────────────────
+// Sends the raw file binary to POST /api/media/upload (same origin as all other
+// API calls) so the server can relay it to Supabase Storage without the client
+// ever making a cross-origin PUT directly to Supabase.  Eliminates the CORS
+// preflight failure that causes "Network error during upload" on Capacitor Android.
+//
+// Uses XHR so we can track upload progress.
+// Returns the public URL of the stored file.
+
+export async function uploadMediaApi(
+  file: File,
+  fileType: "video" | "image",
+  onProgress?: (pct: number) => void,
+): Promise<string> {
+  const token = await getToken();
+  if (!token) { redirectToLogin(); throw new Error("Not authenticated"); }
+
+  // Strip charset or codec suffixes Android sometimes appends (e.g. "video/mp4; codecs=avc1")
+  const mimeType = (file.type || "").split(";")[0].trim()
+    || (fileType === "video" ? "video/mp4" : "image/jpeg");
+
+  const url = new URL(`${API_BASE}/media/upload`);
+  url.searchParams.set("fileType", fileType);
+  url.searchParams.set("mimeType", mimeType);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    if (onProgress) {
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      });
+    }
+
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const data = JSON.parse(xhr.responseText) as { publicUrl: string };
+        console.log(`[api-client] ✅ POST /media/upload → publicUrl=${data.publicUrl}`);
+        resolve(data.publicUrl);
+      } else {
+        const errText = xhr.responseText
+          ? (JSON.parse(xhr.responseText) as { message?: string }).message
+          : null;
+        reject(new Error(errText ?? `Upload failed: HTTP ${xhr.status}`));
+      }
+    });
+
+    xhr.addEventListener("error", () => {
+      reject(new Error("Network error during upload"));
+    });
+
+    xhr.open("POST", url.toString());
+    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    // Content-Type tells the server what kind of file this is;
+    // express.raw() on the server reads the raw body regardless of Content-Type.
+    xhr.setRequestHeader("Content-Type", mimeType);
+    xhr.send(file);
+  });
+}
+
 // ─── Seller's own auctions (for Profile → My Auctions tab) ───────────────────
 // Uses GET /api/auctions/mine — auth-gated, returns all non-removed auctions for
 // the logged-in user only. Consistent with the auctionCount stat on /api/users/me.

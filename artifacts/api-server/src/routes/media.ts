@@ -16,7 +16,7 @@
  * The media-lifecycle scheduler deletes them 7–14 days after the auction ends.
  */
 
-import { Router, type IRouter } from "express";
+import express, { Router, type IRouter } from "express";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import { supabaseAdmin } from "../lib/supabase";
@@ -155,5 +155,89 @@ router.post("/media/upload-url", requireAuth, async (req, res) => {
     expiresInSeconds: 3600,       // presigned URL is valid for 60 minutes
   });
 });
+
+// ─── POST /api/media/upload ───────────────────────────────────────────────────
+// Server-side upload proxy.  The client POSTs the raw file binary directly to
+// this endpoint (same origin as all other API calls) and the server uploads to
+// Supabase Storage using the service-role key — no cross-origin PUT to Supabase
+// ever leaves the client.  This eliminates the Supabase Storage CORS issue that
+// causes "Network error during upload" in Capacitor Android WebViews.
+//
+// Query params (required): fileType=video|image  mimeType=<mime>
+// Body: raw binary file bytes
+// Returns: { publicUrl, path }
+
+router.post(
+  "/media/upload",
+  requireAuth,
+  // express.raw() parses the raw binary body into req.body: Buffer
+  express.raw({ limit: "25mb", type: "*/*" }),
+  async (req, res) => {
+    const fileType = req.query["fileType"] as string | undefined;
+    const rawMime  = req.query["mimeType"] as string | undefined;
+    // Strip charset suffix (e.g. "video/mp4; codecs=…" → "video/mp4")
+    const mimeType = rawMime?.split(";")[0]?.trim() ?? "";
+
+    if (!fileType || !["video", "image"].includes(fileType)) {
+      res.status(400).json({ error: "VALIDATION_ERROR", message: "fileType must be 'video' or 'image'" });
+      return;
+    }
+
+    if (fileType === "video" && !ALLOWED_VIDEO_TYPES.has(mimeType)) {
+      res.status(400).json({
+        error: "INVALID_MIME_TYPE",
+        message: `Unsupported video type "${mimeType}". Allowed: mp4, mov, webm.`,
+        allowed: [...ALLOWED_VIDEO_TYPES],
+      });
+      return;
+    }
+
+    if (fileType === "image" && !ALLOWED_IMAGE_TYPES.has(mimeType)) {
+      res.status(400).json({
+        error: "INVALID_MIME_TYPE",
+        message: `Unsupported image type "${mimeType}". Allowed: jpeg, png, webp.`,
+        allowed: [...ALLOWED_IMAGE_TYPES],
+      });
+      return;
+    }
+
+    const body = req.body as Buffer;
+
+    if (!Buffer.isBuffer(body) || body.length === 0) {
+      res.status(400).json({ error: "EMPTY_BODY", message: "Request body is empty" });
+      return;
+    }
+
+    const maxBytes = fileType === "video" ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+    if (body.length > maxBytes) {
+      const maxMb = maxBytes / (1024 * 1024);
+      res.status(400).json({
+        error: "FILE_TOO_LARGE",
+        message: `${fileType === "video" ? "Video" : "Image"} must be smaller than ${maxMb} MB.`,
+        maxBytes,
+      });
+      return;
+    }
+
+    const userId = req.user!.id;
+    const ext = MIME_TO_EXT[mimeType] ?? (fileType === "video" ? "mp4" : "jpg");
+    const path = `pending/${userId}/${randomUUID()}.${ext}`;
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(BUCKET)
+      .upload(path, body, { contentType: mimeType, upsert: false });
+
+    if (uploadError) {
+      req.log.error({ err: uploadError.message, path }, "Server-side upload to Supabase failed");
+      res.status(500).json({ error: "UPLOAD_FAILED", message: "Upload failed. Please try again." });
+      return;
+    }
+
+    const { data: { publicUrl } } = supabaseAdmin.storage.from(BUCKET).getPublicUrl(path);
+
+    req.log.info({ userId, path, fileType, sizeBytes: body.length }, "POST /media/upload → file stored");
+    res.status(201).json({ publicUrl, path });
+  },
+);
 
 export default router;

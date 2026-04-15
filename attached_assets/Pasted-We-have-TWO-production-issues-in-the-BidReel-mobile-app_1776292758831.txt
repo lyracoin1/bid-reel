@@ -1,0 +1,119 @@
+We have TWO production issues in the BidReel mobile app (Android build). Both issues are still NOT fixed even after the latest git pull, rebuild, and deployment.
+
+Do NOT assume anything. Do NOT give generic advice. Trace the real root causes.
+
+-------------------------------------
+ISSUE 1 — "My Auctions" mismatch (STILL NOT FIXED)
+-------------------------------------
+
+Current behavior:
+
+- Profile header shows: Listings = 2
+- "My Auctions" tab is EMPTY
+- UI says: "You haven’t created any auctions yet"
+
+This issue was supposedly fixed by:
+- adding GET /api/auctions/mine
+- replacing global feed logic with seller-scoped query
+
+BUT the problem STILL exists after:
+- git pull origin main
+- rebuild
+- reinstall APK
+
+So something is still wrong.
+
+YOUR TASK FOR ISSUE 1:
+
+1. Verify that /api/auctions/mine is actually:
+   - deployed
+   - reachable from production
+   - returning correct data for the logged-in user
+
+2. Log the actual response of:
+   GET /api/auctions/mine
+
+3. Confirm:
+   - seller_id used matches auth user.id
+   - no RLS policy is blocking results
+   - status filter is correct (status != 'removed' only)
+
+4. Verify frontend:
+   - useMyAuctions() is actually being used (not old hook)
+   - no stale cache
+   - no fallback to empty array
+   - no filtering bug on client
+
+5. Check if:
+   - auctions exist but belong to different user_id
+   - or profiles.id != auth.users.id mismatch
+
+RETURN:
+- exact root cause
+- exact file causing mismatch
+- whether issue is backend / RLS / frontend / data inconsistency
+
+-------------------------------------
+ISSUE 2 — Upload fails on mobile
+-------------------------------------
+
+Error shown:
+"Network error during upload"
+
+Behavior:
+- happens when creating auction
+- happens on Android app
+- upload fails BEFORE auction is created
+
+YOUR TASK FOR ISSUE 2:
+
+Trace FULL upload pipeline:
+
+1. File handling on mobile:
+   - is it a valid File/Blob?
+   - is URI converted correctly?
+   - mime type correct?
+
+2. Upload request:
+   - exact URL
+   - method
+   - headers
+   - content-type
+   - auth token present?
+
+3. Storage target:
+   - Supabase Storage OR Cloudflare R2?
+   - bucket exists?
+   - permissions correct?
+   - signed URL valid?
+
+4. Mobile-specific issue:
+   - does upload work on web but fail on Android?
+   - check Capacitor WebView limitations
+
+5. Find exact error BEFORE it becomes:
+   "Network error during upload"
+
+Expose the REAL error.
+
+-------------------------------------
+OUTPUT FORMAT (STRICT)
+-------------------------------------
+
+Return ONLY:
+
+1. Issue 1 root cause
+2. Issue 1 exact fix
+3. Issue 2 root cause
+4. Issue 2 exact fix
+5. Files that must be changed
+6. Whether rebuild is required or not
+
+-------------------------------------
+IMPORTANT
+-------------------------------------
+
+- Do NOT suggest random fixes
+- Do NOT skip logs
+- Do NOT ignore mobile-specific behavior
+- These are real production issues, not dev assumptions

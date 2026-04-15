@@ -8,7 +8,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { useCreateAuction } from "@/hooks/use-auctions";
-import { getUploadUrlApi, uploadFileToStorage } from "@/lib/api-client";
+import { uploadMediaApi } from "@/lib/api-client";
 import { useLang } from "@/contexts/LanguageContext";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { cn } from "@/lib/utils";
@@ -110,19 +110,15 @@ interface GeoCoords {
   lng: number;
 }
 
-// ─── Upload a single file: get presigned URL → PUT to storage ─────────────────
+// ─── Upload a single file: POST to API server → server stores in Supabase ────
+// Using the server-proxy route eliminates the Supabase Storage CORS preflight
+// that fails on Android Capacitor WebViews ("Network error during upload").
 async function uploadFile(
   file: File,
   fileType: "video" | "image",
   onProgress?: (pct: number) => void,
 ): Promise<string> {
-  const { uploadUrl, publicUrl } = await getUploadUrlApi(
-    fileType,
-    file.type,
-    file.size,
-  );
-  await uploadFileToStorage(uploadUrl, file, onProgress);
-  return publicUrl;
+  return uploadMediaApi(file, fileType, onProgress);
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────

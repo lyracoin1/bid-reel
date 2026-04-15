@@ -250,7 +250,7 @@ router.get("/auctions", async (req, res) => {
 // thousands of auctions), and not subject to the global feed's PAGE_SIZE cap.
 
 router.get("/auctions/mine", requireAuth, async (req, res) => {
-  const userId = (req as unknown as { userId: string }).userId;
+  const userId = req.user!.id;
 
   const { data: auctions, error } = await supabaseAdmin
     .from("auctions")

@@ -144,8 +144,8 @@ export default function Login() {
       if (isNative()) {
         // On Capacitor (native Android/iOS): use skipBrowserRedirect so Supabase
         // returns the OAuth URL without navigating the WebView.  We then open the
-        // URL with window.open('_blank') which Capacitor routes to a Chrome Custom
-        // Tab (external browser), keeping the WebView alive on the React app.
+        // URL with @capacitor/browser (openInBrowser) which spawns a Chrome Custom
+        // Tab (external browser process), keeping the WebView alive on the React app.
         // When Google completes auth it redirects to com.bidreel.app://auth/callback
         // which Android routes back into the app via the intent filter in
         // AndroidManifest.xml, firing the appUrlOpen event that CapacitorOAuthHandler

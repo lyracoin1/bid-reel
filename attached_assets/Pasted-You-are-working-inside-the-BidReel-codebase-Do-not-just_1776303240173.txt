@@ -1,0 +1,93 @@
+You are working inside the BidReel codebase. Do not just inspect or verify. Do the full implementation work needed for Google Sign-In end to end inside the project, make the required code changes directly, and then give me a precise report of:
+
+1. what you changed,
+2. which files were changed,
+3. what still requires manual action from me outside the codebase,
+4. whether Android rebuild is required.
+
+Project context:
+
+* BidReel = short-video auction app, reels-first
+* Frontend: React + Vite
+* Backend/API: api-server + Vercel
+* Auth/DB: Supabase
+* Mobile: Capacitor Android
+* Android build: Android Studio + Gradle
+* GitHub is source of truth
+* Vercel deploys from GitHub
+
+Known current state:
+
+* Google auth flow was previously audited and the implementation chain already exists:
+
+  * Google sign-in launch
+  * skipBrowserRedirect flow
+  * Capacitor Browser / in-app browser handling
+  * deep link callback
+  * Android intent filter
+  * callback handler in app
+  * PKCE/session exchange
+  * auth state propagation/session sync
+* The Google login UI was intentionally hidden behind a feature flag.
+* I do NOT want diagnosis only.
+* I want execution.
+
+Your job:
+
+* Fully enable Google Sign-In in the codebase.
+* Remove or flip any feature flag that hides the Google login button.
+* Review the whole Google auth flow and fix any code-level issue you find.
+* Ensure Android Capacitor flow is production-safe:
+
+  * launch flow
+  * callback handling
+  * session persistence
+  * loading state cleanup
+  * cancel handling
+  * ensure profile/onboarding routing after success
+* Ensure web login is not broken while enabling mobile Google auth.
+* Ensure there is no dead code, broken condition, or hidden branch still disabling Google auth.
+* If any environment/config values are referenced in code, verify how they are consumed and make the code robust.
+* If any file related to login, auth callback, Capacitor app links, AndroidManifest, or Supabase client needs adjustment, do it.
+* Make all necessary code edits directly instead of telling me what to edit.
+
+Important working rules:
+
+* Do not stop at “looks correct”.
+* Do not just list blockers unless they are truly external/manual.
+* Apply the changes.
+* Keep changes minimal and clean.
+* Do not touch unrelated features.
+* Do not start working on auction upload, listings, or any other module.
+* Stay strictly focused on Google Sign-In.
+
+After finishing, respond with this exact structure:
+
+A. Code changes completed
+
+* bullet list of actual implemented changes
+
+B. Files changed
+
+* exact file paths
+
+C. Manual steps I must do myself
+
+* only steps that cannot be done from inside the repo
+* include exact values/placeholders I need to set in Supabase or Google Cloud if relevant
+
+D. Rebuild/deploy impact
+
+* does web need redeploy?
+* does Android need rebuild?
+* why?
+
+E. Final readiness verdict
+
+* “ready for manual config + rebuild”
+  or
+* “ready for test now”
+  or
+* “still blocked by external config”
+
+Make the changes now.

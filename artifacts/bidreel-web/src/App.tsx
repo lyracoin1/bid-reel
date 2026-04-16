@@ -162,7 +162,12 @@ function OAuthCallbackHandler() {
  */
 function CapacitorOAuthHandler() {
   const [, setWouterLocation] = useLocation();
-  const handled = useRef(false);
+  // Track the last URL we *started* processing to guard against the same URL
+  // being delivered twice (getLaunchUrl + appUrlOpen both firing for the same
+  // cold-start intent).  Using a URL string rather than a plain boolean means
+  // a NEW OAuth URL (second sign-in after sign-out) is always processed, not
+  // silently swallowed by a stale "already handled" flag.
+  const lastProcessedUrl = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isNative() || !supabase) return;
@@ -175,15 +180,15 @@ function CapacitorOAuthHandler() {
         console.log("[CapacitorOAuth] URL does not match scheme — ignoring");
         return;
       }
-      if (handled.current) {
-        console.log("[CapacitorOAuth] Already handled — ignoring duplicate call");
+      if (lastProcessedUrl.current === url) {
+        console.log("[CapacitorOAuth] Same URL already being processed — ignoring duplicate");
         return;
       }
       if (!supabase) {
         console.error("[CapacitorOAuth] Supabase client not available");
         return;
       }
-      handled.current = true;
+      lastProcessedUrl.current = url;
 
       // Dismiss the Chrome Custom Tab immediately so the user sees the app
       // (not a blank/loading Custom Tab) while the code exchange is in flight.
@@ -241,9 +246,9 @@ function CapacitorOAuthHandler() {
 
         if (!session) {
           console.error("[CapacitorOAuth] Could not establish session from deep link URL — no code and no tokens found");
-          // Reset so a retry is possible, then navigate back to login so the
-          // user gets visual feedback instead of being silently stuck.
-          handled.current = false;
+          // Navigate to login so the user gets visual feedback.
+          // The next Google sign-in attempt will have a different URL (new PKCE
+          // code), so the URL-based dedup guard won't block it.
           if (mounted) setWouterLocation("/login");
           return;
         }
@@ -281,7 +286,8 @@ function CapacitorOAuthHandler() {
         }
       } catch (err) {
         console.error("[CapacitorOAuth] Deep link processing error:", err);
-        handled.current = false;
+        // Unexpected error — navigate to login so the user is not frozen.
+        if (mounted) setWouterLocation("/login");
       }
     }
 

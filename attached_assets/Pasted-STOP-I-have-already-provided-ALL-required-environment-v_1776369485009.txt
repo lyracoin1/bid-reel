@@ -1,0 +1,131 @@
+STOP.
+
+I have already provided ALL required environment variables on Vercel.
+
+This is NOT an env issue.
+
+Production is STILL failing with:
+"API server failed to start. Verify that SUPABASE_URL, SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY are set"
+
+This message is misleading and WRONG.
+
+================================
+THE REAL PROBLEM
+================================
+
+The API is NOT starting at all on Vercel.
+
+This means one of the following is broken:
+
+1. /api/index.mjs entrypoint
+2. Import path to built API (dist)
+3. Export format not compatible with Vercel serverless
+4. Build output mismatch
+5. Server crashes at startup (possibly Firebase or env validation)
+
+================================
+WHAT YOU MUST DO
+================================
+
+You MUST trace the real runtime path and fix it.
+
+Do NOT assume env is missing.
+Do NOT ask me again for secrets.
+They are already set on Vercel.
+
+--------------------------------
+1. VERIFY API ENTRYPOINT
+--------------------------------
+
+Check:
+- /api/index.mjs exists at repo root
+- It correctly imports the built server
+
+Expected pattern:
+import serverless from "serverless-http"
+import app from "../artifacts/api-server/dist/index.mjs"
+
+export default serverless(app)
+
+If this is missing or incorrect → FIX IT.
+
+--------------------------------
+2. VERIFY BUILD OUTPUT
+--------------------------------
+
+Check:
+- artifacts/api-server/dist/index.mjs exists after build
+- The build actually outputs what index.mjs expects
+
+If mismatch → fix build or import path
+
+--------------------------------
+3. VERIFY SERVER EXPORT
+--------------------------------
+
+Inside the API server:
+
+- Ensure Express app is exported correctly
+- Ensure compatibility with serverless-http
+
+--------------------------------
+4. REMOVE HARD FAIL ON STARTUP
+--------------------------------
+
+The server MUST NOT crash if optional configs are missing.
+
+Specifically:
+- FIREBASE_SERVICE_ACCOUNT_JSON must NOT crash startup
+- Any env validation must be non-blocking OR give real error
+
+--------------------------------
+5. FIND THE REAL ERROR SOURCE
+--------------------------------
+
+Locate where this message is thrown:
+
+"API server failed to start..."
+
+Fix it so it reflects the real cause, not fake env error.
+
+--------------------------------
+6. ADD HEALTH CHECK
+--------------------------------
+
+Add endpoint:
+GET /api/health
+
+Return:
+{ status: "ok" }
+
+--------------------------------
+7. VERIFY ON VERCEL
+--------------------------------
+
+After fixing:
+- /api/health must respond
+- /api/users/me must respond
+- /api/admin/users must respond
+
+================================
+IMPORTANT RULES
+================================
+
+- DO NOT say "env missing"
+- DO NOT stop at analysis
+- DO NOT give partial fix
+- DO NOT ignore serverless behavior
+
+================================
+OUTPUT REQUIRED
+================================
+
+After fixing, report:
+
+1. Exact root cause
+2. Files changed
+3. Fixed entrypoint code
+4. Verified endpoints working
+5. Confirmation production is stable
+
+IMPLEMENT — do not explain only.

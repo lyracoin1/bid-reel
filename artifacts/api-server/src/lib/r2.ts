@@ -24,42 +24,93 @@ import {
 } from "@aws-sdk/client-s3";
 import { logger } from "./logger.js";
 
-// ─── Required environment variables ──────────────────────────────────────────
+// ─── Lazy environment loading ────────────────────────────────────────────────
+//
+// IMPORTANT: This module previously threw at import time when any R2_* env var
+// was missing. That made the *entire* API server fail to boot — including
+// routes that have nothing to do with R2 (e.g. /api/health, /api/auth/*,
+// /api/admin/users). On Vercel that surfaced as a confusing 503 from the
+// serverless wrapper which assumed Supabase was the missing config.
+//
+// We now defer validation until R2 is actually used. The exported constants
+// (R2_BUCKET, R2_PUBLIC_URL) fall back to empty strings, and r2Client is built
+// on first use via getR2Client(). Routes that do need R2 will throw a clear
+// error at request time; routes that don't need R2 keep working.
 
-function requireEnv(key: string): string {
-  const v = process.env[key];
-  if (!v || v.length === 0) {
-    throw new Error(
-      `Missing required environment variable "${key}". ` +
-      `Set it in Replit Secrets before starting the server.`,
-    );
-  }
-  return v;
+function readEnv(key: string): string {
+  return process.env[key] ?? "";
 }
 
-const R2_ACCOUNT_ID       = requireEnv("R2_ACCOUNT_ID");
-const R2_ACCESS_KEY_ID    = requireEnv("R2_ACCESS_KEY_ID");
-const R2_SECRET_KEY       = requireEnv("R2_SECRET_ACCESS_KEY");
-export const R2_BUCKET    = requireEnv("R2_BUCKET");
-const R2_PUBLIC_URL_RAW   = requireEnv("R2_PUBLIC_URL");
+const R2_ACCOUNT_ID       = readEnv("R2_ACCOUNT_ID");
+const R2_ACCESS_KEY_ID    = readEnv("R2_ACCESS_KEY_ID");
+const R2_SECRET_KEY       = readEnv("R2_SECRET_ACCESS_KEY");
+export const R2_BUCKET    = readEnv("R2_BUCKET");
+const R2_PUBLIC_URL_RAW   = readEnv("R2_PUBLIC_URL");
 
-/** Public base URL with any trailing slash stripped. */
+/** Public base URL with any trailing slash stripped (empty when not configured). */
 export const R2_PUBLIC_URL = R2_PUBLIC_URL_RAW.replace(/\/+$/, "");
 
-// ─── Client (singleton) ──────────────────────────────────────────────────────
+/** True when every R2 env var is present and non-empty. */
+function r2Configured(): boolean {
+  return Boolean(
+    R2_ACCOUNT_ID && R2_ACCESS_KEY_ID && R2_SECRET_KEY && R2_BUCKET && R2_PUBLIC_URL,
+  );
+}
 
-const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+function assertR2Configured(): void {
+  if (r2Configured()) return;
+  const missing = [
+    ["R2_ACCOUNT_ID", R2_ACCOUNT_ID],
+    ["R2_ACCESS_KEY_ID", R2_ACCESS_KEY_ID],
+    ["R2_SECRET_ACCESS_KEY", R2_SECRET_KEY],
+    ["R2_BUCKET", R2_BUCKET],
+    ["R2_PUBLIC_URL", R2_PUBLIC_URL],
+  ].filter(([, v]) => !v).map(([k]) => k);
+  throw new Error(
+    `Cloudflare R2 is not configured. Missing environment variable(s): ${missing.join(", ")}. ` +
+    `Set them in your hosting provider (Replit Secrets or Vercel Project → Environment Variables).`,
+  );
+}
 
-export const r2Client: S3Client = new S3Client({
-  region: "auto", // R2 ignores region but the SDK requires one
-  endpoint,
-  credentials: {
-    accessKeyId: R2_ACCESS_KEY_ID,
-    secretAccessKey: R2_SECRET_KEY,
+// ─── Client (lazy singleton) ─────────────────────────────────────────────────
+
+let _r2Client: S3Client | null = null;
+
+function getR2Client(): S3Client {
+  if (_r2Client) return _r2Client;
+  assertR2Configured();
+  const endpoint = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+  _r2Client = new S3Client({
+    region: "auto", // R2 ignores region but the SDK requires one
+    endpoint,
+    credentials: {
+      accessKeyId: R2_ACCESS_KEY_ID,
+      secretAccessKey: R2_SECRET_KEY,
+    },
+  });
+  logger.info({ endpoint, bucket: R2_BUCKET, publicUrl: R2_PUBLIC_URL }, "r2: client initialised");
+  return _r2Client;
+}
+
+/**
+ * Backwards-compatible export used by other modules that previously imported
+ * `r2Client` directly. Implemented as a lazy proxy — the SDK is only built
+ * (and env validated) the first time a method is invoked.
+ */
+export const r2Client: S3Client = new Proxy({} as S3Client, {
+  get(_t, prop) {
+    const client = getR2Client();
+    const value = (client as unknown as Record<PropertyKey, unknown>)[prop as PropertyKey];
+    return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(client) : value;
   },
 });
 
-logger.info({ endpoint, bucket: R2_BUCKET, publicUrl: R2_PUBLIC_URL }, "r2: client initialised");
+if (!r2Configured()) {
+  logger.warn(
+    "r2: not configured — R2-dependent routes (media uploads, video processing) will fail at request time. " +
+    "Other routes (auth, users, admin) remain operational.",
+  );
+}
 
 // ─── Public URL helpers ──────────────────────────────────────────────────────
 

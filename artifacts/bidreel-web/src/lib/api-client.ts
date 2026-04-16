@@ -651,6 +651,8 @@ export interface ApiUserProfile {
   avatarUrl: string | null;
   bio: string | null;
   location: string | null;
+  /** E.164 WhatsApp contact number. Only returned for the authenticated user's own profile. */
+  phone: string | null;
   auctionCount: number;
   totalLikesReceived: number;
   bidsPlacedCount: number;

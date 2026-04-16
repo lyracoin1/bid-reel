@@ -1,0 +1,121 @@
+Take this seriously. The create/profile/feed flow now shows multiple regressions and I do not want guesses. Inspect the real code, find the exact root cause for each issue, fix them properly, and verify them before stopping.
+
+Project:
+
+* BidReel
+* React + Vite
+* Express on Vercel serverless
+* Supabase
+* Cloudflare R2
+* Replit only for editing/push
+* GitHub is source of truth
+* Vercel is production
+
+Current issues to fix now:
+
+1. Profile phone number is not persisting
+   Problem:
+
+* I enter the phone number in the profile.
+* After leaving the profile screen and coming back, the phone field is empty again.
+* Because of this, the WhatsApp button problem continues.
+  What to do:
+* Trace the full profile phone flow end-to-end:
+
+  * profile form state
+  * save handler
+  * request payload
+  * API route
+  * validation
+  * DB update
+  * fetch/read-back mapping
+* Determine whether the bug is:
+
+  * field not sent from frontend
+  * field dropped in validation/schema
+  * field not updated in database
+  * field overwritten after save
+  * field not selected/read back from profile query
+  * session/profile refresh returning stale data
+* Fix it so phone is actually persisted in profiles.phone and survives navigation / refresh / logout-login.
+* After save, verify phone appears immediately and remains there after reopening profile.
+
+2. WhatsApp button still not working because seller phone is missing
+   Problem:
+
+* The direct WhatsApp button problem continues because seller phone is not being persisted/read correctly.
+  What to do:
+* After fixing phone persistence, verify seller.phone is selected and mapped correctly through:
+
+  * DB query
+  * API response
+  * frontend auction model
+  * auction card render
+* Confirm the WhatsApp button appears whenever seller.phone exists, including on the seller’s own post.
+* Confirm clicking the button opens the correct WhatsApp deep link.
+
+3. Missing visual spacing between seller section and the post content
+   Problem:
+
+* The space between the seller/publisher block and the post/listing content is not clear enough.
+  Required behavior:
+* There must be visually clear spacing and separation between:
+
+  * seller info block
+  * description/content block
+  * bid/history/other sections
+    What to do:
+* Audit the auction details layout and card spacing on mobile.
+* Fix margin/padding/section separation so the structure is visually obvious and clean.
+* Do not do random CSS. Fix the actual layout hierarchy.
+* Verify on Android/mobile viewport specifically.
+
+4. Create auction flow has become unstable / old bugs are coming back
+   Problem:
+
+* The create auction flow now feels broken again.
+* Previously solved issues seem to reappear.
+  This suggests regression, stale code path, duplicated logic, or inconsistent branches.
+  What to do:
+* Audit the create-auction flow end-to-end:
+
+  * form state
+  * validation
+  * media upload
+  * location handling
+  * duration handling
+  * profile completeness gate
+  * payload construction
+  * API create route
+* Check whether there are duplicated helpers, old code paths, inconsistent components, dead code, or multiple upload implementations fighting each other.
+* Check whether mobile-specific behavior differs from web.
+* Check whether any recent changes reintroduced previously fixed bugs.
+* Identify the exact regressions, not vague possibilities.
+
+5. Concurrency / bid modal error handling
+   Problem:
+
+* The screenshot shows: “Someone else just placed a bid — please refresh and try again”.
+  This may be valid concurrency handling, but confirm whether the current UX is correct and whether state refresh after conflict is working properly.
+  What to do:
+* Inspect the bid conflict flow.
+* If conflict happens, confirm the UI refreshes current price/state correctly after retry or after conflict.
+* Make sure the user is not left on stale price/state.
+* If needed, improve post-conflict refresh logic.
+
+Critical instruction:
+I suspect regression or stale/duplicated logic in the codebase. Audit for that explicitly.
+Do not stop after patching symptoms. Find why previously fixed behavior is re-breaking.
+
+Required output after implementation:
+
+1. Exact root cause of each issue
+2. Files changed
+3. What was fixed in each file
+4. Any regressions found and why they happened
+5. Exact manual test steps for me
+6. Final git status summary
+7. Tell me exactly when to run:
+   git push origin main
+
+Do not give theories. Inspect the real code and fix the real cause.

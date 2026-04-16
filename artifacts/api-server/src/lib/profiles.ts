@@ -4,7 +4,8 @@ import { supabaseAdmin } from "./supabase";
 
 /**
  * Own profile — returned to the authenticated user only.
- * Phone is intentionally excluded at every level.
+ * Includes phone so the profile-edit screen can prefill the user's own
+ * WhatsApp contact number. Phone is still stripped from PublicProfile.
  */
 export interface OwnProfile {
   id: string;
@@ -13,6 +14,7 @@ export interface OwnProfile {
   avatarUrl: string | null;
   bio: string | null;
   location: string | null;
+  phone: string | null;
   auctionCount: number;
   totalLikesReceived: number;
   bidsPlacedCount: number;
@@ -161,6 +163,7 @@ function toOwnProfile(row: ProfileRow, stats: Awaited<ReturnType<typeof fetchPro
     avatarUrl: row.avatar_url,
     bio: row.bio,
     location: row.location ?? null,
+    phone: row.phone ?? null,
     isAdmin: row.is_admin ?? false,
     isCompleted: isProfileComplete(row),
     createdAt: row.created_at,

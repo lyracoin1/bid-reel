@@ -108,7 +108,7 @@ export default function Interests() {
       setExistingAvatarUrl(cached.avatarUrl);
       setAvatarPreview(cached.avatarUrl);
     }
-    // phone is private and not returned in ApiUserProfile — user must re-enter it
+    if (cached.phone) setPhone(cached.phone);
   }, []);
 
   // ── Geolocation — request city name and auto-fill location field ──

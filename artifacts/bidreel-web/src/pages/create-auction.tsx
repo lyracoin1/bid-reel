@@ -277,9 +277,7 @@ export default function CreateAuction() {
     if (!user.displayName) missing.push("Display name");
     if (!user.avatarUrl)   missing.push("Profile photo");
     if (!user.location)    missing.push("Location");
-    // Phone is not returned by the API for privacy; if all above are present but
-    // isCompleted is still false, the missing field must be the phone number.
-    if (missing.length === 0) missing.push("WhatsApp phone number");
+    if (!user.phone)       missing.push("WhatsApp phone number");
 
     return (
       <MobileLayout>

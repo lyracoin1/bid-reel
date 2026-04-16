@@ -1,0 +1,157 @@
+You are a senior video infrastructure engineer.
+
+Your task is to design and implement a production-grade video upload, compression, and delivery pipeline for the BidReel platform.
+
+Do NOT skip anything. If something is missing, implement it or clearly state what is required.
+
+---
+
+# 🎯 GOAL
+
+Achieve TikTok-like performance:
+
+* Fast uploads
+* Small file sizes
+* Smooth playback
+* Mobile-first optimization
+* Scalable architecture
+
+---
+
+# 🔴 PHASE 1 — CLIENT-SIDE COMPRESSION (CRITICAL)
+
+Implement video compression BEFORE upload.
+
+Requirements:
+
+1. Use ffmpeg.wasm in the frontend (React + Vite)
+
+2. When user selects a video:
+
+   * Automatically compress it before upload
+
+3. Apply these constraints:
+
+   * Resolution: max 720p
+   * Video codec: H.264
+   * CRF: 26–30
+   * Bitrate target: ~1–1.5 Mbps
+   * Audio: AAC 96 kbps
+
+4. Show upload progress UI
+
+5. Reject:
+
+   * Files > 100MB (before compression)
+   * Unsupported formats
+
+---
+
+# 🔴 PHASE 2 — BACKEND VALIDATION
+
+In Express API:
+
+1. Validate:
+
+   * MIME type (mp4, mov, webm)
+   * Max size (20MB after compression)
+2. Reject invalid uploads
+3. Never trust client metadata
+
+---
+
+# 🔴 PHASE 3 — STORAGE (R2)
+
+Ensure:
+
+1. Upload path:
+   pending/{userId}/{uuid}.mp4
+
+2. No overwrite allowed
+
+3. Files are publicly readable but NOT writable
+
+4. Return public URL
+
+---
+
+# 🔴 PHASE 4 — OPTIONAL SERVER TRANSCODING (IF NEEDED)
+
+If client compression is not enough:
+
+1. Use FFmpeg server-side to:
+
+   * Normalize bitrate
+   * Normalize resolution
+2. Ensure CPU-safe processing (queue if needed)
+
+---
+
+# 🔴 PHASE 5 — STREAMING (ADVANCED)
+
+Prepare for HLS streaming:
+
+1. Generate:
+
+   * .m3u8 playlist
+   * segmented .ts files
+
+2. Segment length: ~4 seconds
+
+3. Store in R2
+
+4. Provide streaming URL
+
+---
+
+# 🔴 PHASE 6 — FRONTEND VIDEO PLAYER
+
+1. Use HTML5 video or HLS.js
+2. Enable:
+
+   * Autoplay
+   * Loop
+   * Muted start
+3. Optimize for vertical video
+
+---
+
+# 🔴 PHASE 7 — PERFORMANCE OPTIMIZATION
+
+1. Lazy load videos
+2. Preload next video (TikTok behavior)
+3. Cancel off-screen video loading
+
+---
+
+# 🔴 PHASE 8 — SECURITY
+
+1. Validate all uploads server-side
+2. Prevent arbitrary file uploads
+3. Enforce size limits strictly
+4. Sanitize file names
+
+---
+
+# 🔴 FINAL TASK
+
+After implementation:
+
+1. Provide:
+
+   * Code changes (frontend + backend)
+   * Any required packages
+   * Any environment variables needed
+
+2. Confirm:
+
+   * Upload is fast
+   * Video size reduced significantly
+   * Playback is smooth
+
+3. If ANY part is missing:
+
+   * Implement it
+   * Or clearly explain what is needed
+
+DO NOT leave partial work.

@@ -1,0 +1,164 @@
+Good. I understand your diagnosis for both issues.
+
+Now do NOT stop at the implementation summary. I want a full verification pass and regression audit around these fixes, because this project has recently suffered from repeated regressions and I do not want another “it should be fixed” answer without real validation.
+
+You already stated:
+
+1. Seller notification root cause:
+
+* executePlaceBid notified only the previous leading bidder
+* seller never received a notification
+* you added notifyNewBidReceived and wired it to auction.seller_id
+
+2. Phone persistence root cause:
+
+* the DB write path was fine
+* the interests/profile form was prefilled from a one-shot cached current user read
+* because cache hydration is async, the screen could mount with empty fields and look like the phone was never saved
+* you replaced this with a subscription-based prefill
+
+That is a reasonable diagnosis. Now I want you to continue and do the following before I treat this as complete:
+
+==================================================
+A) VERIFY THE SELLER NOTIFICATION END-TO-END
+============================================
+
+Do not stop at “helper added”.
+
+I want you to verify all layers:
+
+1. Bid succeeds
+2. Notification helper executes
+3. Notification row is inserted in DB
+4. Correct recipient = auction.seller_id
+5. Notification type = new_bid_received
+6. Notifications query/API returns it correctly
+7. Notification UI can display it
+8. Badge/unread count updates if applicable
+9. Push path is attempted correctly if FCM token exists
+
+Also verify:
+
+* seller does NOT receive a self-notification if seller somehow interacts with own auction
+* previous-leading-bidder outbid notification still works
+* adding seller notification did not break outbid notification
+
+I want you to explicitly confirm whether both of these now coexist correctly:
+
+* notifyOutbid(previous highest bidder)
+* notifyNewBidReceived(auction seller)
+
+==================================================
+B) VERIFY PHONE PERSISTENCE END-TO-END
+======================================
+
+Do not stop at “prefill subscription added”.
+
+I want you to verify the full loop with real code inspection and clear reasoning:
+
+1. User enters phone in profile/edit/onboarding form
+2. Save payload contains phone
+3. Backend accepts and writes phone to profiles.phone
+4. GET /api/users/me returns phone for the authenticated owner
+5. Frontend cache hydrates user.phone correctly
+6. Reopening the screen shows the same saved value
+7. Hard refresh still shows the value
+8. Logout/login still shows the value
+9. Phone is then available to create-auction completeness checks
+10. Phone reaches seller.phone where needed for WhatsApp behavior
+
+Also inspect whether there is any second screen or second form path that still uses stale one-shot prefilling or an outdated profile source. I do not want one screen fixed and another screen still broken.
+
+==================================================
+C) AUDIT FOR RELATED REGRESSIONS
+================================
+
+Because recent changes caused multiple regressions, I want you to audit nearby code paths for hidden breakage:
+
+1. Notifications
+
+* check notification type filters in API/UI
+* check notification text rendering
+* check unread/read behavior
+* check seller notification is not silently filtered out
+
+2. Profile state
+
+* check whether any screen clears current user cache without reliable re-hydration
+* check whether any other component still relies on getCachedCurrentUser() one-shot logic
+* check whether profile save response and cache update are consistent
+
+3. WhatsApp flow
+
+* check that the seller phone is available where the WhatsApp button needs it
+* check that the button appears for valid seller phone
+* check the generated wa.me link format is correct
+* check no owner-only conditional is still hiding it unintentionally
+
+==================================================
+D) REPORT WHAT IS STILL NOT FIXED
+=================================
+
+If anything is still not actually fixed, say so directly.
+
+Do not write “resolved” unless you are confident from the actual code path that it is resolved.
+
+If there are still open issues such as:
+
+* video upload / ffmpeg-core
+* bidder profile tap not responding
+* create-auction failing due to env/config
+* UI spacing/layout
+* duplicated conflict message
+  then list them clearly as still-open items instead of pretending everything is complete.
+
+==================================================
+E) OUTPUT FORMAT I WANT FROM YOU
+================================
+
+Reply with this exact structure:
+
+1. Seller notification
+
+* exact root cause
+* exact files changed
+* exact flow after fix
+* what you verified
+* what still needs manual confirmation
+
+2. Phone persistence
+
+* exact root cause
+* exact files changed
+* exact flow after fix
+* what you verified
+* what still needs manual confirmation
+
+3. Regression audit
+
+* any related stale paths still found
+* any risks still present
+* anything else nearby that should be cleaned now
+
+4. Remaining open issues
+
+* list every issue that is still not fixed yet
+* do not hide or skip anything
+
+5. Push readiness
+
+* tell me honestly whether I should push now
+* if yes, why
+* if no, what must be fixed first
+
+==================================================
+F) IMPORTANT RULES
+==================
+
+* Do not stop at implementation notes.
+* Do not give me “should now be fixed” unless you also explain why.
+* Do not mark a bug solved if you have not traced the actual read/write/display path.
+* Do not ignore remaining regressions just because two issues were patched.
+* Be strict, production-minded, and explicit.
+
+Continue from your current state and give me the full verification report.

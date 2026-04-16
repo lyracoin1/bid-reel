@@ -57,6 +57,14 @@ export default function AuctionDetail() {
       if (code === "BID_CONFLICT") {
         setIncInput("");
         void refetchAuction();
+        // The inline bid panel is now the only place the error is shown
+        // (we removed the duplicate in the sticky bar). If the user submitted
+        // from the sticky confirm CTA while scrolled to the bottom, the error
+        // would be off-screen — scroll the panel into view so the message is
+        // always discoverable.
+        requestAnimationFrame(() => {
+          bidPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
       }
     },
   });
@@ -540,12 +548,15 @@ export default function AuctionDetail() {
             )}
           </AnimatePresence>
 
-          {/* Winner banner */}
+          {/* Winner banner — tap to view winner's profile */}
           {winner && (
-            <motion.div
+            <motion.button
+              type="button"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 px-4 py-3"
+              onClick={() => setLocation(`/users/${winner.user.id}`)}
+              className="w-full text-left flex items-center gap-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 px-4 py-3 active:scale-[0.99] transition-transform"
+              aria-label={`View ${winner.user.name}'s profile`}
             >
               <Trophy size={20} className="text-amber-400 shrink-0" />
               <div className="flex-1 min-w-0">
@@ -553,17 +564,24 @@ export default function AuctionDetail() {
                 <p className="text-sm font-bold text-white leading-tight">{winner.user.name}</p>
               </div>
               <UserAvatar src={winner.user.avatar || null} name={winner.user.name} size={36} className="ring-2 ring-amber-500/40 shrink-0" />
-            </motion.div>
+            </motion.button>
           )}
 
           {/* Seller card + WhatsApp */}
           <div className="rounded-2xl bg-white/5 border border-white/8 overflow-hidden">
             <div className="flex items-center gap-3 p-4">
-              <UserAvatar src={auction.seller.avatar || null} name={auction.seller.name} size={44} className="ring-2 ring-white/10" />
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-white text-sm leading-none">{auction.seller.name}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{auction.seller.handle}</p>
-              </div>
+              <button
+                type="button"
+                onClick={() => setLocation(`/users/${auction.seller.id}`)}
+                className="flex items-center gap-3 flex-1 min-w-0 text-left active:scale-[0.99] transition-transform"
+                aria-label={`View ${auction.seller.name}'s profile`}
+              >
+                <UserAvatar src={auction.seller.avatar || null} name={auction.seller.name} size={44} className="ring-2 ring-white/10 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-white text-sm leading-none truncate">{auction.seller.name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{auction.seller.handle}</p>
+                </div>
+              </button>
               <motion.button
                 whileTap={{ scale: 0.9 }}
                 onClick={() => toggleFollow(auction.seller.id)}
@@ -619,19 +637,25 @@ export default function AuctionDetail() {
           <div>
             <h3 className="text-sm font-bold text-white/60 uppercase tracking-widest mb-3">{t("bid_history")}</h3>
             {auction.bids.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-1">
                 {auction.bids.map((bid, i) => (
-                  <div key={bid.id} className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    key={bid.id}
+                    onClick={() => setLocation(`/users/${bid.user.id}`)}
+                    className="w-full flex items-center gap-3 py-2 px-1 -mx-1 rounded-xl text-left active:bg-white/5 active:scale-[0.99] transition"
+                    aria-label={`View ${bid.user.name}'s profile`}
+                  >
                     <UserAvatar src={bid.user.avatar || null} name={bid.user.name} size={36} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white leading-none">{bid.user.name}</p>
+                      <p className="text-sm font-semibold text-white leading-none truncate">{bid.user.name}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {bid.timestamp && new Date(bid.timestamp).getFullYear() > 2000
                           ? `${formatDistanceToNow(new Date(bid.timestamp))} ago`
                           : "recently"}
                       </p>
                     </div>
-                    <div className="flex flex-col items-end gap-0.5">
+                    <div className="flex flex-col items-end gap-0.5 shrink-0">
                       <span className="text-sm font-bold text-white">{fmtPrice(bid.amount)}</span>
                       {i === 0 && state === "active" && (
                         <span className="text-[10px] font-bold text-primary uppercase tracking-wide">{t("leading")}</span>
@@ -640,7 +664,7 @@ export default function AuctionDetail() {
                         <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wide">{t("winner")}</span>
                       )}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             ) : (
@@ -735,17 +759,10 @@ export default function AuctionDetail() {
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="space-y-2"
               >
-                {bidError && (
-                  <motion.p
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-xs text-red-400 text-center font-medium"
-                  >
-                    ⚠ {bidError}
-                  </motion.p>
-                )}
+                {/* Bid error is rendered inline in the numeric input panel
+                    above (search for bidError near the input) — do NOT also
+                    render it here, or the user sees two identical banners. */}
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={handleScrollToBid}

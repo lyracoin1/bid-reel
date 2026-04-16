@@ -1,0 +1,127 @@
+Take this seriously. We still have multiple production regressions at the same time. Do not stop at partial fixes and do not ask broad clarification questions. Use the screenshots and current codebase state, inspect the real code paths, find the exact root cause of each issue, fix them, and verify them.
+
+Project:
+
+* BidReel
+* React + Vite
+* Express on Vercel serverless
+* Supabase
+* Cloudflare R2
+* Replit only for editing/push
+* GitHub is source of truth
+* Vercel is production
+
+Current issues to fix now:
+
+1. Auctions are not getting created/published correctly
+   Symptoms:
+
+* The create screen still fails.
+* UI/state feels inconsistent.
+* There is a report like “there are 3 bids” while the actual auction/listing flow is not behaving correctly.
+  What to do:
+* Audit the full create-auction flow end-to-end:
+
+  * form state
+  * validation
+  * media preprocessing
+  * upload step
+  * payload construction
+  * create-auction API request
+  * backend insert
+  * post-create navigation/cache refresh
+* Check whether auction creation succeeds in DB but UI fails afterward, or whether DB insert never happens.
+* Add exact logging / error surfacing for the create step so the real failing step is visible.
+
+2. Video upload/compression is still broken
+   Confirmed symptom from screenshot:
+
+* Error: failed to import ffmpeg-core.js
+  What to do:
+* Inspect the current ffmpeg.wasm integration on mobile/web.
+* Find exactly why ffmpeg-core.js import is failing in production/mobile.
+* Fix it properly.
+* If browser-side ffmpeg is not production-safe for Android WebView / Capacitor in the current setup, do not leave the flow broken.
+* Implement a safe fallback path so video upload still works when ffmpeg cannot load.
+* The fallback must be explicit and organized, not a hidden broken path.
+* Preserve a clean unified upload API in the client.
+
+3. Bidder profile tap does nothing
+   Symptom:
+
+* When pressing to view the bidder’s profile, nothing responds.
+  What to do:
+* Trace the click/navigation flow from bid history / seller/bidder UI to profile route.
+* Check whether:
+
+  * onClick is missing
+  * element is blocked by overlay/z-index
+  * navigation path is wrong
+  * route exists but params are wrong
+  * profile fetch fails silently
+* Fix it so tapping a bidder/seller profile consistently opens the correct profile screen.
+
+4. WhatsApp phone still does not persist reliably
+   Symptom:
+
+* The dedicated WhatsApp/phone number still does not remain saved reliably.
+  What to do:
+* Re-check the full persistence loop:
+
+  * form state
+  * save request payload
+  * backend validation/schema
+  * DB write
+  * GET /api/users/me response
+  * client cache hydration
+  * reopening profile screen
+* Determine whether the issue is:
+
+  * not saved
+  * saved then overwritten
+  * saved but not returned
+  * returned but ignored by frontend
+* Verify persistence across:
+
+  * leaving/reopening profile
+  * full refresh
+  * logout/login
+
+5. Bid conflict UI still looks broken / duplicated
+   Symptom:
+
+* “Someone else just placed a bid — please refresh and try again” appears awkwardly and can show duplicated/messy layout.
+  What to do:
+* Re-check the conflict flow after recent fixes.
+* Ensure:
+
+  * current bid refreshes immediately
+  * input resets correctly
+  * error appears once in the correct place
+  * no duplicated banners / stale state remain
+
+6. Investigate regression cause, not just symptoms
+   I suspect stale code paths, cache inconsistency, or multiple competing flows.
+   Audit explicitly for:
+
+* duplicated create-auction logic
+* stale upload helpers
+* stale cached user/profile data
+* route mismatch between mobile and web
+* old fallback logic still executing
+* broken lazy-load / asset path for ffmpeg-core.js
+* UI showing stale counts or stale auction state
+
+Required output after implementation:
+
+1. Exact root cause of each issue
+2. Files changed
+3. What was fixed in each file
+4. Whether ffmpeg/browser compression remains in use or a fallback was added
+5. Whether auction creation now succeeds end-to-end
+6. Whether phone persistence is fully verified
+7. Manual test steps for me
+8. Exact moment when I should run:
+   git push origin main
+
+Do not give theories. Inspect the real failing code paths and fix the real causes.

@@ -85,21 +85,24 @@ export default function Profile() {
     setLocation("/login");
   }
 
-  // Completeness — backend requires 5 fields (username, display_name, phone, avatar_url, location).
-  // Phone is private so not in ApiUserProfile; we infer it from user.isCompleted:
-  // if all 4 visible fields are set but isCompleted is still false → phone is missing.
-  const allVisibleSet = !!user?.avatarUrl && !!user?.username && !!user?.displayName && !!user?.location;
-  const phoneIsMissing = allVisibleSet && user?.isCompleted === false;
+  // Completeness — backend requires 5 fields (username, display_name, phone,
+  // avatar_url, location). `phone` is now returned on ApiUserProfile for the
+  // authenticated user's own profile, so we check it directly instead of
+  // inferring it from the server-side `isCompleted` flag (which used to be
+  // the only signal but would get out of sync with client state).
   const completenessFields = [
-    { key: "avatar",   label: t("profile_photo_label"),   done: !!user?.avatarUrl },
-    { key: "username", label: t("username_label"),         done: !!user?.username },
-    { key: "name",     label: t("display_name_label"),     done: !!user?.displayName },
-    { key: "location", label: t("location_label"),         done: !!user?.location },
-    ...(phoneIsMissing ? [{ key: "phone", label: t("phone_required_label"), done: false }] : []),
+    { key: "avatar",   label: t("profile_photo_label"),  done: !!user?.avatarUrl },
+    { key: "username", label: t("username_label"),        done: !!user?.username },
+    { key: "name",     label: t("display_name_label"),    done: !!user?.displayName },
+    { key: "location", label: t("location_label"),        done: !!user?.location },
+    { key: "phone",    label: t("phone_required_label"), done: !!user?.phone },
   ];
   const completedCount = completenessFields.filter(f => f.done).length;
-  // Use server's isCompleted as the definitive ground truth for 100%
-  const completePct    = !user ? 0 : user.isCompleted ? 100 : Math.round((completedCount / completenessFields.length) * 100);
+  // Drive the progress ring purely off the visible fields. Legacy rows where
+  // the server-side `isCompleted` flag is stale (e.g. phone removed after
+  // account creation) must still surface the missing field — gating 100%
+  // on the field count is the only source of truth the user can act on.
+  const completePct    = !user ? 0 : Math.round((completedCount / completenessFields.length) * 100);
   const missingFields  = completenessFields.filter(f => !f.done);
 
   return (

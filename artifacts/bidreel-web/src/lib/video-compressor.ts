@@ -20,8 +20,23 @@ import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
 // CDN base for the single-threaded UMD core. Pinned to a known-good version.
-const FFMPEG_CORE_VERSION = "0.12.10";
-const CORE_BASE = `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/umd`;
+// unpkg is the primary; jsDelivr is a fallback in case unpkg is blocked on the
+// user's network (e.g. mobile WebView on restrictive carriers).
+const FFMPEG_CORE_VERSION = "0.12.6";
+const CORE_CDNS = [
+  `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/umd`,
+  `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/umd`,
+];
+
+/** Thrown when ffmpeg.wasm fails to load from every CDN. Callers can catch
+ *  this to fall back to raw upload without compression. */
+export class FFmpegLoadError extends Error {
+  readonly code = "FFMPEG_LOAD_FAILED";
+  constructor(message: string, public readonly lastCause?: unknown) {
+    super(message);
+    this.name = "FFmpegLoadError";
+  }
+}
 
 // ─── Singleton FFmpeg instance — load once, reuse across uploads ─────────────
 
@@ -37,22 +52,39 @@ async function getFFmpeg(): Promise<FFmpeg> {
 
     // Mirror the core + wasm into Blob URLs so the worker can `importScripts`
     // them under the page's own origin (works around any cross-origin worker
-    // restrictions in mobile WebViews).
-    const [coreURL, wasmURL] = await Promise.all([
-      toBlobURL(`${CORE_BASE}/ffmpeg-core.js`,   "text/javascript"),
-      toBlobURL(`${CORE_BASE}/ffmpeg-core.wasm`, "application/wasm"),
-    ]);
-
-    await ff.load({ coreURL, wasmURL });
-    ffmpegInstance = ff;
-    return ff;
+    // restrictions in mobile WebViews). Try each CDN in order — if one is
+    // blocked / down, move to the next.
+    let lastErr: unknown = null;
+    for (const base of CORE_CDNS) {
+      try {
+        const [coreURL, wasmURL] = await Promise.all([
+          toBlobURL(`${base}/ffmpeg-core.js`,   "text/javascript"),
+          toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
+        ]);
+        await ff.load({ coreURL, wasmURL });
+        ffmpegInstance = ff;
+        console.log(`[video-compressor] ✅ ffmpeg core loaded from ${base}`);
+        return ff;
+      } catch (err) {
+        console.warn(`[video-compressor] ⚠️ ffmpeg core load failed from ${base}:`, err);
+        lastErr = err;
+      }
+    }
+    throw new FFmpegLoadError(
+      `Failed to load ffmpeg core from any CDN (${CORE_CDNS.join(", ")})`,
+      lastErr,
+    );
   })();
 
   try {
     return await loadingPromise;
   } catch (err) {
     loadingPromise = null; // allow retry on next call
-    throw err;
+    if (err instanceof FFmpegLoadError) throw err;
+    throw new FFmpegLoadError(
+      err instanceof Error ? err.message : "ffmpeg core initialisation failed",
+      err,
+    );
   }
 }
 

@@ -16,7 +16,7 @@ import {
   uploadMedia,
   compressListingImage,
   compressListingThumbnail,
-  compressVideo,
+  compressVideoWithFallback,
   preloadFFmpeg,
   MAX_RAW_INPUT_BYTES,
   PresignedUploadError,
@@ -332,11 +332,15 @@ export default function CreateAuction() {
           return;
         }
 
-        // ── 1. Compress in-browser with ffmpeg.wasm before upload ────────
+        // ── 1. Try to compress in-browser. If ffmpeg.wasm can't load
+        //      (blocked CDN, mobile WebView, etc.) AND the raw file already
+        //      fits the 20 MB server cap, fall back to the original file so
+        //      the user can still publish. The UI tells them compression
+        //      was skipped instead of failing silently.
         setUploadProgress(lang === "ar" ? "جارٍ تجهيز الفيديو…" : "Preparing video…");
-        let result: Awaited<ReturnType<typeof compressVideo>>;
+        let result: Awaited<ReturnType<typeof compressVideoWithFallback>>;
         try {
-          result = await compressVideo(videoFile, {
+          result = await compressVideoWithFallback(videoFile, {
             onProgress: (pct) => {
               setUploadProgress(lang === "ar"
                 ? `جارٍ ضغط الفيديو… ${pct}%`
@@ -350,17 +354,23 @@ export default function CreateAuction() {
         }
 
         const origMb = (result.originalBytes / 1024 / 1024).toFixed(1);
-        const compMb = (result.compressedBytes / 1024 / 1024).toFixed(1);
+        const outMb  = (result.outputBytes   / 1024 / 1024).toFixed(1);
         console.log(
-          `[create-auction] ✅ Compressed video: ${origMb} MB → ${compMb} MB ` +
-          `in ${(result.durationMs / 1000).toFixed(1)}s`,
+          `[create-auction] ${result.compressed ? "✅ Compressed" : "⚠️ Skipped compression"} ` +
+          `video: ${origMb} MB → ${outMb} MB in ${(result.durationMs / 1000).toFixed(1)}s` +
+          (result.fallbackReason ? ` (reason=${result.fallbackReason})` : ""),
         );
 
-        // ── 2. Upload the compressed file ────────────────────────────────
-        setUploadProgress(lang === "ar" ? "جارٍ رفع الفيديو…" : "Uploading video…");
+        // ── 2. Upload the resulting file (compressed or raw) ─────────────
+        const uploadLabel = result.compressed
+          ? (lang === "ar" ? "جارٍ رفع الفيديو…" : "Uploading video…")
+          : (lang === "ar"
+              ? "تعذّر الضغط — جارٍ رفع الفيديو الأصلي…"
+              : "Compression unavailable — uploading original video…");
+        setUploadProgress(uploadLabel);
         try {
           videoUrl = await uploadMedia(result.file, "video", pct => {
-            setUploadProgress(lang === "ar" ? `جارٍ رفع الفيديو… ${pct}%` : `Uploading video… ${pct}%`);
+            setUploadProgress(`${uploadLabel} ${pct}%`);
           });
         } catch (err) {
           setUploadProgress(null);

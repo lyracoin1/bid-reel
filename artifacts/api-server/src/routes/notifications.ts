@@ -32,7 +32,7 @@ router.get("/notifications", async (req, res) => {
 
   if (error) {
     logger.error({ err: error }, "GET /notifications failed");
-    res.status(500).json({ error: "FETCH_FAILED", message: error.message });
+    res.status(500).json({ error: "FETCH_FAILED", message: "Could not load notifications. Please try again." });
     return;
   }
 
@@ -57,7 +57,7 @@ router.post("/notifications/read-all", async (req, res) => {
 
   if (error) {
     logger.error({ err: error }, "POST /notifications/read-all failed");
-    res.status(500).json({ error: "UPDATE_FAILED", message: error.message });
+    res.status(500).json({ error: "UPDATE_FAILED", message: "Could not mark notifications as read." });
     return;
   }
 
@@ -78,7 +78,7 @@ router.post("/notifications/:id/read", async (req, res) => {
 
   if (error) {
     logger.error({ err: error }, "POST /notifications/:id/read failed");
-    res.status(500).json({ error: "UPDATE_FAILED", message: error.message });
+    res.status(500).json({ error: "UPDATE_FAILED", message: "Could not mark notification as read." });
     return;
   }
 
@@ -127,7 +127,7 @@ router.post("/notifications/register-device", async (req, res) => {
       return;
     }
     logger.error({ err: error }, "POST /notifications/register-device failed");
-    res.status(500).json({ error: "UPSERT_FAILED", message: error.message });
+    res.status(500).json({ error: "UPSERT_FAILED", message: "Could not register device." });
     return;
   }
 
@@ -164,7 +164,7 @@ router.delete("/notifications/unregister-device", async (req, res) => {
 
   if (error) {
     logger.error({ err: error }, "DELETE /notifications/unregister-device failed");
-    res.status(500).json({ error: "DELETE_FAILED", message: error.message });
+    res.status(500).json({ error: "DELETE_FAILED", message: "Could not unregister device." });
     return;
   }
 

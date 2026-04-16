@@ -1,0 +1,209 @@
+You are a senior full-stack security engineer.
+Your task is to perform a complete security hardening and audit of the BidReel project.
+Do NOT skip any point. Treat this as production-critical.
+
+## Context
+
+* Frontend: React + Vite
+* Backend: Express (Vercel serverless)
+* Auth & DB: Supabase
+* Storage: Cloudflare R2
+* Deployment: Vercel
+
+The system is already live and functional. We are now performing a full security audit based on manual testing using OWASP ZAP.
+
+---
+
+# 🔴 PRIORITY 1: Supabase RLS (CRITICAL)
+
+Audit ALL tables and enforce strict Row Level Security.
+
+For each table:
+
+* profiles
+* auctions
+* bids
+* notifications
+* saved_auctions
+* user_follows
+
+Do the following:
+
+1. Ensure RLS is ENABLED on every table.
+2. Remove ANY policy that contains:
+
+   * USING (true)
+   * WITH CHECK (true)
+3. Replace with strict ownership rules:
+
+Examples:
+
+profiles:
+
+* SELECT: auth.uid() = id
+* UPDATE: auth.uid() = id
+
+auctions:
+
+* SELECT: public if intended, otherwise restrict
+* INSERT: auth.uid() = seller_id
+* UPDATE: auth.uid() = seller_id
+* DELETE: auth.uid() = seller_id
+
+bids:
+
+* INSERT: auth.uid() = user_id
+* SELECT: restrict if needed
+* NEVER allow arbitrary insert without ownership
+
+4. Verify no user can read or modify another user's data.
+
+---
+
+# 🔴 PRIORITY 2: API AUTH & PERMISSIONS
+
+Audit all backend routes:
+
+* /api/auth
+* /api/users
+* /api/auctions
+* /api/bids
+* /api/notifications
+
+Enforce:
+
+1. Every protected route MUST:
+
+   * Require valid Authorization: Bearer token
+   * Reject missing or invalid tokens (401/403)
+
+2. NEVER trust frontend input:
+
+   * Do NOT accept userId from client
+   * Always derive user identity from token
+
+3. Add centralized auth middleware:
+
+   * Validate token
+   * Attach user to request
+
+4. Prevent IDOR:
+
+   * Any resource access must verify ownership
+   * Example: user can only access their own auctions/bids
+
+---
+
+# 🔴 PRIORITY 3: INPUT VALIDATION & LOGIC
+
+Audit all inputs:
+
+* bids
+* auction creation
+* profile updates
+
+Enforce:
+
+1. Validate all numeric inputs:
+
+   * bid must be > 0
+   * enforce min_increment
+   * prevent negative or extreme values
+
+2. Server MUST compute:
+
+   * current_price = current_price + increment
+   * NEVER trust client-sent totals
+
+3. Prevent race conditions:
+
+   * ensure atomic updates
+   * reject outdated bid attempts
+
+---
+
+# 🔴 PRIORITY 4: XSS & OUTPUT SANITIZATION
+
+Fix all potential XSS vectors:
+
+1. Sanitize all user-generated content:
+
+   * usernames
+   * display_name
+   * auction titles/descriptions
+
+2. Use DOMPurify or equivalent
+
+3. Ensure no raw HTML rendering from user input
+
+---
+
+# 🔴 PRIORITY 5: SECURITY HEADERS (VERCEL)
+
+Add headers globally:
+
+* Content-Security-Policy
+* X-Frame-Options: DENY
+* X-Content-Type-Options: nosniff
+* Referrer-Policy
+* Strict-Transport-Security
+
+Ensure CSP blocks inline scripts unless explicitly needed.
+
+---
+
+# 🔴 PRIORITY 6: JWT HANDLING
+
+1. Do NOT expose tokens unnecessarily
+2. Prefer secure storage strategy
+3. Ensure tokens are validated on every request
+4. Reject expired tokens properly
+
+---
+
+# 🔴 PRIORITY 7: CORS
+
+1. Restrict allowed origins:
+
+   * only production domain + localhost
+2. Do NOT allow "*"
+3. Handle preflight correctly
+
+---
+
+# 🔴 PRIORITY 8: STORAGE (R2 / UPLOADS)
+
+1. Validate file types
+2. Enforce size limits
+3. Prevent arbitrary file upload
+4. Ensure no public write access
+
+---
+
+# 🔴 PRIORITY 9: REMOVE DEBUG / LEAKS
+
+1. Remove console logs with sensitive data
+2. Ensure no tokens in responses
+3. Ensure no stack traces in production
+
+---
+
+# 🔴 FINAL TASK
+
+After applying all fixes:
+
+1. Re-audit all endpoints
+
+2. Confirm:
+
+   * no open access
+   * no IDOR
+   * no unsafe input handling
+
+3. Provide a summary:
+
+   * What was fixed
+   * What risks were eliminated
+   * Any remaining concerns
+
+DO NOT skip anything. Treat this as a full production security lockdown.

@@ -1,10 +1,48 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
+
+// ─── Security headers (helmet) ────────────────────────────────────────────────
+//
+// This is an API server — never serves HTML — so a permissive CSP that only
+// allows JSON responses is fine.  The strict headers below close every finding
+// commonly raised by OWASP ZAP for an API surface:
+//
+//   • Strict-Transport-Security  — force HTTPS for 1 year incl. subdomains
+//   • X-Content-Type-Options      — block MIME-sniffing
+//   • X-Frame-Options: DENY       — block clickjacking
+//   • Referrer-Policy             — never leak the API URL via Referer
+//   • Cross-Origin-Resource-Policy: cross-origin — explicit (we are a CORS API)
+//   • Origin-Agent-Cluster        — opt-in to tighter process isolation
+//
+// CSP is set to a minimal policy ("default-src 'none'") because the API only
+// returns JSON — no HTML, no scripts, no images.  This means any reflected
+// XSS attempt that somehow returned text/html would be neutralised by the
+// browser refusing to execute anything.  The frontend (bidreel-web /
+// bidreel-admin) sets its own CSP via Vercel headers — see vercel.json.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        "default-src": ["'none'"],
+        "frame-ancestors": ["'none'"],
+      },
+    },
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    strictTransportSecurity: {
+      maxAge: 31536000,        // 1 year
+      includeSubDomains: true,
+      preload: true,
+    },
+    referrerPolicy: { policy: "no-referrer" },
+  }),
+);
 
 app.use(
   pinoHttp({

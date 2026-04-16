@@ -82,7 +82,6 @@ export async function getToken(): Promise<string | null> {
   const stored = getValidSessionToken();
   if (stored) {
     cachedToken = stored;
-    console.log("[auth] ✅ session restored from localStorage");
     return cachedToken;
   }
 
@@ -95,7 +94,6 @@ export async function getToken(): Promise<string | null> {
       if (session?.access_token) {
         cachedToken = session.access_token;
         setSessionToken(session.access_token);
-        console.log("[auth] ✅ session restored via Supabase token refresh");
         return cachedToken;
       }
     } catch {

@@ -133,7 +133,7 @@ router.get("/auctions", async (req, res) => {
 
   if (error) {
     logger.error({ err: error }, "GET /auctions failed");
-    res.status(500).json({ error: "FETCH_FAILED", message: error.message });
+    res.status(500).json({ error: "FETCH_FAILED", message: "Could not load auctions. Please try again." });
     return;
   }
 
@@ -261,7 +261,7 @@ router.get("/auctions/mine", requireAuth, async (req, res) => {
 
   if (error) {
     logger.error({ err: error }, "GET /auctions/mine failed");
-    res.status(500).json({ error: "FETCH_FAILED", message: error.message });
+    res.status(500).json({ error: "FETCH_FAILED", message: "Could not load your auctions. Please try again." });
     return;
   }
 

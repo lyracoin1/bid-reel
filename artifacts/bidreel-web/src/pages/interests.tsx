@@ -8,9 +8,8 @@ import {
   updateProfileApi,
   checkUsernameApi,
   UsernameTakenError,
-  getUploadUrlApi,
-  uploadFileToStorage,
 } from "@/lib/api-client";
+import { uploadMedia, compressAvatar } from "@/lib/media-upload";
 import { reverseGeocodeCity } from "@/lib/geo";
 import { clearCurrentUserCache, getCachedCurrentUser } from "@/hooks/use-current-user";
 
@@ -274,13 +273,8 @@ export default function Interests() {
       let avatarUrl: string | undefined;
 
       if (avatarFile) {
-        const { uploadUrl, publicUrl } = await getUploadUrlApi(
-          "image",
-          avatarFile.type,
-          avatarFile.size,
-        );
-        await uploadFileToStorage(uploadUrl, avatarFile);
-        avatarUrl = publicUrl;
+        const compressed = await compressAvatar(avatarFile);
+        avatarUrl = await uploadMedia(compressed, "image");
       }
 
       await updateProfileApi({

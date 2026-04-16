@@ -1,12 +1,12 @@
 /**
  * Media upload routes — Cloudflare R2 backend.
  *
- * POST /api/media/upload      — server-side proxy upload (raw binary body)
- * POST /api/media/upload-url  — (deprecated) was used to generate a Supabase
- *                               presigned URL.  R2 also supports presigned PUT
- *                               URLs but the proxy route covers all real-world
- *                               clients (web + Capacitor Android), so this
- *                               endpoint now returns 410 Gone.
+ * POST /api/media/upload          — server-side proxy upload (raw binary body).
+ *                                    Used as a fallback for small files when
+ *                                    the presigned direct-to-R2 path fails.
+ * POST /api/media/presign-upload  — issue a short-lived presigned PUT URL so
+ *                                    the client can bypass Vercel's ~4.5 MB
+ *                                    serverless body cap.
  *
  * Files land in R2 under:
  *   pending/{userId}/{uuid}.{ext}
@@ -234,14 +234,6 @@ router.post("/media/presign-upload", requireAuth, express.json(), async (req, re
       detail,
     });
   }
-});
-
-// ─── POST /api/media/upload-url (deprecated) ─────────────────────────────────
-router.post("/media/upload-url", requireAuth, (_req, res) => {
-  res.status(410).json({
-    error: "GONE",
-    message: "Use POST /api/media/presign-upload instead.",
-  });
 });
 
 export default router;

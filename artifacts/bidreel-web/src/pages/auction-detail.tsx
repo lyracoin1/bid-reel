@@ -193,7 +193,7 @@ export default function AuctionDetail() {
     <MobileLayout showNav noPadding>
       <div
         ref={scrollRef}
-        className="relative w-full min-h-[100dvh] bg-background pb-32 overflow-y-auto"
+        className="relative w-full min-h-[100dvh] bg-background pb-[200px] overflow-y-auto"
       >
 
         {/* ── Pull-to-refresh indicator ── */}
@@ -294,7 +294,7 @@ export default function AuctionDetail() {
         </div>
 
         {/* ── Content ── */}
-        <div className="px-5 -mt-6 relative z-10 space-y-5">
+        <div className="px-5 -mt-6 relative z-10 space-y-6">
 
           {/* Timer + bids row */}
           <div className="flex items-center justify-between">

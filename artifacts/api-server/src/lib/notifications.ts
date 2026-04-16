@@ -11,10 +11,11 @@
  *   id, user_id, type, message, auction_id, actor_id, read, created_at
  *
  * Wiring status:
- *   notifyOutbid          — ✅ WIRED  (routes/auctions.ts, both bid endpoints)
- *   notifyNewFollower     — ✅ WIRED  (routes/follows.ts, POST follow)
- *   notifyAuctionStarted  — ✅ WIRED  (routes/auctions.ts, POST /api/auctions)
- *   notifyAuctionWon      — ✅ WIRED  (lib/auction-lifecycle.ts, expireAuctions loop)
+ *   notifyOutbid            — ✅ WIRED  (routes/auctions.ts, both bid endpoints)
+ *   notifyNewBidReceived    — ✅ WIRED  (routes/auctions.ts, executePlaceBid)
+ *   notifyNewFollower       — ✅ WIRED  (routes/follows.ts, POST follow)
+ *   notifyAuctionStarted    — ✅ WIRED  (routes/auctions.ts, POST /api/auctions)
+ *   notifyAuctionWon        — ✅ WIRED  (lib/auction-lifecycle.ts, expireAuctions loop)
  *   notifyAuctionEndingSoon — ⏳ READY (not wired — requires scheduler, phase 2)
  *
  * All functions are non-throwing — they log errors but never bubble them up.
@@ -155,6 +156,40 @@ export async function notifyOutbid(
       title: "You've been outbid! 🔴",
       body: `${message} — bid again now!`,
       data: { auctionId, type: "outbid" },
+    },
+  });
+}
+
+/**
+ * Notify the seller that someone placed a new bid on their auction.
+ * WIRED: routes/auctions.ts → executePlaceBid (after optimistic-lock succeeds)
+ *
+ * The bidder is guaranteed != seller (enforced upstream by the
+ * SELLER_CANNOT_BID check in executePlaceBid step 4), so this never
+ * notifies the seller about their own bid.
+ */
+export async function notifyNewBidReceived(
+  sellerId: string,
+  auctionId: string,
+  auctionTitle: string,
+  newAmount: number,
+  bidderName?: string | null,
+): Promise<void> {
+  const dollars = (newAmount / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
+  const who = bidderName && bidderName.trim().length > 0 ? bidderName.trim() : "Someone";
+  const message = `${who} placed a new bid of ${dollars} on your auction "${auctionTitle}"`;
+
+  logger.info({ sellerId, auctionId, newAmount }, "notifications: triggering new_bid_received");
+
+  await createNotification({
+    userId: sellerId,
+    type: "new_bid_received",
+    message,
+    auctionId,
+    fcm: {
+      title: "New bid on your auction 💰",
+      body: message,
+      data: { auctionId, type: "new_bid_received" },
     },
   });
 }

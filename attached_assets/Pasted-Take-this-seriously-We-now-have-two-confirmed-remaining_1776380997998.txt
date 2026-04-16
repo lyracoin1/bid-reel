@@ -1,0 +1,88 @@
+Take this seriously. We now have two confirmed remaining production bugs after real testing. Do not stop at partial checks. Trace the exact code paths and fix the real causes.
+
+Confirmed facts from latest test:
+
+* Placing a bid now works and the price increases correctly.
+* But the seller/publisher does NOT receive a notification after someone places a bid.
+* The WhatsApp / phone number still does NOT persist reliably.
+
+Tasks to do now:
+
+1. Seller notification after bid is missing
+   Problem:
+
+* A user placed a bid successfully.
+* The auction price increased.
+* But the seller did not receive a notification.
+
+What to inspect:
+
+* Exact bid success flow on the server
+* Notification trigger path after successful bid
+* Whether notifyOutbid / notifySeller / insert notification logic is being called
+* Whether the auction seller is intentionally excluded by wrong condition
+* Whether notification rows are inserted into DB but not shown in UI
+* Whether notification insert fails silently
+* Whether the correct recipient user_id is used
+* Whether the notification type is filtered out in the notifications UI/query
+
+Required outcome:
+
+* After any valid successful bid, the seller must receive the correct notification.
+* Verify end-to-end:
+
+  * server logic executes
+  * DB notification row exists
+  * notifications API returns it
+  * notification badge/UI shows it
+
+2. Phone / WhatsApp number still not saving
+   Problem:
+
+* The phone number is still not reliably saved/persisted.
+* This bug is still real and not resolved.
+
+What to inspect:
+
+* Profile form state
+* Save payload
+* API validation/schema
+* DB update query
+* GET /api/users/me response
+* frontend cache/state hydration
+* profile reopen behavior
+* logout/login persistence
+* possible overwrite by stale cached profile object
+
+Do not assume the previous fix solved it.
+Re-test the full loop from scratch and find exactly where the value is lost:
+
+* before request
+* during save
+* after save
+* during reread
+* during cache refresh
+* during screen reopen
+
+Required outcome:
+
+* Save phone once
+* leave profile
+* reopen profile
+* refresh app
+* logout/login
+* phone must still be present
+* WhatsApp button must work from that saved value
+
+3. Output required
+   After fixing, report:
+
+* exact root cause of missing seller notification
+* exact root cause of phone non-persistence
+* files changed
+* what changed in each file
+* manual test steps for me
+* exactly when I should run:
+  git push origin main
+
+Do not give theories. Use the real code and real data paths.

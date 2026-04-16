@@ -11,7 +11,7 @@ import {
 } from "@/lib/api-client";
 import { uploadMedia, compressAvatar } from "@/lib/media-upload";
 import { reverseGeocodeCity } from "@/lib/geo";
-import { clearCurrentUserCache, getCachedCurrentUser } from "@/hooks/use-current-user";
+import { clearCurrentUserCache, getCachedCurrentUser, subscribeToUserChange } from "@/hooks/use-current-user";
 
 /** Normalize raw phone input to E.164 format */
 function normalizePhone(raw: string): string {
@@ -97,17 +97,30 @@ export default function Interests() {
   }, [avatarPreview]);
 
   // ── Pre-populate form from cached user (returning users editing their profile) ──
+  //
+  // The user cache is loaded asynchronously by use-current-user.ts. On a fresh
+  // page load (or right after logout/login, or after clearCurrentUserCache())
+  // the cache is null when this component mounts, so a one-shot synchronous
+  // read leaves every field blank — including phone — and the user concludes
+  // their profile data was lost. We instead apply the prefill any time the
+  // cache changes, but only set fields that are STILL EMPTY so we never
+  // clobber what the user has typed mid-edit.
   useEffect(() => {
-    const cached = getCachedCurrentUser();
-    if (!cached) return;
-    if (cached.displayName) setDisplayName(cached.displayName);
-    if (cached.location)    setLocation2(cached.location);
-    if (cached.username)    setUsername(cached.username);
-    if (cached.avatarUrl) {
-      setExistingAvatarUrl(cached.avatarUrl);
-      setAvatarPreview(cached.avatarUrl);
-    }
-    if (cached.phone) setPhone(cached.phone);
+    const applyPrefill = () => {
+      const cached = getCachedCurrentUser();
+      if (!cached) return;
+      setDisplayName(prev => (prev.length === 0 && cached.displayName ? cached.displayName : prev));
+      setLocation2(prev => (prev.length === 0 && cached.location ? cached.location : prev));
+      setUsername(prev => (prev.length === 0 && cached.username ? cached.username : prev));
+      setPhone(prev => (prev.length === 0 && cached.phone ? cached.phone : prev));
+      if (cached.avatarUrl) {
+        setExistingAvatarUrl(prev => prev ?? cached.avatarUrl);
+        setAvatarPreview(prev => prev ?? cached.avatarUrl);
+      }
+    };
+    applyPrefill();
+    const unsubscribe = subscribeToUserChange(applyPrefill);
+    return () => { unsubscribe(); };
   }, []);
 
   // ── Geolocation — request city name and auto-fill location field ──

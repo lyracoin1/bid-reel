@@ -64,10 +64,23 @@ const REPORT_REASONS: { key: string; label: string }[] = [
 // ── Shared animation config ───────────────────────────────────────────────────
 
 const SHEET_SPRING = { type: "spring" as const, damping: 28, stiffness: 320 };
+// Sheet wrapper:
+//  - position fixed at bottom of viewport (renders into document.body via portal,
+//    so no parent overflow / transform / stacking context can clip it).
+//  - z-index 9001 sits above any in-page overlay.
+//  - max-height 92dvh so the sheet never extends past the visible viewport
+//    (which would clip the cancel/submit button on small phones).
 const SHEET_STYLE: React.CSSProperties = {
   position: "fixed", bottom: 0, left: 0, right: 0,
   zIndex: 9001, maxWidth: 448, margin: "0 auto",
+  maxHeight: "92dvh",
 };
+// Tailwind classes for the inner panel — adds vertical scroll when content
+// exceeds the sheet height, and a safe-area-aware bottom padding so the cancel
+// button is never hidden behind the iOS home indicator / Android gesture nav.
+const SHEET_INNER_CLASS =
+  "bg-[#111] border border-white/10 rounded-t-3xl overflow-y-auto max-h-[92dvh] " +
+  "[padding-bottom:env(safe-area-inset-bottom,0px)]";
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -231,7 +244,7 @@ export function AuctionMenu({
               transition={SHEET_SPRING} style={SHEET_STYLE}
               onClick={e => e.stopPropagation()}
             >
-              <div className="bg-[#111] border border-white/10 rounded-t-3xl overflow-hidden">
+              <div className={SHEET_INNER_CLASS}>
                 <Handle />
                 <div className="px-5 py-3 border-b border-white/[0.08]">
                   <p className="text-sm font-bold text-white line-clamp-1 text-right">{auctionTitle}</p>
@@ -314,7 +327,7 @@ export function AuctionMenu({
               transition={SHEET_SPRING} style={SHEET_STYLE}
               onClick={e => e.stopPropagation()}
             >
-              <div className="bg-[#111] border border-white/10 rounded-t-3xl overflow-hidden">
+              <div className={SHEET_INNER_CLASS}>
                 <Handle />
                 <div className="px-5 pt-4 pb-6 text-center">
                   <div className="w-14 h-14 rounded-full bg-red-500/15 border border-red-500/25 flex items-center justify-center mx-auto mb-4">
@@ -354,7 +367,7 @@ export function AuctionMenu({
               transition={SHEET_SPRING} style={SHEET_STYLE}
               onClick={e => e.stopPropagation()}
             >
-              <div className="bg-[#111] border border-white/10 rounded-t-3xl overflow-hidden">
+              <div className={SHEET_INNER_CLASS}>
                 <Handle />
                 <div className="px-5 py-3 border-b border-white/[0.08] flex items-center gap-3">
                   <button
@@ -390,7 +403,7 @@ export function AuctionMenu({
               transition={SHEET_SPRING} style={SHEET_STYLE}
               onClick={e => e.stopPropagation()}
             >
-              <div className="bg-[#111] border border-white/10 rounded-t-3xl overflow-hidden">
+              <div className={SHEET_INNER_CLASS}>
                 <Handle />
                 <div className="px-5 py-3 border-b border-white/[0.08] flex items-center gap-3">
                   <button
@@ -437,7 +450,7 @@ export function AuctionMenu({
               transition={SHEET_SPRING} style={SHEET_STYLE}
               onClick={e => e.stopPropagation()}
             >
-              <div className="bg-[#111] border border-white/10 rounded-t-3xl overflow-hidden">
+              <div className={SHEET_INNER_CLASS}>
                 <Handle />
                 <div className="px-5 pt-6 pb-10 text-center">
                   <div className="w-16 h-16 rounded-full bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center mx-auto mb-4">
@@ -465,8 +478,7 @@ export function AuctionMenu({
               onClick={e => e.stopPropagation()}
             >
               <div
-                className="bg-[#111] border border-white/10 rounded-t-3xl overflow-hidden flex flex-col"
-                style={{ maxHeight: "70vh" }}
+                className={SHEET_INNER_CLASS + " flex flex-col"}
               >
                 <Handle />
                 <div className="px-5 py-3 border-b border-white/[0.08] flex items-center gap-3 shrink-0">

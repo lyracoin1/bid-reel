@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Gavel, Bell, MapPin, Volume2, VolumeX, Bookmark, ThumbsUp, ThumbsDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type Auction } from "@/lib/mock-data";
-import { getWhatsAppUrl, cn, getPublicBaseUrl } from "@/lib/utils";
+import { cn, getPublicBaseUrl } from "@/lib/utils";
 import { useToggleLike } from "@/hooks/use-auctions";
 import { useFollow } from "@/hooks/use-follow";
 import { useWatchAuction } from "@/hooks/use-watch";
@@ -101,7 +101,6 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   }, [auction.title]);
 
   const { state, timeInfo, countdownToStart } = useLiveAuctionStatus(auction, onStateChange);
-  const whatsappUrl = getWhatsAppUrl(auction.seller.phone, auction.title);
   const following = isFollowing(auction.seller.id);
   const watching = isWatching(auction.id);
   const saved = isSaved(auction.id);
@@ -180,10 +179,51 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (navigator.share) {
-      try { await navigator.share({ title: auction.title, url: `${getPublicBaseUrl()}/auction/${auction.id}` }); }
-      catch (_) {}
+    const shareUrl = `${getPublicBaseUrl()}/auction/${auction.id}`;
+    const shareTitle = auction.title;
+    // Try native share first
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: shareTitle, url: shareUrl });
+        return;
+      } catch (err) {
+        // User cancelled — silently bail. Any other error → fall through to copy.
+        if (err instanceof Error && err.name === "AbortError") return;
+      }
     }
+    // Fallback: copy link to clipboard
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        // Legacy fallback for very old browsers
+        const ta = document.createElement("textarea");
+        ta.value = shareUrl;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      toast({ title: lang === "ar" ? "تم نسخ الرابط" : "Link copied", description: shareUrl });
+    } catch {
+      toast({ title: "Could not share", description: shareUrl, variant: "destructive" });
+    }
+  };
+
+  const handleOpenProfile = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLocation(`/users/${auction.seller.id}`);
+  };
+
+  const handleWhatsApp = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!auction.seller.phone) return;
+    const digits = auction.seller.phone.replace(/\D/g, "");
+    if (!digits) return;
+    const text = `Hi, I'm interested in your BidReel auction: "${auction.title}"`;
+    window.open(`https://wa.me/${digits}?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
   };
 
   const timerPill = (() => {
@@ -280,8 +320,8 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
 
       {/* ── LEFT action stack ─────────────────────────────────────────────── */}
       {/*   LTR direction is explicit so it never mirrors on Arabic / RTL.    */}
-      {/*   Order (top → bottom = low → high product priority):               */}
-      {/*     Share → Like → Follow → Save → WhatsApp → Bid                  */}
+      {/*   Order (top → bottom):                                             */}
+      {/*     Avatar (+follow) → Like → WhatsApp → Save → Share → Bid        */}
       {/*   The primary Bid CTA is at the bottom — closest to the thumb.      */}
       {/*   bottom uses env(safe-area-inset-bottom) so the stack always clears */}
       {/*   the signal strip (96px base) + strip height (44px) + 36px margin. */}
@@ -290,19 +330,49 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
         style={{ direction: "ltr", bottom: "calc(11rem + env(safe-area-inset-bottom, 0px))" }}
       >
 
-        {/* 1. Share — TikTok paper-plane arrow (lowest priority, furthest from thumb) */}
-        <motion.button
-          whileTap={{ scale: 0.8 }}
-          className="flex flex-col items-center gap-1"
-          style={{ minWidth: 44, minHeight: 44 }}
-          aria-label="Share this auction"
-          onClick={handleShare}
-        >
-          <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white">
-            <TikTokShareIcon />
-          </div>
-          <span className="text-[11px] font-semibold text-white/80">{t("share")}</span>
-        </motion.button>
+        {/* 1. Avatar — tap navigates to profile. "+" badge toggles follow. */}
+        <div className="relative flex flex-col items-center gap-1" style={{ minWidth: 44 }}>
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            onClick={handleOpenProfile}
+            aria-label={`Open ${auction.seller.name}'s profile`}
+            className="relative"
+            style={{ minWidth: 44, minHeight: 44 }}
+          >
+            <div className={cn(
+              "w-12 h-12 rounded-full overflow-hidden border-2 transition-all duration-200",
+              following ? "border-[#0ea5e9]" : "border-white/60"
+            )}>
+              <UserAvatar src={auction.seller.avatar || null} name={auction.seller.name} size={48} />
+            </div>
+          </motion.button>
+          {!isOwner && (
+            <AnimatePresence>
+              {!following && (
+                <motion.button
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  whileTap={{ scale: 0.85 }}
+                  transition={{ duration: 0.15 }}
+                  onClick={(e) => { e.stopPropagation(); toggleFollow(auction.seller.id); }}
+                  aria-label="Follow seller"
+                  className="absolute top-9 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-[#fe2c55] border-2 border-black flex items-center justify-center z-10"
+                >
+                  <span className="text-white font-bold leading-none" style={{ fontSize: 12 }}>+</span>
+                </motion.button>
+              )}
+            </AnimatePresence>
+          )}
+          {!isOwner && following && (
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleFollow(auction.seller.id); }}
+              className="text-[11px] font-semibold text-[#0ea5e9] mt-0.5"
+            >
+              ✓
+            </button>
+          )}
+        </div>
 
         {/* 2. Like */}
         <motion.button
@@ -325,37 +395,19 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
           <span className="text-[11px] font-semibold text-white/80">{auction.likes}</span>
         </motion.button>
 
-        {/* 3. Avatar + Follow ("+" badge) — hidden when viewer is owner */}
-        {!isOwner && (
+        {/* 3. WhatsApp / Contact — visible whenever seller has a phone number */}
+        {auction.seller.phone && (
           <motion.button
-            whileTap={{ scale: 0.88 }}
-            className="relative flex flex-col items-center gap-1"
+            whileTap={{ scale: 0.8 }}
+            className="flex flex-col items-center gap-1"
             style={{ minWidth: 44, minHeight: 44 }}
-            onClick={(e) => { e.stopPropagation(); toggleFollow(auction.seller.id); }}
-            aria-label={following ? "Unfollow seller" : "Follow seller"}
+            aria-label="Contact seller on WhatsApp"
+            onClick={handleWhatsApp}
           >
-            <div className={cn(
-              "w-12 h-12 rounded-full overflow-hidden border-2 transition-all duration-200",
-              following ? "border-[#0ea5e9]" : "border-white/60"
-            )}>
-              <UserAvatar src={auction.seller.avatar || null} name={auction.seller.name} size={48} />
+            <div className="w-12 h-12 rounded-full bg-[#25D366]/15 backdrop-blur-md border border-[#25D366]/50 flex items-center justify-center shadow-[0_0_14px_rgba(37,211,102,0.3)]">
+              <WhatsAppIcon />
             </div>
-            <AnimatePresence>
-              {!following && (
-                <motion.div
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-[#fe2c55] border-2 border-black flex items-center justify-center z-10"
-                >
-                  <span className="text-white font-bold leading-none" style={{ fontSize: 12 }}>+</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-            <span className="text-[11px] font-semibold text-white/80 mt-0.5">
-              {following ? "✓" : t("follow")}
-            </span>
+            <span className="text-[11px] font-semibold text-[#25D366]/90">WhatsApp</span>
           </motion.button>
         )}
 
@@ -382,22 +434,19 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
           </span>
         </motion.button>
 
-        {/* 5. WhatsApp / Contact — active or ended only, only when seller phone exists */}
-        {(state === "active" || state === "ended") && auction.seller.phone && (
-          <motion.a
-            href={whatsappUrl} target="_self"
-            whileTap={{ scale: 0.8 }}
-            className="flex flex-col items-center gap-1"
-            style={{ minWidth: 44, minHeight: 44 }}
-            aria-label="Contact seller on WhatsApp"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-12 h-12 rounded-full bg-[#25D366]/15 backdrop-blur-md border border-[#25D366]/50 flex items-center justify-center shadow-[0_0_14px_rgba(37,211,102,0.3)]">
-              <WhatsAppIcon />
-            </div>
-            <span className="text-[11px] font-semibold text-[#25D366]/90">WhatsApp</span>
-          </motion.a>
-        )}
+        {/* 5. Share — TikTok paper-plane arrow */}
+        <motion.button
+          whileTap={{ scale: 0.8 }}
+          className="flex flex-col items-center gap-1"
+          style={{ minWidth: 44, minHeight: 44 }}
+          aria-label="Share this auction"
+          onClick={handleShare}
+        >
+          <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white">
+            <TikTokShareIcon />
+          </div>
+          <span className="text-[11px] font-semibold text-white/80">{t("share")}</span>
+        </motion.button>
 
         {/* 6. Primary CTA — Bell (upcoming) · Bid (active) · Ended indicator */}
         {/*    Bid / Bell is always at the bottom — closest to the thumb.      */}
@@ -457,13 +506,17 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
         style={{ bottom: "calc(11rem + env(safe-area-inset-bottom, 0px))" }}
         onClick={() => setLocation(`/auction/${auction.id}`)}
       >
-        {/* Seller name — compact, above the title */}
-        <span className="text-[12px] font-semibold text-white/55 leading-none truncate">
+        {/* Seller name — tap navigates to seller's profile */}
+        <button
+          onClick={handleOpenProfile}
+          className="text-[12px] font-semibold text-white/70 leading-none truncate text-left hover:text-white transition-colors w-fit max-w-full"
+          aria-label={`View ${auction.seller.name}'s profile`}
+        >
           {auction.seller.name}
           {auction.seller.handle ? (
-            <span className="font-normal text-white/35"> {auction.seller.handle}</span>
+            <span className="font-normal text-white/40"> {auction.seller.handle}</span>
           ) : null}
-        </span>
+        </button>
 
         <h2 className="text-[21px] font-bold text-white leading-snug line-clamp-2 drop-shadow-sm">
           {auction.title}

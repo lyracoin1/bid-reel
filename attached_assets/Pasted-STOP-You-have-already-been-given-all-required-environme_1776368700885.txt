@@ -1,0 +1,150 @@
+STOP.
+
+You have already been given all required environment variables and project context.
+
+The current production issue is NOT resolved.
+The admin panel still shows:
+
+"API server failed to start. Verify that SUPABASE_URL, SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY are set in the Vercel project environment variables"
+
+You MUST fix this now.
+
+Do NOT ignore this by working on unrelated architecture again.
+Do NOT stop at analysis.
+Do NOT ask me for things I already gave you.
+
+================================
+PHASE 1 — FIX THE PRODUCTION API FAILURE
+================================
+
+You must audit and fix the real Vercel runtime issue.
+
+Known facts:
+- Vercel project has only:
+  - bid-reel-bidreel-web
+  - bid-reel-bidreel-admin
+- API code exists inside:
+  artifacts/api-server/
+- Root vercel.json already exists and routes /api/* to /api/index
+- The failure is happening in production runtime, not only in Replit
+
+You must verify and fix ALL of the following:
+
+1. Confirm the exact API entrypoint used by Vercel:
+   - /api/index.mjs
+   - its imports
+   - whether it points to the correct built file from artifacts/api-server/dist
+
+2. Confirm the API build output actually matches what /api/index.mjs imports:
+   - if build outputs artifacts/api-server/dist/index.mjs, import that exact file
+   - if not, fix it
+
+3. Confirm Express/Vercel wrapper is correct:
+   - export must be compatible with Vercel serverless runtime
+   - fix serverless wrapper if needed
+
+4. Confirm the production server starts even when optional Firebase env is missing
+   - if FIREBASE_SERVICE_ACCOUNT_JSON is optional, make startup tolerant
+   - do NOT crash the whole API server if Firebase notifications are not configured
+
+5. Confirm USE_DEV_AUTH is disabled in production
+   - no dev auth behavior on Vercel
+
+6. Confirm required production env names are exactly:
+   - SUPABASE_URL
+   - SUPABASE_ANON_KEY
+   - SUPABASE_SERVICE_ROLE_KEY
+   and that code is not incorrectly requiring only one naming convention or mixing VITE_ vars on the server
+
+7. Fix the startup error source itself
+   - find where that exact error message is thrown
+   - make sure it reflects the real missing variable, not a misleading generic message
+
+8. After fixing, verify these production endpoints work:
+   - /api/users/me
+   - /api/admin/users
+   - /api/health (add it if missing)
+
+Do not guess. Trace the real runtime path and fix it.
+
+================================
+PHASE 2 — FIX THE UI/UX ISSUES YOU IGNORED
+================================
+
+After the production API issue is fixed, immediately fix these UI/UX issues.
+Do NOT skip any point.
+
+1. THREE DOT MENU
+- It is clipped and not visible fully
+- Fix overflow / z-index / positioning
+- Must render above everything
+- Use portal/body-level render if necessary
+
+2. SHARE BUTTON
+- Currently does nothing
+- Implement navigator.share on mobile
+- Add fallback to copy auction link
+- Include title + URL
+- Add proper error handling
+
+3. WHATSAPP BUTTON
+- Missing completely
+- Add WhatsApp button in the action stack
+- Use seller.phone from profile.phone
+- Open https://wa.me/{phone}
+- Strip + and spaces
+
+4. BIDDING SYSTEM (CRITICAL)
+- REMOVE fixed options (25+, 50+, 100+)
+- ADD numeric input field
+- User enters increment only, not total
+- Minimum increment = 1
+- Reject invalid or non-numeric values
+- Server calculates:
+  new_price = current_price + increment
+- Show live preview before submit
+
+Example:
+current = 844
+input = 1 → 845
+input = 50 → 894
+
+5. USER PROFILE CLICK
+- Avatar and username must be clickable
+- Open profile page
+
+6. LEFT ACTION COLUMN ORDER
+Use exactly this order:
+1. Avatar (+ follow)
+2. Like
+3. WhatsApp
+4. Save
+5. Share
+6. Bid
+
+7. MUTE BUTTON
+- Must be global state
+- If user unmutes once, next cards stay unmuted
+
+8. UI CLEANUP
+- Remove duplicate controls
+- Fix spacing
+- Fix overlay collisions
+- Ensure Android/mobile responsive behavior
+
+================================
+PHASE 3 — REQUIRED OUTPUT
+================================
+
+When finished, reply with:
+
+1. Exact root cause of the production API failure
+2. Exact files changed
+3. Exact code path fixed for Vercel API entry
+4. Exact UI files changed
+5. Confirmation that no TODO remains
+6. Confirmation that production was tested after the fix
+
+Do not stop at planning.
+Do not just explain.
+Implement and verify.

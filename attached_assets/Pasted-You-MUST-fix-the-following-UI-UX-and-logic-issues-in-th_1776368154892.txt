@@ -1,0 +1,133 @@
+You MUST fix the following UI/UX and logic issues in the BidReel mobile feed and auction screen.
+
+Take this seriously. Do NOT skip any point. Do NOT partially fix. Everything must be correct and production-level.
+
+--------------------------------
+1. THREE DOT MENU (overflow)
+--------------------------------
+Problem:
+The 3-dot menu is cut off and does not fully appear on screen.
+
+Fix:
+- Ensure menu uses proper positioning (absolute + z-index)
+- Prevent clipping by parent containers (overflow: hidden issue)
+- Use portal or body-level render if needed
+- Menu must fully expand vertically and be visible above all elements
+
+--------------------------------
+2. SHARE BUTTON NOT WORKING
+--------------------------------
+Problem:
+Share button does nothing.
+
+Fix:
+- Implement real share logic using:
+  navigator.share (mobile)
+  fallback to copy link
+- Share must include:
+  auction URL
+  title
+- Add proper error handling
+
+--------------------------------
+3. WHATSAPP BUTTON MISSING
+--------------------------------
+Problem:
+WhatsApp button is not موجود
+
+Fix:
+- Add WhatsApp button in action stack
+- On click:
+  open https://wa.me/{seller.phone}
+- Phone must come from profile.phone
+- Ensure formatting (no +, no spaces)
+
+--------------------------------
+4. BID SYSTEM (CRITICAL LOGIC FIX)
+--------------------------------
+Problem:
+User cannot enter custom bid
+Only fixed options (25+, 50+, 100+)
+
+This is WRONG.
+
+Fix:
+- Remove fixed options UI
+- Replace with:
+  numeric input field
+
+Rules:
+- minimum increment = 1
+- user enters ONLY increment (not total price)
+- server calculates:
+  new_price = current_price + increment
+
+Example:
+current = 844
+user enters = 1 → becomes 845
+user enters = 50 → becomes 894
+
+Validation:
+- reject if < 1
+- reject if not number
+
+UI:
+- input field + submit button
+- show live preview of resulting price
+
+--------------------------------
+5. USER PROFILE CLICK
+--------------------------------
+Problem:
+Clicking username or avatar does nothing
+
+Fix:
+- Make avatar + username clickable
+- Navigate to:
+  /user/:username OR /profile/:id
+
+--------------------------------
+6. LEFT ACTION COLUMN (IMPORTANT)
+--------------------------------
+Ensure correct order (TikTok style):
+
+TOP → BOTTOM:
+1. Avatar (+ follow)
+2. Like
+3. WhatsApp (NEW)
+4. Save
+5. Share
+6. Bid button
+
+--------------------------------
+7. MUTE BUTTON BEHAVIOR
+--------------------------------
+Fix:
+- Global state, NOT per-card reset
+- If user unmutes → stays unmuted across feed
+
+--------------------------------
+8. UI CLEANUP
+--------------------------------
+- Remove duplicated buttons
+- Fix spacing
+- Ensure overlays don’t collide
+- Ensure responsive layout on Android
+
+--------------------------------
+9. TEST EVERYTHING
+--------------------------------
+- test on mobile viewport
+- test click interactions
+- test bidding logic
+- test WhatsApp redirect
+- test share
+
+--------------------------------
+
+After finishing:
+Explain EXACTLY what you changed.
+List files modified.
+Confirm no TODO left.
+
+DO NOT IGNORE ANY POINT.

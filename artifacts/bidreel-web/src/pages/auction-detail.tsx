@@ -25,15 +25,8 @@ import { formatDistanceToNow } from "date-fns";
 import { useViewerLocation } from "@/hooks/use-viewer-location";
 import { haversineDistance, formatDistance, formatAuctionPrice } from "@/lib/geo";
 
-// ─── Adaptive bid increments based on current price ───────────────────────────
-function getIncrements(currentBid: number): number[] {
-  if (currentBid >= 50_000) return [2_500, 5_000, 10_000];
-  if (currentBid >= 10_000) return [500, 1_000, 2_500];
-  if (currentBid >= 2_500)  return [100, 250, 500];
-  if (currentBid >= 500)    return [25, 50, 100];
-  if (currentBid >= 100)    return [10, 20, 50];
-  return [5, 10, 20];
-}
+// Minimum bid increment — server is the source of truth, this is just UI floor.
+const MIN_INCREMENT = 1;
 
 export default function AuctionDetail() {
   const { id } = useParams();
@@ -41,7 +34,9 @@ export default function AuctionDetail() {
   const { data: auction } = useAuction(id || "");
 
   // ── Bid state ──────────────────────────────────────────────────────────────
-  const [selectedInc, setSelectedInc] = useState<number | null>(null);
+  // The user enters ONLY the increment (e.g. "1", "50", "100").
+  // Server computes new_price = current_price + increment.
+  const [incInput, setIncInput] = useState<string>("");
   const [bidError, setBidError] = useState<string | null>(null);
   const [bidSuccess, setBidSuccess] = useState(false);
   const bidPanelRef = useRef<HTMLDivElement>(null);
@@ -51,7 +46,7 @@ export default function AuctionDetail() {
       setBidSuccess(true);
       setBidError(null);
       // Reset after 2.5 s so panel is ready for the next bid
-      setTimeout(() => { setBidSuccess(false); setSelectedInc(null); }, 2500);
+      setTimeout(() => { setBidSuccess(false); setIncInput(""); }, 2500);
     },
     onError: (_code, message) => {
       setBidError(message);
@@ -142,25 +137,35 @@ export default function AuctionDetail() {
 
   const displayedBid = realtimeCurrentBid ?? auction.currentBid;
   const displayedBidCount = realtimeBidCount ?? auction.bidCount;
-  const INCREMENTS = getIncrements(displayedBid);
-  const minIncrement = INCREMENTS[0];
-  const minBid = displayedBid + minIncrement;
 
   const fmtPrice = (amount: number) =>
     formatAuctionPrice(amount, auction.currencyCode ?? "USD");
 
-  // Bid amount from the selected increment
-  const bidAmount = selectedInc !== null ? displayedBid + selectedInc : 0;
+  // Parse the user's increment input. Returns null when invalid.
+  const parsedInc = (() => {
+    const trimmed = incInput.trim();
+    if (!trimmed) return null;
+    if (!/^\d+$/.test(trimmed)) return null;   // integers only
+    const n = Number(trimmed);
+    if (!Number.isFinite(n) || n < MIN_INCREMENT) return null;
+    return n;
+  })();
+
+  // Live preview of resulting price (current + increment).
+  const previewAmount = parsedInc !== null ? displayedBid + parsedInc : null;
 
   const handleScrollToBid = () => {
     bidPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
   const submitBid = () => {
-    if (!selectedInc) return;
     setBidError(null);
+    if (parsedInc === null) {
+      setBidError(`Please enter a whole number ≥ ${MIN_INCREMENT}`);
+      return;
+    }
     // Send the increment — the server computes the new price itself.
-    placeBid(auction.id, selectedInc);
+    placeBid(auction.id, parsedInc);
   };
 
   // ── Timer chip ────────────────────────────────────────────────────────────
@@ -366,49 +371,64 @@ export default function AuctionDetail() {
                   <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide mb-0.5">How much to add?</p>
                   <p className="text-base font-bold text-white">
                     Now <span className="text-white/60">{fmtPrice(displayedBid)}</span>
-                    {selectedInc ? (
-                      <> → <span className="text-primary">{fmtPrice(bidAmount)}</span></>
+                    {previewAmount !== null ? (
+                      <> → <span className="text-primary">{fmtPrice(previewAmount)}</span></>
                     ) : null}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 bg-primary/12 border border-primary/25 rounded-full px-3 py-1.5">
                   <TrendingUp size={11} className="text-primary" />
-                  <span className="text-xs font-bold text-primary">+{fmtPrice(minIncrement)} min</span>
+                  <span className="text-xs font-bold text-primary">min +{MIN_INCREMENT}</span>
                 </div>
               </div>
 
-              {/* Quick-bid buttons grid */}
+              {/* Numeric increment input */}
               <div className="px-4 pt-4 pb-2">
-                <div className="grid grid-cols-3 gap-2.5">
-                  {INCREMENTS.map((inc) => {
-                    const amount = displayedBid + inc;
-                    const isSelected = selectedInc === inc;
-                    return (
-                      <motion.button
-                        key={inc}
-                        whileTap={{ scale: 0.93 }}
-                        onClick={() => {
-                          setSelectedInc(isSelected ? null : inc);
-                          setBidError(null);
-                          setBidSuccess(false);
-                        }}
-                        className={cn(
-                          "flex flex-col items-center py-3.5 rounded-xl border font-bold transition-all duration-150",
-                          isSelected
-                            ? "bg-primary/20 border-primary/55 text-primary shadow-[0_0_14px_-3px] shadow-primary/40"
-                            : "bg-white/6 border-white/12 text-white/80 active:bg-white/10"
-                        )}
-                      >
-                        <span className={cn(
-                          "text-xs font-bold mb-1",
-                          isSelected ? "text-primary/80" : "text-white/40"
-                        )}>
-                          +{fmtPrice(inc)}
-                        </span>
-                        <span className="text-sm font-bold">{fmtPrice(amount)}</span>
-                      </motion.button>
-                    );
-                  })}
+                <label htmlFor="bid-increment" className="block text-[11px] font-medium text-white/50 uppercase tracking-wide mb-2">
+                  Increment amount
+                </label>
+                <div className="flex items-stretch gap-2">
+                  <div className="flex-1 flex items-center bg-white/6 border border-white/15 rounded-xl px-3 focus-within:border-primary/60 transition-colors">
+                    <span className="text-white/40 font-bold text-base shrink-0 select-none">+</span>
+                    <input
+                      id="bid-increment"
+                      type="number"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      min={MIN_INCREMENT}
+                      step={1}
+                      value={incInput}
+                      onChange={(e) => {
+                        // Allow only digits; empty string is allowed for clearing.
+                        const v = e.target.value.replace(/[^\d]/g, "");
+                        setIncInput(v);
+                        setBidError(null);
+                        setBidSuccess(false);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") submitBid();
+                      }}
+                      placeholder={String(MIN_INCREMENT)}
+                      disabled={isBidding}
+                      className="flex-1 bg-transparent py-3.5 px-2 text-white text-lg font-bold outline-none placeholder:text-white/25 disabled:opacity-50"
+                      aria-label="Bid increment"
+                    />
+                    <span className="text-xs font-medium text-white/35 shrink-0 select-none">
+                      {auction.currencyCode ?? "USD"}
+                    </span>
+                  </div>
+                </div>
+                {/* Live preview */}
+                <div className="mt-2 min-h-[18px] text-xs">
+                  {previewAmount !== null ? (
+                    <span className="text-white/55">
+                      New price → <span className="text-primary font-bold">{fmtPrice(previewAmount)}</span>
+                    </span>
+                  ) : incInput.trim() ? (
+                    <span className="text-red-400/80">Enter a whole number ≥ {MIN_INCREMENT}</span>
+                  ) : (
+                    <span className="text-white/30">Type how much to add to the current price</span>
+                  )}
                 </div>
               </div>
 
@@ -431,10 +451,10 @@ export default function AuctionDetail() {
                       key="submit"
                       whileTap={{ scale: 0.97 }}
                       onClick={submitBid}
-                      disabled={!selectedInc || isBidding}
+                      disabled={parsedInc === null || isBidding}
                       className={cn(
                         "w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all duration-150",
-                        selectedInc
+                        parsedInc !== null
                           ? "bg-primary text-white shadow-lg shadow-primary/35"
                           : "bg-white/6 text-white/30 border border-white/8"
                       )}
@@ -444,15 +464,15 @@ export default function AuctionDetail() {
                           <RefreshCw size={15} className="animate-spin" />
                           Processing…
                         </>
-                      ) : selectedInc ? (
+                      ) : parsedInc !== null && previewAmount !== null ? (
                         <>
                           <Gavel size={15} />
-                          Raise +{fmtPrice(selectedInc)} → {fmtPrice(bidAmount)}
+                          Raise +{fmtPrice(parsedInc)} → {fmtPrice(previewAmount)}
                         </>
                       ) : (
                         <>
                           <ChevronDown size={15} />
-                          Choose an increment above
+                          Enter an amount to bid
                         </>
                       )}
                     </motion.button>
@@ -652,7 +672,7 @@ export default function AuctionDetail() {
             Your Listing
           </div>
         ) : (
-          /* ── Active + can bid: inline quick-bid bar ─────────────────────── */
+          /* ── Active + can bid: sticky CTA → scrolls to numeric input panel ── */
           <AnimatePresence mode="wait">
             {bidSuccess ? (
               <motion.div
@@ -665,8 +685,8 @@ export default function AuctionDetail() {
                 <Trophy size={18} className="text-emerald-400" />
                 <span className="text-sm font-bold text-emerald-400">You're the highest bidder!</span>
               </motion.div>
-            ) : selectedInc ? (
-              /* Amount selected → show confirm + change buttons */
+            ) : parsedInc !== null && previewAmount !== null ? (
+              /* Valid amount typed → confirm bid right from sticky bar */
               <motion.div
                 key="sticky-confirm"
                 initial={{ opacity: 0, y: 6 }}
@@ -676,8 +696,9 @@ export default function AuctionDetail() {
               >
                 <motion.button
                   whileTap={{ scale: 0.94 }}
-                  onClick={() => { setSelectedInc(null); setBidError(null); }}
+                  onClick={() => { setIncInput(""); setBidError(null); }}
                   className="flex-shrink-0 px-4 py-4 rounded-2xl bg-white/8 border border-white/12 text-white/60 font-bold text-sm"
+                  aria-label="Clear amount"
                 >
                   ✕
                 </motion.button>
@@ -690,14 +711,14 @@ export default function AuctionDetail() {
                   {isBidding ? (
                     <><RefreshCw size={17} className="animate-spin" /> Processing…</>
                   ) : (
-                    <><Gavel size={18} /> Bid {fmtPrice(bidAmount)}</>
+                    <><Gavel size={18} /> Bid +{fmtPrice(parsedInc)} → {fmtPrice(previewAmount)}</>
                   )}
                 </motion.button>
               </motion.div>
             ) : (
-              /* No amount selected → show increment chips + place-bid hint */
+              /* Nothing typed → CTA scrolls to numeric input above */
               <motion.div
-                key="sticky-picker"
+                key="sticky-cta"
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
@@ -712,26 +733,14 @@ export default function AuctionDetail() {
                     ⚠ {bidError}
                   </motion.p>
                 )}
-                <div className="flex gap-2">
-                  {INCREMENTS.map((inc) => (
-                    <motion.button
-                      key={inc}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => { setSelectedInc(inc); setBidError(null); }}
-                      className="flex-1 py-3.5 rounded-xl bg-white/8 border border-white/14 flex flex-col items-center gap-0.5 active:bg-primary/20 active:border-primary/40 transition-colors"
-                    >
-                      <span className="text-[10px] font-bold text-white/40">+{fmtPrice(inc)}</span>
-                      <span className="text-sm font-bold text-white">{fmtPrice(displayedBid + inc)}</span>
-                    </motion.button>
-                  ))}
-                  <motion.button
-                    whileTap={{ scale: 0.9 }}
-                    onClick={handleScrollToBid}
-                    className="flex-shrink-0 w-14 py-3.5 rounded-xl bg-primary/15 border border-primary/35 flex items-center justify-center"
-                  >
-                    <Gavel size={18} className="text-primary" />
-                  </motion.button>
-                </div>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleScrollToBid}
+                  className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-lg shadow-primary/35"
+                >
+                  <Gavel size={18} />
+                  {t("place_bid") || "Place a bid"}
+                </motion.button>
               </motion.div>
             )}
           </AnimatePresence>

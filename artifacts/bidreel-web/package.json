@@ -85,6 +85,8 @@
     "@capacitor/browser": "^8.0.3",
     "@capacitor/core": "^8.3.0",
     "@capacitor/splash-screen": "^8.0.1",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "@supabase/supabase-js": "^2.100.0",
     "firebase": "^12.11.0"
   }

@@ -13,6 +13,11 @@ import { useLang } from "@/contexts/LanguageContext";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { cn } from "@/lib/utils";
 import { reverseGeocodeCountry, getCurrencyForCountry, type CurrencyInfo } from "@/lib/geo";
+import {
+  compressVideo,
+  preloadFFmpeg,
+  MAX_RAW_INPUT_BYTES,
+} from "@/lib/video-compressor";
 
 type PostType = "video" | "photos";
 
@@ -31,7 +36,10 @@ const LISTING_RULES = [
 
 // ─── File size limits (client-side enforcement) ───────────────────────────────
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20 MB — pre-compression raw limit
-const MAX_VIDEO_BYTES = 20 * 1024 * 1024; // 20 MB
+// Videos are compressed in-browser with ffmpeg.wasm before upload, so we accept
+// large raw inputs (up to MAX_RAW_INPUT_BYTES) and let the compressor shrink
+// them to the 20 MB server cap.
+const MAX_VIDEO_INPUT_BYTES = MAX_RAW_INPUT_BYTES;
 
 // ─── Client-side image compression ───────────────────────────────────────────
 // Uses the browser's Canvas API (zero dependencies) to:
@@ -271,10 +279,11 @@ export default function CreateAuction() {
     if (!file) return;
 
     setVideoError(null);
-    if (file.size > MAX_VIDEO_BYTES) {
+    const maxMb = MAX_VIDEO_INPUT_BYTES / 1024 / 1024;
+    if (file.size > MAX_VIDEO_INPUT_BYTES) {
       setVideoError(lang === "ar"
-        ? `الفيديو كبير جداً: ${(file.size / 1024 / 1024).toFixed(1)} ميغابايت. الحد الأقصى 20 ميغابايت.`
-        : `Video too large: ${(file.size / 1024 / 1024).toFixed(1)} MB. Maximum is 20 MB.`);
+        ? `الفيديو كبير جداً: ${(file.size / 1024 / 1024).toFixed(1)} ميغابايت. الحد الأقصى ${maxMb} ميغابايت.`
+        : `Video too large: ${(file.size / 1024 / 1024).toFixed(1)} MB. Maximum is ${maxMb} MB.`);
       e.target.value = "";
       return;
     }
@@ -283,6 +292,8 @@ export default function CreateAuction() {
     setVideoFile(file);
     setVideoPreviewUrl(objectUrl);
     console.log(`[create-auction] Video selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+    // Warm up ffmpeg.wasm so the compress step is fast when the user submits.
+    preloadFFmpeg();
     e.target.value = "";
   };
 
@@ -350,8 +361,30 @@ export default function CreateAuction() {
           setSubmitError(lang === "ar" ? "يرجى اختيار ملف فيديو." : "Please select a video file.");
           return;
         }
-        setUploadProgress(lang === "ar" ? "جارٍ رفع الفيديو…" : "Uploading video (this may take a moment)…");
-        videoUrl = await uploadFile(videoFile, "video", pct => {
+
+        // ── 1. Compress in-browser with ffmpeg.wasm before upload ────────
+        setUploadProgress(lang === "ar"
+          ? "جارٍ تجهيز الفيديو…"
+          : "Preparing video…");
+
+        const result = await compressVideo(videoFile, {
+          onProgress: (pct) => {
+            setUploadProgress(lang === "ar"
+              ? `جارٍ ضغط الفيديو… ${pct}%`
+              : `Optimizing video… ${pct}%`);
+          },
+        });
+
+        const origMb = (result.originalBytes / 1024 / 1024).toFixed(1);
+        const compMb = (result.compressedBytes / 1024 / 1024).toFixed(1);
+        console.log(
+          `[create-auction] ✅ Compressed video: ${origMb} MB → ${compMb} MB ` +
+          `in ${(result.durationMs / 1000).toFixed(1)}s`,
+        );
+
+        // ── 2. Upload the compressed file ────────────────────────────────
+        setUploadProgress(lang === "ar" ? "جارٍ رفع الفيديو…" : "Uploading video…");
+        videoUrl = await uploadFile(result.file, "video", pct => {
           setUploadProgress(lang === "ar" ? `جارٍ رفع الفيديو… ${pct}%` : `Uploading video… ${pct}%`);
         });
         thumbnailUrl = videoUrl;

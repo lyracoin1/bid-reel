@@ -16,6 +16,7 @@ import { getBidderCol, getBidderUserId, hasWinnerBidIdCol } from "../lib/dbSchem
 import { deleteMediaFile } from "../lib/media-lifecycle";
 import { runAuctionLifecycle } from "../lib/auction-lifecycle";
 import { processVideoAsync } from "../lib/video-processing";
+import { assertOwnedMediaUrl } from "../lib/r2";
 import { buildUserFeedContext, scoreAuction } from "../lib/feed-ranking";
 
 const router = Router();
@@ -441,6 +442,22 @@ router.post("/auctions", requireAuth, async (req, res) => {
   const { title, description, category, startPrice, minIncrement, videoUrl, thumbnailUrl, lat, lng, currencyCode, currencyLabel, durationHours } =
     parsed.data;
   const sellerId = req.user!.id;
+
+  // ── Media URL ownership / origin enforcement ───────────────────────────────
+  // Reject any URL that is not from our R2 / legacy Supabase project AND
+  // whose key prefix doesn't match this user's upload namespace.  Without
+  // this, an attacker could submit crafted URLs and steer server-side
+  // download/delete operations (cleanup, processing) at unintended objects.
+  try {
+    assertOwnedMediaUrl(videoUrl, sellerId);
+    assertOwnedMediaUrl(thumbnailUrl, sellerId);
+  } catch (err) {
+    res.status(400).json({
+      error: "INVALID_MEDIA_URL",
+      message: err instanceof Error ? err.message : "Invalid media URL.",
+    });
+    return;
+  }
 
   // ── Content safety: no phone numbers or WhatsApp contact info ──────────────
   if (description && containsContactInfo(description)) {

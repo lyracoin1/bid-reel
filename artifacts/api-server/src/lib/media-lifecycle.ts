@@ -9,17 +9,14 @@
  *   video_deleted_at     — set when the video file is deleted from Storage
  *   thumbnail_deleted_at — set when the thumbnail is deleted from Storage
  *
- * Media URLs are stored in auctions.video_url and auctions.thumbnail_url.
- * The storage path is extracted from the URL so we know exactly which file to delete.
- *
- * All Storage operations use the service_role admin client (bypasses RLS).
- * Bucket: "auction-media"
+ * URLs may live on R2 (current backend) OR Supabase Storage (legacy auctions).
+ * `parseMediaUrl()` figures out which backend, and we delete from the correct
+ * one — so this scheduler keeps working during/after the migration window.
  */
 
 import { supabaseAdmin } from "./supabase";
 import { logger } from "./logger";
-
-const BUCKET = "auction-media";
+import { r2Delete, parseMediaUrl } from "./r2";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -43,36 +40,27 @@ interface AuctionMediaRow {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Extract the storage object path from a Supabase Storage public URL.
- * URL format: {SUPABASE_URL}/storage/v1/object/public/{bucket}/{path}
- *
- * Returns null if the URL doesn't match the expected format.
- */
-function extractStoragePath(url: string, bucket: string): string | null {
-  const marker = `/storage/v1/object/public/${bucket}/`;
-  const idx = url.indexOf(marker);
-  if (idx === -1) return null;
-  return decodeURIComponent(url.slice(idx + marker.length));
-}
-
-/**
- * Delete a single object from the auction-media bucket.
- * Returns true on success, false if the path was invalid or deletion failed.
+ * Delete a single object from its origin backend (R2 or legacy Supabase).
+ * Returns true on success, false if the URL was unrecognised or absent.
  */
 export async function deleteMediaFile(url: string | null): Promise<boolean> {
   if (!url) return false;
 
-  const path = extractStoragePath(url, BUCKET);
-  if (!path) {
-    logger.warn({ url }, "media-lifecycle: could not extract storage path from URL — skipping");
+  const parsed = parseMediaUrl(url);
+  if (!parsed) {
+    logger.warn({ url }, "media-lifecycle: could not parse URL — skipping");
     return false;
   }
 
-  const { error } = await supabaseAdmin.storage.from(BUCKET).remove([path]);
-  if (error) {
-    throw new Error(`Storage remove failed for "${path}": ${error.message}`);
+  if (parsed.backend === "r2") {
+    return r2Delete(parsed.key);
   }
 
+  // Legacy Supabase Storage cleanup
+  const { error } = await supabaseAdmin.storage.from(parsed.bucket).remove([parsed.key]);
+  if (error) {
+    throw new Error(`Supabase storage remove failed for "${parsed.key}": ${error.message}`);
+  }
   return true;
 }
 

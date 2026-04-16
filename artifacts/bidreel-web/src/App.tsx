@@ -9,6 +9,7 @@ import { useFcmToken } from "@/hooks/use-fcm-token";
 import { supabase } from "@/lib/supabase";
 import { setToken, clearToken, API_BASE } from "@/lib/api-client";
 import { CapApp, isNative, OAUTH_SCHEME, closeBrowser } from "@/lib/capacitor-app";
+import { Browser } from "@capacitor/browser";
 
 // Core user pages — loaded eagerly (always needed)
 import Splash from "@/pages/splash";
@@ -301,15 +302,40 @@ function CapacitorOAuthHandler() {
       .catch(err => console.warn("[CapacitorOAuth] getLaunchUrl error:", err));
 
     // ── Warm start: app in background, brought to foreground via deep link ───
+    // Primary path: appUrlOpen fires when MainActivity receives onNewIntent.
     console.log("[CapacitorOAuth] Registering appUrlOpen listener…");
     const listenerHandle = CapApp.addListener("appUrlOpen", ({ url }) => {
       console.log("[CapacitorOAuth] appUrlOpen fired with:", url);
       handleUrl(url);
     });
 
+    // ── Fallback: browserFinished + getLaunchUrl ──────────────────────────────
+    // When a Chrome Custom Tab closes, @capacitor/browser fires "browserFinished".
+    // On some Android versions / Chrome builds, appUrlOpen can be delivered
+    // AFTER the WebView resumes rather than synchronously with onNewIntent.
+    // As a belt-and-suspenders guard: when the Custom Tab finishes, wait a
+    // brief moment for appUrlOpen to arrive normally, then read getLaunchUrl().
+    // In singleTask mode, getActivity().getIntent() is updated by Android when
+    // onNewIntent fires, so getLaunchUrl() returns the OAuth callback URL even
+    // in warm-start scenarios.  The URL-based dedup in handleUrl prevents
+    // double-processing if appUrlOpen already ran.
+    const browserFinishedHandle = Browser.addListener("browserFinished", () => {
+      console.log("[CapacitorOAuth] browserFinished — checking getLaunchUrl as fallback…");
+      setTimeout(() => {
+        CapApp.getLaunchUrl()
+          .then(result => {
+            const url = result?.url;
+            console.log("[CapacitorOAuth] browserFinished → getLaunchUrl:", url ?? "(null)");
+            if (url) handleUrl(url);
+          })
+          .catch(err => console.warn("[CapacitorOAuth] browserFinished → getLaunchUrl error:", err));
+      }, 300); // 300 ms lets appUrlOpen arrive first if it will
+    });
+
     return () => {
       mounted = false;
       listenerHandle.then(h => h.remove()).catch(() => {});
+      browserFinishedHandle.then(h => h.remove()).catch(() => {});
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

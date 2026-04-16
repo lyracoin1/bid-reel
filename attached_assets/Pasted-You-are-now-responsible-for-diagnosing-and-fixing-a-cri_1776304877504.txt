@@ -1,0 +1,135 @@
+You are now responsible for diagnosing and fixing a critical production issue in the BidReel mobile app.
+
+Take this seriously. Do NOT give generic answers. Do NOT just “review” or “confirm”. You must TRACE and FIX.
+
+## Problem (real behavior)
+
+Google Sign-In flow behaves like this on Android:
+
+1. User taps "Continue with Google"
+2. Google account picker opens (Chrome Custom Tab works)
+3. User selects a valid account
+4. Flow completes visually
+5. BUT:
+
+   * User is NOT logged in
+   * No session is created in the app
+   * No user data appears
+   * No redirect to home/feed
+   * It behaves as if nothing happened
+
+This is NOT a UI issue. This is a broken auth completion.
+
+## Important facts (DO NOT IGNORE)
+
+* The Google OAuth flow IS launching correctly
+* Account selection works
+* Therefore: the issue is AFTER Google selection
+
+## Confirmed current setup
+
+* Supabase Google provider is enabled
+* Client ID + Secret are set
+* Supabase callback URL exists:
+  https://<project-ref>.supabase.co/auth/v1/callback
+* Supabase Redirect URLs include:
+  com.bidreel.app://auth/callback
+* Android intent filter is configured
+* Capacitor deep link handler exists
+* PKCE + session handling logic exists in codebase
+
+## This means:
+
+The failure is most likely in ONE of these:
+
+### Suspect 1 — Deep link callback not reaching the app
+
+* Android receives nothing
+* Capacitor `appUrlOpen` not firing
+* OR wrong scheme / mismatch
+
+### Suspect 2 — Callback received but NOT processed
+
+* `exchangeCodeForSession` not triggered
+* OR wrong parameters (code / state missing)
+* OR silent failure
+
+### Suspect 3 — Session created but NOT stored / propagated
+
+* Supabase session exists but not set in client
+* Auth state listener not triggering
+* Token not synced
+
+### Suspect 4 — Redirect mismatch breaking final step
+
+* redirectTo mismatch between app and Supabase
+* subtle mismatch between:
+  com.bidreel.app://auth/callback
+  vs something else
+
+### Suspect 5 — Code logic silently swallowing errors
+
+* try/catch without logging
+* loading state cleared without handling result
+
+## Your job
+
+You MUST:
+
+1. Trace the FULL Google auth flow step-by-step:
+
+   * login.tsx (Google trigger)
+   * Browser open
+   * redirectTo URL used
+   * deep link handling (capacitor-app.ts)
+   * App.tsx callback handlers
+   * Supabase client auth handling
+
+2. Add logging (temporary if needed) to verify:
+
+   * Is callback URL received?
+   * What exact URL is received?
+   * Does it contain `code` or `access_token`?
+   * Is `exchangeCodeForSession` called?
+   * Does Supabase return a session?
+
+3. Identify EXACT break point (no guessing)
+
+4. Fix it in code:
+
+   * If callback not firing → fix deep link / listener
+   * If code not exchanged → fix PKCE handling
+   * If session not stored → fix Supabase client usage
+   * If redirect mismatch → fix redirectTo usage
+
+5. Ensure:
+
+   * After successful Google login:
+
+     * user is authenticated
+     * session exists
+     * app navigates correctly
+     * profile/onboarding works
+
+## Strict rules
+
+* DO NOT say "looks correct"
+* DO NOT stop at assumptions
+* DO NOT suggest rebuild unless root cause requires it
+* DO NOT touch unrelated modules (auctions, upload, etc)
+
+## Output format (MANDATORY)
+
+A. Root cause (exact, not guessed)
+
+B. What was broken (file + logic)
+
+C. Fix implemented (code-level explanation)
+
+D. Files changed
+
+E. Does it require Android rebuild? (yes/no + why)
+
+F. Any manual config still required (if any)
+
+Take this seriously. This is a production blocker.

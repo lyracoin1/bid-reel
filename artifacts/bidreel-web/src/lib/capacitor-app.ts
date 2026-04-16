@@ -1,22 +1,15 @@
-import { Capacitor, registerPlugin } from "@capacitor/core";
+import { App } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 
 /**
- * Thin TypeScript interface for the built-in Capacitor App plugin.
- *
- * The native implementation ships inside @capacitor/android — no extra npm
- * package is needed. `registerPlugin('App')` retrieves the plugin by name
- * from the native bridge at runtime (web stub on non-native platforms).
+ * Re-export the official @capacitor/app plugin instance.
+ * Using the package directly (rather than registerPlugin('App')) ensures that
+ * the JS→native event bridge is initialised exactly as Capacitor intends,
+ * including the internal queuing that retains events while the WebView is paused
+ * (e.g. while a Chrome Custom Tab is open over the top of the activity).
  */
-interface AppPlugin {
-  addListener(
-    event: "appUrlOpen",
-    handler: (data: { url: string }) => void,
-  ): Promise<{ remove: () => void }>;
-  getLaunchUrl(): Promise<{ url: string | null }>;
-}
-
-export const CapApp = registerPlugin<AppPlugin>("App");
+export { App as CapApp };
 
 /**
  * Opens a URL in a Chrome Custom Tab (Android) / SFSafariViewController (iOS).

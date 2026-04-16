@@ -31,7 +31,7 @@ const MIN_INCREMENT = 1;
 export default function AuctionDetail() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
-  const { data: auction } = useAuction(id || "");
+  const { data: auction, refetch: refetchAuction } = useAuction(id || "");
 
   // ── Bid state ──────────────────────────────────────────────────────────────
   // The user enters ONLY the increment (e.g. "1", "50", "100").
@@ -48,8 +48,16 @@ export default function AuctionDetail() {
       // Reset after 2.5 s so panel is ready for the next bid
       setTimeout(() => { setBidSuccess(false); setIncInput(""); }, 2500);
     },
-    onError: (_code, message) => {
+    onError: (code, message) => {
       setBidError(message);
+      // BID_CONFLICT = someone else bid between the time we fetched the page
+      // and the time we clicked Submit. The server rolled back our bid row;
+      // refetch the auction so the UI shows the new highest price + bids,
+      // and clear the typed increment so the user re-enters with fresh context.
+      if (code === "BID_CONFLICT") {
+        setIncInput("");
+        void refetchAuction();
+      }
     },
   });
 
@@ -135,8 +143,13 @@ export default function AuctionDetail() {
   const topBidUserId = auction.bids[0]?.user.id;
   const bidStatus = getUserBidStatus(auction.id, topBidUserId);
 
-  const displayedBid = realtimeCurrentBid ?? auction.currentBid;
-  const displayedBidCount = realtimeBidCount ?? auction.bidCount;
+  // Reconcile realtime override with the latest server state.
+  // Using `Math.max` guarantees that *whichever source is fresher* wins —
+  // critical after a BID_CONFLICT refetch, because `realtimeCurrentBid` is
+  // sticky in `useRealtimeBids` and would otherwise shadow the fresh value
+  // from `refetchAuction()` if the realtime channel is disconnected.
+  const displayedBid = Math.max(realtimeCurrentBid ?? 0, auction.currentBid);
+  const displayedBidCount = Math.max(realtimeBidCount ?? 0, auction.bidCount);
 
   const fmtPrice = (amount: number) =>
     formatAuctionPrice(amount, auction.currencyCode ?? "USD");
@@ -311,50 +324,50 @@ export default function AuctionDetail() {
             </div>
           </div>
 
-          {/* Title */}
-          <h1 className="text-2xl font-bold text-white leading-tight">{auction.title}</h1>
+          {/* Title · Price · Distance — grouped as one tight block */}
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold text-white leading-tight">{auction.title}</h1>
 
-          {/* Price + Distance */}
-          {state === "upcoming" ? (
-            <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-bold text-white tracking-tight">{fmtPrice(auction.startingBid)}</span>
-              <span className="text-sm text-muted-foreground font-medium">{t("starting_at")}</span>
-            </div>
-          ) : state === "ended" ? (
-            <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-bold text-white tracking-tight">{fmtPrice(displayedBid)}</span>
-              <span className="text-sm text-muted-foreground font-medium">{t("final_price")}</span>
-            </div>
-          ) : (
-            <div className="flex items-baseline gap-2 flex-wrap">
-              <motion.span
-                key={displayedBid}
-                initial={{ scale: 1.08, color: "#a855f7" }}
-                animate={{ scale: 1, color: "#ffffff" }}
-                transition={{ duration: 0.4 }}
-                className="text-4xl font-bold tracking-tight"
-              >
-                {fmtPrice(displayedBid)}
-              </motion.span>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground font-medium">{t("current_bid")}</span>
-                {isConnected && (
-                  <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 uppercase tracking-wide">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
-                    LIVE
-                  </span>
-                )}
+            {state === "upcoming" ? (
+              <div className="flex items-baseline gap-2">
+                <span className="text-4xl font-bold text-white tracking-tight">{fmtPrice(auction.startingBid)}</span>
+                <span className="text-sm text-muted-foreground font-medium">{t("starting_at")}</span>
               </div>
-            </div>
-          )}
+            ) : state === "ended" ? (
+              <div className="flex items-baseline gap-2">
+                <span className="text-4xl font-bold text-white tracking-tight">{fmtPrice(displayedBid)}</span>
+                <span className="text-sm text-muted-foreground font-medium">{t("final_price")}</span>
+              </div>
+            ) : (
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <motion.span
+                  key={displayedBid}
+                  initial={{ scale: 1.08, color: "#a855f7" }}
+                  animate={{ scale: 1, color: "#ffffff" }}
+                  transition={{ duration: 0.4 }}
+                  className="text-4xl font-bold tracking-tight"
+                >
+                  {fmtPrice(displayedBid)}
+                </motion.span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground font-medium">{t("current_bid")}</span>
+                  {isConnected && (
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 uppercase tracking-wide">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
+                      LIVE
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
 
-          {/* Distance badge */}
-          {distanceText && (
-            <div className="flex items-center gap-1.5">
-              <MapPin size={13} className="text-white/35 shrink-0" />
-              <span className="text-[13px] font-medium text-white/40">{distanceText}</span>
-            </div>
-          )}
+            {distanceText && (
+              <div className="flex items-center gap-1.5 pt-0.5">
+                <MapPin size={13} className="text-white/35 shrink-0" />
+                <span className="text-[13px] font-medium text-white/40">{distanceText}</span>
+              </div>
+            )}
+          </div>
 
           {/* ── INLINE BID PANEL ─────────────────────────────────────────────── */}
           {canBid && (

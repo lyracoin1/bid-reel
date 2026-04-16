@@ -542,8 +542,8 @@ export default function CreateAuction() {
                 <>
                   <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
                     {lang === "ar"
-                      ? "اختر مقطع فيديو من جهازك. الحد الأقصى 20 ميغابايت — MP4 أو MOV أو WebM."
-                      : "Select a video from your device. Max 20 MB — MP4, MOV, or WebM."}
+                      ? "اختر مقطع فيديو من جهازك. يتم ضغطه تلقائياً قبل الرفع — الحد الأقصى 100 ميغابايت خام (MP4 / MOV / WebM)."
+                      : "Select a video from your device. We auto-compress before upload — up to 100 MB raw (MP4, MOV, or WebM)."}
                   </p>
 
                   {videoPreviewUrl ? (
@@ -587,7 +587,7 @@ export default function CreateAuction() {
                         <Upload size={28} className="text-primary" />
                       </div>
                       <h3 className="font-bold text-white text-lg mb-1">{t("tap_to_select_video")}</h3>
-                      <p className="text-xs text-muted-foreground">MP4, MOV, WebM — max 20 MB</p>
+                      <p className="text-xs text-muted-foreground">MP4, MOV, WebM — up to 100 MB (auto-compressed)</p>
                     </button>
                   )}
 

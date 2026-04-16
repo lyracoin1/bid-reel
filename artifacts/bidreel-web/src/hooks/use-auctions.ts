@@ -219,6 +219,34 @@ export function useAuction(id: string) {
     () => globalAuctions.find(a => a.id === id) ?? null,
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefetching, setIsRefetching] = useState(false);
+
+  // Single-auction fetch that also writes through to the global cache so
+  // the feed stays consistent. Used both for the initial load and for the
+  // `refetch()` function callers can invoke to force-refresh the detail page
+  // (e.g. after a BID_CONFLICT to replace the stale current_bid + bids).
+  const fetchOnce = useCallback(async (): Promise<void> => {
+    if (!id) return;
+    const { auction: raw, bids } = await getAuctionApi(id);
+    const mapped = backendToAuction(raw, bids);
+    setAuction(mapped);
+    const idx = globalAuctions.findIndex(a => a.id === id);
+    if (idx >= 0) globalAuctions[idx] = mapped;
+    else globalAuctions = [mapped, ...globalAuctions];
+    notify();
+  }, [id]);
+
+  const refetch = useCallback(async (): Promise<void> => {
+    if (!id) return;
+    setIsRefetching(true);
+    try {
+      await fetchOnce();
+    } catch (err) {
+      console.error(`[use-auctions] ❌ refetch(${id}) failed:`, err);
+    } finally {
+      setIsRefetching(false);
+    }
+  }, [id, fetchOnce]);
 
   useEffect(() => {
     if (!id) return;
@@ -232,25 +260,14 @@ export function useAuction(id: string) {
     listeners.add(handler);
 
     setIsLoading(true);
-    getAuctionApi(id)
-      .then(({ auction: raw, bids }) => {
-        const mapped = backendToAuction(raw, bids);
-        setAuction(mapped);
-        // Update the global cache so bid polling sees fresh data
-        const idx = globalAuctions.findIndex(a => a.id === id);
-        if (idx >= 0) globalAuctions[idx] = mapped;
-        else globalAuctions = [mapped, ...globalAuctions];
-        notify();
-      })
-      .catch(err => {
-        console.error(`[use-auctions] ❌ Failed to fetch auction ${id}:`, err);
-      })
+    fetchOnce()
+      .catch(err => console.error(`[use-auctions] ❌ Failed to fetch auction ${id}:`, err))
       .finally(() => setIsLoading(false));
 
     return () => { listeners.delete(handler); };
-  }, [id]);
+  }, [id, fetchOnce]);
 
-  return { data: auction, isLoading };
+  return { data: auction, isLoading, isRefetching, refetch };
 }
 
 // ─── usePlaceBid ──────────────────────────────────────────────────────────────

@@ -96,13 +96,16 @@ export interface VerifyOtpInput {
 }
 
 /**
- * Full profile — returned for the authenticated user only
+ * Full profile — returned for the authenticated user only. Includes `phone` (E.164) so the profile-edit screen can prefill the user's own WhatsApp contact number. `phone` is never included in PublicUserProfile.
+
  */
 export interface UserProfile {
   id: string;
   /** @maxLength 50 */
   displayName: string | null;
   avatarUrl: string | null;
+  /** E.164 WhatsApp contact number for the authenticated user. */
+  phone: string | null;
   /** Total auctions listed by this user */
   auctionCount: number;
   totalLikesReceived: number;
@@ -144,26 +147,35 @@ export interface UpdateProfileInput {
 }
 
 /**
- * multipart/form-data — files + JSON fields
+ * JSON body. Media files must be uploaded to Supabase Storage first via POST /media/upload-url; pass the resulting publicUrl values here.
+
  */
 export interface CreateAuctionInput {
-  /** Video file (MP4 or MOV, max 100 MB, max 60 seconds) */
-  video: Blob;
-  /** Thumbnail image (JPEG or PNG, max 5 MB) */
-  thumbnail: Blob;
+  /** Public URL of the already-uploaded video file in Supabase Storage. Must be an MP4 or MOV, max 100 MB, max 60 seconds.
+   */
+  videoUrl: string;
+  /** Public URL of the already-uploaded thumbnail image in Supabase Storage. Must be JPEG or PNG, max 5 MB.
+   */
+  thumbnailUrl: string;
   /**
    * @minLength 3
    * @maxLength 80
    */
   title: string;
   /** @maxLength 500 */
-  description?: string;
+  description?: string | null;
   category: AuctionCategory;
   /**
-   * Starting bid amount (positive number)
+   * Starting bid amount (positive number, stored as integer cents internally)
    * @minimum 0.01
    */
   startingBid: number;
+  /**
+   * Minimum amount each subsequent bid must exceed the current highest bid. Defaults to 10.00 if omitted. Must be greater than zero.
+
+   * @minimum 0.01
+   */
+  minimumBidIncrement?: number;
 }
 
 /**
@@ -212,8 +224,16 @@ export type AuctionDetail = AuctionSummary & {
    */
   minimumNextBid: number | null;
   topBidder: BidderSummary | null;
+  /** The increment rule set at auction creation */
+  minimumBidIncrement: number;
   /** True when the caller is the seller of this auction */
   isOwnAuction: boolean;
+  /** Set only when auction status is "ended" and at least one bid was placed. Null for active auctions or ended auctions with no bids.
+   */
+  winner: BidderSummary | null;
+  /** True when the caller is the auction winner and the auction has ended — they may call GET /auctions/{auctionId}/contact.
+   */
+  canContact: boolean;
 };
 
 export interface AuctionFeedPage {
@@ -345,6 +365,102 @@ export interface AdminStats {
 }
 
 /**
+ * Declare which media types are needed so the server can issue scoped presigned URLs for each. Both fields are optional — request only the URLs you actually need.
+
+ */
+export interface UploadUrlRequest {
+  /** Request a presigned URL for the video file */
+  video?: boolean;
+  /** Request a presigned URL for the thumbnail image */
+  thumbnail?: boolean;
+}
+
+/**
+ * A single presigned upload target
+ */
+export interface PresignedUploadSlot {
+  /** PUT this URL directly with the file as the request body. The URL is valid for 15 minutes.
+   */
+  uploadUrl: string;
+  /** Permanent public URL for the asset once the upload is complete. Pass this value in the subsequent POST /auctions request.
+   */
+  publicUrl: string;
+  /** When the presigned URL expires (15 minutes from issue) */
+  expiresAt: string;
+}
+
+export interface UploadUrlResponse {
+  /** Present when video was requested */
+  video?: PresignedUploadSlot | null;
+  /** Present when thumbnail was requested */
+  thumbnail?: PresignedUploadSlot | null;
+}
+
+/**
+ * Machine-readable notification type used to render the correct icon and route the tap to the correct screen.
+
+ */
+export type NotificationType =
+  (typeof NotificationType)[keyof typeof NotificationType];
+
+export const NotificationType = {
+  outbid: "outbid",
+  auction_won: "auction_won",
+  new_bid_received: "new_bid_received",
+  auction_ending_soon: "auction_ending_soon",
+  auction_removed: "auction_removed",
+} as const;
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  isRead: boolean;
+  /** Short notification headline (localised on client) */
+  title: string;
+  /** Supporting text */
+  body: string;
+  /** The auction this notification refers to (always present) */
+  auction: AuctionSummary;
+  createdAt: string;
+}
+
+export interface NotificationPage {
+  items: Notification[];
+  /** Total unread notifications (not just in this page) */
+  unreadCount: number;
+  pagination: PaginationMeta;
+}
+
+/**
+ * winning — caller is current highest bidder on an active auction; outbid  — caller bid but is no longer the highest bidder (auction active); won     — auction ended and caller was the highest bidder; lost    — auction ended and caller was not the highest bidder.
+
+ */
+export type MyBidStatus = (typeof MyBidStatus)[keyof typeof MyBidStatus];
+
+export const MyBidStatus = {
+  winning: "winning",
+  outbid: "outbid",
+  won: "won",
+  lost: "lost",
+} as const;
+
+/**
+ * An auction the caller has bid on, enriched with bid status
+ */
+export interface MyBidItem {
+  auction: AuctionSummary;
+  myBidStatus: MyBidStatus;
+  /** The highest amount this caller placed on this auction */
+  myHighestBid: number;
+  myLastBidAt: string;
+}
+
+export interface MyBidPage {
+  items: MyBidItem[];
+  pagination: PaginationMeta;
+}
+
+/**
  * Invalid input or missing required fields
  */
 export type BadRequestResponse = ApiError;
@@ -412,6 +528,38 @@ export type GetAuctionBidsParams = {
    */
   limit?: number;
   cursor?: string;
+};
+
+export type ListNotificationsParams = {
+  cursor?: string;
+  /**
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+  unreadOnly?: boolean;
+};
+
+export type MarkAllNotificationsRead200 = {
+  updatedCount: number;
+};
+
+export type GetMyBidsParams = {
+  cursor?: string;
+  /**
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+};
+
+export type GetMyLikesParams = {
+  cursor?: string;
+  /**
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
 };
 
 export type AdminListReportsParams = {

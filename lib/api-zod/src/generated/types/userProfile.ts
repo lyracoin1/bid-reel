@@ -8,13 +8,16 @@
  */
 
 /**
- * Full profile — returned for the authenticated user only
+ * Full profile — returned for the authenticated user only. Includes `phone` (E.164) so the profile-edit screen can prefill the user's own WhatsApp contact number. `phone` is never included in PublicUserProfile.
+
  */
 export interface UserProfile {
   id: string;
   /** @maxLength 50 */
   displayName: string | null;
   avatarUrl: string | null;
+  /** E.164 WhatsApp contact number for the authenticated user. */
+  phone: string | null;
   /** Total auctions listed by this user */
   auctionCount: number;
   totalLikesReceived: number;

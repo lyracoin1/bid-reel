@@ -1082,7 +1082,11 @@ components:
 
     UserProfile:
       type: object
-      description: Full profile — returned for the authenticated user only
+      description: >
+        Full profile — returned for the authenticated user only.
+        Includes `phone` (E.164) so the profile-edit screen can prefill the
+        user's own WhatsApp contact number. `phone` is never included in
+        PublicUserProfile.
       properties:
         id:
           type: string
@@ -1095,6 +1099,10 @@ components:
           type: string
           format: uri
           nullable: true
+        phone:
+          type: string
+          nullable: true
+          description: E.164 WhatsApp contact number for the authenticated user.
         auctionCount:
           type: integer
           description: Total auctions listed by this user
@@ -1111,6 +1119,7 @@ components:
         - id
         - displayName
         - avatarUrl
+        - phone
         - auctionCount
         - totalLikesReceived
         - bidsPlacedCount

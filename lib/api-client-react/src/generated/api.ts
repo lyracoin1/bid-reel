@@ -39,11 +39,16 @@ import type {
   ForbiddenResponse,
   GetAuctionBidsParams,
   GetAuctionFeedParams,
+  GetMyBidsParams,
+  GetMyLikesParams,
   GetUserAuctionsParams,
   HealthStatus,
   LikeState,
+  ListNotificationsParams,
+  MarkAllNotificationsRead200,
+  MyBidPage,
   NotFoundResponse,
-  PayloadTooLargeResponse,
+  NotificationPage,
   PlaceBidInput,
   PublicUserProfile,
   ReportAck,
@@ -54,6 +59,8 @@ import type {
   UnauthorizedResponse,
   UnprocessableEntityResponse,
   UpdateProfileInput,
+  UploadUrlRequest,
+  UploadUrlResponse,
   UserProfile,
   VerifyOtpInput,
 } from "./api.schemas";
@@ -575,7 +582,7 @@ export function useGetUserProfile<
 }
 
 /**
- * Accepts multipart/form-data with the video file, thumbnail image, and auction metadata. Files are stored in Supabase Storage. Auction duration is fixed at 3 days from creation.
+ * Accepts JSON with the auction metadata and the public media URLs obtained from POST /media/upload-url (client uploads files directly to Supabase Storage, then submits this request with the resulting URLs). Auction duration is fixed at 3 days from creation — clients cannot override ends_at.
 
  * @summary Create a new auction listing
  */
@@ -587,29 +594,17 @@ export const createAuction = async (
   createAuctionInput: CreateAuctionInput,
   options?: RequestInit,
 ): Promise<AuctionDetail> => {
-  const formData = new FormData();
-  formData.append(`video`, createAuctionInput.video);
-  formData.append(`thumbnail`, createAuctionInput.thumbnail);
-  formData.append(`title`, createAuctionInput.title);
-  if (createAuctionInput.description !== undefined) {
-    formData.append(`description`, createAuctionInput.description);
-  }
-  formData.append(`category`, createAuctionInput.category);
-  formData.append(`startingBid`, createAuctionInput.startingBid.toString());
-
   return customFetch<AuctionDetail>(getCreateAuctionUrl(), {
     ...options,
     method: "POST",
-    body: formData,
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createAuctionInput),
   });
 };
 
 export const getCreateAuctionMutationOptions = <
   TError = ErrorType<
-    | BadRequestResponse
-    | UnauthorizedResponse
-    | PayloadTooLargeResponse
-    | UnprocessableEntityResponse
+    BadRequestResponse | UnauthorizedResponse | UnprocessableEntityResponse
   >,
   TContext = unknown,
 >(options?: {
@@ -652,10 +647,7 @@ export type CreateAuctionMutationResult = NonNullable<
 >;
 export type CreateAuctionMutationBody = BodyType<CreateAuctionInput>;
 export type CreateAuctionMutationError = ErrorType<
-  | BadRequestResponse
-  | UnauthorizedResponse
-  | PayloadTooLargeResponse
-  | UnprocessableEntityResponse
+  BadRequestResponse | UnauthorizedResponse | UnprocessableEntityResponse
 >;
 
 /**
@@ -663,10 +655,7 @@ export type CreateAuctionMutationError = ErrorType<
  */
 export const useCreateAuction = <
   TError = ErrorType<
-    | BadRequestResponse
-    | UnauthorizedResponse
-    | PayloadTooLargeResponse
-    | UnprocessableEntityResponse
+    BadRequestResponse | UnauthorizedResponse | UnprocessableEntityResponse
   >,
   TContext = unknown,
 >(options?: {
@@ -687,7 +676,7 @@ export const useCreateAuction = <
 };
 
 /**
- * Returns a cursor-paginated list of active auctions for the vertical feed. Auctions from blocked users are excluded. Expired auctions are excluded.
+ * Returns a cursor-paginated list of active auctions for the vertical feed. Guests may browse without authentication. Auctions from blocked users are excluded when the caller is authenticated. Expired auctions are excluded.
 
  * @summary Get paginated auction feed (active auctions only, sorted by ending soonest)
  */
@@ -1821,6 +1810,468 @@ export function useGetContactLink<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetContactLinkQueryOptions(auctionId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns two short-lived presigned URLs — one for the video file and one for the thumbnail image. The client uploads files directly to Supabase Storage using these URLs (bypassing the API server). After upload completes, the resulting public media URLs are passed to POST /auctions. Video: max 100 MB, MP4 or MOV, max 60 seconds. Thumbnail: max 5 MB, JPEG or PNG.
+
+ * @summary Request presigned upload URLs for video and thumbnail
+ */
+export const getGetUploadUrlUrl = () => {
+  return `/api/media/upload-url`;
+};
+
+export const getUploadUrl = async (
+  uploadUrlRequest: UploadUrlRequest,
+  options?: RequestInit,
+): Promise<UploadUrlResponse> => {
+  return customFetch<UploadUrlResponse>(getGetUploadUrlUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(uploadUrlRequest),
+  });
+};
+
+export const getGetUploadUrlMutationOptions = <
+  TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof getUploadUrl>>,
+    TError,
+    { data: BodyType<UploadUrlRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof getUploadUrl>>,
+  TError,
+  { data: BodyType<UploadUrlRequest> },
+  TContext
+> => {
+  const mutationKey = ["getUploadUrl"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof getUploadUrl>>,
+    { data: BodyType<UploadUrlRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return getUploadUrl(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GetUploadUrlMutationResult = NonNullable<
+  Awaited<ReturnType<typeof getUploadUrl>>
+>;
+export type GetUploadUrlMutationBody = BodyType<UploadUrlRequest>;
+export type GetUploadUrlMutationError = ErrorType<
+  BadRequestResponse | UnauthorizedResponse
+>;
+
+/**
+ * @summary Request presigned upload URLs for video and thumbnail
+ */
+export const useGetUploadUrl = <
+  TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof getUploadUrl>>,
+    TError,
+    { data: BodyType<UploadUrlRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof getUploadUrl>>,
+  TError,
+  { data: BodyType<UploadUrlRequest> },
+  TContext
+> => {
+  return useMutation(getGetUploadUrlMutationOptions(options));
+};
+
+/**
+ * @summary Get the authenticated user's in-app notifications
+ */
+export const getListNotificationsUrl = (params?: ListNotificationsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/notifications?${stringifiedParams}`
+    : `/api/notifications`;
+};
+
+export const listNotifications = async (
+  params?: ListNotificationsParams,
+  options?: RequestInit,
+): Promise<NotificationPage> => {
+  return customFetch<NotificationPage>(getListNotificationsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListNotificationsQueryKey = (
+  params?: ListNotificationsParams,
+) => {
+  return [`/api/notifications`, ...(params ? [params] : [])] as const;
+};
+
+export const getListNotificationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listNotifications>>,
+  TError = ErrorType<UnauthorizedResponse>,
+>(
+  params?: ListNotificationsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listNotifications>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListNotificationsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listNotifications>>
+  > = ({ signal }) => listNotifications(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listNotifications>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListNotificationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listNotifications>>
+>;
+export type ListNotificationsQueryError = ErrorType<UnauthorizedResponse>;
+
+/**
+ * @summary Get the authenticated user's in-app notifications
+ */
+
+export function useListNotifications<
+  TData = Awaited<ReturnType<typeof listNotifications>>,
+  TError = ErrorType<UnauthorizedResponse>,
+>(
+  params?: ListNotificationsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listNotifications>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListNotificationsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Mark all notifications as read
+ */
+export const getMarkAllNotificationsReadUrl = () => {
+  return `/api/notifications/read-all`;
+};
+
+export const markAllNotificationsRead = async (
+  options?: RequestInit,
+): Promise<MarkAllNotificationsRead200> => {
+  return customFetch<MarkAllNotificationsRead200>(
+    getMarkAllNotificationsReadUrl(),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getMarkAllNotificationsReadMutationOptions = <
+  TError = ErrorType<UnauthorizedResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markAllNotificationsRead>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof markAllNotificationsRead>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["markAllNotificationsRead"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof markAllNotificationsRead>>,
+    void
+  > = () => {
+    return markAllNotificationsRead(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MarkAllNotificationsReadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof markAllNotificationsRead>>
+>;
+
+export type MarkAllNotificationsReadMutationError =
+  ErrorType<UnauthorizedResponse>;
+
+/**
+ * @summary Mark all notifications as read
+ */
+export const useMarkAllNotificationsRead = <
+  TError = ErrorType<UnauthorizedResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markAllNotificationsRead>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof markAllNotificationsRead>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getMarkAllNotificationsReadMutationOptions(options));
+};
+
+/**
+ * Returns the auctions (not individual bid rows) that the caller has participated in, enriched with the caller's bid status (winning / outbid / won / lost).
+
+ * @summary Get auctions the authenticated user has placed bids on
+ */
+export const getGetMyBidsUrl = (params?: GetMyBidsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/users/me/bids?${stringifiedParams}`
+    : `/api/users/me/bids`;
+};
+
+export const getMyBids = async (
+  params?: GetMyBidsParams,
+  options?: RequestInit,
+): Promise<MyBidPage> => {
+  return customFetch<MyBidPage>(getGetMyBidsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMyBidsQueryKey = (params?: GetMyBidsParams) => {
+  return [`/api/users/me/bids`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetMyBidsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyBids>>,
+  TError = ErrorType<UnauthorizedResponse>,
+>(
+  params?: GetMyBidsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMyBids>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMyBidsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyBids>>> = ({
+    signal,
+  }) => getMyBids(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyBids>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMyBidsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyBids>>
+>;
+export type GetMyBidsQueryError = ErrorType<UnauthorizedResponse>;
+
+/**
+ * @summary Get auctions the authenticated user has placed bids on
+ */
+
+export function useGetMyBids<
+  TData = Awaited<ReturnType<typeof getMyBids>>,
+  TError = ErrorType<UnauthorizedResponse>,
+>(
+  params?: GetMyBidsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMyBids>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMyBidsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get auctions the authenticated user has liked
+ */
+export const getGetMyLikesUrl = (params?: GetMyLikesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/users/me/likes?${stringifiedParams}`
+    : `/api/users/me/likes`;
+};
+
+export const getMyLikes = async (
+  params?: GetMyLikesParams,
+  options?: RequestInit,
+): Promise<AuctionFeedPage> => {
+  return customFetch<AuctionFeedPage>(getGetMyLikesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMyLikesQueryKey = (params?: GetMyLikesParams) => {
+  return [`/api/users/me/likes`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetMyLikesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyLikes>>,
+  TError = ErrorType<UnauthorizedResponse>,
+>(
+  params?: GetMyLikesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMyLikes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMyLikesQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyLikes>>> = ({
+    signal,
+  }) => getMyLikes(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyLikes>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMyLikesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyLikes>>
+>;
+export type GetMyLikesQueryError = ErrorType<UnauthorizedResponse>;
+
+/**
+ * @summary Get auctions the authenticated user has liked
+ */
+
+export function useGetMyLikes<
+  TData = Awaited<ReturnType<typeof getMyLikes>>,
+  TError = ErrorType<UnauthorizedResponse>,
+>(
+  params?: GetMyLikesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getMyLikes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMyLikesQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

@@ -9,24 +9,33 @@
 import type { AuctionCategory } from "./auctionCategory";
 
 /**
- * multipart/form-data — files + JSON fields
+ * JSON body. Media files must be uploaded to Supabase Storage first via POST /media/upload-url; pass the resulting publicUrl values here.
+
  */
 export interface CreateAuctionInput {
-  /** Video file (MP4 or MOV, max 100 MB, max 60 seconds) */
-  video: Blob;
-  /** Thumbnail image (JPEG or PNG, max 5 MB) */
-  thumbnail: Blob;
+  /** Public URL of the already-uploaded video file in Supabase Storage. Must be an MP4 or MOV, max 100 MB, max 60 seconds.
+   */
+  videoUrl: string;
+  /** Public URL of the already-uploaded thumbnail image in Supabase Storage. Must be JPEG or PNG, max 5 MB.
+   */
+  thumbnailUrl: string;
   /**
    * @minLength 3
    * @maxLength 80
    */
   title: string;
   /** @maxLength 500 */
-  description?: string;
+  description?: string | null;
   category: AuctionCategory;
   /**
-   * Starting bid amount (positive number)
+   * Starting bid amount (positive number, stored as integer cents internally)
    * @minimum 0.01
    */
   startingBid: number;
+  /**
+   * Minimum amount each subsequent bid must exceed the current highest bid. Defaults to 10.00 if omitted. Must be greater than zero.
+
+   * @minimum 0.01
+   */
+  minimumBidIncrement?: number;
 }

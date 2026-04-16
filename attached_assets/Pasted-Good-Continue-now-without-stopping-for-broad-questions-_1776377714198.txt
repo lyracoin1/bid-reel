@@ -1,0 +1,82 @@
+Good. Continue now without stopping for broad questions. I want you to finish the remaining work in a structured and production-safe way.
+
+Important clarification about the auction detail spacing issue:
+
+* I want the seller/publisher block, auction content, description, bid/history area, and bottom action area to have clearly separated spacing on mobile.
+* No overlap with top controls.
+* No content hidden behind floating bid/action panels.
+* No cramped layout between seller info and listing content.
+* Fix RTL/mobile spacing properly, not with random CSS patches.
+
+Now continue with these tasks as one organized pass:
+
+1. Finish the phone / WhatsApp flow completely
+
+* Verify phone persists after save, after navigation away/back, and after refresh.
+* Verify seller.phone reaches the auction details/feed render.
+* Verify WhatsApp button appears whenever seller phone exists, including on the seller’s own post.
+* Verify the WhatsApp link works.
+
+2. Unify media upload architecture
+   I do not want a messy split where images are handled one way and videos another way with scattered logic and regressions.
+   I want one organized media pipeline with clear rules.
+
+Required upload architecture:
+
+* Keep compression/preprocessing before upload where appropriate.
+* Images and videos must both go through one clean, centralized media upload abstraction in the frontend.
+* If transport differs under the hood (for example image via proxy and video via presigned R2), that is acceptable only if:
+
+  * it is hidden behind one unified upload API in the client
+  * validation, error handling, logging, result shape, and retry logic are consistent
+  * there is no duplicated old upload path left behind
+  * there is no confusing fallback behavior that reintroduces regressions
+
+3. Compression / optimization requirements
+
+* I want uploads compressed/optimized, not degraded into a worse experience.
+* Audit the current image and video preprocessing path.
+* Keep or improve compression where it already existed.
+* Do not remove useful optimization just because transport changed.
+* Tell me exactly:
+
+  * what happens to images before upload
+  * what happens to videos before upload
+  * max size limits
+  * whether Android/mobile behavior differs from web
+* If video compression is not currently implemented, say that explicitly and propose the safest next step without breaking production.
+
+4. Remove regressions / dead paths
+
+* Audit for duplicated upload helpers, legacy code paths, stale fallbacks, dead branches, or conflicting create-auction logic.
+* Remove or consolidate them so the flow is clean and predictable.
+* I want one clear create-auction pipeline, not multiple competing paths.
+
+5. Fix auction detail spacing cleanly
+
+* Improve section spacing hierarchy on mobile RTL layout.
+* Make seller block, description, bid panel, history, and action areas visually distinct and readable.
+* Ensure floating panels/buttons do not obscure content.
+
+6. Verify end-to-end
+   After changes, verify:
+
+* profile phone save and reload
+* WhatsApp button visibility and click behavior
+* image upload
+* video upload
+* create auction success flow
+* auction detail spacing on mobile layout
+
+Required output:
+
+1. Exact root cause of each remaining issue
+2. Files changed
+3. What was unified / removed / refactored
+4. Current final upload architecture in plain language
+5. Whether compression is preserved or improved
+6. Manual test steps for me
+7. Exact moment when I should run:
+   git push origin main
+
+Do not stop after partial fixes. Finish the organized pass first.

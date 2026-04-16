@@ -18,6 +18,14 @@ export type AuctionDetail = AuctionSummary & {
    */
   minimumNextBid: number | null;
   topBidder: BidderSummary | null;
+  /** The increment rule set at auction creation */
+  minimumBidIncrement: number;
   /** True when the caller is the seller of this auction */
   isOwnAuction: boolean;
+  /** Set only when auction status is "ended" and at least one bid was placed. Null for active auctions or ended auctions with no bids.
+   */
+  winner: BidderSummary | null;
+  /** True when the caller is the auction winner and the auction has ended — they may call GET /auctions/{auctionId}/contact.
+   */
+  canContact: boolean;
 };

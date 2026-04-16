@@ -76,13 +76,19 @@ export const VerifyOtpResponse = zod.object({
         .max(verifyOtpResponseUserDisplayNameMax)
         .nullable(),
       avatarUrl: zod.string().url().nullable(),
+      phone: zod
+        .string()
+        .nullable()
+        .describe("E.164 WhatsApp contact number for the authenticated user."),
       auctionCount: zod.number().describe("Total auctions listed by this user"),
       totalLikesReceived: zod.number(),
       bidsPlacedCount: zod.number(),
       isAdmin: zod.boolean(),
       createdAt: zod.date(),
     })
-    .describe("Full profile — returned for the authenticated user only"),
+    .describe(
+      "Full profile — returned for the authenticated user only. Includes `phone` (E.164) so the profile-edit screen can prefill the user's own WhatsApp contact number. `phone` is never included in PublicUserProfile.\n",
+    ),
 });
 
 /**
@@ -98,13 +104,19 @@ export const GetMyProfileResponse = zod
       .max(getMyProfileResponseDisplayNameMax)
       .nullable(),
     avatarUrl: zod.string().url().nullable(),
+    phone: zod
+      .string()
+      .nullable()
+      .describe("E.164 WhatsApp contact number for the authenticated user."),
     auctionCount: zod.number().describe("Total auctions listed by this user"),
     totalLikesReceived: zod.number(),
     bidsPlacedCount: zod.number(),
     isAdmin: zod.boolean(),
     createdAt: zod.date(),
   })
-  .describe("Full profile — returned for the authenticated user only");
+  .describe(
+    "Full profile — returned for the authenticated user only. Includes `phone` (E.164) so the profile-edit screen can prefill the user's own WhatsApp contact number. `phone` is never included in PublicUserProfile.\n",
+  );
 
 /**
  * @summary Update the authenticated user's display name
@@ -129,13 +141,19 @@ export const UpdateMyProfileResponse = zod
       .max(updateMyProfileResponseDisplayNameMax)
       .nullable(),
     avatarUrl: zod.string().url().nullable(),
+    phone: zod
+      .string()
+      .nullable()
+      .describe("E.164 WhatsApp contact number for the authenticated user."),
     auctionCount: zod.number().describe("Total auctions listed by this user"),
     totalLikesReceived: zod.number(),
     bidsPlacedCount: zod.number(),
     isAdmin: zod.boolean(),
     createdAt: zod.date(),
   })
-  .describe("Full profile — returned for the authenticated user only");
+  .describe(
+    "Full profile — returned for the authenticated user only. Includes `phone` (E.164) so the profile-edit screen can prefill the user's own WhatsApp contact number. `phone` is never included in PublicUserProfile.\n",
+  );
 
 /**
  * @summary Get another user's public profile
@@ -162,7 +180,7 @@ export const GetUserProfileResponse = zod
   );
 
 /**
- * Accepts multipart/form-data with the video file, thumbnail image, and auction metadata. Files are stored in Supabase Storage. Auction duration is fixed at 3 days from creation.
+ * Accepts JSON with the auction metadata and the public media URLs obtained from POST /media/upload-url (client uploads files directly to Supabase Storage, then submits this request with the resulting URLs). Auction duration is fixed at 3 days from creation — clients cannot override ends_at.
 
  * @summary Create a new auction listing
  */
@@ -173,19 +191,28 @@ export const createAuctionBodyDescriptionMax = 500;
 
 export const createAuctionBodyStartingBidMin = 0.01;
 
+export const createAuctionBodyMinimumBidIncrementDefault = 10;
+export const createAuctionBodyMinimumBidIncrementMin = 0.01;
+
 export const CreateAuctionBody = zod
   .object({
-    video: zod
-      .instanceof(File)
-      .describe("Video file (MP4 or MOV, max 100 MB, max 60 seconds)"),
-    thumbnail: zod
-      .instanceof(File)
-      .describe("Thumbnail image (JPEG or PNG, max 5 MB)"),
+    videoUrl: zod
+      .string()
+      .url()
+      .describe(
+        "Public URL of the already-uploaded video file in Supabase Storage. Must be an MP4 or MOV, max 100 MB, max 60 seconds.\n",
+      ),
+    thumbnailUrl: zod
+      .string()
+      .url()
+      .describe(
+        "Public URL of the already-uploaded thumbnail image in Supabase Storage. Must be JPEG or PNG, max 5 MB.\n",
+      ),
     title: zod
       .string()
       .min(createAuctionBodyTitleMin)
       .max(createAuctionBodyTitleMax),
-    description: zod.string().max(createAuctionBodyDescriptionMax).optional(),
+    description: zod.string().max(createAuctionBodyDescriptionMax).nullish(),
     category: zod.enum([
       "electronics",
       "fashion",
@@ -200,12 +227,23 @@ export const CreateAuctionBody = zod
     startingBid: zod
       .number()
       .min(createAuctionBodyStartingBidMin)
-      .describe("Starting bid amount (positive number)"),
+      .describe(
+        "Starting bid amount (positive number, stored as integer cents internally)",
+      ),
+    minimumBidIncrement: zod
+      .number()
+      .min(createAuctionBodyMinimumBidIncrementMin)
+      .default(createAuctionBodyMinimumBidIncrementDefault)
+      .describe(
+        "Minimum amount each subsequent bid must exceed the current highest bid. Defaults to 10.00 if omitted. Must be greater than zero.\n",
+      ),
   })
-  .describe("multipart\/form-data — files + JSON fields");
+  .describe(
+    "JSON body. Media files must be uploaded to Supabase Storage first via POST \/media\/upload-url; pass the resulting publicUrl values here.\n",
+  );
 
 /**
- * Returns a cursor-paginated list of active auctions for the vertical feed. Auctions from blocked users are excluded. Expired auctions are excluded.
+ * Returns a cursor-paginated list of active auctions for the vertical feed. Guests may browse without authentication. Auctions from blocked users are excluded when the caller is authenticated. Expired auctions are excluded.
 
  * @summary Get paginated auction feed (active auctions only, sorted by ending soonest)
  */
@@ -339,9 +377,30 @@ export const GetAuctionResponse = zod
         .describe(
           "Minimal bidder info shown in auction detail — no phone number",
         ),
+      minimumBidIncrement: zod
+        .number()
+        .describe("The increment rule set at auction creation"),
       isOwnAuction: zod
         .boolean()
         .describe("True when the caller is the seller of this auction"),
+      winner: zod
+        .object({
+          id: zod.string().uuid(),
+          displayName: zod.string().nullable(),
+          avatarUrl: zod.string().url().nullable(),
+        })
+        .describe(
+          "Minimal bidder info shown in auction detail — no phone number",
+        )
+        .nullable()
+        .describe(
+          'Set only when auction status is \"ended\" and at least one bid was placed. Null for active auctions or ended auctions with no bids.\n',
+        ),
+      canContact: zod
+        .boolean()
+        .describe(
+          "True when the caller is the auction winner and the auction has ended — they may call GET \/auctions\/{auctionId}\/contact.\n",
+        ),
     }),
   );
 
@@ -583,6 +642,314 @@ export const GetContactLinkResponse = zod
   .describe(
     "Pre-built WhatsApp deep-link. The phone number of the seller is embedded server-side and never returned in the response body.\n",
   );
+
+/**
+ * Returns two short-lived presigned URLs — one for the video file and one for the thumbnail image. The client uploads files directly to Supabase Storage using these URLs (bypassing the API server). After upload completes, the resulting public media URLs are passed to POST /auctions. Video: max 100 MB, MP4 or MOV, max 60 seconds. Thumbnail: max 5 MB, JPEG or PNG.
+
+ * @summary Request presigned upload URLs for video and thumbnail
+ */
+export const getUploadUrlBodyVideoDefault = false;
+export const getUploadUrlBodyThumbnailDefault = false;
+
+export const GetUploadUrlBody = zod
+  .object({
+    video: zod
+      .boolean()
+      .default(getUploadUrlBodyVideoDefault)
+      .describe("Request a presigned URL for the video file"),
+    thumbnail: zod
+      .boolean()
+      .default(getUploadUrlBodyThumbnailDefault)
+      .describe("Request a presigned URL for the thumbnail image"),
+  })
+  .describe(
+    "Declare which media types are needed so the server can issue scoped presigned URLs for each. Both fields are optional — request only the URLs you actually need.\n",
+  );
+
+export const GetUploadUrlResponse = zod.object({
+  video: zod
+    .object({
+      uploadUrl: zod
+        .string()
+        .url()
+        .describe(
+          "PUT this URL directly with the file as the request body. The URL is valid for 15 minutes.\n",
+        ),
+      publicUrl: zod
+        .string()
+        .url()
+        .describe(
+          "Permanent public URL for the asset once the upload is complete. Pass this value in the subsequent POST \/auctions request.\n",
+        ),
+      expiresAt: zod
+        .date()
+        .describe("When the presigned URL expires (15 minutes from issue)"),
+    })
+    .describe("A single presigned upload target")
+    .nullish()
+    .describe("Present when video was requested"),
+  thumbnail: zod
+    .object({
+      uploadUrl: zod
+        .string()
+        .url()
+        .describe(
+          "PUT this URL directly with the file as the request body. The URL is valid for 15 minutes.\n",
+        ),
+      publicUrl: zod
+        .string()
+        .url()
+        .describe(
+          "Permanent public URL for the asset once the upload is complete. Pass this value in the subsequent POST \/auctions request.\n",
+        ),
+      expiresAt: zod
+        .date()
+        .describe("When the presigned URL expires (15 minutes from issue)"),
+    })
+    .describe("A single presigned upload target")
+    .nullish()
+    .describe("Present when thumbnail was requested"),
+});
+
+/**
+ * @summary Get the authenticated user's in-app notifications
+ */
+export const listNotificationsQueryLimitDefault = 20;
+export const listNotificationsQueryLimitMax = 50;
+
+export const listNotificationsQueryUnreadOnlyDefault = false;
+
+export const ListNotificationsQueryParams = zod.object({
+  cursor: zod.coerce.string().optional(),
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(listNotificationsQueryLimitMax)
+    .default(listNotificationsQueryLimitDefault),
+  unreadOnly: zod.coerce
+    .boolean()
+    .default(listNotificationsQueryUnreadOnlyDefault),
+});
+
+export const ListNotificationsResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      id: zod.string().uuid(),
+      type: zod
+        .enum([
+          "outbid",
+          "auction_won",
+          "new_bid_received",
+          "auction_ending_soon",
+          "auction_removed",
+        ])
+        .describe(
+          "Machine-readable notification type used to render the correct icon and route the tap to the correct screen.\n",
+        ),
+      isRead: zod.boolean(),
+      title: zod
+        .string()
+        .describe("Short notification headline (localised on client)"),
+      body: zod.string().describe("Supporting text"),
+      auction: zod
+        .object({
+          id: zod.string().uuid(),
+          title: zod.string(),
+          thumbnailUrl: zod.string().url(),
+          videoUrl: zod.string().url(),
+          currentBid: zod
+            .number()
+            .describe("Highest bid placed so far (or starting bid if no bids)"),
+          bidCount: zod.number(),
+          likeCount: zod.number(),
+          isLikedByMe: zod
+            .boolean()
+            .describe(
+              "Whether the authenticated caller has liked this auction",
+            ),
+          status: zod
+            .enum(["active", "ended", "removed"])
+            .describe(
+              "active — auction is live and accepting bids; ended — 3-day window has elapsed (no more bids); removed — taken down by admin or seller\n",
+            ),
+          endsAt: zod.date(),
+          seller: zod
+            .object({
+              id: zod.string().uuid(),
+              displayName: zod.string().nullable(),
+              avatarUrl: zod.string().url().nullable(),
+            })
+            .describe(
+              "Minimal seller info shown on auction cards — no phone number",
+            ),
+          createdAt: zod.date(),
+        })
+        .describe("Compact representation for feed cards")
+        .describe("The auction this notification refers to (always present)"),
+      createdAt: zod.date(),
+    }),
+  ),
+  unreadCount: zod
+    .number()
+    .describe("Total unread notifications (not just in this page)"),
+  pagination: zod.object({
+    nextCursor: zod
+      .string()
+      .nullish()
+      .describe(
+        "Pass as `cursor` in the next request; null when no more pages",
+      ),
+    hasMore: zod.boolean(),
+  }),
+});
+
+/**
+ * @summary Mark all notifications as read
+ */
+export const MarkAllNotificationsReadResponse = zod.object({
+  updatedCount: zod.number(),
+});
+
+/**
+ * Returns the auctions (not individual bid rows) that the caller has participated in, enriched with the caller's bid status (winning / outbid / won / lost).
+
+ * @summary Get auctions the authenticated user has placed bids on
+ */
+export const getMyBidsQueryLimitDefault = 20;
+export const getMyBidsQueryLimitMax = 50;
+
+export const GetMyBidsQueryParams = zod.object({
+  cursor: zod.coerce.string().optional(),
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(getMyBidsQueryLimitMax)
+    .default(getMyBidsQueryLimitDefault),
+});
+
+export const GetMyBidsResponse = zod.object({
+  items: zod.array(
+    zod
+      .object({
+        auction: zod
+          .object({
+            id: zod.string().uuid(),
+            title: zod.string(),
+            thumbnailUrl: zod.string().url(),
+            videoUrl: zod.string().url(),
+            currentBid: zod
+              .number()
+              .describe(
+                "Highest bid placed so far (or starting bid if no bids)",
+              ),
+            bidCount: zod.number(),
+            likeCount: zod.number(),
+            isLikedByMe: zod
+              .boolean()
+              .describe(
+                "Whether the authenticated caller has liked this auction",
+              ),
+            status: zod
+              .enum(["active", "ended", "removed"])
+              .describe(
+                "active — auction is live and accepting bids; ended — 3-day window has elapsed (no more bids); removed — taken down by admin or seller\n",
+              ),
+            endsAt: zod.date(),
+            seller: zod
+              .object({
+                id: zod.string().uuid(),
+                displayName: zod.string().nullable(),
+                avatarUrl: zod.string().url().nullable(),
+              })
+              .describe(
+                "Minimal seller info shown on auction cards — no phone number",
+              ),
+            createdAt: zod.date(),
+          })
+          .describe("Compact representation for feed cards"),
+        myBidStatus: zod
+          .enum(["winning", "outbid", "won", "lost"])
+          .describe(
+            "winning — caller is current highest bidder on an active auction; outbid  — caller bid but is no longer the highest bidder (auction active); won     — auction ended and caller was the highest bidder; lost    — auction ended and caller was not the highest bidder.\n",
+          ),
+        myHighestBid: zod
+          .number()
+          .describe("The highest amount this caller placed on this auction"),
+        myLastBidAt: zod.date(),
+      })
+      .describe("An auction the caller has bid on, enriched with bid status"),
+  ),
+  pagination: zod.object({
+    nextCursor: zod
+      .string()
+      .nullish()
+      .describe(
+        "Pass as `cursor` in the next request; null when no more pages",
+      ),
+    hasMore: zod.boolean(),
+  }),
+});
+
+/**
+ * @summary Get auctions the authenticated user has liked
+ */
+export const getMyLikesQueryLimitDefault = 20;
+export const getMyLikesQueryLimitMax = 50;
+
+export const GetMyLikesQueryParams = zod.object({
+  cursor: zod.coerce.string().optional(),
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(getMyLikesQueryLimitMax)
+    .default(getMyLikesQueryLimitDefault),
+});
+
+export const GetMyLikesResponse = zod.object({
+  items: zod.array(
+    zod
+      .object({
+        id: zod.string().uuid(),
+        title: zod.string(),
+        thumbnailUrl: zod.string().url(),
+        videoUrl: zod.string().url(),
+        currentBid: zod
+          .number()
+          .describe("Highest bid placed so far (or starting bid if no bids)"),
+        bidCount: zod.number(),
+        likeCount: zod.number(),
+        isLikedByMe: zod
+          .boolean()
+          .describe("Whether the authenticated caller has liked this auction"),
+        status: zod
+          .enum(["active", "ended", "removed"])
+          .describe(
+            "active — auction is live and accepting bids; ended — 3-day window has elapsed (no more bids); removed — taken down by admin or seller\n",
+          ),
+        endsAt: zod.date(),
+        seller: zod
+          .object({
+            id: zod.string().uuid(),
+            displayName: zod.string().nullable(),
+            avatarUrl: zod.string().url().nullable(),
+          })
+          .describe(
+            "Minimal seller info shown on auction cards — no phone number",
+          ),
+        createdAt: zod.date(),
+      })
+      .describe("Compact representation for feed cards"),
+  ),
+  pagination: zod.object({
+    nextCursor: zod
+      .string()
+      .nullish()
+      .describe(
+        "Pass as `cursor` in the next request; null when no more pages",
+      ),
+    hasMore: zod.boolean(),
+  }),
+});
 
 /**
  * @summary List all pending reports (admin only)

@@ -40,8 +40,9 @@ const usernameSchema = z
 const router: IRouter = Router();
 
 // ─── GET /api/users/me ────────────────────────────────────────────────────────
-// Returns the full own profile for the authenticated caller.
-// Never returns phone number.
+// Returns the full own profile for the authenticated caller, including the
+// user's own phone number (so the profile-edit screen can prefill it).
+// Phone is never returned for other users (see GET /api/users/:userId).
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.get("/users/me", requireAuth, async (req, res) => {

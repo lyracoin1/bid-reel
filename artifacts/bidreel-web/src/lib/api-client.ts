@@ -293,7 +293,44 @@ export async function uploadMediaApi(
 // body straight to Cloudflare R2. This path only hits our API for the small
 // JSON sign request, so it scales to the full 20 MB compressed-video cap.
 //
-// Returns the public URL of the stored file.
+// Required R2 bucket CORS policy (paste into the Cloudflare dashboard exactly
+// — R2 rejects OPTIONS in AllowedMethods because it manages preflight itself):
+//
+// [
+//   {
+//     "AllowedOrigins": ["https://<your-site>", "capacitor://localhost", "http://localhost"],
+//     "AllowedMethods": ["PUT", "GET"],
+//     "AllowedHeaders": ["Content-Type", "Authorization"],
+//     "ExposeHeaders":  ["ETag"],
+//     "MaxAgeSeconds": 3600
+//   }
+// ]
+//
+// Every thrown Error from this function has .name = "PresignedUploadError" and
+// a .step field set to one of: "presign_http", "presign_parse", "put_network",
+// "put_http" — plus the full request/response context in the message so the
+// UI can show exactly which hop failed.
+
+export class PresignedUploadError extends Error {
+  step: "presign_http" | "presign_parse" | "put_network" | "put_http";
+  httpStatus?: number;
+  url?: string;
+  responseBody?: string;
+  constructor(init: {
+    step: PresignedUploadError["step"];
+    message: string;
+    httpStatus?: number;
+    url?: string;
+    responseBody?: string;
+  }) {
+    super(init.message);
+    this.name = "PresignedUploadError";
+    this.step = init.step;
+    this.httpStatus = init.httpStatus;
+    this.url = init.url;
+    this.responseBody = init.responseBody;
+  }
+}
 
 export async function uploadMediaPresignedApi(
   file: File,
@@ -306,27 +343,61 @@ export async function uploadMediaPresignedApi(
   const mimeType = (file.type || "").split(";")[0].trim()
     || (fileType === "video" ? "video/mp4" : "image/jpeg");
 
-  // 1. Ask API for a signed URL
-  const signRes = await fetch(`${API_BASE}/media/presign-upload`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ fileType, mimeType, sizeBytes: file.size }),
-  });
+  const presignUrl = `${API_BASE}/media/presign-upload`;
 
-  if (!signRes.ok) {
-    const err = await signRes.json().catch(() => ({})) as { message?: string; detail?: string };
-    throw new Error(err.message ?? err.detail ?? `Could not prepare upload (HTTP ${signRes.status}).`);
+  // 1. Ask API for a signed URL
+  let signRes: Response;
+  try {
+    signRes = await fetch(presignUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ fileType, mimeType, sizeBytes: file.size }),
+    });
+  } catch (networkErr) {
+    const detail = networkErr instanceof Error ? networkErr.message : String(networkErr);
+    throw new PresignedUploadError({
+      step: "presign_http",
+      message: `Could not reach presign endpoint (${presignUrl}): ${detail}`,
+      url: presignUrl,
+    });
   }
 
-  const { uploadUrl, publicUrl } = await signRes.json() as {
-    uploadUrl: string; publicUrl: string; key: string;
-  };
+  const rawSignBody = await signRes.text();
+  if (!signRes.ok) {
+    let parsed: { message?: string; detail?: string } = {};
+    try { parsed = JSON.parse(rawSignBody); } catch { /* non-JSON */ }
+    throw new PresignedUploadError({
+      step: "presign_http",
+      httpStatus: signRes.status,
+      url: presignUrl,
+      responseBody: rawSignBody.slice(0, 500),
+      message:
+        `Presign failed [HTTP ${signRes.status} ${presignUrl}]: ` +
+        (parsed.message ?? parsed.detail ?? (rawSignBody.slice(0, 200) || "no body")),
+    });
+  }
+
+  let signed: { uploadUrl: string; publicUrl: string; key: string };
+  try {
+    signed = JSON.parse(rawSignBody);
+  } catch {
+    throw new PresignedUploadError({
+      step: "presign_parse",
+      httpStatus: signRes.status,
+      url: presignUrl,
+      responseBody: rawSignBody.slice(0, 500),
+      message: `Presign returned non-JSON body: ${rawSignBody.slice(0, 200)}`,
+    });
+  }
+  const { uploadUrl, publicUrl } = signed;
+  const signedHost = safeHost(uploadUrl);
+  console.log(`[api-client] Presign OK → PUT ${signedHost}, expected publicUrl=${publicUrl}`);
 
   // 2. PUT file directly to R2
-  return new Promise((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
 
     if (onProgress) {
@@ -339,22 +410,48 @@ export async function uploadMediaPresignedApi(
       if (xhr.status >= 200 && xhr.status < 300) {
         console.log(`[api-client] ✅ PUT R2 → publicUrl=${publicUrl}`);
         resolve(publicUrl);
-      } else {
-        // R2 returns XML on error (e.g. SignatureDoesNotMatch). Extract <Message>.
-        let msg: string | null = null;
-        const m = xhr.responseText.match(/<Message>([^<]+)<\/Message>/);
-        if (m) msg = m[1];
-        reject(new Error(msg ?? `Direct upload failed: HTTP ${xhr.status}`));
+        return;
       }
+      // R2 returns XML on error (e.g. <Error><Code>SignatureDoesNotMatch</Code>…).
+      // Extract Code + Message so the UI can point at the exact problem.
+      const body = xhr.responseText || "";
+      const codeMatch = body.match(/<Code>([^<]+)<\/Code>/);
+      const msgMatch  = body.match(/<Message>([^<]+)<\/Message>/);
+      const detail = [codeMatch?.[1], msgMatch?.[1]].filter(Boolean).join(": ");
+      reject(new PresignedUploadError({
+        step: "put_http",
+        httpStatus: xhr.status,
+        url: signedHost,
+        responseBody: body.slice(0, 500),
+        message:
+          `R2 PUT rejected [HTTP ${xhr.status} host=${signedHost}]: ` +
+          (detail || body.slice(0, 200) || "no body"),
+      }));
     });
 
-    xhr.addEventListener("error", () => reject(new Error("Network error during direct R2 upload")));
+    xhr.addEventListener("error", () => {
+      // No HTTP status available — this is a pre-response failure, almost
+      // always CORS (R2 CORS policy missing/misconfigured) or DNS/TLS.
+      reject(new PresignedUploadError({
+        step: "put_network",
+        url: signedHost,
+        message:
+          `Network error PUTting to R2 (host=${signedHost}). ` +
+          "Most common cause: R2 bucket CORS does not allow PUT from this origin. " +
+          "Verify bucket CORS has AllowedMethods: ['PUT','GET'] (NOT OPTIONS) and " +
+          "AllowedHeaders includes 'Content-Type'.",
+      }));
+    });
 
     xhr.open("PUT", uploadUrl);
     // Must match the Content-Type used when signing — R2 verifies it.
     xhr.setRequestHeader("Content-Type", mimeType);
     xhr.send(file);
   });
+}
+
+function safeHost(url: string): string {
+  try { return new URL(url).host; } catch { return url.slice(0, 80); }
 }
 
 // ─── Seller's own auctions (for Profile → My Auctions tab) ───────────────────

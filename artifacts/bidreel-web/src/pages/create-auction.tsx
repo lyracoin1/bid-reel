@@ -8,7 +8,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { useCreateAuction } from "@/hooks/use-auctions";
-import { uploadMediaApi, uploadMediaPresignedApi } from "@/lib/api-client";
+import { uploadMediaApi, uploadMediaPresignedApi, PresignedUploadError } from "@/lib/api-client";
 import { useLang } from "@/contexts/LanguageContext";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { cn } from "@/lib/utils";
@@ -133,11 +133,48 @@ async function uploadFile(
     try {
       return await uploadMediaPresignedApi(file, fileType, onProgress);
     } catch (err) {
+      // Only fall back to the proxy path when the file is small enough to make
+      // it through Vercel's ~4.5 MB body cap. Falling back on larger files just
+      // trades a clear R2 error for an opaque 413 HTML response.
+      const FALLBACK_CAP = 4 * 1024 * 1024;
+      if (file.size > FALLBACK_CAP) {
+        console.error("[create-auction] Presigned upload failed, file too large for proxy fallback — rethrowing:", err);
+        throw err;
+      }
       console.warn("[create-auction] Presigned upload failed, falling back to proxy:", err);
       return uploadMediaApi(file, fileType, onProgress);
     }
   }
   return uploadMediaApi(file, fileType, onProgress);
+}
+
+// Translate any caught error into a human-readable message that points at the
+// exact step that broke. Returned string is rendered directly in the red
+// submitError box — no more generic "Something went wrong".
+function describeSubmitError(
+  err: unknown,
+  step: "compress" | "upload_video" | "upload_image" | "create_db",
+  lang: "en" | "ar",
+): string {
+  // Preserve full details in console for remote debugging via the user.
+  console.error(`[create-auction] step=${step} failed:`, err);
+
+  const isAr = lang === "ar";
+  const stepLabel = isAr
+    ? { compress: "ضغط الفيديو", upload_video: "رفع الفيديو", upload_image: "رفع الصورة", create_db: "نشر المزاد" }[step]
+    : { compress: "Video compression", upload_video: "Video upload", upload_image: "Image upload", create_db: "Publishing auction" }[step];
+
+  if (err instanceof PresignedUploadError) {
+    const statusPart = err.httpStatus ? ` [HTTP ${err.httpStatus}]` : "";
+    const bodyPart = err.responseBody ? ` — ${err.responseBody.slice(0, 140)}` : "";
+    return `${stepLabel} → ${err.step}${statusPart}: ${err.message}${bodyPart}`;
+  }
+
+  const raw = err instanceof Error
+    ? (err.message || err.name || "Error")
+    : typeof err === "string" ? err : JSON.stringify(err);
+
+  return `${stepLabel}: ${raw}`;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -379,17 +416,21 @@ export default function CreateAuction() {
         }
 
         // ── 1. Compress in-browser with ffmpeg.wasm before upload ────────
-        setUploadProgress(lang === "ar"
-          ? "جارٍ تجهيز الفيديو…"
-          : "Preparing video…");
-
-        const result = await compressVideo(videoFile, {
-          onProgress: (pct) => {
-            setUploadProgress(lang === "ar"
-              ? `جارٍ ضغط الفيديو… ${pct}%`
-              : `Optimizing video… ${pct}%`);
-          },
-        });
+        setUploadProgress(lang === "ar" ? "جارٍ تجهيز الفيديو…" : "Preparing video…");
+        let result: Awaited<ReturnType<typeof compressVideo>>;
+        try {
+          result = await compressVideo(videoFile, {
+            onProgress: (pct) => {
+              setUploadProgress(lang === "ar"
+                ? `جارٍ ضغط الفيديو… ${pct}%`
+                : `Optimizing video… ${pct}%`);
+            },
+          });
+        } catch (err) {
+          setUploadProgress(null);
+          setSubmitError(describeSubmitError(err, "compress", lang));
+          return;
+        }
 
         const origMb = (result.originalBytes / 1024 / 1024).toFixed(1);
         const compMb = (result.compressedBytes / 1024 / 1024).toFixed(1);
@@ -400,9 +441,15 @@ export default function CreateAuction() {
 
         // ── 2. Upload the compressed file ────────────────────────────────
         setUploadProgress(lang === "ar" ? "جارٍ رفع الفيديو…" : "Uploading video…");
-        videoUrl = await uploadFile(result.file, "video", pct => {
-          setUploadProgress(lang === "ar" ? `جارٍ رفع الفيديو… ${pct}%` : `Uploading video… ${pct}%`);
-        });
+        try {
+          videoUrl = await uploadFile(result.file, "video", pct => {
+            setUploadProgress(lang === "ar" ? `جارٍ رفع الفيديو… ${pct}%` : `Uploading video… ${pct}%`);
+          });
+        } catch (err) {
+          setUploadProgress(null);
+          setSubmitError(describeSubmitError(err, "upload_video", lang));
+          return;
+        }
         thumbnailUrl = videoUrl;
       } else {
         if (photoFiles.length === 0) {
@@ -413,27 +460,29 @@ export default function CreateAuction() {
         const uploadedUrls: string[] = [];
         let coverThumbnailUrl = "";
 
-        for (let i = 0; i < photoFiles.length; i++) {
-          // ── Compress to WebP before uploading (client-side, zero deps) ───
-          setUploadProgress(lang === "ar"
-            ? `جارٍ ضغط الصورة ${i + 1} من ${photoFiles.length}…`
-            : `Optimizing photo ${i + 1} of ${photoFiles.length}…`);
+        try {
+          for (let i = 0; i < photoFiles.length; i++) {
+            setUploadProgress(lang === "ar"
+              ? `جارٍ ضغط الصورة ${i + 1} من ${photoFiles.length}…`
+              : `Optimizing photo ${i + 1} of ${photoFiles.length}…`);
+            const displayFile = await compressImage(photoFiles[i], { maxPx: 1920, quality: 0.85 });
 
-          // Display version: max 1920 px on the longest side, 85 % quality
-          const displayFile = await compressImage(photoFiles[i], { maxPx: 1920, quality: 0.85 });
+            setUploadProgress(lang === "ar"
+              ? `جارٍ رفع الصورة ${i + 1} من ${photoFiles.length}…`
+              : `Uploading photo ${i + 1} of ${photoFiles.length}…`);
+            const url = await uploadFile(displayFile, "image");
+            uploadedUrls.push(url);
 
-          setUploadProgress(lang === "ar"
-            ? `جارٍ رفع الصورة ${i + 1} من ${photoFiles.length}…`
-            : `Uploading photo ${i + 1} of ${photoFiles.length}…`);
-          const url = await uploadFile(displayFile, "image");
-          uploadedUrls.push(url);
-
-          // Cover photo: also upload a 640 px thumbnail for fast feed loading
-          if (i === 0) {
-            const thumbFile = await compressImage(photoFiles[i], { maxPx: 640, quality: 0.80 });
-            setUploadProgress(lang === "ar" ? "جارٍ رفع الصورة المصغرة…" : "Uploading cover thumbnail…");
-            coverThumbnailUrl = await uploadFile(thumbFile, "image");
+            if (i === 0) {
+              const thumbFile = await compressImage(photoFiles[i], { maxPx: 640, quality: 0.80 });
+              setUploadProgress(lang === "ar" ? "جارٍ رفع الصورة المصغرة…" : "Uploading cover thumbnail…");
+              coverThumbnailUrl = await uploadFile(thumbFile, "image");
+            }
           }
+        } catch (err) {
+          setUploadProgress(null);
+          setSubmitError(describeSubmitError(err, "upload_image", lang));
+          return;
         }
         videoUrl     = uploadedUrls[0];
         thumbnailUrl = coverThumbnailUrl || uploadedUrls[0];
@@ -446,27 +495,31 @@ export default function CreateAuction() {
           ? localCurrency
           : { code: "USD", label: "US Dollar", labelAr: "الدولار الأمريكي" };
 
-      const id = await create({
-        title: form.title,
-        description: form.description || undefined,
-        category: form.category,
-        startPrice: parseInt(form.startingBid, 10),
-        videoUrl,
-        thumbnailUrl,
-        lat: coords.lat,
-        lng: coords.lng,
-        currencyCode: effectiveCurrency.code,
-        currencyLabel: effectiveCurrency.label,
-        durationHours,
-      });
-
-      setUploadProgress(null);
-      setLocation(`/auction/${id}`);
+      try {
+        const id = await create({
+          title: form.title,
+          description: form.description || undefined,
+          category: form.category,
+          startPrice: parseInt(form.startingBid, 10),
+          videoUrl,
+          thumbnailUrl,
+          lat: coords.lat,
+          lng: coords.lng,
+          currencyCode: effectiveCurrency.code,
+          currencyLabel: effectiveCurrency.label,
+          durationHours,
+        });
+        setUploadProgress(null);
+        setLocation(`/auction/${id}`);
+      } catch (err) {
+        setUploadProgress(null);
+        setSubmitError(describeSubmitError(err, "create_db", lang));
+        return;
+      }
     } catch (err: unknown) {
+      // Defensive: anything that escaped the per-step try/catch above.
       setUploadProgress(null);
-      const msg = (err as Error).message ?? (lang === "ar" ? "حدث خطأ، يرجى المحاولة مرة أخرى." : "Something went wrong. Please try again.");
-      setSubmitError(msg);
-      console.error("[create-auction] ❌ Submit failed:", err);
+      setSubmitError(describeSubmitError(err, "create_db", lang));
     }
   };
 

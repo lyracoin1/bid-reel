@@ -252,28 +252,56 @@ adminRouter.delete("/users/:id", async (req, res) => {
     return;
   }
 
+  // Helper: every Supabase delete returns { error }. Previously these were
+  // silently ignored, which meant a failed cleanup step would let the code
+  // proceed to auth.admin.deleteUser and resurface as the misleading generic
+  // "Database error deleting user" instead of the real FK / permission cause.
+  const must = async <T,>(label: string, p: PromiseLike<{ data: T; error: { message?: string } | null }>) => {
+    const { data, error } = await p;
+    if (error) {
+      const msg = error.message ?? "unknown error";
+      throw new Error(`Step "${label}" failed: ${msg}`);
+    }
+    return data;
+  };
+
   try {
     // 1. Fetch auction IDs owned by this user.
-    const { data: auctionRows } = await supabaseAdmin
-      .from("auctions")
-      .select("id")
-      .eq("seller_id", targetId);
+    const auctionRows = await must(
+      "fetch user auctions",
+      supabaseAdmin.from("auctions").select("id").eq("seller_id", targetId),
+    );
+    const auctionIds = ((auctionRows ?? []) as Array<{ id: string }>).map(r => r.id);
 
-    const auctionIds = (auctionRows ?? []).map((r) => r.id as string);
-
-    // 2. Delete bids on those auctions (clears RESTRICT on bids.auction_id→auctions).
+    // 2. Delete bids/reports on those auctions (clears RESTRICT on bids.auction_id→auctions).
     if (auctionIds.length > 0) {
-      await supabaseAdmin.from("bids").delete().in("auction_id", auctionIds);
-      await supabaseAdmin.from("reports").delete().in("auction_id", auctionIds);
+      await must("delete bids on user auctions",    supabaseAdmin.from("bids").delete().in("auction_id", auctionIds));
+      await must("delete reports on user auctions", supabaseAdmin.from("reports").delete().in("auction_id", auctionIds));
     }
 
     // 3. Delete the user's auctions (seller_id RESTRICT is now clear).
-    await supabaseAdmin.from("auctions").delete().eq("seller_id", targetId);
+    await must("delete user auctions", supabaseAdmin.from("auctions").delete().eq("seller_id", targetId));
 
     // 4. Delete bids placed BY this user on OTHER auctions (bidder_id RESTRICT).
-    await supabaseAdmin.from("bids").delete().eq("bidder_id", targetId);
+    await must("delete user bids", supabaseAdmin.from("bids").delete().eq("bidder_id", targetId));
 
-    // 5. Delete the auth user — cascades to profiles and all CASCADE-linked tables.
+    // 5. Delete admin_actions performed BY this user.
+    //
+    // admin_actions.admin_id is `ON DELETE RESTRICT`, so deleting an admin who
+    // has ever performed an audited action (ban_user, delete_auction, etc.)
+    // would otherwise fail at the auth.users cascade step with a misleading
+    // "Database error deleting user" from Supabase.
+    //
+    // We intentionally bypass the table's "write-once" intent here because:
+    //   - This is a deliberate, irreversible admin operation.
+    //   - The deleted user's identity is preserved in the new admin_action row
+    //     written below (`logAdminAction(... "delete_user", "user", targetId)`),
+    //     which captures the deletion event itself.
+    await must("delete user admin_actions", supabaseAdmin.from("admin_actions").delete().eq("admin_id", targetId));
+
+    // 6. Delete the auth user — cascades to profiles and all CASCADE-linked tables
+    //    (notifications, content_signals, user_follows, saved_auctions,
+    //     user_devices, blocks, contact_requests, reviews).
     const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(targetId);
     if (authError) throw authError;
 
@@ -282,8 +310,18 @@ adminRouter.delete("/users/:id", async (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
-    logger.error({ err, targetId }, "DELETE /admin/users/:id failed");
-    res.status(500).json({ error: "DELETE_FAILED", message: (err instanceof Error ? err.message : "Failed to delete user") });
+    // Surface the *real* underlying error so the admin UI can show something
+    // more useful than a generic "Database error deleting user" toast.
+    const message = err instanceof Error ? err.message : "Failed to delete user";
+    const detail = (err as { details?: string; hint?: string; code?: string } | null) ?? null;
+    logger.error({ err, targetId, detail }, "DELETE /admin/users/:id failed");
+    res.status(500).json({
+      error: "DELETE_FAILED",
+      message,
+      ...(detail?.code ? { code: detail.code } : {}),
+      ...(detail?.details ? { details: detail.details } : {}),
+      ...(detail?.hint ? { hint: detail.hint } : {}),
+    });
   }
 });
 

@@ -410,11 +410,13 @@ const createAuctionSchema = z.object({
     .min(-180).max(180),
   currencyCode: z.string().max(10).optional().default("USD"),
   currencyLabel: z.string().max(60).optional().default("US Dollar"),
+  // Product contract: auctions last exactly 24 or 48 hours. No other values
+  // are accepted even via direct API calls so that countdown copy and the
+  // “2d left” prevention in the client stay honest.
   durationHours: z
-    .number({ invalid_type_error: "durationHours must be a number" })
-    .int("durationHours must be a whole number of hours")
-    .min(1, "Auction must run for at least 1 hour")
-    .max(48, "Auction cannot run for more than 48 hours")
+    .union([z.literal(24), z.literal(48)], {
+      errorMap: () => ({ message: "durationHours must be 24 or 48" }),
+    })
     .optional()
     .default(24),
 });

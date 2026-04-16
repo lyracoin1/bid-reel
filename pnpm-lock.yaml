@@ -188,6 +188,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.1025.0
         version: 3.1025.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1025.0
+        version: 3.1025.0
       '@supabase/supabase-js':
         specifier: ^2.100.0
         version: 2.100.0

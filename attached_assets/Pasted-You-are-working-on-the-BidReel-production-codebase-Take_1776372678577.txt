@@ -1,0 +1,94 @@
+You are working on the BidReel production codebase. Take this seriously and do not give generic guesses. Inspect the real code paths, identify the exact root cause for each issue, implement the fixes, and verify them before stopping.
+
+Project context:
+
+* BidReel = short-video auction app
+* Frontend: React + Vite
+* Backend: Express on Vercel serverless
+* Auth/DB: Supabase
+* Storage: Cloudflare R2
+* GitHub = source of truth
+* Vercel = production runtime
+* Replit = editing and pushing only
+
+Current issues to fix now:
+
+1. WhatsApp direct button visibility
+   Problem:
+
+* The direct WhatsApp button is not showing correctly on the seller’s own posted auction.
+  Required behavior:
+* If the auction seller has a valid phone number, the WhatsApp button must appear on the auction card, including when the seller is viewing their own post.
+  What to do:
+* Inspect the exact rendering condition for the WhatsApp action button in the feed/auction card.
+* Remove any owner-based hiding logic if present.
+* Verify the API mapping includes seller.phone all the way from backend query to frontend model.
+* Confirm the button appears whenever seller.phone exists.
+* Confirm clicking it opens the correct wa.me link.
+
+2. Auction duration / countdown accuracy
+   Problem:
+
+* In create flow the auction is selected as 24 hours, but after publishing it can appear as 2 days or otherwise inaccurate.
+  Required behavior:
+* Only two duration choices are allowed: 24 hours or 48 hours.
+* The stored ends_at must match the selected duration exactly.
+* The displayed countdown must be real and must not round up falsely.
+  What to do:
+* Inspect create-auction request payload and server-side duration parsing.
+* Enforce accepted duration values to only 24 or 48 hours.
+* Compute ends_at exactly from creation/start time.
+* Fix countdown formatting so it reflects real remaining time and does not incorrectly show 2 days for a 24-hour auction.
+* Verify 24h auctions and 48h auctions both behave correctly after publish and in profile/feed views.
+
+3. Upload failure for both image and video
+   Problem:
+
+* The app currently fails to upload both images and videos.
+* Screenshot shows: “Upload failed. Please try again.”
+  Required behavior:
+* Image and video upload must work reliably on mobile/Android WebView and web.
+  What to do:
+* Trace the exact upload path end-to-end:
+
+  * frontend file picker / media preprocessing
+  * API request construction
+  * upload endpoint or signed upload flow
+  * server upload handler
+  * R2/Supabase storage write
+  * returned public URL
+* Do not guess “env issue” unless logs prove it.
+* Add precise logging on both frontend and backend so the real failure is visible.
+* Surface the real server error message to the UI instead of a generic upload failure.
+* Check:
+
+  * accepted MIME types
+  * request body/content-type handling
+  * Android WebView / Capacitor upload path behavior
+  * file size checks
+  * CORS/preflight
+  * R2 bucket/key/path generation
+  * public URL generation
+  * any recent regressions in uploadMediaApi / media routes / storage client config
+* Fix both image and video upload, not just one.
+
+Important rules:
+
+* Do not stop at “I found a possible cause”.
+* Confirm the exact root cause for each issue from the actual code.
+* Keep fixes production-safe.
+* Do not break existing architecture.
+* Do not remove important validations just to make it pass.
+* Preserve GitHub -> Vercel deployment model.
+
+Output required from you after implementation:
+
+1. Exact root cause for each issue
+2. Files changed
+3. What was fixed in each file
+4. Any migrations or env changes needed, if truly required
+5. Exact manual test steps for me
+6. Final git status summary
+
+Then commit the fixes cleanly and tell me exactly when to run:
+git push origin main

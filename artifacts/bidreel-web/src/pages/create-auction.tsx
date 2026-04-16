@@ -8,7 +8,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { useCreateAuction } from "@/hooks/use-auctions";
-import { uploadMediaApi } from "@/lib/api-client";
+import { uploadMediaApi, uploadMediaPresignedApi } from "@/lib/api-client";
 import { useLang } from "@/contexts/LanguageContext";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { cn } from "@/lib/utils";
@@ -118,14 +118,25 @@ interface GeoCoords {
   lng: number;
 }
 
-// ─── Upload a single file: POST to API server → server stores in Supabase ────
-// Using the server-proxy route eliminates the Supabase Storage CORS preflight
-// that fails on Android Capacitor WebViews ("Network error during upload").
+// ─── Upload a single file ─────────────────────────────────────────────────────
+// Videos routinely compress to >4.5 MB which exceeds Vercel's serverless
+// function body limit, so we PUT them directly to R2 using a presigned URL
+// (falling back to the proxy path on failure — e.g. R2 CORS not configured).
+// Images are always <4.5 MB after the WebP compression pass, so we keep them
+// on the proxy path which doesn't require bucket CORS.
 async function uploadFile(
   file: File,
   fileType: "video" | "image",
   onProgress?: (pct: number) => void,
 ): Promise<string> {
+  if (fileType === "video") {
+    try {
+      return await uploadMediaPresignedApi(file, fileType, onProgress);
+    } catch (err) {
+      console.warn("[create-auction] Presigned upload failed, falling back to proxy:", err);
+      return uploadMediaApi(file, fileType, onProgress);
+    }
+  }
   return uploadMediaApi(file, fileType, onProgress);
 }
 
@@ -167,6 +178,11 @@ export default function CreateAuction() {
     startingBid: "",
     category: "other" as Category,
   });
+
+  // ── Duration — 24h or 48h only ───────────────────────────────────────────────
+  // Users pick one of two durations. Sent to the server as `durationHours`
+  // and used to compute the auction's ends_at. No other values are allowed.
+  const [durationHours, setDurationHours] = useState<24 | 48>(24);
 
   // ── Upload / submit state ────────────────────────────────────────────────────
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
@@ -441,6 +457,7 @@ export default function CreateAuction() {
         lng: coords.lng,
         currencyCode: effectiveCurrency.code,
         currencyLabel: effectiveCurrency.label,
+        durationHours,
       });
 
       setUploadProgress(null);
@@ -835,12 +852,37 @@ export default function CreateAuction() {
                   )}
                 </div>
 
-                {/* Duration info */}
-                <div className="flex items-start gap-3 p-4 rounded-xl bg-primary/8 border border-primary/18">
-                  <Clock size={18} className="text-primary shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-semibold text-primary mb-0.5">{t("auction_duration_title")}</p>
-                    <p className="text-xs text-white/50 leading-relaxed">{t("auction_duration_body")}</p>
+                {/* Duration selector — only 24h or 48h */}
+                <div className="p-4 rounded-xl bg-primary/8 border border-primary/18">
+                  <div className="flex items-start gap-3 mb-3">
+                    <Clock size={18} className="text-primary shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-primary mb-0.5">
+                        {lang === "ar" ? "مدة المزاد" : "Auction duration"}
+                      </p>
+                      <p className="text-xs text-white/50 leading-relaxed">
+                        {lang === "ar"
+                          ? "اختر المدة التي سيبقى فيها المزاد نشطاً. الفائز يتواصل معك بعد انتهاء المزاد."
+                          : "Choose how long the auction stays open. The winner contacts you once it ends."}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2" dir="ltr">
+                    {([24, 48] as const).map((h) => (
+                      <motion.button
+                        key={h}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => setDurationHours(h)}
+                        className={cn(
+                          "py-3 rounded-xl text-sm font-bold border transition-all duration-150",
+                          durationHours === h
+                            ? "bg-primary/25 border-primary text-white shadow-[0_0_14px_rgba(168,85,247,0.25)]"
+                            : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
+                        )}
+                      >
+                        {lang === "ar" ? `${h} ساعة` : `${h} hours`}
+                      </motion.button>
+                    ))}
                   </div>
                 </div>
 

@@ -22,6 +22,7 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { logger } from "./logger.js";
 
 // ─── Lazy environment loading ────────────────────────────────────────────────
@@ -241,6 +242,35 @@ export async function r2Upload(
   );
 
   return { publicUrl: r2PublicUrl(key), key };
+}
+
+/**
+ * Generate a presigned PUT URL so the client can upload directly to R2.
+ * This bypasses our API server entirely — essential on Vercel because the
+ * serverless function body limit (≈4.5 MB) kills larger video uploads.
+ *
+ * The URL expires after `expiresIn` seconds (default 15 min). The client must
+ * PUT the file body with the same Content-Type used when signing, otherwise
+ * R2 rejects the request.
+ */
+export async function r2PresignUpload(
+  key: string,
+  contentType: string,
+  expiresIn = 900,
+): Promise<{ uploadUrl: string; publicUrl: string; key: string }> {
+  const client = getR2Client();
+  // IMPORTANT: only sign headers we can guarantee the client will send back
+  // verbatim on the PUT. Including CacheControl here would require the client
+  // to echo the exact same Cache-Control header or R2 returns
+  // SignatureDoesNotMatch. We therefore omit CacheControl from presigned PUTs
+  // and only enforce it on server-side `r2Upload()` calls.
+  const cmd = new PutObjectCommand({
+    Bucket: R2_BUCKET,
+    Key: key,
+    ContentType: contentType,
+  });
+  const uploadUrl = await getSignedUrl(client, cmd, { expiresIn });
+  return { uploadUrl, publicUrl: r2PublicUrl(key), key };
 }
 
 /** Download an R2 object to a Buffer. */

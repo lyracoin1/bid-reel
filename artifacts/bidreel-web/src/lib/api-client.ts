@@ -258,9 +258,18 @@ export async function uploadMediaApi(
         console.log(`[api-client] ✅ POST /media/upload → publicUrl=${data.publicUrl}`);
         resolve(data.publicUrl);
       } else {
-        const errText = xhr.responseText
-          ? (JSON.parse(xhr.responseText) as { message?: string }).message
-          : null;
+        // Vercel returns HTML ("Request Entity Too Large") for 413; JSON.parse
+        // would throw and mask the real cause. Guard against that and hint to
+        // the caller that the file exceeds the serverless body limit.
+        let errText: string | null = null;
+        try {
+          errText = xhr.responseText
+            ? (JSON.parse(xhr.responseText) as { message?: string }).message ?? null
+            : null;
+        } catch { /* non-JSON response (e.g. Vercel 413 HTML) */ }
+        if (!errText && xhr.status === 413) {
+          errText = "File is too large for the proxy upload path. Please try a shorter video.";
+        }
         reject(new Error(errText ?? `Upload failed: HTTP ${xhr.status}`));
       }
     });
@@ -273,6 +282,76 @@ export async function uploadMediaApi(
     xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     // Content-Type tells the server what kind of file this is;
     // express.raw() on the server reads the raw body regardless of Content-Type.
+    xhr.setRequestHeader("Content-Type", mimeType);
+    xhr.send(file);
+  });
+}
+
+// ─── Direct-to-R2 presigned upload ────────────────────────────────────────────
+// For videos (which exceed the ~4.5 MB Vercel serverless body limit) the
+// client asks the API for a short-lived signed PUT URL and uploads the file
+// body straight to Cloudflare R2. This path only hits our API for the small
+// JSON sign request, so it scales to the full 20 MB compressed-video cap.
+//
+// Returns the public URL of the stored file.
+
+export async function uploadMediaPresignedApi(
+  file: File,
+  fileType: "video" | "image",
+  onProgress?: (pct: number) => void,
+): Promise<string> {
+  const token = await getToken();
+  if (!token) { redirectToLogin(); throw new Error("Not authenticated"); }
+
+  const mimeType = (file.type || "").split(";")[0].trim()
+    || (fileType === "video" ? "video/mp4" : "image/jpeg");
+
+  // 1. Ask API for a signed URL
+  const signRes = await fetch(`${API_BASE}/media/presign-upload`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ fileType, mimeType, sizeBytes: file.size }),
+  });
+
+  if (!signRes.ok) {
+    const err = await signRes.json().catch(() => ({})) as { message?: string; detail?: string };
+    throw new Error(err.message ?? err.detail ?? `Could not prepare upload (HTTP ${signRes.status}).`);
+  }
+
+  const { uploadUrl, publicUrl } = await signRes.json() as {
+    uploadUrl: string; publicUrl: string; key: string;
+  };
+
+  // 2. PUT file directly to R2
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    if (onProgress) {
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      });
+    }
+
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        console.log(`[api-client] ✅ PUT R2 → publicUrl=${publicUrl}`);
+        resolve(publicUrl);
+      } else {
+        // R2 returns XML on error (e.g. SignatureDoesNotMatch). Extract <Message>.
+        let msg: string | null = null;
+        const m = xhr.responseText.match(/<Message>([^<]+)<\/Message>/);
+        if (m) msg = m[1];
+        reject(new Error(msg ?? `Direct upload failed: HTTP ${xhr.status}`));
+      }
+    });
+
+    xhr.addEventListener("error", () => reject(new Error("Network error during direct R2 upload")));
+
+    xhr.open("PUT", uploadUrl);
+    // Must match the Content-Type used when signing — R2 verifies it.
     xhr.setRequestHeader("Content-Type", mimeType);
     xhr.send(file);
   });

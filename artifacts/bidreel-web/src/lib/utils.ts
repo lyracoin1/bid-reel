@@ -56,11 +56,14 @@ export function getTimeRemaining(endsAt: string | Date): {
 
   const isUrgent = secondsLeft < 3600;
 
-  if (secondsLeft < 60)    return { text: `${secondsLeft}s`, isUrgent, isEnded: false };
-  if (secondsLeft < 3600)  return { text: `${Math.floor(secondsLeft / 60)}m left`, isUrgent, isEnded: false };
-  if (secondsLeft < 86400) return { text: `${Math.floor(secondsLeft / 3600)}h left`, isUrgent: false, isEnded: false };
+  if (secondsLeft < 60)   return { text: `${secondsLeft}s`, isUrgent, isEnded: false };
+  if (secondsLeft < 3600) return { text: `${Math.floor(secondsLeft / 60)}m left`, isUrgent, isEnded: false };
 
-  return { text: `${Math.floor(secondsLeft / 86400)}d left`, isUrgent: false, isEnded: false };
+  // Auctions run for 24 or 48 hours, so remaining time is always ≤ 48 h. Show
+  // total hours ("47h left") rather than rounding to "2d left" — the day
+  // bucket was causing 24h auctions to display misleading "2d left" right
+  // after publish.
+  return { text: `${Math.floor(secondsLeft / 3600)}h left`, isUrgent: false, isEnded: false };
 }
 
 /** Builds a wa.me deep-link that opens a direct WhatsApp chat with the seller.

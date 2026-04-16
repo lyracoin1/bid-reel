@@ -1,0 +1,115 @@
+We now have two critical production issues that must be verified end-to-end after recent fixes. Do not assume anything is working — prove it with actual code paths and logs.
+
+==================================================
+
+1. VIDEO UPLOAD (R2) AFTER FIXING BUCKET
+   ==================================================
+
+Context:
+
+* R2_BUCKET was previously misconfigured (full dashboard path instead of bucket name).
+* It has now been corrected to: "bidreel-media".
+
+Tasks:
+
+1. Verify the upload pipeline step-by-step:
+
+   * file selection
+   * compression (ffmpeg)
+   * fallback behavior if compression fails
+   * presigned URL generation (if used)
+   * final upload to R2
+
+2. Confirm:
+
+   * R2_BUCKET is used correctly (no slashes, no path fragments)
+   * R2_PUBLIC_URL is present and correct
+   * no hidden string concatenation is reintroducing invalid paths
+
+3. Fix compression reliability:
+
+   * If ffmpeg-core.js fails to load → DO NOT break upload
+   * Add explicit fallback:
+     IF compression fails → upload original file directly
+
+4. Log everything:
+
+   * when compression starts
+   * when it fails
+   * when fallback triggers
+   * when upload starts
+   * when upload completes or fails
+
+5. Final requirement:
+
+   * user can always upload video (compressed or not)
+   * no silent failures
+   * no infinite loading
+
+==================================================
+2) PHONE / WHATSAPP NUMBER NOT SAVING (CRITICAL)
+================================================
+
+Do NOT assume this is just a UI prefill issue.
+
+We need to trace EXACTLY where the phone value is lost.
+
+Steps:
+
+1. Frontend
+
+* Log form state before submit
+* Log the PATCH /api/users/me payload
+* Confirm phone is present
+
+2. Backend
+
+* Log incoming request body
+* Confirm phone is received
+* Log before DB update
+* Log after DB update
+
+3. Database
+
+* Verify the phone column is actually updated
+* Check if any later query overwrites it
+
+4. After save
+
+* Immediately call GET /api/users/me
+* Log response
+* confirm if phone exists
+
+5. Cache layer
+
+* Log clearCurrentUserCache()
+* Log loadCurrentUser()
+* confirm final cached value
+
+6. UI
+
+* Log value used to prefill input when reopening screen
+
+==================================================
+EXPECTED OUTPUT
+===============
+
+For EACH issue:
+
+1. Exact root cause (not assumptions)
+2. Exact failing step
+3. Exact code line or logic causing it
+4. Fix applied
+5. Files changed
+6. What was broken vs what now works
+
+==================================================
+IMPORTANT RULES
+===============
+
+* Do NOT say "should be fixed"
+* Do NOT assume UI-only issue
+* Do NOT ignore backend or cache
+* Treat this as production debugging
+
+We need certainty, not guesses.

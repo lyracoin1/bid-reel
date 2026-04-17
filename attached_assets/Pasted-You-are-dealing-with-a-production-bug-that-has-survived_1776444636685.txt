@@ -1,0 +1,293 @@
+You are dealing with a production bug that has survived many patches and redeploys.
+
+The phone/mobile/WhatsApp number is STILL NOT being saved in the profile.
+Stop patching around the bug.
+Stop assuming deployment lag.
+Stop giving theories.
+
+## DECISION
+
+You must:
+
+1. simulate the full save operation step by step
+2. trace the exact failing stage
+3. suspect every layer
+4. only after identifying the true fault, delete the broken save path and rebuild it cleanly
+5. do all of this without breaking unrelated profile behavior
+
+---
+
+## HARD FACT
+
+Real user testing on the live app still shows:
+
+* entering phone
+* tapping save
+* returning to profile
+* profile still shows 60%
+* phone still not saved
+
+So the current implementation is still broken in practice.
+
+---
+
+## PHASE 1 — FULL TRACE / SIMULATION BEFORE DELETION
+
+You must trace the REAL live save operation from start to finish as if debugging a transaction.
+
+### STAGE A — UI ENTRYPOINT
+
+Identify the exact live screen/component used when the user edits phone from profile.
+
+Find:
+
+* exact page component
+* exact input state variable
+* exact save button handler
+* exact call chain from tap to request
+
+Do not assume only one edit path exists.
+Prove which path is actually used in production.
+
+---
+
+### STAGE B — INPUT / STATE TRACE
+
+At submit time, trace and log all of this:
+
+* raw input value
+* normalized value
+* validation result
+* whether save is blocked or allowed
+* whether state is stale
+* whether navigation fires before save completes
+* whether another effect resets the local phone state
+
+You must explicitly suspect:
+
+* stale React state
+* wrong input binding
+* masked/controlled input bug
+* normalizePhone bug
+* validation silently rejecting value
+* save button calling the wrong handler
+
+Never log full digits. Log masked value + length only.
+
+---
+
+### STAGE C — REQUEST TRACE
+
+Trace the exact request to PATCH /users/me.
+
+Verify:
+
+* whether it actually fires
+* whether it fires once or multiple times
+* exact payload keys
+* whether phone is under the correct key
+* whether any serializer strips it
+* whether another async task aborts before request
+* response status
+* response body
+* whether response already lacks phone
+
+Suspect:
+
+* wrong key name
+* undefined stripping
+* early return
+* swallowed exception
+* fake success path
+
+---
+
+### STAGE D — SERVER TRACE
+
+Inside PATCH /users/me, trace the real execution path.
+
+Verify:
+
+* body parser receives phone
+* schema accepts phone
+* backend maps phone into patch object
+* DB update executes
+* returned row contains phone
+* no later code overwrites it inside same request
+
+Log:
+
+* body keys
+* hasPhone
+* phoneLen
+* patch keys
+* dbHasPhone after update
+
+Never print the full number.
+
+---
+
+### STAGE E — POST-SAVE HYDRATION TRACE
+
+After PATCH succeeds, trace every thing that happens next:
+
+* cache update
+* current-user store update
+* completion-percent recomputation
+* route navigation
+* profile reload
+* bootstrap/profile re-fetch
+* any sync from auth/session/local storage
+* any effect that can overwrite saved phone back to empty
+
+You must explicitly suspect:
+
+* PATCH saves correctly but stale cache overwrites it
+* profile reload reads from old cache instead of server response
+* completion card reads different fields than edit page writes
+* there are two profile models with mismatched keys
+* a bootstrap step resets phone/location after save
+
+---
+
+### STAGE F — SEARCH ALL OVERRIDES
+
+Search every code path that can touch profile state or fields.
+
+You must inspect:
+
+* onboarding flow
+* profile edit flow
+* current user hook/store
+* bootstrap/rehydration logic
+* completion percentage logic
+* any setCurrentUser / setCachedCurrentUser / clearCurrentUserCache
+* any /interests usage still reachable
+* any profile page redirect or post-save side effect
+* any auth/session restore that can overwrite profile fields
+
+Do not trust previous patches.
+Search all write/overwrite paths.
+
+---
+
+## PHASE 2 — IDENTIFY EXACT ROOT CAUSE
+
+Only after tracing all stages above, identify:
+
+1. exact failing stage number
+2. exact broken line/path
+3. whether the fault is:
+
+* request never fired
+* request fired but payload wrong
+* server dropped phone
+* DB write failed
+* DB write succeeded but frontend overwrote it
+* profile completion UI reads wrong source
+* more than one issue exists
+
+If there is more than one bug, state primary and secondary causes separately.
+
+---
+
+## PHASE 3 — DELETE THE BROKEN SAVE PATH
+
+Once the real fault is known, remove the current broken phone-save path entirely.
+
+### Requirements
+
+* do not keep the broken path alive behind branches
+* do not keep dead code "just in case"
+* do not leave duplicate edit flows active
+* do not preserve mixed old/new save handlers
+
+Delete or bypass the broken implementation cleanly.
+
+---
+
+## PHASE 4 — REBUILD A MINIMAL CLEAN SAVE FLOW
+
+Rebuild the profile phone save flow from scratch with one clear contract.
+
+### New required flow
+
+1. open profile edit
+2. preload current server-backed values
+3. edit phone
+4. tap Save
+5. validate locally
+6. send one PATCH /users/me request only
+7. await full response
+8. verify returned profile contains the saved phone
+9. synchronously update current-user cache/store from returned profile
+10. recompute completion state from the same returned object
+11. navigate back ONLY after confirmed persistence
+
+### Rules
+
+* no avatar upload in this flow
+* no secondary async step before PATCH
+* no optimistic fake success
+* no redirect before confirmed save
+* no hidden onboarding logic in edit flow
+* no coupling to /interests
+* no silent catches
+* no generic "saved" if phone is missing in returned profile
+
+---
+
+## PHASE 5 — VALIDATE THE REBUILD
+
+After rebuilding, verify with hard evidence:
+
+1. user enters phone
+2. save handler logs masked phone
+3. PATCH request fires
+4. server logs show request had phone
+5. DB logs show row now has phone
+6. PATCH response returns phone
+7. current-user cache/store now contains phone
+8. profile page after navigation shows improved completion
+9. reopening profile still shows phone
+10. logout/login still shows phone
+11. seller.phone reaches auction payload
+12. WhatsApp button appears
+
+If any one of these fails, stop and fix before claiming success.
+
+---
+
+## PHASE 6 — PROTECT AGAINST REGRESSION
+
+Add one targeted guard so this exact bug cannot silently return:
+
+* if save response does not contain the exact phone sent, treat as failure and stay on page
+* if completion percentage does not increase after saving missing required fields, do not navigate away silently
+
+---
+
+## OUTPUT FORMAT
+
+Return ONLY in this exact order:
+
+1. exact root cause
+2. exact failing stage number
+3. exact old broken path deleted
+4. exact new save flow built
+5. exact files changed
+6. exact proof request now fires
+7. exact proof DB stores phone
+8. exact proof profile reload keeps phone
+9. exact proof completion updates
+10. exact proof WhatsApp path now works
+
+## RULES
+
+* no theory
+* no vague summaries
+* no “looks correct”
+* no “probably”
+* no stopping before the real failing stage is found
+* trace the live save operation like a debugger
+* then delete the broken path and rebuild it cleanly

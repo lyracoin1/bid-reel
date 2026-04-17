@@ -103,18 +103,33 @@ export interface CreateNotificationInput {
  * or zero registered devices.
  */
 async function getUserFcmTokens(userId: string): Promise<string[]> {
+  logger.info({ userId }, "push-chain[5]: token lookup START (user_devices)");
   const { data, error } = await supabaseAdmin
     .from("user_devices")
-    .select("token")
+    .select("token, platform, last_seen_at")
     .eq("user_id", userId);
 
   if (error) {
-    if ((error as { code?: string }).code !== "42P01") {
+    const code = (error as { code?: string }).code;
+    logger.error(
+      { userId, err: error.message, code },
+      "push-chain[5]: token lookup FAILED",
+    );
+    if (code !== "42P01") {
       logger.warn({ err: error.message, userId }, "fcm: failed to fetch device tokens");
     }
     return [];
   }
-  return (data ?? []).map((r: { token: string }) => r.token);
+  const rows = data ?? [];
+  logger.info(
+    {
+      userId,
+      tokenCount: rows.length,
+      platforms: rows.map((r: { platform: string | null }) => r.platform ?? "unknown"),
+    },
+    "push-chain[6]: token lookup OK",
+  );
+  return rows.map((r: { token: string }) => r.token);
 }
 
 /**
@@ -202,13 +217,32 @@ export async function createNotification(input: CreateNotificationInput): Promis
     return;
   }
 
-  logger.debug({ userId: input.userId, type: input.type }, "notifications: created");
+  logger.info(
+    { userId: input.userId, type: input.type, auctionId: input.auctionId, actorId: input.actorId },
+    "push-chain[3]: notifications row inserted",
+  );
 
   // Push?
-  if (!PUSH_ENABLED.has(input.type)) return;
+  if (!PUSH_ENABLED.has(input.type)) {
+    logger.info(
+      { userId: input.userId, type: input.type },
+      "push-chain[4]: type NOT push-enabled — in-app only, no FCM send",
+    );
+    return;
+  }
+  logger.info(
+    { userId: input.userId, type: input.type },
+    "push-chain[4]: type IS push-enabled — entering FCM fanout",
+  );
 
   const tokens = await getUserFcmTokens(input.userId);
-  if (tokens.length === 0) return;
+  if (tokens.length === 0) {
+    logger.warn(
+      { userId: input.userId, type: input.type },
+      "push-chain[6.E]: NO TOKENS for recipient — early return, no push will be sent",
+    );
+    return;
+  }
 
   const data: Record<string, string> = { type: input.type };
   if (input.auctionId) data["auctionId"] = input.auctionId;
@@ -219,10 +253,18 @@ export async function createNotification(input: CreateNotificationInput): Promis
     }
   }
 
+  logger.info(
+    { userId: input.userId, type: input.type, tokenCount: tokens.length },
+    "push-chain[7]: sendFcmPush fanout START",
+  );
   await Promise.all(
     tokens.map(token =>
       sendFcmPush(token, { title: input.title, body: input.body, data }),
     ),
+  );
+  logger.info(
+    { userId: input.userId, type: input.type, tokenCount: tokens.length },
+    "push-chain[10]: sendFcmPush fanout COMPLETE",
   );
 }
 

@@ -83,8 +83,10 @@ export async function sendFcmPush(token: string, payload: FcmPayload): Promise<v
   const m = await getMessaging();
   if (!m) return;
 
+  const tokenPrefix = token.slice(0, 24) + "…";
+  logger.info({ tokenPrefix, title: payload.title, dataKeys: Object.keys(payload.data ?? {}) }, "push-chain[8]: sendFcmPush START");
   try {
-    await m.send({
+    const messageId = await m.send({
       token,
       // Top-level notification shown on all platforms (Android, iOS, web)
       notification: { title: payload.title, body: payload.body },
@@ -128,14 +130,18 @@ export async function sendFcmPush(token: string, payload: FcmPayload): Promise<v
         },
       },
     });
-    logger.debug({ token: token.slice(0, 20) + "…" }, "FCM: push sent");
+    logger.info({ tokenPrefix, messageId }, "push-chain[9.OK]: sendFcmPush SUCCESS");
   } catch (err: unknown) {
-    const code = (err as { code?: string }).code ?? "";
+    const e = err as { code?: string; message?: string };
+    const code = e.code ?? "";
+    const message = e.message ?? String(err);
+    logger.error(
+      { tokenPrefix, code, message },
+      "push-chain[9.ERR]: sendFcmPush FAILED",
+    );
     if (code === "messaging/registration-token-not-registered" ||
         code === "messaging/invalid-registration-token") {
-      logger.warn({ token: token.slice(0, 20) + "…", code }, "FCM: stale token — should be pruned");
-    } else {
-      logger.error({ err }, "FCM: send failed");
+      logger.warn({ tokenPrefix, code }, "FCM: stale token — should be pruned");
     }
   }
 }

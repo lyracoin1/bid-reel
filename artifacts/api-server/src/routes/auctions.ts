@@ -1021,8 +1021,22 @@ async function executePlaceBid(
 
   // 10. Fire outbid notification to the previous leader (fire-and-forget, non-fatal).
   const prevLeaderUserId = prevLeader ? getBidderUserId(prevLeader) : null;
+  logger.info(
+    { auctionId, bidderId: userId, prevLeaderUserId, sellerId: auction.seller_id, newPrice },
+    "push-chain[1]: bid notification path ENTERED",
+  );
   if (prevLeaderUserId && prevLeaderUserId !== userId) {
-    void notifyOutbid(prevLeaderUserId, userId, auctionId, auction.title ?? "this auction", newPrice);
+    logger.info(
+      { auctionId, recipient: prevLeaderUserId, actor: userId },
+      "push-chain[2.outbid]: calling notifyOutbid",
+    );
+    void notifyOutbid(prevLeaderUserId, userId, auctionId, auction.title ?? "this auction", newPrice)
+      .catch(err => logger.error({ err: String(err), auctionId, recipient: prevLeaderUserId }, "push-chain[2.outbid]: notifyOutbid threw"));
+  } else {
+    logger.info(
+      { auctionId, prevLeaderUserId, bidderId: userId },
+      "push-chain[2.outbid]: SKIP — no prev leader or self-bid",
+    );
   }
 
   // 11. Fire "new bid received" notification to the seller (fire-and-forget, non-fatal).
@@ -1030,6 +1044,10 @@ async function executePlaceBid(
   //     gets notified about their own bid. Looks up the bidder's display name for a
   //     friendlier message; falls back to "Someone" when the lookup fails.
   if (auction.seller_id) {
+    logger.info(
+      { auctionId, recipient: auction.seller_id, actor: userId },
+      "push-chain[2.bid_received]: calling notifyBidReceived",
+    );
     void (async () => {
       const { data: bidderProfile } = await supabaseAdmin
         .from("profiles")

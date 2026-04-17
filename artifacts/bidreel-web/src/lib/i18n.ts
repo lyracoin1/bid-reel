@@ -91,6 +91,9 @@ export type TKey =
   | "rule_5_title" | "rule_5_body"
   // First listing rules gate
   | "listing_rules_title" | "listing_rules_subtitle" | "listing_rules_confirm"
+  | "rules_skip" | "rules_view_full"
+  // First-bid rules gate (shown once per device before user's first bid)
+  | "bidding_rules_title" | "bidding_rules_subtitle" | "bidding_rules_confirm"
   // Settings entries
   | "safety_rules" | "change_password"
   // Change password form
@@ -175,6 +178,11 @@ const en: Translations = {
   listing_rules_title: "Before Your First Listing",
   listing_rules_subtitle: "A quick reminder before you go live",
   listing_rules_confirm: "Got it — publish now",
+  rules_skip: "Skip",
+  rules_view_full: "Read the full safety rules",
+  bidding_rules_title: "Before You Bid",
+  bidding_rules_subtitle: "A quick reminder before placing your first bid",
+  bidding_rules_confirm: "Got it — place my bid",
   safety_rules: "Safety & Auction Rules",
   change_password: "Change Password",
   change_pw_title: "Change Password",
@@ -264,6 +272,11 @@ const ar: Translations = {
   listing_rules_title: "قبل نشر أول مزاد لك",
   listing_rules_subtitle: "تذكير سريع قبل النشر",
   listing_rules_confirm: "فهمت — انشر الآن",
+  rules_skip: "تخطٍّ",
+  rules_view_full: "اقرأ القواعد الكاملة",
+  bidding_rules_title: "قبل المزايدة",
+  bidding_rules_subtitle: "تذكير سريع قبل أول مزايدة لك",
+  bidding_rules_confirm: "فهمت — قدّم مزايدتي",
   safety_rules: "قواعد المزاد والسلامة",
   change_password: "تغيير كلمة المرور",
   change_pw_title: "تغيير كلمة المرور",
@@ -353,6 +366,11 @@ const ru: Translations = {
   listing_rules_title: "Перед первым лотом",
   listing_rules_subtitle: "Краткое напоминание перед публикацией",
   listing_rules_confirm: "Понятно — опубликовать",
+  rules_skip: "Пропустить",
+  rules_view_full: "Прочитать полные правила",
+  bidding_rules_title: "Перед ставкой",
+  bidding_rules_subtitle: "Краткое напоминание перед первой ставкой",
+  bidding_rules_confirm: "Понятно — сделать ставку",
   safety_rules: "Правила безопасности аукциона",
   change_password: "Изменить пароль",
   change_pw_title: "Изменить пароль",
@@ -442,6 +460,11 @@ const es: Translations = {
   listing_rules_title: "Antes de tu primer anuncio",
   listing_rules_subtitle: "Un recordatorio rápido antes de publicar",
   listing_rules_confirm: "Entendido — publicar ahora",
+  rules_skip: "Omitir",
+  rules_view_full: "Leer las reglas completas",
+  bidding_rules_title: "Antes de pujar",
+  bidding_rules_subtitle: "Un recordatorio rápido antes de tu primera puja",
+  bidding_rules_confirm: "Entendido — pujar ahora",
   safety_rules: "Reglas de seguridad y subastas",
   change_password: "Cambiar contraseña",
   change_pw_title: "Cambiar contraseña",
@@ -531,6 +554,11 @@ const fr: Translations = {
   listing_rules_title: "Avant votre première annonce",
   listing_rules_subtitle: "Un rappel rapide avant de publier",
   listing_rules_confirm: "Compris — publier maintenant",
+  rules_skip: "Passer",
+  rules_view_full: "Lire les règles complètes",
+  bidding_rules_title: "Avant d'enchérir",
+  bidding_rules_subtitle: "Un rappel rapide avant votre première enchère",
+  bidding_rules_confirm: "Compris — enchérir maintenant",
   safety_rules: "Règles de sécurité et enchères",
   change_password: "Changer le mot de passe",
   change_pw_title: "Changer le mot de passe",

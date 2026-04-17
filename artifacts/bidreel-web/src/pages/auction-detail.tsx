@@ -3,6 +3,7 @@ import { useParams, useLocation } from "wouter";
 import {
   ArrowLeft, ArrowDown, Clock, TrendingUp, Gavel,
   Bell, Trophy, RefreshCw, ChevronDown, MapPin, Volume2, VolumeX,
+  ShieldAlert, CheckCircle2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
@@ -28,6 +29,20 @@ import { haversineDistance, formatDistance, formatAuctionPrice } from "@/lib/geo
 // Minimum bid increment — server is the source of truth, this is just UI floor.
 const MIN_INCREMENT = 1;
 
+// ─── First-bid rules gate ─────────────────────────────────────────────────────
+// localStorage key — set to "1" when the user accepts the bidding rules and
+// confirms their first bid. Once set, the modal never shows again. Skip
+// dismisses without setting the flag, so it re-prompts next time.
+const BIDDING_RULES_KEY = "bidreel_bidding_rules_accepted";
+
+const BIDDING_RULES = [
+  { icon: "🤝", titleKey: "rule_1_title", bodyKey: "rule_1_body" },
+  { icon: "👥", titleKey: "rule_2_title", bodyKey: "rule_2_body" },
+  { icon: "🔍", titleKey: "rule_3_title", bodyKey: "rule_3_body" },
+  { icon: "⚠️", titleKey: "rule_4_title", bodyKey: "rule_4_body" },
+  { icon: "🚫", titleKey: "rule_5_title", bodyKey: "rule_5_body" },
+] as const;
+
 export default function AuctionDetail() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
@@ -39,6 +54,7 @@ export default function AuctionDetail() {
   const [incInput, setIncInput] = useState<string>("");
   const [bidError, setBidError] = useState<string | null>(null);
   const [bidSuccess, setBidSuccess] = useState(false);
+  const [showBiddingRulesModal, setShowBiddingRulesModal] = useState(false);
   const bidPanelRef = useRef<HTMLDivElement>(null);
 
   const { mutate: placeBid, isPending: isBidding } = usePlaceBid({
@@ -73,7 +89,7 @@ export default function AuctionDetail() {
   const { user: currentUser } = useCurrentUser();
   const { isFollowing, toggle: toggleFollow } = useFollow();
   const { isWatching, toggle: toggleWatch } = useWatchAuction();
-  const { t, lang } = useLang();
+  const { t, lang, dir } = useLang();
   const viewerLoc = useViewerLocation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -179,13 +195,32 @@ export default function AuctionDetail() {
     bidPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
+  // Submit handler — validates input, then either opens the first-bid rules
+  // modal or sends the bid straight to the server. Once the user has accepted
+  // the rules once on this device, the modal never re-prompts (Skip preserves
+  // the modal next time so the user is given another chance).
   const submitBid = () => {
     setBidError(null);
     if (parsedInc === null) {
       setBidError(`Please enter a whole number ≥ ${MIN_INCREMENT}`);
       return;
     }
+    if (!localStorage.getItem(BIDDING_RULES_KEY)) {
+      setShowBiddingRulesModal(true);
+      return;
+    }
     // Send the increment — the server computes the new price itself.
+    placeBid(auction.id, parsedInc);
+  };
+
+  // Confirms the rules and submits the queued bid in one step.
+  const acceptBiddingRulesAndSubmit = () => {
+    if (parsedInc === null) {
+      setShowBiddingRulesModal(false);
+      return;
+    }
+    localStorage.setItem(BIDDING_RULES_KEY, "1");
+    setShowBiddingRulesModal(false);
     placeBid(auction.id, parsedInc);
   };
 
@@ -776,6 +811,89 @@ export default function AuctionDetail() {
           </AnimatePresence>
         )}
       </div>
+
+      {/* ── First-bid rules gate modal ────────────────────────────────────── */}
+      <AnimatePresence>
+        {showBiddingRulesModal && (
+          <>
+            <motion.div
+              key="br-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setShowBiddingRulesModal(false)}
+              className="fixed inset-0 z-[9000] bg-black/75 backdrop-blur-sm"
+            />
+            <motion.div
+              key="br-sheet"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 220 }}
+              className="fixed bottom-0 left-0 right-0 z-[9001] bg-[#0e0e1a] border-t border-white/10 rounded-t-3xl max-h-[92dvh] overflow-y-auto"
+              dir={dir}
+            >
+              <div className="flex justify-center pt-3 pb-1 shrink-0">
+                <div className="w-10 h-1 rounded-full bg-white/20" />
+              </div>
+              <div className="px-5 pt-4 pb-5 border-b border-white/8">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center shrink-0">
+                    <ShieldAlert size={22} className="text-amber-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-white leading-tight mb-0.5">
+                      {t("bidding_rules_title")}
+                    </h2>
+                    <p className="text-xs text-white/45">{t("bidding_rules_subtitle")}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="px-5 py-4 space-y-2.5">
+                {BIDDING_RULES.map((rule, i) => (
+                  <motion.div
+                    key={rule.titleKey}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, delay: 0.05 * i }}
+                    className="flex items-start gap-3.5 p-4 rounded-2xl bg-white/4 border border-white/8"
+                  >
+                    <span className="text-xl leading-none mt-0.5 shrink-0">{rule.icon}</span>
+                    <div>
+                      <p className="text-sm font-bold text-white mb-1">{t(rule.titleKey)}</p>
+                      <p className="text-[13px] text-white/55 leading-relaxed">{t(rule.bodyKey)}</p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+              <div className="px-5 pb-10 pt-3 space-y-2">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={acceptBiddingRulesAndSubmit}
+                  className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-lg shadow-primary/30 flex items-center justify-center gap-2"
+                  data-testid="button-bidding-rules-confirm"
+                >
+                  <CheckCircle2 size={18} />
+                  {t("bidding_rules_confirm")}
+                </motion.button>
+                <button
+                  onClick={() => setShowBiddingRulesModal(false)}
+                  className="w-full py-3 text-sm text-white/45 hover:text-white/70 transition-colors"
+                  data-testid="button-bidding-rules-skip"
+                >
+                  {t("rules_skip")}
+                </button>
+                {/* No "view full rules" link here — the modal already shows
+                    all five rules above. Routing away to /safety-rules would
+                    unmount the auction-detail page and lose the user's typed
+                    bid increment. The full page is still reachable any time
+                    from Hamburger menu → Safety & Rules. */}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </MobileLayout>
   );
 }

@@ -9,6 +9,25 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 **BidReel** — short-video Arabic auction app MVP.
 Users upload a video + image for an item, publish it as an auction, and other users browse a vertical TikTok-style feed to place bids. WhatsApp contact via server-generated deep-links (phone numbers never exposed in API responses). Dark theme, neon purple accent. RTL/Arabic first UI, with EN/AR switching.
 
+## Rules / Safety-Notice Flow
+
+There are **three** rule surfaces, by design — they serve different jobs.
+
+| Surface | Where | When it appears | Gate |
+|---|---|---|---|
+| Onboarding rules step | `src/pages/interests.tsx` (step `"rules"`) | Once, after first-run profile + interests | `localStorage["bidreel_rules_seen"]` |
+| **Listing rules modal** | `src/pages/create-auction.tsx` (`LISTING_RULES`) | Bottom-sheet on Publish, **first publish only** | `localStorage["bidreel_listing_rules_accepted"]` |
+| **Bidding rules modal** | `src/pages/auction-detail.tsx` (`BIDDING_RULES`) | Bottom-sheet on Submit-bid, **first bid only** | `localStorage["bidreel_bidding_rules_accepted"]` |
+| Always-available rules page | `src/pages/safety-rules.tsx` | Hamburger menu → "Safety & Auction Rules" | none |
+
+**Modal interaction contract (both listing + bidding):**
+- **Confirm** button (`*_rules_confirm` i18n key) — sets the localStorage flag and immediately performs the queued action (publish or place-bid).
+- **Skip** button (`rules_skip`) — closes the modal **without** setting the flag, so the rules re-appear next time. Skip does NOT proceed with the action.
+- **"Read the full safety rules"** link — closes the modal and routes to `/safety-rules`.
+- Backdrop tap behaves like Skip (close without flag, no action taken).
+
+**Language handling:** All rule keys (`rule_1..5_title/body`, `listing_rules_*`, `bidding_rules_*`, `rules_skip`, `rules_view_full`) have translations in `en/ar/ru/es/fr` in `src/lib/i18n.ts`. Modals use `dir={dir}` from `useLang()` so they render RTL when Arabic is selected.
+
 ## Video Upload Architecture (NATIVE-ONLY, no raw fallback)
 
 **Product rule:** Videos must be compressed BEFORE upload. Raw video must NEVER reach R2. If compression fails, the upload fails.

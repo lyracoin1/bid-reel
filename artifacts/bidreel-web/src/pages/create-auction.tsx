@@ -1047,10 +1047,16 @@ export default function CreateAuction() {
               </motion.button>
               <button
                 onClick={() => setShowRulesModal(false)}
-                className="w-full py-3 text-sm text-white/35 hover:text-white/60 transition-colors"
+                className="w-full py-3 text-sm text-white/45 hover:text-white/70 transition-colors"
+                data-testid="button-listing-rules-skip"
               >
-                {lang === "ar" ? "إلغاء" : "Cancel"}
+                {t("rules_skip")}
               </button>
+              {/* No "view full rules" link here — the modal already shows all
+                  five rules above. Routing away to /safety-rules would unmount
+                  the create-auction page and discard the in-progress draft
+                  (video/photos/title/category/etc). The full page is still
+                  reachable any time from Hamburger menu → Safety & Rules. */}
             </div>
           </motion.div>
         </>

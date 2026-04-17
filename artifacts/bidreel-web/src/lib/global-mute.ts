@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { subscribeNativeVolumeButtons } from "./native-volume-buttons";
 
 const STORAGE_KEY = "globalMuted";
 
@@ -47,8 +48,23 @@ let intentInstalled = false;
 
 export function installAudioIntentListener(): void {
   if (intentInstalled) return;
-  if (typeof window === "undefined" || typeof document === "undefined") return;
   intentInstalled = true;
+
+  // ── 1. Native Android hardware-volume listener (real fix) ─────────────────
+  // Android intercepts KEYCODE_VOLUME_UP / VOLUME_DOWN at the OS level — they
+  // never reach the WebView as a JS `keydown` event.  The companion native
+  // plugin overrides MainActivity.dispatchKeyEvent and forwards each press
+  // through Capacitor.  This subscriber unmutes on the FIRST press and stays
+  // active so subsequent presses still flip mute off if the user re-muted.
+  subscribeNativeVolumeButtons(() => {
+    if (getGlobalMuted()) setGlobalMuted(false);
+  });
+
+  // ── 2. Browser / desktop fallback ─────────────────────────────────────────
+  // Covers desktop browsers (where keyboard volume keys CAN reach `keydown`)
+  // and gives the spec-required "any first interaction implies sound intent"
+  // behaviour for users on web.
+  if (typeof window === "undefined" || typeof document === "undefined") return;
 
   const VOLUME_KEYS = new Set([
     "AudioVolumeUp",

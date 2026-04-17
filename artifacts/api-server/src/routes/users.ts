@@ -101,6 +101,18 @@ const updateProfileSchema = z.object({
 });
 
 router.patch("/users/me", requireAuth, async (req, res) => {
+  // Diagnostic log: prove whether phone arrives in the request body.
+  // Logs ONLY field presence (not the actual phone digits) to avoid PII spill.
+  req.log.info(
+    {
+      userId: req.user!.id,
+      hasPhone: typeof req.body?.phone === "string" && req.body.phone.length > 0,
+      phoneLen: typeof req.body?.phone === "string" ? req.body.phone.length : 0,
+      bodyKeys: Object.keys(req.body ?? {}),
+    },
+    "PATCH /users/me request received",
+  );
+
   const parsed = updateProfileSchema.safeParse(req.body);
 
   if (!parsed.success) {

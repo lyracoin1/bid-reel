@@ -445,6 +445,34 @@ router.post("/auctions", requireAuth, async (req, res) => {
     parsed.data;
   const sellerId = req.user!.id;
 
+  // ── Phone-required gate ────────────────────────────────────────────────────
+  // Auctions cannot be created without a WhatsApp contact phone on file —
+  // buyers need a way to reach the seller. We block at this layer because the
+  // PATCH /users/me path is partial-update and accepts other-field-only edits.
+  // Existing accounts (signed up before phone became required) hit this gate
+  // and are forced to set a phone before publishing.
+  {
+    const { data: sellerRow, error: sellerErr } = await supabaseAdmin
+      .from("profiles")
+      .select("phone")
+      .eq("id", sellerId)
+      .maybeSingle();
+    if (sellerErr) {
+      logger.error({ err: sellerErr, sellerId }, "POST /auctions: phone gate lookup failed");
+      res.status(500).json({ error: "PROFILE_LOOKUP_FAILED", message: "Could not verify seller profile." });
+      return;
+    }
+    const phone = (sellerRow?.phone ?? "").trim();
+    if (phone.length === 0) {
+      logger.warn({ sellerId }, "POST /auctions blocked: seller has no phone on file");
+      res.status(400).json({
+        error: "PHONE_REQUIRED",
+        message: "Phone required before creating auction",
+      });
+      return;
+    }
+  }
+
   // ── Media URL ownership / origin enforcement ───────────────────────────────
   // Reject any URL that is not from our R2 / legacy Supabase project AND
   // whose key prefix doesn't match this user's upload namespace.  Without

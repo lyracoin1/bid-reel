@@ -1,0 +1,123 @@
+You are working on a production app. Stop assuming. Stop summarizing. Investigate the real failure and fix it end-to-end.
+
+## PRIORITY 1 — PHONE IS NOT BEING SAVED
+
+The direct WhatsApp button is still failing because seller phone is not being persisted correctly. I do NOT want theories. I want a real trace through the full data path and a fix.
+
+### Your task
+
+Audit and fix the complete phone persistence chain:
+
+1. Frontend input source
+
+* Find the exact screen/component where phone is entered
+* Verify the state actually contains the typed value
+* Verify the submit handler includes `phone` in the request body
+* Verify no serializer / mapper / cleaner is dropping `phone`
+* Verify no stale auth/profile bootstrapping is overwriting it back to null/empty after save
+
+2. API request
+
+* Trace the exact request sent to `PATCH /users/me`
+* Log the request body on the server
+* Confirm whether `phone` arrives or not
+* If it does not arrive, fix the frontend immediately
+* If it arrives, continue tracing
+
+3. Backend persistence
+
+* Inspect the exact `PATCH /users/me` route
+* Confirm `phone` is validated, trimmed, and included in the Supabase update object
+* Confirm no whitelist / schema / destructuring omits it
+* Confirm no later code writes the old profile over the new one
+
+4. Database verification
+
+* After save, read the exact `profiles.phone` value from DB
+* Then verify `GET /users/me` returns it
+* Then verify auction seller payload includes it
+* Then verify the WhatsApp button receives it
+
+5. Mandatory enforcement
+
+* Block auction creation server-side when `profiles.phone` is null/empty
+* Return 400 with exact message:
+  `Phone required before creating auction`
+
+## IMPORTANT
+
+Take these suspicions seriously:
+
+* phone is present in UI state but dropped before request
+* phone is sent but omitted in backend update mapping
+* phone is saved then overwritten by another profile sync path
+* onboarding/profile-completion logic still reflects old phone-auth assumptions
+* profile completeness or user bootstrap is allowing empty phone and corrupting the saved value
+
+## OUTPUT REQUIRED
+
+Return ONLY:
+
+* root cause
+* exact files changed
+* exact fix applied
+* proof that DB now stores phone
+* proof that WhatsApp button now receives seller.phone
+
+---
+
+## PRIORITY 2 — GLOBAL MUTE IS STILL BROKEN
+
+The audio behavior is still wrong. Pressing hardware volume up/down does NOT unmute. The app remains muted exactly as before. Do not tell me “listener installed”. Prove it works or fix it properly.
+
+### Your task
+
+Investigate and fix the REAL reason hardware volume buttons do not unmute.
+
+Take these suspicions seriously:
+
+* web `keydown` listeners do NOT capture Android hardware volume buttons inside Capacitor WebView
+* the current implementation only catches browser keyboard events, not native Android volume events
+* therefore the entire current “volume button unmutes” implementation is functionally fake on device
+
+### Required fix
+
+Implement a REAL Android-native volume change listener through Capacitor plugin/native Android code.
+
+Requirements:
+
+1. Detect actual hardware volume up/down presses on Android
+2. Emit an event to JS
+3. On first native volume event:
+
+   * set global mute to false
+   * update all active videos immediately
+4. Keep mute button toggle working
+5. Keep persistence working
+
+### Validation
+
+Prove on-device behavior:
+
+* app opens muted
+* press device volume up/down
+* current video unmutes immediately
+* next videos inherit unmuted state
+* relaunch preserves state
+
+## OUTPUT REQUIRED
+
+Return ONLY:
+
+* root cause
+* exact files changed
+* exact native fix applied
+* proof that hardware volume now unmutes on Android device
+
+## RULES
+
+* No theories
+* No “should”
+* No fake browser-only workaround presented as Android solution
+* No partial fix
+* Trace the real bug and fix it

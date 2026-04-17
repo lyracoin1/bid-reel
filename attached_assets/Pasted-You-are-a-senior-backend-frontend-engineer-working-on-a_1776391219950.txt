@@ -1,0 +1,111 @@
+You are a senior backend + frontend engineer working on a production system.
+Do NOT explain. Do NOT ask questions. Execute exactly.
+
+## GOAL
+
+Fix phone persistence and enforce phone as REQUIRED across the entire system.
+
+---
+
+## PART 1 — BACKEND (CRITICAL)
+
+### File: artifacts/api-server/src/routes/users.ts
+
+1. Ensure PATCH /users/me ALWAYS updates phone.
+
+* Reject request if phone is missing or empty.
+* Trim value.
+* Save to profiles.phone.
+
+Use this logic:
+
+* If (!phone || phone.trim().length < 6) → return 400 "Phone is required"
+
+* Update query MUST include phone explicitly.
+
+---
+
+### File: artifacts/api-server/src/routes/auctions.ts
+
+2. BLOCK auction creation if user has no phone.
+
+Before creating auction:
+
+* Fetch profiles.phone by userId
+* If null or empty → return 400:
+
+"Phone required before creating auction"
+
+NO EXCEPTIONS.
+
+---
+
+### File: artifacts/api-server/src/lib/profiles.ts
+
+3. Ensure phone is included everywhere:
+
+* PROFILE_COLS must include "phone"
+* getOwnProfile must return phone
+* auction seller shape must include phone
+
+---
+
+## PART 2 — FRONTEND (STRICT)
+
+### File: artifacts/bidreel-web/src/pages/interests.tsx (or profile edit)
+
+4. Make phone REQUIRED:
+
+* Disable save if phone empty
+* Show error: "Phone is required"
+
+---
+
+### File: profile submission logic
+
+5. Ensure phone is sent in PATCH /users/me body:
+
+* No filtering
+* No optional omission
+* Must always send phone
+
+---
+
+## PART 3 — DATA FIX
+
+6. Run once in Supabase SQL:
+
+UPDATE profiles
+SET phone = ''
+WHERE phone IS NULL;
+
+---
+
+## PART 4 — VALIDATION
+
+7. Verify end-to-end:
+
+* PATCH /users/me returns phone
+* GET /users/me returns phone
+* profiles table contains phone
+* auction.seller.phone exists
+* WhatsApp button appears
+
+---
+
+## RULES
+
+* Do NOT skip backend validation
+* Do NOT rely on frontend only
+* Do NOT allow auctions without phone
+* Do NOT leave phone nullable in logic
+
+---
+
+## OUTPUT
+
+Return:
+
+* List of modified files
+* Confirmation that phone is enforced server-side
+* Confirmation that auctions are blocked without phone

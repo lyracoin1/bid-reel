@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase";
 import { setToken, clearToken, API_BASE } from "@/lib/api-client";
 import { CapApp, isNative, OAUTH_SCHEME, closeBrowser } from "@/lib/capacitor-app";
 import { Browser } from "@capacitor/browser";
+import { installAudioIntentListener } from "@/lib/global-mute";
 
 // Core user pages — loaded eagerly (always needed)
 import Splash from "@/pages/splash";
@@ -363,6 +364,10 @@ function AuthSync() {
   }, []);
   return null;
 }
+
+// Install the global "first user interaction → unmute" listener as soon as
+// the JS module loads. Idempotent — calling more than once is a no-op.
+installAudioIntentListener();
 
 function App() {
   return (

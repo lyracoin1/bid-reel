@@ -25,6 +25,7 @@ import type { AuctionState } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { useViewerLocation } from "@/hooks/use-viewer-location";
 import { haversineDistance, formatDistance, formatAuctionPrice } from "@/lib/geo";
+import { useGlobalMute, getGlobalMuted } from "@/lib/global-mute";
 
 // Minimum bid increment — server is the source of truth, this is just UI floor.
 const MIN_INCREMENT = 1;
@@ -100,8 +101,9 @@ export default function AuctionDetail() {
   const { realtimeCurrentBid, realtimeBidCount, isConnected } =
     useRealtimeBids(id ?? "", auction?.bidCount ?? 0);
 
-  // ── Video: mute state + autoplay on mount ────────────────────────────────
-  const [isMuted, setIsMuted] = useState(true);
+  // ── Video: GLOBAL mute state + autoplay on mount ─────────────────────────
+  // Shared with feed via `@/lib/global-mute` (persisted to localStorage).
+  const [isMuted, setMuted] = useGlobalMute();
 
   useEffect(() => {
     const el = videoRef.current;
@@ -113,7 +115,8 @@ export default function AuctionDetail() {
     if (!auction || auction.type !== "video") return;
     const el = videoRef.current;
     if (!el) return;
-    el.muted = true;
+    // Use latest global value at play() time to avoid one-frame mismatch.
+    el.muted = getGlobalMuted();
     el.play().catch(() => {});
 
     const handleError = () =>
@@ -315,7 +318,7 @@ export default function AuctionDetail() {
               />
               {/* Mute / unmute control */}
               <button
-                onClick={() => setIsMuted((m) => !m)}
+                onClick={() => setMuted(!isMuted)}
                 className="absolute bottom-4 right-4 z-30 w-10 h-10 rounded-full bg-black/55 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white active:scale-90 transition-transform"
                 aria-label={isMuted ? "Unmute" : "Mute"}
               >

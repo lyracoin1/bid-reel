@@ -18,6 +18,7 @@ import type { AuctionState } from "@/lib/utils";
 import { useViewerLocation } from "@/hooks/use-viewer-location";
 import { haversineDistance, formatDistance, formatAuctionPrice } from "@/lib/geo";
 import { sendSignalApi, removeSignalApi, type ContentSignal } from "@/lib/api-client";
+import { useGlobalMute, getGlobalMuted } from "@/lib/global-mute";
 
 function AlbumIcon({ size = 20 }: { size?: number }) {
   return (
@@ -65,11 +66,8 @@ interface FeedCardProps {
   isNear: boolean;
 }
 
-// Module-level mute preference — single source of truth shared across all
-// FeedCard instances.  Using a module variable avoids prop-drilling and Context
-// while still giving every card the same mute state when it becomes active.
-// Initialised to `true` because browser autoplay policy always starts muted.
-let globalMuted = true;
+// Global mute is owned by `@/lib/global-mute` (persisted to localStorage,
+// shared with auction-detail). Each FeedCard subscribes via `useGlobalMute()`.
 
 export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   const [, setLocation] = useLocation();
@@ -123,38 +121,23 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
     }
   }, [localSignal, auction.id]);
 
-  // Local state mirrors globalMuted so React re-renders the icon correctly.
-  // Initialise from globalMuted so cards that mount after the user has already
-  // changed the preference pick up the right value immediately.
-  const [isMuted, setIsMuted] = useState(() => globalMuted);
+  // Global mute — shared across all videos, persisted to localStorage.
+  const [isMuted, setMuted] = useGlobalMute();
 
-  // When THIS card becomes active, sync to the current global preference.
-  // This handles the "swipe to next/previous reel" case where the card was
-  // already mounted with a now-stale local state.
-  useEffect(() => {
-    if (!isActive) return;
-    setIsMuted(globalMuted);
-  }, [isActive]);
-
-  // Keep the video element's muted property in sync with React state.
-  // This is the single place that writes to the DOM — no other effect touches it.
+  // Keep the video element's muted property in sync with global state.
   useEffect(() => {
     if (!videoRef.current) return;
     videoRef.current.muted = isMuted;
   }, [isMuted]);
 
-  // Play / pause based on active state.
-  // Set el.muted from globalMuted directly here (in addition to the isMuted
-  // effect above) so that when play() is called the video element already has
-  // the correct muted state — avoids a one-frame window where sound state could
-  // briefly mismatch while waiting for the isMuted state update to flush.
-  // Reset currentTime to 0 on deactivation so swiping back always starts
-  // from the beginning rather than mid-video.
+  // Play / pause based on active state. Read latest mute via `getGlobalMuted()`
+  // so the very first play() uses the up-to-date preference even if the
+  // subscriber hasn't flushed yet (avoids a one-frame mismatch).
   useEffect(() => {
     const el = videoRef.current;
     if (!isVideo || !el) return;
     if (isActive) {
-      el.muted = globalMuted;
+      el.muted = getGlobalMuted();
       el.play().catch(() => {});
     } else {
       el.pause();
@@ -301,7 +284,7 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
         {isVideo && (
           /* Mute — 44dp touch target, 18dp icon */
           <button
-            onClick={(e) => { e.stopPropagation(); const next = !isMuted; globalMuted = next; setIsMuted(next); }}
+            onClick={(e) => { e.stopPropagation(); setMuted(!isMuted); }}
             className="w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white active:scale-90 transition-transform"
             aria-label={isMuted ? "Unmute" : "Mute"}
           >

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Grid, Bookmark, LogOut, ShieldCheck, Trash2, Shield, MapPin,
-  Pencil, Settings, ChevronRight,
+  Pencil, Settings, ChevronRight, Gavel, Trophy, AlertCircle, Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
@@ -10,7 +10,7 @@ import { formatAuctionPrice } from "@/lib/geo";
 import { HamburgerMenu } from "@/components/HamburgerMenu";
 import { useCurrentUser, clearCurrentUserCache } from "@/hooks/use-current-user";
 import { useAuctions, useMyAuctions } from "@/hooks/use-auctions";
-import { getSavedIdsApi, clearToken, deleteAccountApi } from "@/lib/api-client";
+import { getSavedIdsApi, clearToken, deleteAccountApi, getBiddedAuctionsApi, type ApiBiddedAuction } from "@/lib/api-client";
 import { clearAdminSession } from "@/pages/admin/admin-session";
 import { deleteNativeFcmToken } from "@/lib/native-fcm";
 import { getTimeRemaining } from "@/lib/utils";
@@ -18,13 +18,16 @@ import { useLang } from "@/contexts/LanguageContext";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { FollowListModal } from "@/components/FollowListModal";
 
-type Tab = "my_auctions" | "saved";
+type Tab = "my_auctions" | "my_bids" | "saved";
 type FollowModal = "followers" | "following" | null;
 
 export default function Profile() {
   const [activeTab, setActiveTab] = useState<Tab>("my_auctions");
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [savedLoading, setSavedLoading] = useState(false);
+  const [biddedAuctions, setBiddedAuctions] = useState<ApiBiddedAuction[]>([]);
+  const [biddedLoading, setBiddedLoading] = useState(false);
+  const [biddedError, setBiddedError] = useState<string | null>(null);
   const [followModal, setFollowModal] = useState<FollowModal>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -68,10 +71,24 @@ export default function Profile() {
       .finally(() => setSavedLoading(false));
   }, [activeTab]);
 
+  // Load bidded auctions when "مزايداتي" tab is activated. Always re-fetches
+  // on tab open so rank/highest-bidder status stays fresh after returning
+  // from a bid placement on another screen.
+  useEffect(() => {
+    if (activeTab !== "my_bids") return;
+    setBiddedLoading(true);
+    setBiddedError(null);
+    getBiddedAuctionsApi()
+      .then(rows => setBiddedAuctions(rows))
+      .catch(err => setBiddedError(err instanceof Error ? err.message : "Failed to load your bids"))
+      .finally(() => setBiddedLoading(false));
+  }, [activeTab]);
+
   const savedAuctions = allAuctions.filter(a => savedIds.has(a.id));
 
-  const tabs: { id: Tab; labelKey: "my_auctions" | "saved_tab"; icon: typeof Grid; count: number }[] = [
+  const tabs: { id: Tab; labelKey: "my_auctions" | "my_bids" | "saved_tab"; icon: typeof Grid; count: number }[] = [
     { id: "my_auctions", labelKey: "my_auctions", icon: Grid,     count: myListings.length },
+    { id: "my_bids",     labelKey: "my_bids",     icon: Gavel,    count: biddedAuctions.length },
     { id: "saved",       labelKey: "saved_tab",   icon: Bookmark, count: savedIds.size },
   ];
 
@@ -337,6 +354,98 @@ export default function Profile() {
                   className="mt-1 px-6 py-3 rounded-xl bg-primary text-white text-sm font-bold shadow-[0_0_20px_rgba(139,92,246,0.3)]"
                 >
                   {t("create_first")}
+                </motion.button>
+              </div>
+            )
+          )}
+
+          {activeTab === "my_bids" && (
+            biddedLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 size={22} className="animate-spin text-white/40" />
+              </div>
+            ) : biddedError ? (
+              <div className="py-16 flex flex-col items-center text-center gap-3">
+                <AlertCircle size={26} className="text-red-400/70" />
+                <p className="text-sm text-red-300">{biddedError}</p>
+              </div>
+            ) : biddedAuctions.length > 0 ? (
+              <div className="flex flex-col gap-2.5">
+                {biddedAuctions.map(b => {
+                  const timeInfo = getTimeRemaining(b.ends_at);
+                  const ended = b.status === "ended" || b.status === "settled" || timeInfo.text === "Ended";
+                  const leading = b.is_highest_bidder;
+                  return (
+                    <motion.button
+                      key={b.id}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setLocation(`/auction/${b.id}`)}
+                      className={`flex items-stretch gap-3 p-2 pr-3.5 rounded-2xl bg-white/5 border ${
+                        leading ? "border-emerald-500/30" : "border-red-500/25"
+                      } text-left active:bg-white/8 transition-colors`}
+                    >
+                      {/* Thumbnail */}
+                      <div className="relative w-20 h-24 rounded-xl overflow-hidden shrink-0 bg-white/5">
+                        {b.media_url ? (
+                          <img src={b.media_url} alt={b.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center"><Gavel size={20} className="text-white/20" /></div>
+                        )}
+                        {/* Rank badge */}
+                        <div className={`absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[10px] font-bold ${
+                          b.rank === 1 ? "bg-emerald-500/90 text-white" : "bg-black/60 text-white"
+                        }`}>
+                          {b.rank === 1 && <Trophy size={9} />}#{b.rank}
+                        </div>
+                      </div>
+
+                      {/* Body */}
+                      <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
+                        <div>
+                          <p className="text-sm font-bold text-white line-clamp-1">{b.title}</p>
+                          <div className="flex items-baseline gap-2 mt-1">
+                            <span className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">{t("current")}</span>
+                            <span className="text-sm font-bold text-white">
+                              {formatAuctionPrice(b.current_price, b.currency_code ?? "USD")}
+                            </span>
+                          </div>
+                          <div className="flex items-baseline gap-2 mt-0.5">
+                            <span className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">{t("your_bid")}</span>
+                            <span className="text-sm font-bold text-white/80">
+                              {formatAuctionPrice(b.user_bid, b.currency_code ?? "USD")}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-1.5">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            leading
+                              ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                              : "bg-red-500/15 text-red-300 border border-red-500/25"
+                          }`}>
+                            {leading ? t("leading") : t("outbid")}
+                          </span>
+                          <span className={`text-[10px] font-semibold ${ended ? "text-white/40" : (timeInfo.isUrgent ? "text-red-400" : "text-white/60")}`}>
+                            {ended ? t("ended") : timeInfo.text}
+                          </span>
+                        </div>
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="py-16 flex flex-col items-center text-center gap-3">
+                <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/8 flex items-center justify-center mb-1">
+                  <Gavel size={26} className="text-white/20" />
+                </div>
+                <p className="text-sm font-semibold text-white/60">{t("no_bids_yet_title")}</p>
+                <p className="text-xs text-muted-foreground max-w-[220px]">{t("no_bids_yet_sub")}</p>
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => setLocation("/feed")}
+                  className="mt-1 px-6 py-3 rounded-xl bg-primary text-white text-sm font-bold shadow-[0_0_20px_rgba(139,92,246,0.3)]"
+                >
+                  {t("explore_auctions")}
                 </motion.button>
               </div>
             )

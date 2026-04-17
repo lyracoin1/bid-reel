@@ -725,6 +725,39 @@ export async function getUserBidsApi(): Promise<ApiMyBidEntry[]> {
   return data.bids;
 }
 
+// ─── My Bids tab — auctions I have bid on, with rank ─────────────────────────
+//
+// Backend: GET /api/auctions/bidded — returns the documented response shape
+// for the "مزايداتي" tab. Rank is COMPUTED IN THE BACKEND (1 = top bidder).
+
+export interface ApiBiddedAuction {
+  id: string;
+  title: string;
+  media_url: string | null;
+  current_price: number;
+  user_bid: number;
+  is_highest_bidder: boolean;
+  rank: number;
+  // Extras for richer UI
+  ends_at: string;
+  starts_at: string | null;
+  currency_code: string | null;
+  status: string;
+  bid_count: number;
+  latest_bid_at: string | null;
+}
+
+export async function getBiddedAuctionsApi(): Promise<ApiBiddedAuction[]> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_BASE}/auctions/bidded`, { headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to fetch your bid history");
+  }
+  const data = await res.json() as { auctions: ApiBiddedAuction[] };
+  return data.auctions;
+}
+
 // ─── Delete auction ───────────────────────────────────────────────────────────
 
 export async function deleteAuctionApi(auctionId: string): Promise<void> {

@@ -69,7 +69,10 @@ export type TKey =
   // Profile — empty states
   | "no_auctions_yet" | "no_auctions_yet_sub"
   | "no_saved_yet" | "no_saved_yet_sub"
+  | "no_bids_yet_title" | "no_bids_yet_sub"
   | "explore_auctions"
+  // My-Bids tab — card labels
+  | "current" | "your_bid"
   // Profile — completeness card field labels
   | "profile_photo_label" | "username_label"
   | "display_name_label" | "location_label" | "phone_required_label"
@@ -151,6 +154,9 @@ const en: Translations = {
   no_auctions_yet_sub: "List your first item and start selling to bidders around you.",
   no_saved_yet: "You haven't saved any auctions yet",
   no_saved_yet_sub: "Browse the feed and save auctions you're interested in.",
+  no_bids_yet_title: "No bids yet",
+  no_bids_yet_sub: "Auctions you bid on will appear here so you can track your rank.",
+  current: "Current", your_bid: "Your bid",
   explore_auctions: "Explore auctions",
   profile_photo_label: "Profile photo", username_label: "Username",
   display_name_label: "Display name", location_label: "Location",
@@ -246,6 +252,9 @@ const ar: Translations = {
   no_auctions_yet_sub: "أضف أول عنصر وابدأ البيع للمزايدين حولك.",
   no_saved_yet: "لم تحفظ أي مزادات بعد",
   no_saved_yet_sub: "تصفّح الرئيسية واحفظ المزادات التي تهمك.",
+  no_bids_yet_title: "لا توجد مزايدات بعد",
+  no_bids_yet_sub: "ستظهر هنا المزادات التي زايدت فيها لتتابع ترتيبك.",
+  current: "السعر الحالي", your_bid: "مزايدتك",
   explore_auctions: "استكشف المزادات",
   profile_photo_label: "الصورة الشخصية", username_label: "اسم المستخدم",
   display_name_label: "الاسم المعروض", location_label: "الموقع",
@@ -341,6 +350,9 @@ const ru: Translations = {
   no_auctions_yet_sub: "Добавьте первый лот и начните продавать.",
   no_saved_yet: "Вы ещё не сохранили ни одного аукциона",
   no_saved_yet_sub: "Листайте ленту и сохраняйте интересные аукционы.",
+  no_bids_yet_title: "Ставок пока нет",
+  no_bids_yet_sub: "Здесь появятся аукционы, на которые вы сделали ставку.",
+  current: "Текущая", your_bid: "Ваша ставка",
   explore_auctions: "Смотреть аукционы",
   profile_photo_label: "Фото профиля", username_label: "Имя пользователя",
   display_name_label: "Отображаемое имя", location_label: "Местоположение",
@@ -436,6 +448,9 @@ const es: Translations = {
   no_auctions_yet_sub: "Publica tu primer artículo y empieza a vender.",
   no_saved_yet: "Aún no has guardado ninguna subasta",
   no_saved_yet_sub: "Explora el feed y guarda las subastas que te interesen.",
+  no_bids_yet_title: "Aún no hay pujas",
+  no_bids_yet_sub: "Las subastas en las que pujes aparecerán aquí.",
+  current: "Actual", your_bid: "Tu puja",
   explore_auctions: "Explorar subastas",
   profile_photo_label: "Foto de perfil", username_label: "Nombre de usuario",
   display_name_label: "Nombre visible", location_label: "Ubicación",
@@ -531,6 +546,9 @@ const fr: Translations = {
   no_auctions_yet_sub: "Publiez votre premier article et commencez à vendre.",
   no_saved_yet: "Vous n'avez encore sauvegardé aucune enchère",
   no_saved_yet_sub: "Parcourez le fil et sauvegardez les enchères qui vous intéressent.",
+  no_bids_yet_title: "Aucune enchère encore",
+  no_bids_yet_sub: "Les ventes sur lesquelles vous enchérissez s'afficheront ici.",
+  current: "Actuel", your_bid: "Votre enchère",
   explore_auctions: "Explorer les enchères",
   profile_photo_label: "Photo de profil", username_label: "Nom d'utilisateur",
   display_name_label: "Nom affiché", location_label: "Localisation",

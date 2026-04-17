@@ -283,6 +283,162 @@ router.get("/auctions/mine", requireAuth, async (req, res) => {
   res.json({ auctions: feed });
 });
 
+// ─── GET /api/auctions/bidded ────────────────────────────────────────────────
+// Returns every auction the authenticated user has placed at least one bid on,
+// with their highest bid, the current price, whether they're the top bidder,
+// and their **server-computed rank** among all bidders on that auction.
+//
+// Rank is computed strictly here (not on the client): for each auction we
+// fetch every bid, group by bidder, take MAX(amount) per bidder, sort that
+// list DESC by amount (ties broken by earliest bid time), then find the
+// caller's position. Rank 1 = highest bidder.
+//
+// Edge cases handled:
+//   • multiple bids by the same user → take the highest
+//   • auction ended → still returned (the user wants to see the result)
+//   • no bids by this user → empty array
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.get("/auctions/bidded", requireAuth, async (req, res) => {
+  const userId = req.user!.id;
+  const bCol = await getBidderCol();
+
+  // 1. Every bid this user has ever placed.
+  const { data: myBids, error: myErr } = await supabaseAdmin
+    .from("bids")
+    .select("auction_id, amount, created_at")
+    .eq(bCol, userId)
+    .order("created_at", { ascending: false });
+
+  if (myErr) {
+    logger.error({ err: myErr, userId }, "GET /auctions/bidded: my-bids query failed");
+    res.status(500).json({ error: "FETCH_FAILED", message: "Could not load your bids" });
+    return;
+  }
+
+  if (!myBids || myBids.length === 0) {
+    res.json({ auctions: [] });
+    return;
+  }
+
+  // 2. Reduce my bids to one entry per auction = my highest bid on that auction,
+  //    preserving recency order so the most recently bid auction surfaces first.
+  const myBestPerAuction = new Map<string, { amount: number; latestAt: string | null }>();
+  for (const b of myBids) {
+    const cur = myBestPerAuction.get(b.auction_id);
+    if (!cur) {
+      myBestPerAuction.set(b.auction_id, { amount: b.amount, latestAt: b.created_at ?? null });
+    } else if (b.amount > cur.amount) {
+      myBestPerAuction.set(b.auction_id, { amount: b.amount, latestAt: cur.latestAt });
+    }
+  }
+  const auctionIds = [...myBestPerAuction.keys()];
+
+  // 3. Fetch the auction rows.
+  const { data: auctions, error: aErr } = await supabaseAdmin
+    .from("auctions")
+    .select("*")
+    .in("id", auctionIds);
+
+  if (aErr) {
+    logger.error({ err: aErr, userId }, "GET /auctions/bidded: auctions query failed");
+    res.status(500).json({ error: "FETCH_FAILED", message: "Could not load auctions" });
+    return;
+  }
+
+  // 4. Fetch every bid for those auctions in one round-trip and bucket by auction.
+  const { data: allBids, error: bidsErr } = await supabaseAdmin
+    .from("bids")
+    .select(`auction_id, ${bCol}, amount, created_at`)
+    .in("auction_id", auctionIds);
+
+  if (bidsErr) {
+    logger.error({ err: bidsErr, userId }, "GET /auctions/bidded: bids query failed");
+    res.status(500).json({ error: "FETCH_FAILED", message: "Could not load bids" });
+    return;
+  }
+
+  type RawBid = { auction_id: string; amount: number; created_at: string | null; [k: string]: unknown };
+  const byAuction = new Map<string, RawBid[]>();
+  for (const b of (allBids ?? []) as RawBid[]) {
+    const arr = byAuction.get(b.auction_id) ?? [];
+    arr.push(b);
+    byAuction.set(b.auction_id, arr);
+  }
+
+  const auctionMap = new Map((auctions ?? []).map(a => [a.id as string, a]));
+
+  // 5. Compute rank per auction: group bids by bidder, take MAX(amount) per
+  //    bidder, sort that list DESC by amount (ties → earliest bid first).
+  //    The caller's rank is their position (1-indexed) in that ordered list.
+  const result = auctionIds
+    .map(aId => {
+      const a = auctionMap.get(aId);
+      if (!a) return null;
+
+      const bidsForAuction = byAuction.get(aId) ?? [];
+
+      // Per-bidder best bid (amount + earliest time of their best bid).
+      const perBidder = new Map<string, { amount: number; firstAt: string }>();
+      for (const b of bidsForAuction) {
+        const bidderId = getBidderUserId(b);
+        if (!bidderId) continue;
+        const at = b.created_at ?? new Date(0).toISOString();
+        const prev = perBidder.get(bidderId);
+        if (!prev || b.amount > prev.amount) {
+          perBidder.set(bidderId, { amount: b.amount, firstAt: at });
+        } else if (b.amount === prev.amount && at < prev.firstAt) {
+          perBidder.set(bidderId, { amount: prev.amount, firstAt: at });
+        }
+      }
+
+      // Sort bidders DESC by amount, tiebreak by earliest time, then by uid
+      // for full determinism (transitive comparator — never returns ±1 on equal keys).
+      const ranking = [...perBidder.entries()]
+        .map(([uid, v]) => ({ uid, amount: v.amount, firstAt: v.firstAt }))
+        .sort((x, y) => {
+          if (y.amount !== x.amount) return y.amount - x.amount;
+          if (x.firstAt !== y.firstAt) return x.firstAt < y.firstAt ? -1 : 1;
+          if (x.uid === y.uid) return 0;
+          return x.uid < y.uid ? -1 : 1;
+        });
+
+      const rank = ranking.findIndex(r => r.uid === userId) + 1; // 1-indexed
+      const isHighest = rank === 1;
+
+      const my = myBestPerAuction.get(aId)!;
+      const currentPrice = ranking[0]?.amount ?? a.current_bid ?? a.start_price ?? 0;
+      const mediaUrl = a.video_url ?? a.thumbnail_url ?? null;
+
+      return {
+        id: a.id as string,
+        title: a.title as string,
+        media_url: mediaUrl as string | null,
+        current_price: Number(currentPrice),
+        user_bid: Number(my.amount),
+        is_highest_bidder: isHighest,
+        rank,
+        // Extras the FE can use for richer display (do not break the documented shape).
+        ends_at: a.ends_at as string,
+        starts_at: (a.starts_at as string) ?? null,
+        currency_code: (a.currency_code as string) ?? null,
+        status: (a.status as string) ?? "active",
+        bid_count: (a.bid_count as number) ?? perBidder.size,
+        latest_bid_at: my.latestAt,
+      };
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null)
+    // Most recently bid first.
+    .sort((a, b) => {
+      const at = a.latest_bid_at ?? "";
+      const bt = b.latest_bid_at ?? "";
+      return at < bt ? 1 : at > bt ? -1 : 0;
+    });
+
+  logger.info({ userId, count: result.length }, "GET /auctions/bidded → returning bid history");
+  res.json({ auctions: result });
+});
+
 // ─── GET /api/auctions/:id ────────────────────────────────────────────────────
 
 router.get("/auctions/:id", async (req, res) => {

@@ -47,7 +47,13 @@ function checkOutbids() {
     const auction = auctions.find((a) => a.id === auctionId);
     if (!auction || auction.bids.length === 0) return;
 
-    const topBid = auction.bids[0];
+    // Bids arrive from the server in chronological order (created_at ASC),
+    // so the highest bid is whichever row has the max amount — NOT bids[0].
+    // Tie-break by latest index (most recent bid wins).
+    const topBid = auction.bids.reduce(
+      (best, b) => (b.amount >= best.amount ? b : best),
+      auction.bids[0],
+    );
 
     // Still leading — no notification
     const myId = getCurrentUserId();

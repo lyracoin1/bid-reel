@@ -16,6 +16,7 @@ import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/utils";
 import { getCurrentUserId } from "@/hooks/use-current-user";
 import { recordUserBid } from "@/hooks/use-bid-polling";
+import { appendBidToCache } from "@/hooks/use-auctions";
 
 export interface RealtimeBid {
   id: string;
@@ -55,6 +56,31 @@ export function useRealtimeBids(
     setLatestBid(bid);
     setRealtimeCurrentBid(bid.amount);
     setRealtimeBidCount(prev => (prev ?? bidCountRef.current) + 1);
+
+    // Append the new bid to the global cache so the bid history list reflects
+    // it immediately (without waiting for a manual refresh). Idempotent — the
+    // helper skips bids whose id is already present, so this is safe even when
+    // the same INSERT lands here AND through the place-bid optimistic path.
+    appendBidToCache(
+      bid.auction_id,
+      {
+        id: bid.id,
+        user: {
+          id: bid.user_id,
+          name: bid.user_name || "User",
+          avatar: bid.user_avatar ?? "",
+          handle: `@${bid.user_id.slice(0, 8)}`,
+          phone: "",
+        },
+        amount: bid.amount,
+        timestamp: bid.created_at,
+      },
+      bid.amount,
+      // bidCountRef.current is the PRE-insert count. The cache helper does a
+      // Math.max with the existing cached count, so passing +1 keeps the
+      // global feed/listings in sync after each realtime insert.
+      (bidCountRef.current ?? 0) + 1,
+    );
 
     if (bid.user_id === getCurrentUserId()) {
       // Our own bid (confirmation path — normally fired before we get here)

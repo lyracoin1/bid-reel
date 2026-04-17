@@ -295,12 +295,17 @@ router.get("/auctions/:id", async (req, res) => {
       .eq("id", id)
       .single(),
 
+    // Order chronologically (created_at ASC) so the client can render true
+    // bid order: #1 = first bid placed, #N = most recent. The "highest" bid
+    // is derived on the client by max(amount) — independent of position —
+    // so the rank numbers always reflect when each bid was made.
     supabaseAdmin
       .from("bids")
       .select("*")
       .eq("auction_id", id)
-      .order("amount", { ascending: false })
-      .limit(20),
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(100),
   ]);
 
   if (auctionResult.error || !auctionResult.data) {

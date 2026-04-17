@@ -40,6 +40,30 @@ export function removeAuctionFromCache(auctionId: string): void {
   notify();
 }
 
+/**
+ * Append a bid to an auction in the global cache (used by realtime INSERT events
+ * so other users' bids appear in the bid history without a manual refresh).
+ * Idempotent — bids with an id already present are ignored.
+ */
+export function appendBidToCache(
+  auctionId: string,
+  bid: Bid,
+  newCurrentBid: number,
+  newBidCount: number,
+): void {
+  const idx = globalAuctions.findIndex(a => a.id === auctionId);
+  if (idx < 0) return;
+  const existing = globalAuctions[idx].bids;
+  if (existing.some(b => b.id === bid.id)) return;
+  globalAuctions[idx] = {
+    ...globalAuctions[idx],
+    currentBid: Math.max(globalAuctions[idx].currentBid, newCurrentBid),
+    bidCount: Math.max(globalAuctions[idx].bidCount, newBidCount),
+    bids: [...existing, bid],
+  };
+  notify();
+}
+
 // ─── Data mapping helpers ─────────────────────────────────────────────────────
 
 function apiProfileToUser(
@@ -254,7 +278,15 @@ export function useAuction(id: string) {
     const handler = () => {
       const found = globalAuctions.find(a => a.id === id);
       if (found) {
-        setAuction(prev => ({ ...found, bids: prev?.bids?.length ? prev.bids : found.bids }));
+        // Merge rule: prefer whichever bids list is longer/fresher.
+        // - Feed loads write empty bids[] → keep our richer detail bids.
+        // - place-bid / realtime appends grow the list → adopt them so the
+        //   bid history reflects every new bid immediately.
+        setAuction(prev => {
+          const prevBids = prev?.bids ?? [];
+          const nextBids = found.bids.length >= prevBids.length ? found.bids : prevBids;
+          return { ...found, bids: nextBids };
+        });
       }
     };
     listeners.add(handler);
@@ -320,19 +352,27 @@ export function usePlaceBid(options: PlaceBidOptions = {}) {
               phone: '',
             };
 
+        // Append (not prepend) — server orders bids by created_at ASC,
+        // so the newest bid is the LAST element. Skip if a row with this
+        // id is already present (defensive against realtime racing).
+        const existingBids = globalAuctions[idx].bids;
+        const alreadyPresent = existingBids.some(b => b.id === result.bid.id);
+        const nextBids = alreadyPresent
+          ? existingBids
+          : [
+              ...existingBids,
+              {
+                id: result.bid.id,
+                user: meAsUser,
+                amount: result.bid.amount,
+                timestamp: result.bid.created_at,
+              },
+            ];
         globalAuctions[idx] = {
           ...globalAuctions[idx],
           currentBid: result.auction.current_bid,
           bidCount: result.auction.bid_count,
-          bids: [
-            {
-              id: result.bid.id,
-              user: meAsUser,
-              amount: result.bid.amount,
-              timestamp: result.bid.created_at,
-            },
-            ...globalAuctions[idx].bids,
-          ],
+          bids: nextBids,
         };
         notify();
       }

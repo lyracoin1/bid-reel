@@ -26,7 +26,7 @@ export type TKey =
   | "current_bid" | "whatsapp_cta" | "about" | "bid_history"
   | "no_bids" | "place_bid" | "auction_closed" | "leading"
   | "min_bid" | "confirm_bid" | "processing" | "outbid"
-  | "contact_seller"
+  | "contact_seller" | "you_are_highest_bidder" | "you"
   // Create
   | "new_listing" | "step_1_label" | "step_2_label"
   | "upload_hint" | "video" | "photos"
@@ -112,6 +112,7 @@ const en: Translations = {
   place_bid: "Place a Bid", auction_closed: "Auction Closed", leading: "Leading",
   min_bid: "Minimum bid", confirm_bid: "Confirm Bid", processing: "Processing…",
   outbid: "Outbid", contact_seller: "Contact Seller",
+  you_are_highest_bidder: "You are the highest bidder", you: "You",
   new_listing: "New Listing", step_1_label: "Upload your content", step_2_label: "Add listing details",
   upload_hint: "Upload a short vertical video (up to 60 seconds) showing off your item.",
   video: "Video", photos: "Photos",
@@ -206,6 +207,7 @@ const ar: Translations = {
   place_bid: "ضع مزايدتك", auction_closed: "المزاد مغلق", leading: "في الصدارة",
   min_bid: "الحد الأدنى للمزايدة", confirm_bid: "تأكيد المزايدة", processing: "جارٍ المعالجة…",
   outbid: "تجاوزتك مزايدة", contact_seller: "تواصل مع البائع",
+  you_are_highest_bidder: "أنت صاحب أعلى مزايدة", you: "أنت",
   new_listing: "إدراج جديد", step_1_label: "ارفع المحتوى", step_2_label: "أضف تفاصيل الإدراج",
   upload_hint: "ارفع مقطع فيديو رأسي قصير (حتى 60 ثانية) يعرض العنصر.",
   video: "فيديو", photos: "صور",
@@ -300,6 +302,7 @@ const ru: Translations = {
   place_bid: "Сделать ставку", auction_closed: "Аукцион закрыт", leading: "Лидирует",
   min_bid: "Минимальная ставка", confirm_bid: "Подтвердить ставку", processing: "Обработка…",
   outbid: "Перебит", contact_seller: "Связаться с продавцом",
+  you_are_highest_bidder: "Вы лидируете в торгах", you: "Вы",
   new_listing: "Новый лот", step_1_label: "Загрузите контент", step_2_label: "Добавьте детали",
   upload_hint: "Загрузите короткое вертикальное видео (до 60 секунд) с вашим товаром.",
   video: "Видео", photos: "Фото",
@@ -394,6 +397,7 @@ const es: Translations = {
   place_bid: "Realizar una puja", auction_closed: "Subasta cerrada", leading: "Ganando",
   min_bid: "Puja mínima", confirm_bid: "Confirmar puja", processing: "Procesando…",
   outbid: "Superado", contact_seller: "Contactar al vendedor",
+  you_are_highest_bidder: "Eres el mejor postor", you: "Tú",
   new_listing: "Nuevo anuncio", step_1_label: "Sube tu contenido", step_2_label: "Añade detalles",
   upload_hint: "Sube un vídeo vertical corto (hasta 60 segundos) mostrando tu artículo.",
   video: "Vídeo", photos: "Fotos",
@@ -488,6 +492,7 @@ const fr: Translations = {
   place_bid: "Placer une enchère", auction_closed: "Vente clôturée", leading: "En tête",
   min_bid: "Enchère minimale", confirm_bid: "Confirmer l'enchère", processing: "Traitement…",
   outbid: "Surenchéri", contact_seller: "Contacter le vendeur",
+  you_are_highest_bidder: "Vous êtes le meilleur enchérisseur", you: "Vous",
   new_listing: "Nouvelle annonce", step_1_label: "Téléchargez votre contenu", step_2_label: "Ajoutez les détails",
   upload_hint: "Téléchargez une courte vidéo verticale (max 60 secondes) présentant votre article.",
   video: "Vidéo", photos: "Photos",

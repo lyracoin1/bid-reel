@@ -163,11 +163,21 @@ export default function AuctionDetail() {
   // ── Derived values ────────────────────────────────────────────────────────
   const whatsappUrl = getWhatsAppUrl(auction.seller.phone, auction.title);
   const watching = isWatching(auction.id);
-  const winner = state === "ended" && auction.bids.length > 0 ? auction.bids[0] : null;
+  // Bids arrive from the server in chronological order (created_at ASC).
+  // The "highest" bid is the one with max amount — derived independently so
+  // it stays correct regardless of list position. Ties broken by latest index.
+  const highestBidIndex = auction.bids.length === 0
+    ? -1
+    : auction.bids.reduce(
+        (bestIdx, b, i, arr) => (b.amount >= arr[bestIdx].amount ? i : bestIdx),
+        0,
+      );
+  const highestBid = highestBidIndex >= 0 ? auction.bids[highestBidIndex] : null;
+  const winner = state === "ended" && highestBid ? highestBid : null;
   const isAlbum = auction.type === "album" && (auction.images?.length ?? 0) > 1;
   const isVideo = auction.type === "video";
   const isSeller = !!currentUser && auction.seller.id === currentUser.id;
-  const topBidUserId = auction.bids[0]?.user.id;
+  const topBidUserId = highestBid?.user.id;
   const bidStatus = getUserBidStatus(auction.id, topBidUserId);
 
   // Reconcile realtime override with the latest server state.
@@ -503,7 +513,7 @@ export default function AuctionDetail() {
                       className="w-full py-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center gap-2"
                     >
                       <Trophy size={16} className="text-emerald-400" />
-                      <span className="text-sm font-bold text-emerald-400">You're the highest bidder!</span>
+                      <span className="text-sm font-bold text-emerald-400">{t("you_are_highest_bidder")}</span>
                     </motion.div>
                   ) : (
                     <motion.button
@@ -671,39 +681,55 @@ export default function AuctionDetail() {
             <p className="text-[15px] text-muted-foreground leading-relaxed">{auction.description}</p>
           </div>
 
-          {/* Bid history */}
+          {/* Bid history — server returns bids in chronological order
+              (created_at ASC). Render newest-first for scannability, but
+              compute the rank from the chronological position so #1 is
+              always the very first bid placed on this auction. */}
           <div>
             <h3 className="text-sm font-bold text-white/60 uppercase tracking-widest mb-3">{t("bid_history")}</h3>
             {auction.bids.length > 0 ? (
               <div className="space-y-1">
-                {auction.bids.map((bid, i) => (
-                  <button
-                    type="button"
-                    key={bid.id}
-                    onClick={() => setLocation(`/users/${bid.user.id}`)}
-                    className="w-full flex items-center gap-3 py-2 px-1 -mx-1 rounded-xl text-left active:bg-white/5 active:scale-[0.99] transition"
-                    aria-label={`View ${bid.user.name}'s profile`}
-                  >
-                    <UserAvatar src={bid.user.avatar || null} name={bid.user.name} size={36} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white leading-none truncate">{bid.user.name}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {bid.timestamp && new Date(bid.timestamp).getFullYear() > 2000
-                          ? `${formatDistanceToNow(new Date(bid.timestamp))} ago`
-                          : "recently"}
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-0.5 shrink-0">
-                      <span className="text-sm font-bold text-white">{fmtPrice(bid.amount)}</span>
-                      {i === 0 && state === "active" && (
-                        <span className="text-[10px] font-bold text-primary uppercase tracking-wide">{t("leading")}</span>
-                      )}
-                      {i === 0 && state === "ended" && (
-                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wide">{t("winner")}</span>
-                      )}
-                    </div>
-                  </button>
-                ))}
+                {auction.bids.map((bid, chronoIdx) => {
+                  const rank = chronoIdx + 1;
+                  const isHighest = chronoIdx === highestBidIndex;
+                  const isMe = !!currentUser && bid.user.id === currentUser.id;
+                  return { bid, chronoIdx, rank, isHighest, isMe };
+                })
+                  .slice()
+                  .reverse()
+                  .map(({ bid, rank, isHighest, isMe }) => (
+                    <button
+                      type="button"
+                      key={bid.id}
+                      onClick={() => setLocation(`/users/${bid.user.id}`)}
+                      className="w-full flex items-center gap-3 py-2 px-1 -mx-1 rounded-xl text-left active:bg-white/5 active:scale-[0.99] transition"
+                      aria-label={`View ${bid.user.name}'s profile`}
+                    >
+                      <span className="w-7 text-xs font-bold text-white/40 tabular-nums shrink-0 text-center">
+                        #{rank}
+                      </span>
+                      <UserAvatar src={bid.user.avatar || null} name={bid.user.name} size={36} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white leading-none truncate">
+                          {isMe ? t("you") : bid.user.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {bid.timestamp && new Date(bid.timestamp).getFullYear() > 2000
+                            ? `${formatDistanceToNow(new Date(bid.timestamp))} ago`
+                            : "recently"}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end gap-0.5 shrink-0">
+                        <span className="text-sm font-bold text-white">{fmtPrice(bid.amount)}</span>
+                        {isHighest && state === "active" && (
+                          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide">{t("leading")}</span>
+                        )}
+                        {isHighest && state === "ended" && (
+                          <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wide">{t("winner")}</span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
               </div>
             ) : (
               <div className="py-8 rounded-2xl border border-dashed border-white/10 text-center">
@@ -758,7 +784,7 @@ export default function AuctionDetail() {
                 className="w-full py-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center gap-2"
               >
                 <Trophy size={18} className="text-emerald-400" />
-                <span className="text-sm font-bold text-emerald-400">You're the highest bidder!</span>
+                <span className="text-sm font-bold text-emerald-400">{t("you_are_highest_bidder")}</span>
               </motion.div>
             ) : parsedInc !== null && previewAmount !== null ? (
               /* Valid amount typed → confirm bid right from sticky bar */

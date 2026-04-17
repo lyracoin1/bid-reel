@@ -4,7 +4,7 @@ import { supabaseAdmin } from "./supabase";
 
 /**
  * Own profile — returned to the authenticated user only.
- * Phone is intentionally excluded at every level.
+ * Includes phone (WhatsApp contact) and location for profile completion.
  */
 export interface OwnProfile {
   id: string;
@@ -12,6 +12,8 @@ export interface OwnProfile {
   displayName: string | null;
   avatarUrl: string | null;
   bio: string | null;
+  phone: string | null;
+  location: string | null;
   auctionCount: number;
   totalLikesReceived: number;
   bidsPlacedCount: number;
@@ -47,6 +49,8 @@ interface ProfileRow {
   display_name: string | null;
   avatar_url: string | null;
   bio: string | null;
+  phone: string | null;
+  location: string | null;
   is_admin: boolean;
   is_banned: boolean;
   created_at: string;
@@ -55,7 +59,20 @@ interface ProfileRow {
 // ─── Column selects ──────────────────────────────────────────────────────────
 
 const PROFILE_COLS =
-  "id, username, display_name, avatar_url, bio, is_admin, is_banned, created_at";
+  "id, username, display_name, avatar_url, bio, phone, location, is_admin, is_banned, created_at";
+
+// ─── Profile completion ───────────────────────────────────────────────────────
+// Mirrors artifacts/api-server/src/lib/profiles.ts isProfileComplete().
+// All five user-editable fields must be set for a profile to be considered complete.
+function isProfileComplete(row: ProfileRow): boolean {
+  return (
+    row.username !== null &&
+    row.display_name !== null &&
+    row.phone !== null &&
+    row.avatar_url !== null &&
+    row.location !== null
+  );
+}
 
 // ─── Typed errors ─────────────────────────────────────────────────────────────
 
@@ -153,8 +170,10 @@ function toOwnProfile(
     displayName: row.display_name,
     avatarUrl: row.avatar_url,
     bio: row.bio,
+    phone: row.phone ?? null,
+    location: row.location ?? null,
     isAdmin: row.is_admin ?? false,
-    isCompleted: row.username !== null,
+    isCompleted: isProfileComplete(row),
     createdAt: row.created_at,
     ...stats,
   };
@@ -274,6 +293,8 @@ export interface UpdateProfileInput {
   displayName?: string;
   avatarUrl?: string;
   bio?: string;
+  phone?: string;
+  location?: string;
 }
 
 export async function updateProfile(
@@ -304,6 +325,8 @@ export async function updateProfile(
   if (input.displayName !== undefined) patch["display_name"] = input.displayName;
   if (input.avatarUrl !== undefined) patch["avatar_url"] = input.avatarUrl;
   if (input.bio !== undefined) patch["bio"] = input.bio;
+  if (input.phone !== undefined) patch["phone"] = input.phone;
+  if (input.location !== undefined) patch["location"] = input.location;
 
   if (Object.keys(patch).length === 0) {
     return getOwnProfile(userId);

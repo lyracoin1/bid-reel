@@ -25,6 +25,8 @@ const usernameSchema = z
     "Username may only contain lowercase letters, numbers, and underscores, and cannot start or end with an underscore",
   );
 
+const e164Regex = /^\+[1-9]\d{7,14}$/;
+
 const updateProfileSchema = z.object({
   username: usernameSchema
     .transform((v) => v.toLowerCase().trim())
@@ -39,6 +41,21 @@ const updateProfileSchema = z.object({
   bio: z
     .string()
     .max(300, "Bio must be 300 characters or fewer")
+    .trim()
+    .optional(),
+  // Phone stored as profile data (WhatsApp contact). Must be E.164 format.
+  phone: z
+    .string()
+    .regex(
+      e164Regex,
+      "Phone must be in international E.164 format starting with + (e.g. +966500000000)",
+    )
+    .optional(),
+  // City / region the user is based in. Free text, max 100 chars.
+  location: z
+    .string()
+    .min(2, "Location must be at least 2 characters")
+    .max(100, "Location must be 100 characters or fewer")
     .trim()
     .optional(),
 });
@@ -65,8 +82,8 @@ async function handleGet(
 }
 
 // ─── PATCH /api/users/me ─────────────────────────────────────────────────────
-// Update safe profile fields: username, displayName, avatarUrl, bio.
-// Protected fields (is_admin, is_banned, phone) are silently stripped.
+// Update safe profile fields: username, displayName, avatarUrl, bio, phone, location.
+// Protected fields (is_admin, is_banned) are silently stripped.
 // Response: { user: OwnProfile }
 async function handlePatch(
   req: VercelRequest,
@@ -87,7 +104,7 @@ async function handlePatch(
     res.status(400).json({
       error: "EMPTY_UPDATE",
       message:
-        "Provide at least one field to update: username, displayName, avatarUrl, or bio.",
+        "Provide at least one field to update: username, displayName, avatarUrl, bio, phone, or location.",
     });
     return;
   }

@@ -1,0 +1,139 @@
+The frontend is now clearly live on production:
+
+* /profile/edit exists and is being used
+* "My Bids" now appears on web
+* the phone save guard now shows the exact error:
+  "Save did not persist your phone. Please try again."
+
+So stop talking about deploy lag, rebuild, or the wrong frontend path.
+
+## FACT
+
+The remaining bug is now isolated to the profile save API path.
+
+The live frontend is sending the save request, but the final result still does NOT persist phone.
+
+I am about to:
+
+1. do git push origin main
+2. then git pull on my local machine
+3. then rebuild the Android app from scratch again
+
+So before I do that, you must fix this phone-save bug properly and completely.
+
+---
+
+## YOUR TASK
+
+Fix the phone persistence bug correctly in the real backend/API path before I rebuild again.
+
+Do NOT touch unrelated features.
+Do NOT change UI behavior except what is necessary for the save to succeed.
+Do NOT give theory.
+Do NOT say “it should work”.
+Trace and fix the exact failing backend stage.
+
+---
+
+## FOCUS ONLY ON THIS PATH
+
+Trace this exact live save contract end-to-end:
+
+1. frontend sends:
+   PATCH /users/me
+   with:
+
+   * username
+   * displayName
+   * phone
+   * location
+
+2. backend must:
+
+   * receive phone
+   * accept phone in schema
+   * include phone in parsed data
+   * include phone in DB update patch
+   * persist phone to profiles.phone
+   * return phone in the response body
+
+3. frontend guard must then see:
+   updated.phone === sentPhone
+   and allow success
+
+Right now this is failing in production.
+Fix that exact failure.
+
+---
+
+## REQUIRED TRACE
+
+You must trace and prove each stage:
+
+### Stage 1 — request body
+
+Verify the request body on the server really contains `phone`.
+
+### Stage 2 — schema
+
+Verify the live `PATCH /users/me` schema includes `phone` and does not silently strip it.
+
+### Stage 3 — DB patch
+
+Verify the backend update object actually includes `phone`.
+
+### Stage 4 — DB write
+
+Verify `profiles.phone` is actually updated.
+
+### Stage 5 — response shape
+
+Verify the returned profile object includes `phone`.
+
+If any one of these stages fails, fix it there.
+
+---
+
+## IMPORTANT
+
+The frontend is already proving the failure:
+it stays on /profile/edit and shows the red error.
+So the bug is now backend/API-side unless you prove otherwise.
+
+Do not go back to:
+
+* deploy excuses
+* rebuild excuses
+* old path excuses
+* avatar flow excuses
+* localhost-only proof
+
+Fix the real backend path that the live frontend is already hitting.
+
+---
+
+## AFTER YOU FIX IT
+
+Return ONLY:
+
+1. exact root cause
+2. exact backend files changed
+3. exact line/path that was dropping phone
+4. exact fix applied
+5. proof request body includes phone
+6. proof DB row now stores phone
+7. proof PATCH response now includes phone
+8. confirmation that live /profile/edit will now save correctly after redeploy
+
+---
+
+## NOTE
+
+After your fix, I will immediately:
+
+* git push origin main
+* git pull locally
+* rebuild the Android app from scratch
+* retest on both web and app
+
+So fix it correctly now. No more partial patches.

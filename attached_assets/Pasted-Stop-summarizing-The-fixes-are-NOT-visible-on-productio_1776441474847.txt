@@ -1,0 +1,156 @@
+Stop summarizing. The fixes are NOT visible on production.
+
+## FACTS FROM REAL TESTING
+
+On the live auction page:
+
+1. the red message still appears:
+
+* "Someone else just placed a bid — please refresh and try again"
+
+2. bid history still shows:
+
+* "No bids yet — be the first!"
+
+3. the green highest-bidder state does NOT appear
+
+4. bidder rows and rank numbers (#1, #2, #3) do NOT appear
+
+So your claimed bidding fixes are not live on the actual production page being tested.
+
+Also:
+
+5. the notifications SQL migration has already been run in Supabase
+6. the notifications table now contains new columns like `title`, `body`, and `metadata`
+7. but notifications still do NOT arrive for:
+
+* heart action
+* being outbid / bid-related events
+
+This means the problem is now in real event wiring / runtime execution / wrong code path / failed production deployment — not just missing SQL.
+
+---
+
+## PRIORITY 1 — TRACE THE ACTUAL PRODUCTION BIDDING PAGE
+
+Do not assume your previous fix reached the live page.
+
+You must trace the exact production path used by the auction detail page and prove which code is actually rendering:
+
+1. identify the exact live component used by `/auction/:id`
+2. verify the exact bid-history rendering path used in production
+3. verify the exact highest-bidder status rendering path used in production
+4. verify the exact hook/cache/realtime path used by that page
+5. verify whether your previous fixes were made in the real path or in dead/unreached code
+
+Then fix the REAL live path.
+
+### Required behavior
+
+After the first successful bid:
+
+* empty-state message must disappear immediately
+* first bid row must appear immediately
+* row must show rank `#1`
+* current user's own row must show "You"
+* highest bidder state must appear in green
+* red text must only be for actual error/outbid states
+
+After the second bid:
+
+* row `#2` appears
+* the previous highest bidder sees outbid state
+* the new highest bidder sees green success state
+
+After refresh:
+
+* same rows remain
+* same order remains
+* same highest bidder remains
+
+### Output required for this section
+
+Return ONLY:
+
+* exact root cause
+* exact files changed
+* proof that the production route was the correct one
+* proof that first bid now replaces the empty state
+* proof that green highest-bidder state now appears
+* proof that ranks now render
+
+---
+
+## PRIORITY 2 — TRACE NOTIFICATIONS FROM REAL EVENTS
+
+Do not say “SQL is done”. SQL is already done.
+
+You must trace the real runtime event path for:
+
+1. heart action
+2. bid placement
+3. outbid notification
+4. seller bid-received notification
+
+### Task A — heart action
+
+Trace the exact heart button from UI to API to DB.
+
+You must determine exactly which is true:
+
+* real persisted like
+* save/favorite masquerading as like
+* local-only UI state
+* real server event exists but notification is not wired
+
+Then wire the correct notification type to the exact real event source.
+
+### Task B — bid notifications
+
+Trace the exact bid path:
+
+* successful bid request
+* seller notification creation
+* previous highest bidder outbid notification creation
+* notification row insertion into `notifications`
+
+### HARD PROOF REQUIRED
+
+For both heart and bid flows, prove all of this:
+
+1. frontend action fired
+2. server route executed
+3. notification helper executed
+4. row inserted into `notifications`
+5. notification appears in-app for the target user
+
+If any step fails, fix that exact step.
+
+---
+
+## PRIORITY 3 — NO MORE THEORIES
+
+Take these suspicions seriously:
+
+1. your previous bidding fix was applied in the wrong code path
+2. production is still using old rendering logic
+3. bid history updates are still being dropped by a live cache/realtime path
+4. heart action is not wired to the notification helper you assumed
+5. bid notification helper is not actually being called at runtime
+6. row insertion into `notifications` fails silently
+7. UI reads notifications from a different shape than the inserted rows
+
+---
+
+## OUTPUT FORMAT
+
+Return ONLY, in this exact order:
+
+1. exact root cause of the live bidding page still being broken
+2. exact files changed for bidding
+3. exact proof that bidding UI now works on the real production route
+4. exact root cause of missing heart notifications
+5. exact root cause of missing bid/outbid notifications
+6. exact files changed for notifications
+7. exact proof that rows are inserted into `notifications`
+8. exact proof that notifications now appear in-app

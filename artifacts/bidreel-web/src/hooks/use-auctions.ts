@@ -6,6 +6,8 @@ import {
   getAuctionApi,
   getMyAuctionsApi,
   createAuctionApi,
+  likeAuctionApi,
+  unlikeAuctionApi,
   type ApiAuctionRaw,
   type ApiAuctionBid,
   type CreateAuctionInput,
@@ -122,7 +124,7 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
     likes: r.like_count ?? 0,
     bidCount: r.bid_count ?? 0,
     bids: bids.map(apiBidToFrontend),
-    isLikedByMe: false,
+    isLikedByMe: r.is_liked_by_me === true,
     lat: r.lat ?? null,
     lng: r.lng ?? null,
     currencyCode: r.currency_code ?? null,
@@ -441,18 +443,73 @@ export function useCreateAuction() {
 
 // ─── useToggleLike ────────────────────────────────────────────────────────────
 
+// Per-auction monotonic version counter for like toggles. Each tap bumps
+// the version BEFORE firing the network request; only the latest version's
+// response is allowed to write back to the cache. This prevents stale,
+// out-of-order responses (e.g. like → unlike → like, where the first
+// like's response arrives last) from clobbering the user's latest intent.
+const likeVersionByAuction = new Map<string, number>();
+
 export function useToggleLike() {
+  // Optimistic update + server persistence. Flip the cache immediately so
+  // the heart animates without network latency, then call POST/DELETE
+  // /api/auctions/:id/like and reconcile against the trigger-maintained
+  // `like_count` returned by the server. On failure or stale response we
+  // touch ONLY the like fields — never the whole row — so concurrent bid
+  // updates aren't clobbered.
   const mutate = (auctionId: string) => {
     const idx = globalAuctions.findIndex(a => a.id === auctionId);
-    if (idx >= 0) {
-      const a = globalAuctions[idx];
-      globalAuctions[idx] = {
-        ...a,
-        isLikedByMe: !a.isLikedByMe,
-        likes: a.isLikedByMe ? a.likes - 1 : a.likes + 1,
-      };
-      notify();
-    }
+    if (idx < 0) return;
+
+    const prev = globalAuctions[idx];
+    const prevIsLiked = prev.isLikedByMe;
+    const prevLikes = prev.likes;
+    const willLike = !prevIsLiked;
+
+    globalAuctions[idx] = {
+      ...prev,
+      isLikedByMe: willLike,
+      likes: willLike ? prev.likes + 1 : Math.max(prev.likes - 1, 0),
+    };
+    notify();
+
+    const myVersion = (likeVersionByAuction.get(auctionId) ?? 0) + 1;
+    likeVersionByAuction.set(auctionId, myVersion);
+
+    void (async () => {
+      try {
+        const result = willLike
+          ? await likeAuctionApi(auctionId)
+          : await unlikeAuctionApi(auctionId);
+        // Out-of-order guard: a newer toggle has already been issued — drop.
+        if (likeVersionByAuction.get(auctionId) !== myVersion) return;
+
+        const j = globalAuctions.findIndex(a => a.id === auctionId);
+        if (j >= 0) {
+          globalAuctions[j] = {
+            ...globalAuctions[j],
+            isLikedByMe: result.isLiked,
+            likes: result.likeCount,
+          };
+          notify();
+        }
+      } catch (err) {
+        // Roll back ONLY the like fields (preserve any concurrent updates
+        // to bids/currentBid/etc). Skip if a newer toggle is already in
+        // flight — its response is the source of truth.
+        if (likeVersionByAuction.get(auctionId) !== myVersion) return;
+        const j = globalAuctions.findIndex(a => a.id === auctionId);
+        if (j >= 0) {
+          globalAuctions[j] = {
+            ...globalAuctions[j],
+            isLikedByMe: prevIsLiked,
+            likes: prevLikes,
+          };
+          notify();
+        }
+        console.error("[useToggleLike] failed", err);
+      }
+    })();
   };
   return { mutate };
 }

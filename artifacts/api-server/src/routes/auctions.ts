@@ -288,6 +288,19 @@ router.get("/auctions/mine", requireAuth, async (req, res) => {
 router.get("/auctions/:id", async (req, res) => {
   const { id } = req.params;
 
+  // Best-effort caller resolution — the route is public, but if a Bearer
+  // token is present we use it to populate is_liked_by_me / is_saved_by_me
+  // so the heart and bookmark icons render correctly on first paint.
+  let callerId: string | null = null;
+  const auth = req.headers.authorization ?? "";
+  if (auth.startsWith("Bearer ")) {
+    const token = auth.slice(7).trim();
+    if (token) {
+      const { data: userData } = await supabaseAdmin.auth.getUser(token);
+      callerId = userData?.user?.id ?? null;
+    }
+  }
+
   const [auctionResult, bidsResult] = await Promise.all([
     supabaseAdmin
       .from("auctions")
@@ -347,9 +360,22 @@ router.get("/auctions/:id", async (req, res) => {
     bidder: profileMap.get(getBidderUserId(b)) ?? null,
   }));
 
+  // Resolve is_liked_by_me for the authenticated caller (if any). Cheap —
+  // PK lookup on (user_id, auction_id) backed by likes_user_auction_uniq.
+  let isLikedByMe = false;
+  if (callerId) {
+    const { data: likeRow } = await supabaseAdmin
+      .from("likes")
+      .select("id")
+      .eq("user_id", callerId)
+      .eq("auction_id", id)
+      .maybeSingle();
+    isLikedByMe = !!likeRow;
+  }
+
   logger.info({ auctionId: id, bidCount: bids.length }, "GET /auctions/:id → returning detail");
   res.json({
-    auction: auctionWithSeller,
+    auction: { ...auctionWithSeller, is_liked_by_me: isLikedByMe },
     bids: bidsWithBidders,
   });
 });

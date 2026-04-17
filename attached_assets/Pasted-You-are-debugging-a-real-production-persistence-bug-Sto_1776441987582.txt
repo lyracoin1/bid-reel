@@ -1,0 +1,210 @@
+You are debugging a real production persistence bug. Stop auditing from a distance. Simulate the save flow step by step, trace the exact failing step, and fix only the real broken point.
+
+## GOAL
+
+Phone is STILL not being saved in the profile. I do not want theories. I want a root-cause trace of the actual save operation, stage by stage, until you find the exact break and fix it.
+
+## METHOD
+
+Treat this like a transaction trace.
+
+Follow the save flow exactly in execution order, from UI input to DB row to UI reload.
+
+Do not stop at “this code looks correct”.
+Do not stop at “enforcement was missing”.
+Do not stop at “PATCH should work”.
+You must trace the live save path end-to-end.
+
+---
+
+## STAGE 1 — FIND THE REAL SAVE ENTRYPOINT
+
+Identify the exact screen/component used by the user to save the phone.
+
+You must find:
+
+1. where the phone input is rendered
+2. which state variable holds the typed phone
+3. which button/handler triggers save
+4. the exact function call chain from button tap to API call
+
+Output internally for yourself:
+
+* component name
+* handler name
+* payload builder name
+* API client function name
+
+If there is more than one profile-edit path, trace the one actually used in production by the user.
+
+---
+
+## STAGE 2 — TRACE THE VALUE BEFORE SEND
+
+At the exact submit moment, inspect and log:
+
+1. raw phone input value
+2. normalized phone value
+3. whether validation modifies it
+4. whether any condition skips sending it
+5. whether any other async task can abort before PATCH fires
+
+You must explicitly test these suspicions:
+
+* stale React state at submit time
+* normalization turning valid input into empty/invalid value
+* early return before API call
+* avatar/image upload failing before profile PATCH
+* generic catch swallowing the real failing step
+
+Add temporary logs if needed, but only logs that reveal:
+
+* submit started
+* final payload contains phone
+* API call started
+* API call succeeded/failed
+
+Never log the full phone number; log masked value and length only.
+
+---
+
+## STAGE 3 — TRACE THE NETWORK REQUEST
+
+Trace the exact request sent to `PATCH /users/me`.
+
+Verify:
+
+1. the request is actually fired
+2. the JSON body contains `phone` under the correct key
+3. the request is not cancelled
+4. the response status and body
+5. whether a failed earlier async step prevents the request from being sent at all
+
+If the request never fires, stop there, identify why, and fix that exact blocker.
+
+---
+
+## STAGE 4 — TRACE THE SERVER ROUTE
+
+Inside `PATCH /users/me`, trace the live execution path.
+
+Verify:
+
+1. request body arrives
+2. body parser works
+3. zod/schema accepts `phone`
+4. the backend mapping includes `phone`
+5. `profiles.phone` is actually included in the DB patch object
+6. the update query succeeds
+7. the returned row contains the new phone
+
+Add temporary logs for:
+
+* body keys
+* hasPhone
+* phoneLen
+* patch keys
+* dbHasPhone after update
+
+Again: never print full digits.
+
+---
+
+## STAGE 5 — TRACE POST-SAVE HYDRATION
+
+After save, verify the value survives the return path.
+
+Check:
+
+1. PATCH response includes phone
+2. any subsequent GET /users/me includes phone
+3. profile cache/store is updated with the returned phone
+4. reopening the profile screen preloads the same phone
+5. refresh / logout-login still shows it
+
+Explicitly investigate these suspicions:
+
+* PATCH saves correctly but frontend cache overwrites it with stale profile data
+* profile bootstrap rehydrates from old storage and erases the fresh value
+* UI reads from a different shape/key than what the API returns
+
+---
+
+## STAGE 6 — TRACE ALL POSSIBLE OVERRIDES
+
+Search for every place that can write or reset profile data.
+
+Check for:
+
+* onboarding completion flow
+* profile bootstrap
+* auth session restore
+* cached user store
+* profile completeness helper
+* phone/location auto-fill logic
+* any `setPhone`, `setProfile`, `updateProfile`, `bootstrapProfile`, `subscribeToUserChange` path
+
+You must identify whether some later code path writes old/null profile data after a successful save.
+
+---
+
+## STAGE 7 — FIX ONLY THE REAL ROOT CAUSE
+
+Once you find the exact broken step, fix it there.
+
+Possible valid fixes include:
+
+* move `updateProfileApi()` before avatar upload
+* separate avatar upload into its own try/catch
+* fix wrong payload key
+* fix normalizePhone
+* fix stale closure/state
+* fix zod schema
+* fix backend patch mapping
+* fix post-save cache overwrite
+* fix profile rehydration logic
+
+Do not apply random speculative fixes. Find the exact failing step first.
+
+---
+
+## STAGE 8 — PROVE IT
+
+After the fix, verify all of this with hard evidence:
+
+1. user enters phone
+2. submit log shows masked phone + length
+3. PATCH request fires
+4. server log shows request had phone
+5. DB log shows row now has phone
+6. PATCH/GET response returns phone
+7. profile screen reload shows same phone
+8. logout/login still shows same phone
+9. published auction now includes seller.phone
+10. WhatsApp button appears
+
+---
+
+## OUTPUT FORMAT
+
+Return ONLY the following, in this exact order:
+
+1. exact root cause
+2. exact failing stage number
+3. exact files changed
+4. exact code path that was broken
+5. exact fix applied
+6. proof that PATCH is now fired
+7. proof that DB now stores phone
+8. proof that profile reload keeps phone
+9. proof that seller.phone now reaches auctions
+10. proof that WhatsApp button now works
+
+## RULES
+
+* no theory
+* no summary-first response
+* no “looks correct”
+* no “probably”
+* no stopping before the exact broken step is found
+* trace the real save operation like a debugger and fix the actual fault

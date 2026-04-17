@@ -905,6 +905,43 @@ export async function unsaveAuctionApi(auctionId: string): Promise<ApiSaveResult
   return res.json() as Promise<ApiSaveResult>;
 }
 
+// ─── Likes (heart) ───────────────────────────────────────────────────────────
+
+export interface ApiLikeResult {
+  isLiked: boolean;
+  likeCount: number;
+}
+
+/** Like (heart) an auction. Idempotent. */
+export async function likeAuctionApi(auctionId: string): Promise<ApiLikeResult> {
+  const token = await getToken();
+  if (!token) throw new Error("Not authenticated");
+  const res = await fetch(`${API_BASE}/auctions/${auctionId}/like`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to like auction");
+  }
+  return res.json() as Promise<ApiLikeResult>;
+}
+
+/** Unlike (remove heart) an auction. Idempotent. */
+export async function unlikeAuctionApi(auctionId: string): Promise<ApiLikeResult> {
+  const token = await getToken();
+  if (!token) throw new Error("Not authenticated");
+  const res = await fetch(`${API_BASE}/auctions/${auctionId}/like`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to unlike auction");
+  }
+  return res.json() as Promise<ApiLikeResult>;
+}
+
 // ─── Content Signal system (Interested / Not Interested) ─────────────────────
 
 export type ContentSignal = "interested" | "not_interested";

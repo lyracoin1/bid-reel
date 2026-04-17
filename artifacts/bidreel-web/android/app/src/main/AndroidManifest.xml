@@ -92,6 +92,32 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- ─── Firebase Cloud Messaging defaults ────────────────────────────
+             These three meta-data tags are REQUIRED for reliable shade
+             rendering on Android 8+. Without them:
+               • the FCM payload `android.notification.icon` had to resolve
+                 to a real drawable — `ic_launcher` is a mipmap and many
+                 OEM ROMs silently DROP the notification when the lookup
+                 fails.
+               • Android creates an auto-generated channel called
+                 "Miscellaneous" which users disable, killing all pushes.
+             We point at:
+               • drawable/ic_stat_notify  (white silhouette, transparent bg)
+               • color/notification_color (BidReel violet)
+               • string/default_notification_channel_id = "bidreel_default"
+             The server's FCM payload uses channelId "bidreel_default" — they
+             must match for system-shade rendering to work.
+        -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notify" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="@string/default_notification_channel_id" />
     </application>
 
 </manifest>

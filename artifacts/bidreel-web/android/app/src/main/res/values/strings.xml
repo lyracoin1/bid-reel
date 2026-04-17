@@ -4,4 +4,14 @@
     <string name="title_activity_main">BidReel</string>
     <string name="package_name">com.bidreel.app</string>
     <string name="custom_url_scheme">com.bidreel.app</string>
+
+    <!--
+        FCM default notification channel. Referenced by AndroidManifest.xml via
+        com.google.firebase.messaging.default_notification_channel_id and by
+        the server FCM payload (android.notification.channelId). The channel
+        itself is created at runtime by @capacitor-firebase/messaging the first
+        time a push arrives — but this id MUST exist so Android 8+ doesn't
+        auto-create the unwanted "Miscellaneous" channel.
+    -->
+    <string name="default_notification_channel_id">bidreel_default</string>
 </resources>

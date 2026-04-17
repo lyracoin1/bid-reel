@@ -9,4 +9,11 @@
         ic_launcher_background is intentionally defined in ic_launcher_background.xml
         (auto-generated location) to avoid duplicate resource errors.
     -->
+
+    <!--
+        FCM status-bar notification tint. Referenced by AndroidManifest.xml via
+        com.google.firebase.messaging.default_notification_color.
+        Matches BidReel violet (#6D28D9) used by the server FCM payload.
+    -->
+    <color name="notification_color">#6D28D9</color>
 </resources>

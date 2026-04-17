@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    BidReel status-bar notification icon.
+
+    Android requires the small status-bar icon to be a WHITE silhouette on a
+    TRANSPARENT background. The system tints it via the
+    `default_notification_color` meta-data set in AndroidManifest.xml.
+
+    Using ic_launcher (a multi-color mipmap) caused FCM pushes to be silently
+    dropped on Samsung One UI / Xiaomi MIUI / OnePlus OxygenOS — those ROMs
+    refuse to render notifications when the icon resource is not a valid
+    drawable silhouette.
+
+    Shape: a stylised "play"-triangle inside a circle (matches BidReel's
+    auction-reel branding). Pure white, alpha-only. 24×24 dp viewport.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Outer ring -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2ZM12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20Z" />
+
+    <!-- Inner play triangle -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M9.5,8L9.5,16L16.5,12L9.5,8Z" />
+</vector>

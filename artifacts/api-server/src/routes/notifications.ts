@@ -13,10 +13,139 @@ import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
+import { getFcmStatus, sendFcmPush } from "../lib/fcm";
 
 const router = Router();
 
 router.use(requireAuth);
+
+// ─── GET /api/notifications/_diag ────────────────────────────────────────────
+// End-to-end push pipeline diagnostic. Returns the exact state of every
+// stage so the client can see WHICH stage is failing without device logs.
+//
+//   • fcm.hasEnv          → is FIREBASE_SERVICE_ACCOUNT_JSON set on the host?
+//   • fcm.initialised     → did the Admin SDK actually init (JSON parsed, cert valid)?
+//   • fcm.projectId       → MUST equal the project_id in google-services.json
+//                           (currently "bidreel-android"). Mismatch = no delivery.
+//   • fcm.error           → init error message if init failed
+//   • devices.count       → how many tokens this user has registered
+//   • devices.tokens[]    → first 24 chars of each token + platform + age
+//
+// Auth-gated. Safe to expose — no secrets, only token prefixes.
+
+router.get("/notifications/_diag", async (req, res) => {
+  const userId = req.user!.id;
+  const fcm = await getFcmStatus();
+
+  const { data, error } = await supabaseAdmin
+    .from("user_devices")
+    .select("token, platform, last_seen_at")
+    .eq("user_id", userId)
+    .order("last_seen_at", { ascending: false });
+
+  res.json({
+    userId,
+    fcm,
+    devices: {
+      count: data?.length ?? 0,
+      tokens: (data ?? []).map(d => ({
+        tokenPrefix: d.token.slice(0, 24) + "…",
+        platform: d.platform,
+        lastSeenAt: d.last_seen_at,
+      })),
+      error: error?.message ?? null,
+    },
+    expectedProjectId: "bidreel-android",
+    projectIdMatches: fcm.projectId === "bidreel-android",
+  });
+});
+
+// ─── POST /api/notifications/_test-push ──────────────────────────────────────
+// Send a real test push to every device registered for the calling user.
+// Returns per-token result so we can see exactly which devices receive
+// (or which FCM error each token fails with).
+//
+// Use after _diag confirms FCM is initialised and at least one device is
+// registered. If the device gets the push, the entire pipeline works and
+// the bug is in event wiring (Stage 4). If FCM returns an error per token,
+// the error code tells us why (mismatched project, stale token, etc).
+
+router.post("/notifications/_test-push", async (req, res) => {
+  const userId = req.user!.id;
+  const fcm = await getFcmStatus();
+
+  if (!fcm.initialised) {
+    res.status(503).json({
+      error: "FCM_NOT_INITIALISED",
+      fcm,
+      hint: fcm.hasEnv
+        ? "Service account JSON is present but failed to parse — check FIREBASE_SERVICE_ACCOUNT_JSON value."
+        : "Set FIREBASE_SERVICE_ACCOUNT_JSON in your Vercel env (Production + Preview), then redeploy.",
+    });
+    return;
+  }
+
+  const { data: devices } = await supabaseAdmin
+    .from("user_devices")
+    .select("token, platform")
+    .eq("user_id", userId);
+
+  if (!devices || devices.length === 0) {
+    res.status(404).json({
+      error: "NO_DEVICES",
+      hint: "Open the app on a device, sign in, grant notification permission. Then call _diag — devices.count should be ≥ 1.",
+    });
+    return;
+  }
+
+  // We instrument sendFcmPush by calling firebase-admin directly so we get
+  // the real per-token result (sendFcmPush swallows errors by design).
+  const { initializeApp: _, getApp } = await import("firebase-admin/app");
+  const { getMessaging: gm } = await import("firebase-admin/messaging");
+  const messaging = gm(getApp("bidreel-fcm"));
+
+  const results = await Promise.all(
+    devices.map(async d => {
+      try {
+        const messageId = await messaging.send({
+          token: d.token,
+          notification: { title: "BidReel test 🚀", body: "If you see this in your shade, the pipeline works." },
+          data: { type: "test_push", source: "diag" },
+          android: {
+            priority: "high",
+            notification: {
+              color: "#6d28d9",
+              channelId: "bidreel_default",
+              defaultSound: true,
+              defaultVibrateTimings: true,
+            },
+          },
+        });
+        return { tokenPrefix: d.token.slice(0, 24) + "…", platform: d.platform, ok: true, messageId };
+      } catch (err) {
+        const e = err as { code?: string; message?: string };
+        return {
+          tokenPrefix: d.token.slice(0, 24) + "…",
+          platform: d.platform,
+          ok: false,
+          code: e.code ?? null,
+          message: e.message ?? String(err),
+        };
+      }
+    }),
+  );
+
+  // Use sendFcmPush to also exercise the production code path (logs only).
+  void sendFcmPush(devices[0]!.token, {
+    title: "BidReel test (prod path)",
+    body: "Sent via sendFcmPush — check API server logs for the result.",
+    data: { type: "test_push", source: "diag-prod-path" },
+  });
+
+  logger.info({ userId, deviceCount: devices.length, ok: results.filter(r => r.ok).length }, "FCM: test push completed");
+
+  res.json({ userId, attemptedDevices: devices.length, results });
+});
 
 // ─── GET /api/notifications ───────────────────────────────────────────────────
 

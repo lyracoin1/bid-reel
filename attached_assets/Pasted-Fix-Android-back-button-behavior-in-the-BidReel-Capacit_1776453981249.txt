@@ -1,0 +1,80 @@
+Fix Android back-button behavior in the BidReel Capacitor app so it behaves like a real mobile app, not like a browser history stack.
+
+## PROBLEM
+
+On Android, pressing the system back button navigates through old visited web/history states like a browser.
+This is wrong for a real app.
+
+## GOAL
+
+Implement native-feeling back navigation.
+
+## REQUIRED BEHAVIOR
+
+1. Intercept Android back button using Capacitor App plugin.
+2. Do NOT blindly follow browser history.
+3. Apply this priority order:
+
+### Priority A — close overlays first
+
+If any of these are open:
+
+* modal
+* bottom sheet
+* drawer
+* full-screen overlay
+* image/video viewer
+  Then back button must close that UI first.
+
+### Priority B — handle logical in-app navigation
+
+If user is on an inner page:
+
+* auction detail
+* profile edit
+* settings
+* password change
+* notifications detail
+  Then back should return to the correct parent screen logically.
+
+### Priority C — tabs/root screens
+
+If user is already on a root tab:
+
+* feed
+* explore
+* notifications
+* profile
+  Then do NOT replay long browser history.
+  Instead:
+* either go to feed if appropriate
+* or exit/minimize app from root behavior
+
+### Priority D — prevent bad history pollution
+
+Audit navigation calls and convert the wrong ones from push to replace where appropriate, especially:
+
+* auth/login redirects
+* onboarding completion
+* profile edit save/cancel
+* password change success
+* screens that should not remain in back stack
+
+Do not let modals/sheets create browser-like history entries.
+
+## IMPLEMENTATION REQUIREMENTS
+
+* Use Capacitor App backButton listener
+* Centralize the policy
+* Keep web behavior unchanged where appropriate
+* Android app must get the fixed behavior
+* Do not break routing
+
+## OUTPUT
+
+Return ONLY:
+
+1. exact files changed
+2. exact back-button policy implemented
+3. exact places changed from push to replace
+4. proof Android no longer behaves like browser history

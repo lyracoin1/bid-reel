@@ -14,6 +14,31 @@ type Messaging = import("firebase-admin/messaging").Messaging;
 let adminApp: App | null = null;
 let messaging: Messaging | null = null;
 let initialised = false;
+let initError: string | null = null;
+let initProjectId: string | null = null;
+let initClientEmail: string | null = null;
+
+/**
+ * Public init-status accessor for the diagnostics endpoint. Never throws.
+ * Triggers a lazy init so the first caller (usually `/notifications/_diag`)
+ * also flushes the warning to the logs if env is missing or malformed.
+ */
+export async function getFcmStatus(): Promise<{
+  initialised: boolean;
+  hasEnv: boolean;
+  projectId: string | null;
+  clientEmail: string | null;
+  error: string | null;
+}> {
+  await getMessaging();
+  return {
+    initialised: messaging !== null,
+    hasEnv: Boolean(process.env["FIREBASE_SERVICE_ACCOUNT_JSON"]),
+    projectId: initProjectId,
+    clientEmail: initClientEmail,
+    error: initError,
+  };
+}
 
 async function getMessaging(): Promise<Messaging | null> {
   if (initialised) return messaging;
@@ -21,6 +46,7 @@ async function getMessaging(): Promise<Messaging | null> {
 
   const raw = process.env["FIREBASE_SERVICE_ACCOUNT_JSON"];
   if (!raw) {
+    initError = "FIREBASE_SERVICE_ACCOUNT_JSON env var is not set";
     logger.warn("FCM: FIREBASE_SERVICE_ACCOUNT_JSON not set — push notifications disabled");
     return null;
   }
@@ -30,10 +56,13 @@ async function getMessaging(): Promise<Messaging | null> {
     const { getMessaging: gm } = await import("firebase-admin/messaging");
 
     const serviceAccount = JSON.parse(raw);
+    initProjectId = serviceAccount.project_id ?? null;
+    initClientEmail = serviceAccount.client_email ?? null;
     adminApp = initializeApp({ credential: cert(serviceAccount) }, "bidreel-fcm");
     messaging = gm(adminApp);
-    logger.info("FCM: Firebase Admin SDK initialised");
+    logger.info({ projectId: initProjectId }, "FCM: Firebase Admin SDK initialised");
   } catch (err) {
+    initError = err instanceof Error ? err.message : String(err);
     logger.error({ err }, "FCM: failed to initialise Firebase Admin SDK");
   }
 
@@ -62,15 +91,25 @@ export async function sendFcmPush(token: string, payload: FcmPayload): Promise<v
       // Arbitrary key/value pairs forwarded to the app for deep-link navigation.
       // All values must be strings (FCM requirement).
       data: payload.data,
-      // Android-specific overrides
+      // Android-specific overrides.
+      //
+      // IMPORTANT — fields removed because they were silently dropping pushes:
+      //   • icon: "ic_launcher"  — `ic_launcher` is a MIPMAP, not a drawable.
+      //     FCM looks up the icon as `R.drawable.<name>`. When that fails,
+      //     some Samsung / Xiaomi / OnePlus ROMs DROP the notification
+      //     instead of falling back. We now omit `icon` and rely on the
+      //     manifest meta-data `default_notification_icon` (added in
+      //     android/app/src/main/AndroidManifest.xml).
+      //   • channelId left explicit so Android 8+ uses our defined channel
+      //     instead of the auto-created `fcm_fallback_notification_channel`
+      //     (which shows up to users as "Miscellaneous").
       android: {
         priority: "high",
         notification: {
-          icon: "ic_launcher",   // must match a drawable in the Android project
-          color: "#6d28d9",      // BidReel violet
-          // No clickAction — Capacitor Firebase Messaging handles tap routing
-          // through the notificationActionPerformed listener in native-fcm.ts.
-          // Setting clickAction to a Flutter-specific intent would break taps.
+          color: "#6d28d9",                        // BidReel violet status-bar tint
+          channelId: "bidreel_default",            // matches manifest meta-data
+          defaultSound: true,
+          defaultVibrateTimings: true,
         },
       },
       // Web push (browser service worker) config — no-op on native Android

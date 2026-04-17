@@ -282,21 +282,46 @@ export default function Interests() {
 
     setIsSubmitting(true);
 
+    // Last-4-digit phone tag for on-device diagnostics (PII-safe).
+    const phoneTag = normalizedPhone.length >= 4
+      ? `***${normalizedPhone.slice(-4)}`
+      : "(short)";
+
     try {
-      let avatarUrl: string | undefined;
+      // ── STEP 1: Persist profile fields FIRST (without avatar) ────────────────
+      // Avatar compression/upload can fail on low-memory Android devices or when
+      // the R2 signed URL is rejected. Previously a single try/catch wrapped both
+      // steps, so any avatar error silently aborted the profile PATCH and phone
+      // was never saved. We now save phone + name + location + username up front,
+      // then handle avatar in a separate step that does NOT block the save.
+      console.log(`[interests] submit: PATCH /users/me phone=${phoneTag} phoneLen=${normalizedPhone.length} keys=username,displayName,phone,location`);
 
-      if (avatarFile) {
-        const compressed = await compressAvatar(avatarFile);
-        avatarUrl = await uploadMedia(compressed, "image");
-      }
-
-      await updateProfileApi({
+      const updated = await updateProfileApi({
         username: trimmed,
         displayName: trimmedName,
         phone: normalizedPhone,
         location: trimmedLocation,
-        ...(avatarUrl ? { avatarUrl } : {}),
       });
+
+      console.log(`[interests] PATCH OK — server returned phone=${updated.phone ? `***${updated.phone.slice(-4)}` : "NULL"} isCompleted=${updated.isCompleted}`);
+
+      // ── STEP 2: Upload avatar (if user picked a new file) ────────────────────
+      // If this fails the profile is still saved with phone. The user sees the
+      // avatar-specific error and can retry just the photo upload.
+      if (avatarFile) {
+        try {
+          const compressed = await compressAvatar(avatarFile);
+          const avatarUrl = await uploadMedia(compressed, "image");
+          await updateProfileApi({ avatarUrl });
+          console.log(`[interests] avatar uploaded + linked OK`);
+        } catch (avatarErr) {
+          const msg = avatarErr instanceof Error ? avatarErr.message : "Photo upload failed.";
+          console.warn(`[interests] avatar upload FAILED (profile fields already saved): ${msg}`);
+          setSubmitError(`Profile saved, but photo upload failed: ${msg}. Tap the photo to try again.`);
+          setIsSubmitting(false);
+          return; // Stay on step 0 so the user can retry the avatar.
+        }
+      }
 
       // Clear the stale cached user so the next useCurrentUser() call re-fetches
       // from the server and returns isCompleted: true. Without this the create-auction
@@ -308,10 +333,11 @@ export default function Interests() {
       if (err instanceof UsernameTakenError) {
         setUsernameState("taken");
         setSubmitError(err.message);
+        console.warn(`[interests] PATCH rejected: USERNAME_TAKEN`);
       } else {
-        setSubmitError(
-          err instanceof Error ? err.message : "Something went wrong. Please try again.",
-        );
+        const msg = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+        setSubmitError(msg);
+        console.error(`[interests] PATCH FAILED phone=${phoneTag}: ${msg}`);
       }
     } finally {
       setIsSubmitting(false);

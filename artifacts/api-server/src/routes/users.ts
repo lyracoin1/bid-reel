@@ -158,6 +158,19 @@ router.patch("/users/me", requireAuth, async (req, res) => {
     return;
   }
 
+  // Diagnostic: confirm the DB row reflects what the client requested.
+  // Logs presence + length only — never the digits.
+  req.log.info(
+    {
+      userId: req.user!.id,
+      requestHadPhone: typeof req.body?.phone === "string" && req.body.phone.length > 0,
+      dbHasPhone: typeof profile.phone === "string" && profile.phone.length > 0,
+      dbPhoneLen: typeof profile.phone === "string" ? profile.phone.length : 0,
+      dbIsCompleted: profile.isCompleted,
+    },
+    "PATCH /users/me persisted",
+  );
+
   res.json({ user: profile });
 });
 

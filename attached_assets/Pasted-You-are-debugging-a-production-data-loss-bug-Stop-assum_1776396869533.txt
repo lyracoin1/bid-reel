@@ -1,0 +1,153 @@
+You are debugging a production data-loss bug. Stop assuming the problem is “enforcement only”. The phone number is STILL not being saved in the profile after rebuild and real-device testing. I want a full trace and a real fix.
+
+## OBJECTIVE
+
+Find the exact reason `phone` is not persisting to `profiles.phone` and fix it end-to-end.
+
+## DO NOT
+
+* do not give theories
+* do not stop at “auction enforcement”
+* do not say “the save path looks correct”
+* do not hand-wave with summaries
+* do not change unrelated code
+
+---
+
+## TASK 1 — TRACE THE ACTUAL SAVE PATH
+
+Trace the phone field through the full chain with hard evidence:
+
+1. Frontend input state
+
+* find the exact component where phone is edited
+* verify the typed value is really in React state at submit time
+* log the raw state value before normalization
+* log the normalized value after normalization
+* verify the save button handler is using the latest state, not stale closure state
+
+2. Frontend request body
+
+* inspect the exact payload sent to `PATCH /users/me`
+* log the final JSON body before fetch
+* confirm whether `phone` is included, and under which key:
+
+  * `phone`
+  * `phoneNumber`
+  * any wrong key
+* confirm no helper/mapping layer strips undefined/empty fields and accidentally removes phone
+
+3. Server request parsing
+
+* in `PATCH /users/me`, log:
+
+  * request body keys
+  * whether `phone` exists
+  * phone length only, never the actual digits
+* verify zod/schema validation is not silently rejecting or dropping the field
+* verify body parsing middleware is working correctly
+
+4. Backend profile update
+
+* trace the exact function that writes to `profiles`
+* verify `patch["phone"] = input.phone` is actually reached
+* verify no later object merge overwrites it
+* verify no “clean profile” helper removes phone from the patch
+* verify the DB update succeeds and returns the new row
+
+5. Post-save re-read
+
+* immediately after update, query the DB row again
+* print whether `profiles.phone` is null, empty, or populated
+* then verify `GET /users/me` returns the same value
+* then verify the frontend profile screen receives that same value after refresh
+
+---
+
+## TASK 2 — TAKE THESE SUSPICIONS SERIOUSLY
+
+Investigate each of these explicitly:
+
+1. stale state bug
+
+* user types phone
+* UI shows it
+* submit handler still sends old empty value
+
+2. normalization bug
+
+* normalizePhone(...) converts valid input into empty string or invalid format
+* validation passes incorrectly or save path skips on normalized empty value
+
+3. wrong key bug
+
+* frontend sends `phoneNumber` or another key
+* backend expects `phone`
+
+4. optional-field stripping bug
+
+* request builder removes empty/optional keys
+* phone disappears before request
+
+5. backend overwrite bug
+
+* profile update writes phone correctly
+* another bootstrap/profile sync path immediately overwrites it back to null/empty
+
+6. edit-screen hydration bug
+
+* phone is actually saved
+* but profile screen reload hydrates from stale client cache/store and makes it appear unsaved
+
+7. DB column mismatch bug
+
+* code writes to one field
+* UI reads from another field or transformed shape
+
+---
+
+## TASK 3 — FIX THE REAL BUG
+
+After finding the exact bug, fix it completely.
+
+Requirements:
+
+* phone must be saved to `profiles.phone`
+* save must survive page refresh
+* save must survive logout/login
+* `GET /users/me` must return it
+* profile edit screen must preload it correctly
+* auction seller payload must include it
+* WhatsApp button must receive it
+
+If needed:
+
+* fix frontend payload key
+* fix normalization
+* fix zod schema
+* fix update mapping
+* fix stale cache/store rehydration
+* fix bootstrap/profile refresh after save
+
+---
+
+## TASK 4 — PROVE IT
+
+Return ONLY:
+
+1. exact root cause
+2. exact files changed
+3. exact code path that was broken
+4. exact fix applied
+5. proof from logs that:
+
+   * frontend sent phone
+   * server received phone
+   * DB stored phone
+   * GET /users/me returned phone
+   * frontend reloaded and displayed phone
+6. proof that WhatsApp button now gets seller.phone
+
+## IMPORTANT
+
+Treat this as a real production bug, not a theoretical audit. I already rebuilt and tested on device. Audio is fixed. Phone is not fixed. Find the real broken step and repair it.

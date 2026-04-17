@@ -328,9 +328,14 @@ export default function Profile() {
                     <motion.div key={auction.id} whileTap={{ scale: 0.97 }}
                       onClick={() => setLocation(`/auction/${auction.id}`)}
                       className="rounded-2xl bg-white/5 border border-white/8 overflow-hidden cursor-pointer">
-                      <div className="aspect-[3/4] relative">
-                        <img src={auction.mediaUrl} className="w-full h-full object-cover" alt={auction.title} />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                      <div className="aspect-[3/4] relative bg-black overflow-hidden">
+                        <img
+                          src={auction.thumbnailUrl ?? auction.mediaUrl}
+                          alt={auction.title}
+                          loading="lazy"
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
                         <div className="absolute bottom-0 left-0 right-0 p-3">
                           <p className="text-xs font-bold text-white line-clamp-1">{auction.title}</p>
                           <p className="text-sm font-bold text-white mt-0.5">{formatAuctionPrice(auction.currentBid, auction.currencyCode ?? "USD")}</p>
@@ -384,10 +389,15 @@ export default function Profile() {
                         leading ? "border-emerald-500/30" : "border-red-500/25"
                       } text-left active:bg-white/8 transition-colors`}
                     >
-                      {/* Thumbnail */}
+                      {/* Thumbnail — prefer poster image; never put an .mp4 URL inside <img> */}
                       <div className="relative w-20 h-24 rounded-xl overflow-hidden shrink-0 bg-white/5">
-                        {b.media_url ? (
-                          <img src={b.media_url} alt={b.title} className="w-full h-full object-cover" />
+                        {(b.thumbnail_url ?? b.media_url) ? (
+                          <img
+                            src={b.thumbnail_url ?? b.media_url ?? undefined}
+                            alt={b.title}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            loading="lazy"
+                          />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center"><Gavel size={20} className="text-white/20" /></div>
                         )}
@@ -468,9 +478,14 @@ export default function Profile() {
                     <motion.div key={auction.id} whileTap={{ scale: 0.97 }}
                       onClick={() => setLocation(`/auction/${auction.id}`)}
                       className="rounded-2xl bg-white/5 border border-white/8 overflow-hidden cursor-pointer">
-                      <div className="aspect-[3/4] relative">
-                        <img src={auction.mediaUrl} className="w-full h-full object-cover" alt={auction.title} />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                      <div className="aspect-[3/4] relative bg-black overflow-hidden">
+                        <img
+                          src={auction.thumbnailUrl ?? auction.mediaUrl}
+                          alt={auction.title}
+                          loading="lazy"
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
                         <div className="absolute bottom-0 left-0 right-0 p-3">
                           <p className="text-xs font-bold text-white line-clamp-1">{auction.title}</p>
                           <p className="text-sm font-bold text-white mt-0.5">{formatAuctionPrice(auction.currentBid, auction.currencyCode ?? "USD")}</p>

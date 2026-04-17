@@ -734,6 +734,7 @@ export interface ApiBiddedAuction {
   id: string;
   title: string;
   media_url: string | null;
+  thumbnail_url: string | null;
   current_price: number;
   user_bid: number;
   is_highest_bidder: boolean;

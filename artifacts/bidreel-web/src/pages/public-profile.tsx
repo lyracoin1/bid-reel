@@ -238,8 +238,13 @@ export default function PublicProfilePage() {
                       <motion.div key={auction.id} whileTap={{ scale: 0.97 }}
                         onClick={() => setLocation(`/auction/${auction.id}`)}
                         className="rounded-2xl bg-white/5 border border-white/8 overflow-hidden cursor-pointer">
-                        <div className="aspect-[3/4] relative">
-                          <img src={auction.mediaUrl} className="w-full h-full object-cover" alt={auction.title} />
+                        <div className="aspect-[3/4] relative bg-black overflow-hidden">
+                          <img
+                            src={auction.thumbnailUrl ?? auction.mediaUrl}
+                            alt={auction.title}
+                            loading="lazy"
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
                           <div className="absolute bottom-0 left-0 right-0 p-3">
                             <p className="text-xs font-bold text-white line-clamp-1">{auction.title}</p>

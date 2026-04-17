@@ -105,9 +105,9 @@ function ResultCard({
     >
       <div className="relative w-full aspect-[3/4] bg-black overflow-hidden">
         <img
-          src={auction.mediaUrl}
+          src={auction.thumbnailUrl ?? auction.mediaUrl}
           alt={auction.title}
-          className={cn("w-full h-full object-cover", !isActive && "opacity-60")}
+          className={cn("absolute inset-0 w-full h-full object-cover", !isActive && "opacity-60")}
           loading="lazy"
         />
 

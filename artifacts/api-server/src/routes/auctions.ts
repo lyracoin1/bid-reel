@@ -408,12 +408,17 @@ router.get("/auctions/bidded", requireAuth, async (req, res) => {
 
       const my = myBestPerAuction.get(aId)!;
       const currentPrice = ranking[0]?.amount ?? a.current_bid ?? a.start_price ?? 0;
+      // Split media_url and thumbnail_url so the FE can render a poster
+      // image inside an <img> tag for VIDEO auctions (an .mp4 URL inside <img>
+      // renders broken / distorted).
       const mediaUrl = a.video_url ?? a.thumbnail_url ?? null;
+      const thumbnailUrl = (a.thumbnail_url as string | null) ?? null;
 
       return {
         id: a.id as string,
         title: a.title as string,
         media_url: mediaUrl as string | null,
+        thumbnail_url: thumbnailUrl,
         current_price: Number(currentPrice),
         user_bid: Number(my.amount),
         is_highest_bidder: isHighest,

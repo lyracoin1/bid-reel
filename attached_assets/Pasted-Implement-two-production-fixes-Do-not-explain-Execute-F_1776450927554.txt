@@ -1,0 +1,106 @@
+Implement two production fixes. Do not explain. Execute.
+
+## FIX 1 — AUCTION MEDIA CARDS MUST NOT BREAK OR DISTORT
+
+The auction thumbnails/cards are visually broken.
+Images/videos are being squashed, cropped badly, or rendered inside unstable containers.
+
+### Goal
+
+Make auction media render cleanly and consistently everywhere:
+
+* My Auctions
+* My Bids
+* feed cards
+* profile auction grids
+* any auction card using image/video thumbnail
+
+### Requirements
+
+1. Use a stable media frame for every card
+
+* fixed aspect ratio
+* overflow hidden
+* rounded corners preserved
+* media fills the frame cleanly
+
+2. Media rendering rules
+
+* width: 100%
+* height: 100%
+* object-fit: cover
+* never stretch media
+* never distort image/video dimensions
+* never let overlays or text break the media box
+
+3. If card layout differs by screen, keep the same media integrity
+
+* no crushed thumbnails
+* no broken crop
+* no weird white/empty areas
+* no badge/content pushing media size
+
+4. Audit all auction-card variants and fix the real shared component/path if possible
+   Do not patch only one screen if multiple screens share the same broken media logic.
+
+5. Validate on:
+
+* profile "My Auctions"
+* profile "My Bids"
+* saved auctions
+* feed cards
+* web and app
+
+### Output
+
+Return only:
+
+* exact components/files changed
+* exact CSS/layout fix applied
+* proof media no longer breaks in all auction card surfaces
+
+---
+
+## FIX 2 — CHANGE PASSWORD INSIDE APP WITHOUT ASKING FOR CURRENT PASSWORD
+
+When the logged-in user opens the in-app change-password screen, do NOT require the current password.
+
+### Goal
+
+If the user is already authenticated in the app, the password change flow should require only:
+
+* new password
+* confirm new password
+
+### Requirements
+
+1. Remove the "current password" field from the in-app password change form
+2. Keep:
+
+* new password
+* confirm new password
+
+3. Validate:
+
+* minimum password rules
+* both fields must match
+
+4. Submit through the authenticated session directly
+5. Show clear success/error feedback
+6. Do not break reset-password flow from email
+7. If there is a separate "forgot password" flow, keep it unchanged
+
+### Important
+
+* This is for the in-app authenticated change-password screen only
+* Do not require current password there
+* Do not confuse it with email reset flow
+
+### Output
+
+Return only:
+
+* exact files changed
+* exact form fields removed/kept
+* exact update-password call used
+* proof current password is no longer required in-app

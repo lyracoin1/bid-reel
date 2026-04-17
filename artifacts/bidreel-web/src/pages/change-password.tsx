@@ -10,10 +10,8 @@ export default function ChangePassword() {
   const { t, dir } = useLang();
   const isRtl = dir === "rtl";
 
-  const [currentPw, setCurrentPw]   = useState("");
   const [newPw, setNewPw]           = useState("");
   const [confirmPw, setConfirmPw]   = useState("");
-  const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew]       = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError]           = useState<string | null>(null);
@@ -29,7 +27,7 @@ export default function ChangePassword() {
       return;
     }
 
-    if (!currentPw || !newPw || !confirmPw) return;
+    if (!newPw || !confirmPw) return;
 
     if (newPw.length < 8) {
       setError(t("change_pw_too_short"));
@@ -41,47 +39,16 @@ export default function ChangePassword() {
       return;
     }
 
-    if (newPw === currentPw) {
-      setError(t("change_pw_same"));
-      return;
-    }
-
     setLoading(true);
     try {
-      // Step 1: Get the current user's email.
+      // Confirm an authenticated session exists. Supabase's updateUser()
+      // uses the current access token — no current-password re-auth required.
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user?.email) {
+      if (!user) {
         setError(t("change_pw_no_email_auth"));
         return;
       }
 
-      // Step 2: Re-authenticate with the current password to verify identity.
-      // This is the safest client-side approach Supabase supports — signInWithPassword
-      // returns an error if the current password is wrong, blocking the update.
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: currentPw,
-      });
-
-      if (signInError) {
-        if (
-          signInError.message.toLowerCase().includes("invalid") ||
-          signInError.message.toLowerCase().includes("credentials")
-        ) {
-          setError(t("change_pw_wrong_current"));
-        } else if (
-          signInError.message.toLowerCase().includes("provider") ||
-          signInError.message.toLowerCase().includes("oauth") ||
-          signInError.message.toLowerCase().includes("google")
-        ) {
-          setError(t("change_pw_no_email_auth"));
-        } else {
-          setError(signInError.message);
-        }
-        return;
-      }
-
-      // Step 3: Update to the new password.
       const { error: updateError } = await supabase.auth.updateUser({ password: newPw });
       if (updateError) {
         setError(updateError.message);
@@ -152,33 +119,6 @@ export default function ChangePassword() {
         onSubmit={handleSubmit}
         className="relative z-10 flex flex-col gap-5 px-5 pt-8 pb-12"
       >
-        {/* Current password */}
-        <div className="flex flex-col gap-1.5">
-          <label className={`text-xs font-semibold text-white/50 uppercase tracking-wide ${isRtl ? "text-right" : "text-left"}`}>
-            {t("current_password")}
-          </label>
-          <div className="relative">
-            <Lock size={15} className={`absolute top-1/2 -translate-y-1/2 text-white/30 pointer-events-none ${isRtl ? "left-10" : "right-10"}`} />
-            <button
-              type="button"
-              onClick={() => setShowCurrent(v => !v)}
-              className={`absolute top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition ${isRtl ? "left-3.5" : "right-3.5"}`}
-              tabIndex={-1}
-            >
-              {showCurrent ? <EyeOff size={15} /> : <Eye size={15} />}
-            </button>
-            <input
-              type={showCurrent ? "text" : "password"}
-              value={currentPw}
-              onChange={e => { setCurrentPw(e.target.value); setError(null); }}
-              autoComplete="current-password"
-              required
-              dir="ltr"
-              className={`w-full bg-white/5 border border-white/10 focus:border-primary/60 rounded-2xl px-4 py-4 text-white text-base placeholder:text-white/20 focus:outline-none transition-colors ${isRtl ? "pl-20" : "pr-20"}`}
-            />
-          </div>
-        </div>
-
         {/* New password */}
         <div className="flex flex-col gap-1.5">
           <label className={`text-xs font-semibold text-white/50 uppercase tracking-wide ${isRtl ? "text-right" : "text-left"}`}>
@@ -255,7 +195,7 @@ export default function ChangePassword() {
         <motion.button
           type="submit"
           whileTap={{ scale: 0.97 }}
-          disabled={loading || !currentPw || !newPw || !confirmPw}
+          disabled={loading || !newPw || !confirmPw}
           className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base shadow-lg shadow-primary/30 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2 transition-opacity"
         >
           {loading ? (

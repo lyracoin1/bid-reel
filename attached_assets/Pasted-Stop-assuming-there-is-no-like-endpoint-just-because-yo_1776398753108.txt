@@ -1,0 +1,84 @@
+Stop assuming “there is no like endpoint” just because you did not find an obvious route name.
+
+There IS a heart/like action in the product UI. Your job is to trace that exact heart action end-to-end and wire notifications correctly based on the real implementation.
+
+## TASK 1 — TRACE THE HEART ACTION
+
+Investigate the actual heart button in the app.
+
+You must trace:
+
+1. which component renders the heart button
+2. what handler fires on tap
+3. whether it calls:
+
+   * a real API endpoint
+   * a save/favorite endpoint reused as like
+   * local-only UI state
+   * optimistic state with no persistence
+4. what database table is actually affected
+5. whether the action already has a server event source that can trigger notifications
+
+Do not assume route names. Search by:
+
+* heart icon component
+* onClick/onPress handler
+* toggle save/toggle like logic
+* auction actions in feed and detail
+* any table storing reactions, likes, saves, favorites, or hearts
+
+## TASK 2 — DETERMINE THE TRUTH
+
+Return exactly which of these is true:
+
+A. Real like exists server-side already
+B. Heart is actually mapped to save/favorite, not like
+C. Heart is only local/UI and not persisted
+D. There is a server path but notifications are not wired
+
+## TASK 3 — IF HEART IS A REAL LIKE
+
+If the heart action is a real persisted reaction:
+
+* wire `liked_your_auction` notification to that exact event source
+* prevent self-notifications
+* dedup repeated low-value spam
+* ensure seller gets in-app notification
+* optionally keep push disabled for likes unless already approved
+
+## TASK 4 — IF HEART IS ACTUALLY SAVE
+
+If the heart button is actually save/favorite:
+
+* stop calling it “no like exists”
+* state clearly that the heart maps to save
+* wire only `saved_your_auction` notification to that event source
+* do not claim likes are implemented if they are not
+
+## TASK 5 — IF HEART IS LOCAL-ONLY
+
+If the heart icon is fake/local-only:
+
+* say so explicitly
+* identify the exact broken path
+* implement proper server persistence if and only if that is intended product behavior
+
+## TASK 6 — SQL MIGRATION MISTAKE
+
+Also correct the SQL editor mistake:
+
+* the user pasted the FILE PATH, not the SQL content
+* provide the full SQL content of `026_notifications_full_taxonomy.sql`
+* ready to paste directly into Supabase SQL Editor
+* no placeholders
+* no “run this file path”
+* actual executable SQL only
+
+## OUTPUT
+
+Return ONLY:
+
+1. exact truth about the heart action
+2. exact files proving it
+3. whether notifications should be `liked_your_auction` or `saved_your_auction`
+4. full SQL content for migration 026 ready to paste into Supabase

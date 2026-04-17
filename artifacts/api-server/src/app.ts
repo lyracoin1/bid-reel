@@ -131,6 +131,19 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ─── X-Server-Time header ─────────────────────────────────────────────────────
+// Stamp every API response with the server's authoritative UTC time so the
+// client can compute a clock-offset and display accurate auction countdowns
+// even when the device wall clock is wrong.
+//
+// Exposed via Access-Control-Expose-Headers so the browser's `fetch()` can
+// actually read it cross-origin (capacitor:// → bid-reel.com).
+app.use((_req, res, next) => {
+  res.setHeader("X-Server-Time", new Date().toISOString());
+  res.setHeader("Access-Control-Expose-Headers", "X-Server-Time");
+  next();
+});
+
 app.use("/api", router);
 
 // ─── Catch-all: unknown routes return JSON, never HTML or plain text ──────────

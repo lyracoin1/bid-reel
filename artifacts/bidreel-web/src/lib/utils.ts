@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { differenceInSeconds } from "date-fns";
+import { serverNow } from "@/lib/server-clock";
 import { Capacitor } from "@capacitor/core";
 
 // ── Auction state ────────────────────────────────────────────────────────────
@@ -17,7 +18,9 @@ export function getAuctionState(auction: {
   startsAt?: string | null;
   endsAt: string;
 }): AuctionState {
-  const now = new Date();
+  // Use server-aligned wall clock so countdowns are correct even when the
+  // user's device clock is wrong (battery-pull, manual change, OS lag).
+  const now = serverNow();
   if (new Date(auction.endsAt) <= now) return "ended";
   if (auction.startsAt && new Date(auction.startsAt) > now) return "upcoming";
   return "active";
@@ -25,12 +28,12 @@ export function getAuctionState(auction: {
 
 /** Returns a human-readable countdown string until the auction starts. */
 export function getCountdownToStart(startsAt: string): string {
-  const secondsLeft = differenceInSeconds(new Date(startsAt), new Date());
+  const secondsLeft = differenceInSeconds(new Date(startsAt), serverNow());
   if (secondsLeft <= 0) return "now";
   if (secondsLeft < 60)    return `${secondsLeft}s`;
-  if (secondsLeft < 3600)  return `${Math.floor(secondsLeft / 60)}m`;
-  if (secondsLeft < 86400) return `${Math.floor(secondsLeft / 3600)}h`;
-  return `${Math.floor(secondsLeft / 86400)}d`;
+  if (secondsLeft < 3600)  return `${Math.ceil(secondsLeft / 60)}m`;
+  if (secondsLeft < 86400) return `${Math.ceil(secondsLeft / 3600)}h`;
+  return `${Math.ceil(secondsLeft / 86400)}d`;
 }
 
 export function cn(...inputs: ClassValue[]) {
@@ -50,20 +53,26 @@ export function getTimeRemaining(endsAt: string | Date): {
   isUrgent: boolean;
   isEnded: boolean;
 } {
-  const secondsLeft = differenceInSeconds(new Date(endsAt), new Date());
+  // Use the server-aligned clock so the displayed remaining time matches the
+  // duration the seller actually picked, regardless of any device-clock skew.
+  const secondsLeft = differenceInSeconds(new Date(endsAt), serverNow());
 
   if (secondsLeft <= 0) return { text: "Ended", isUrgent: true, isEnded: true };
 
   const isUrgent = secondsLeft < 3600;
 
+  // Live seconds bucket — round DOWN so the user sees the timer actually tick.
   if (secondsLeft < 60)   return { text: `${secondsLeft}s`, isUrgent, isEnded: false };
-  if (secondsLeft < 3600) return { text: `${Math.floor(secondsLeft / 60)}m left`, isUrgent, isEnded: false };
+  // Minutes / hours buckets — round UP so a freshly published 24-hour auction
+  // displays "24h left" (not "23h left") and a "60m left" timer doesn't
+  // collapse to "59m" the moment it crosses the 1-hour boundary.
+  if (secondsLeft < 3600) return { text: `${Math.ceil(secondsLeft / 60)}m left`, isUrgent, isEnded: false };
 
   // Auctions run for 24 or 48 hours, so remaining time is always ≤ 48 h. Show
   // total hours ("47h left") rather than rounding to "2d left" — the day
   // bucket was causing 24h auctions to display misleading "2d left" right
   // after publish.
-  return { text: `${Math.floor(secondsLeft / 3600)}h left`, isUrgent: false, isEnded: false };
+  return { text: `${Math.ceil(secondsLeft / 3600)}h left`, isUrgent: false, isEnded: false };
 }
 
 /** Builds a wa.me deep-link that opens a direct WhatsApp chat with the seller.

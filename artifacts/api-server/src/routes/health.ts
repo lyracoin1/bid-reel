@@ -13,4 +13,12 @@ router.get("/healthz", ok);
 // We mount with both forms to be robust to future routing changes.
 router.get("/health", ok);
 
+// ─── GET /_time ───────────────────────────────────────────────────────────────
+// Cheap, no-auth endpoint the client pings to calibrate its clock against
+// the server's authoritative UTC time. Used by lib/server-clock.ts to keep
+// auction countdowns accurate when the device wall clock is wrong.
+router.get("/_time", (_req, res) => {
+  res.json({ now: new Date().toISOString() });
+});
+
 export default router;

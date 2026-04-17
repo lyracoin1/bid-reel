@@ -46,6 +46,19 @@ export function clearCurrentUserCache(): void {
 }
 
 /**
+ * Synchronously replace the cached profile with an authoritative server response
+ * (e.g. the body of PATCH /users/me). All useCurrentUser() consumers re-render
+ * with the new value on the same tick — no re-fetch, no race against the next
+ * loadCurrentUser(). Use this after any mutation whose response includes the
+ * full ApiUserProfile shape.
+ */
+export function setCachedCurrentUser(user: ApiUserProfile): void {
+  cachedUser = user;
+  fetchPromise = null;
+  notifyAll();
+}
+
+/**
  * Subscribe to user cache changes (load, refresh, clear).
  * Returns an unsubscribe function.
  * Use this in hooks that need to react when the user ID becomes available.

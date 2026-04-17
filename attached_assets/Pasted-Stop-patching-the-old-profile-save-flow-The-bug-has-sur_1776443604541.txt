@@ -1,0 +1,166 @@
+Stop patching the old profile-save flow. The bug has survived too many prompts and real-device retests.
+
+## FACTS FROM REAL TEST
+
+This exact live test was performed after a fresh successful redeploy:
+
+1. opened profile completion screen
+2. profile was still 60%
+3. entered phone `+1559035388`
+4. tapped Save
+5. app navigated back to home
+6. reopened profile
+7. profile was still 60%
+8. phone was NOT persisted
+
+So stop claiming deployment lag. The live path is still broken.
+
+## DECISION
+
+Delete the current phone/profile save flow and rebuild it cleanly from scratch.
+
+Do NOT keep layering fixes onto the old tangled implementation.
+
+---
+
+## GOAL
+
+Build a minimal, reliable, production-safe profile save flow for:
+
+* username
+* displayName
+* phone
+* location
+
+Avatar upload must NOT be part of this flow.
+
+Handle avatar separately later.
+
+---
+
+## PART 1 — REMOVE THE OLD BROKEN FLOW
+
+Find and remove the current mixed save path that combines:
+
+* profile save
+* completion logic
+* avatar handling
+* redirects
+* partial state updates
+
+Delete or bypass the old implementation completely.
+
+Do not preserve buggy branches “just in case”.
+
+---
+
+## PART 2 — REBUILD A CLEAN SAVE FLOW
+
+Implement a brand-new minimal save path with this exact sequence:
+
+1. user taps Save
+2. validate fields locally
+3. call exactly one API request:
+   `PATCH /users/me`
+   with:
+
+   * username
+   * displayName
+   * phone
+   * location
+4. await the response fully
+5. verify returned profile contains saved phone
+6. update frontend profile/cache from server response
+7. only then navigate away or show success
+
+### Rules
+
+* no avatar upload in this flow
+* no second async operation before PATCH
+* no redirect before confirmed success
+* no swallowing errors
+* no optimistic fake success
+* no mixed try/catch for unrelated steps
+
+---
+
+## PART 3 — SERVER CONTRACT
+
+Ensure `PATCH /users/me` does all of this reliably:
+
+* accepts `phone`
+* trims it
+* validates it
+* writes it to `profiles.phone`
+* returns the updated profile row including phone
+* returns non-200 on failure
+
+If this already exists, keep it. Do not re-break it.
+
+---
+
+## PART 4 — FRONTEND CONTRACT
+
+The new profile screen/save handler must:
+
+* preload current profile values from server
+* bind phone input to one clear state variable
+* send `phone` under the exact correct key
+* not navigate away on failure
+* show explicit success only when server response confirms phone is saved
+* keep the user on the same screen if save failed
+
+---
+
+## PART 5 — REMOVE FALSE SUCCESS
+
+Right now the app returns to home even though the profile remains 60%.
+
+This is unacceptable.
+
+Fix the success criteria:
+
+* navigation away must happen ONLY after confirmed persisted save
+* if phone is missing in returned profile, treat save as failed
+* if completion percentage does not improve, treat it as failed and stay on page
+
+---
+
+## PART 6 — TRACE AND PROVE
+
+After rebuilding the flow, prove with logs:
+
+1. Save button tapped
+2. PATCH request fired
+3. request body includes phone
+4. server received phone
+5. DB row stored phone
+6. PATCH response returned phone
+7. frontend cache updated with returned phone
+8. profile completion changed from 60%
+9. reopening profile still shows saved phone
+
+Never log full digits; log masked phone and length only.
+
+---
+
+## PART 7 — DO NOT PATCH AROUND THE BUG
+
+Do not add more scattered conditional fixes.
+Do not add more “maybe this path”.
+Do not keep the old save code alive behind branches.
+
+Replace the broken save path with one clean path.
+
+---
+
+## OUTPUT
+
+Return ONLY:
+
+1. exact old code path removed
+2. exact new files/functions used
+3. exact save sequence now implemented
+4. proof that phone persists after reopen
+5. proof that completion percentage updates correctly
+6. proof that navigation only happens after confirmed save

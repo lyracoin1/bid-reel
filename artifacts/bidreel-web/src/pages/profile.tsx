@@ -169,7 +169,7 @@ export default function Profile() {
             {/* Edit profile button */}
             <motion.button
               whileTap={{ scale: 0.90 }}
-              onClick={() => setLocation("/interests")}
+              onClick={() => setLocation("/profile/edit")}
               aria-label={t("edit_profile")}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/8 border border-white/12 text-xs font-semibold text-white/60 hover:text-white hover:bg-white/12 transition shrink-0"
             >
@@ -185,7 +185,7 @@ export default function Profile() {
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
-                onClick={() => setLocation("/interests")}
+                onClick={() => setLocation("/profile/edit")}
                 className="relative z-10 w-full flex flex-col gap-2.5 px-4 py-3.5 mb-4 rounded-2xl bg-amber-500/8 border border-amber-500/18 text-left"
               >
                 {/* Header: percentage + chevron */}

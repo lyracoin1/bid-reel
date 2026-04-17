@@ -9,6 +9,18 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 **BidReel** — short-video Arabic auction app MVP.
 Users upload a video + image for an item, publish it as an auction, and other users browse a vertical TikTok-style feed to place bids. WhatsApp contact via server-generated deep-links (phone numbers never exposed in API responses). Dark theme, neon purple accent. RTL/Arabic first UI, with EN/AR switching.
 
+## Video Upload Architecture (NATIVE-ONLY, no raw fallback)
+
+**Product rule:** Videos must be compressed BEFORE upload. Raw video must NEVER reach R2. If compression fails, the upload fails.
+
+- **Android (production path):** Native Capacitor plugin `VideoCompressor` at `artifacts/bidreel-web/android/app/src/main/java/com/bidreel/app/VideoCompressorPlugin.java`. Uses **Media3 Transformer** (`androidx.media3:media3-transformer:1.4.1`) to re-encode to **H.264 (2 Mbps) / AAC / MP4 / 720p**. Exposes `pickVideo()` (system picker → cache file + JPEG poster + size/duration/dimensions) and `compressVideo({ inputPath, maxHeight, videoBitrateBps })`. Plugin registered in `MainActivity.onCreate`. Output is read back into JS via `Capacitor.convertFileSrc()` → `fetch()` → Blob → existing R2 presigned-PUT pipeline.
+- **iOS:** Architecture in place (TS bridge + capability detection); native plugin not yet implemented. UI shows "Posting videos on iOS is not yet enabled" instead of silently falling back.
+- **Web:** Video posting disabled. UI shows "Posting videos is currently only supported on the BidReel Android app." `ffmpeg.wasm` has been **removed** (deps `@ffmpeg/{core,ffmpeg,util}`, `public/ffmpeg/*`, `copy:ffmpeg` script all deleted).
+
+JS API: `artifacts/bidreel-web/src/lib/native-video-compressor.ts` — `pickVideoNative()`, `compressVideoNative()`, `readCompressedFile()`, `isVideoCompressionSupported()`, `getUnsupportedPlatformMessage()`. All failures throw `NativeVideoError({ step: "unsupported"|"pick"|"compress"|"validate" })`.
+
+Validation rules after compress: file exists, `size > 0`, `size ≤ 20 MB` (server cap). Any failure → `setSubmitError(...)` and abort. Strict end-to-end pipeline implemented in `src/pages/create-auction.tsx` `handleSubmit`: `pickVideo → compressVideo → readCompressedFile → uploadMedia(video) → upload extracted thumbnail → createAuction`.
+
 ## Running Services
 
 Three services launched by the **"Start application"** workflow:

@@ -1,0 +1,219 @@
+Take this seriously. We need to restore an important product behavior that was previously present, and we also need to stabilize the mobile app flow. Do not treat this as a cosmetic patch. Implement it as a real product requirement.
+
+Project:
+
+* BidReel
+* React + Vite
+* Express on Vercel serverless
+* Supabase
+* Cloudflare R2
+* Android app via Capacitor
+* GitHub is source of truth
+* Vercel is production
+* Replit is editing/push only
+
+==================================================
+PART 1 — RESTORE BIDDING / AUCTION RULES FLOW
+=============================================
+
+This behavior existed before and it is important. It should not have disappeared.
+
+I want the rules/safety/important notice flow restored in a clean, intentional way.
+
+Required behavior:
+
+1. Show rules when entering the bidding flow
+
+* Before the user places a bid, show a modal/sheet/dialog with clear bidding rules / warning text.
+* This should happen at the moment the user enters the bid action flow (before actual bid submit).
+
+2. Show rules when creating a new auction
+
+* Before the user publishes a new auction, show the rules/safety/important notice screen or modal.
+* User must see the rules before final publish.
+
+3. Include a Skip button
+
+* There must be a visible Skip button.
+* But the logic should still be thoughtful:
+
+  * If this is meant to be informational only, Skip can dismiss it.
+  * If some parts must be acknowledged, implement that intentionally.
+* Do not remove the rules again just because Skip exists.
+
+4. Remember dismissed state properly
+
+* Audit whether the app used to store a flag like LISTING_RULES_KEY or similar.
+* If such a key exists, restore the intended behavior instead of creating conflicting logic.
+* Decide whether the rules should:
+
+  * appear every time,
+  * appear once per user,
+  * or appear once then remain accessible manually.
+* Keep the behavior consistent and explicit.
+
+5. Language support
+
+* Rules must render correctly in the current app language.
+* If Arabic is selected, show Arabic text.
+* If English is selected, show English text.
+
+6. UX quality
+
+* Modal/screen must look intentional on mobile:
+
+  * readable spacing
+  * scroll if content is long
+  * clear confirm / continue / skip actions
+* No broken overlay, no clipped content, no hidden buttons.
+
+7. Audit what removed it
+
+* Find exactly why this behavior disappeared:
+
+  * dead code?
+  * stale condition?
+  * localStorage gate always true?
+  * refactor regression?
+* Explain root cause, not just re-add the UI blindly.
+
+==================================================
+PART 2 — MOBILE STABILIZATION (CRITICAL)
+========================================
+
+The mobile app experience must be treated as a first-class product path, not a secondary afterthought.
+
+We need a serious stabilization pass for Android/Capacitor behavior.
+
+Audit and fix these areas:
+
+1. Video flow on mobile
+
+* Investigate the current mobile video path end-to-end:
+
+  * file pick
+  * compression/preprocessing
+  * upload
+  * progress UI
+  * final auction creation
+* We already know the current browser/wasm compression path is not reliable enough.
+* Mobile must not feel random or fragile.
+
+2. Strict product rule for video
+
+* The product depends on reels.
+* We need a real mobile-safe solution.
+* If the current ffmpeg/browser path is still present, do not leave it as an unreliable hidden dependency.
+* Audit whether the current path is acceptable for Android/Capacitor.
+* If not, propose and implement the cleanest mobile-safe path within the current constraints.
+
+3. No silent broken fallback behavior
+
+* If a step fails, the UI must clearly say which step failed:
+
+  * preparing video
+  * compressing video
+  * uploading video
+  * publishing auction
+* Do not leave the user staring at a spinner without knowing what is happening.
+
+4. Profile / phone / WhatsApp consistency
+
+* Mobile must correctly persist and read the phone number.
+* Re-check:
+
+  * profile save
+  * reopening screen
+  * refresh/reload equivalent
+  * logout/login
+  * seller.phone in auction payloads
+  * WhatsApp button visibility
+* If mobile differs from web here, identify exactly where.
+
+5. Navigation / tap behavior on mobile
+
+* Audit bidder/seller profile taps and other important mobile interactions.
+* Ensure clickable elements are not blocked by overlays/z-index/sticky bars.
+* Fix mobile hit areas and navigation consistency.
+
+6. Auction detail readability on mobile
+
+* Keep section spacing intentional:
+
+  * timer/state
+  * title/price/distance
+  * bid area
+  * seller card
+  * description
+  * bid history
+  * sticky bottom actions
+* Nothing should feel cramped or visually merged.
+
+7. Notification sanity on mobile
+
+* Re-check seller notification after bid.
+* Confirm in-app notifications appear correctly.
+* Confirm badge/unread behavior.
+* If push depends on FCM config, state that clearly.
+
+==================================================
+PART 3 — IMPLEMENTATION STANDARDS
+=================================
+
+Rules:
+
+* Do not do a superficial UI patch.
+* Do not create duplicate flows.
+* Reuse and restore the intended architecture if the old rules flow already existed.
+* Remove stale/competing logic if needed.
+* Keep behavior consistent across mobile app and web where appropriate.
+
+==================================================
+PART 4 — OUTPUT REQUIRED
+========================
+
+After implementation, report in this exact structure:
+
+1. Rules flow
+
+* exact root cause of why it disappeared
+* where you restored it
+* when it now appears
+* how Skip behaves
+* how language handling works
+
+2. Mobile stabilization
+
+* exact issues found
+* files changed
+* what was fixed in each file
+* whether mobile behavior now differs from web anywhere important
+
+3. Video path
+
+* exact current production path for video on mobile
+* whether it is reliable enough
+* what still remains risky, if anything
+
+4. Phone / WhatsApp
+
+* whether persistence is now verified
+* whether seller.phone reaches auction responses
+* whether WhatsApp button is restored correctly
+
+5. Manual test steps
+
+* opening bid flow rules
+* opening create auction rules
+* skip behavior
+* phone save / reopen
+* video upload on mobile
+* auction publish
+* seller notification after bid
+
+6. Push readiness
+
+* tell me exactly when to run:
+  git push origin main
+
+Do not stop at diagnosis. Restore the rules flow and do a real mobile stabilization pass.

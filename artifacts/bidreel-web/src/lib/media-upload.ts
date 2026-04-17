@@ -26,8 +26,13 @@
  *
  * ─── Compression ─────────────────────────────────────────────────────────────
  * Images and avatars are compressed to WebP in-browser via Canvas before
- * upload. Videos are transcoded with ffmpeg.wasm via `@/lib/video-compressor`
- * before being handed to `uploadMedia()`.
+ * upload.
+ *
+ * Videos are compressed NATIVELY before upload — see
+ * `@/lib/native-video-compressor` (Android Media3 Transformer plugin).
+ * Browser ffmpeg.wasm has been removed: it was unreliable on mobile WebViews
+ * (CDN blocked, 32 MB core download, OOM on low-end devices) and we will not
+ * ship a path that uploads raw user video. Compression failure = upload failure.
  */
 
 import {
@@ -38,20 +43,6 @@ import {
 
 // Re-exports so callers only need to import from this module.
 export { PresignedUploadError };
-export {
-  compressVideo,
-  preloadFFmpeg,
-  FFmpegLoadError,
-  MAX_RAW_INPUT_BYTES,
-  MAX_COMPRESSED_BYTES,
-} from "@/lib/video-compressor";
-import {
-  compressVideo as _compressVideo,
-  FFmpegLoadError as _FFmpegLoadError,
-  MAX_COMPRESSED_BYTES as _MAX_COMPRESSED_BYTES,
-  type CompressVideoOptions,
-  type CompressVideoResult,
-} from "@/lib/video-compressor";
 
 /** Max file size that the proxy fallback path can handle (Vercel body cap). */
 const PROXY_FALLBACK_CAP_BYTES = 4 * 1024 * 1024;
@@ -136,78 +127,6 @@ export async function compressListingThumbnail(file: File): Promise<File> {
 // ─── Unified uploadMedia() ──────────────────────────────────────────────────
 
 export type MediaKind = "video" | "image";
-
-// ─── Video compression with graceful fallback ──────────────────────────────
-//
-// ffmpeg.wasm loads its ~25 MB core from a public CDN on first use. On
-// restrictive mobile networks / Capacitor Android WebViews that fetch can
-// fail, which historically meant the entire upload died with a cryptic
-// "failed to import ffmpeg-core.js". This helper catches ffmpeg load failures
-// and — if the raw file already fits the server cap (MAX_COMPRESSED_BYTES) —
-// returns the original file so the upload can still proceed.
-//
-// Callers receive a result flagged with `compressed: boolean` so the UI can
-// show an explicit "uploading original (compression unavailable)" message
-// instead of silently skipping the optimization.
-
-export interface MaybeCompressedVideo {
-  /** The file to upload (compressed if compression succeeded, else the original). */
-  file: File;
-  /** True if ffmpeg successfully compressed the file; false if we fell back. */
-  compressed: boolean;
-  originalBytes: number;
-  outputBytes: number;
-  /** Wall-clock time spent attempting compression, in ms. */
-  durationMs: number;
-  /** When `compressed === false`, the reason ffmpeg was skipped. */
-  fallbackReason?: "ffmpeg_load_failed" | "ffmpeg_exec_failed";
-}
-
-/**
- * Compress a video with ffmpeg.wasm. If ffmpeg cannot load OR the transcode
- * fails, fall back to returning the original file **only if** it already fits
- * under the server's 20 MB cap. If the raw file is over the cap and ffmpeg
- * is unavailable, throws the ffmpeg error to surface clearly in the UI.
- */
-export async function compressVideoWithFallback(
-  file: File,
-  opts: CompressVideoOptions = {},
-): Promise<MaybeCompressedVideo> {
-  const startedAt = performance.now();
-  try {
-    const result: CompressVideoResult = await _compressVideo(file, opts);
-    return {
-      file: result.file,
-      compressed: true,
-      originalBytes: result.originalBytes,
-      outputBytes: result.compressedBytes,
-      durationMs: result.durationMs,
-    };
-  } catch (err) {
-    const durationMs = Math.round(performance.now() - startedAt);
-    const isLoadFailure = err instanceof _FFmpegLoadError;
-    if (file.size <= _MAX_COMPRESSED_BYTES) {
-      console.warn(
-        `[media-upload] Video compression unavailable (${isLoadFailure ? "ffmpeg load failed" : "ffmpeg exec failed"}) ` +
-        `— falling back to raw upload (${(file.size / 1024 / 1024).toFixed(1)} MB ≤ 20 MB cap):`,
-        err,
-      );
-      return {
-        file,
-        compressed: false,
-        originalBytes: file.size,
-        outputBytes: file.size,
-        durationMs,
-        fallbackReason: isLoadFailure ? "ffmpeg_load_failed" : "ffmpeg_exec_failed",
-      };
-    }
-    console.error(
-      `[media-upload] Video compression failed AND raw file (${(file.size / 1024 / 1024).toFixed(1)} MB) ` +
-      `exceeds 20 MB cap — cannot fall back:`, err,
-    );
-    throw err;
-  }
-}
 
 /**
  * Upload a media file. Always attempts the presigned (direct-to-R2) path

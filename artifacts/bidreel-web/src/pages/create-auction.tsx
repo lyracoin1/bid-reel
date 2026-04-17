@@ -16,11 +16,18 @@ import {
   uploadMedia,
   compressListingImage,
   compressListingThumbnail,
-  compressVideoWithFallback,
-  preloadFFmpeg,
-  MAX_RAW_INPUT_BYTES,
   PresignedUploadError,
 } from "@/lib/media-upload";
+import {
+  pickVideoNative,
+  compressVideoNative,
+  readCompressedFile,
+  isVideoCompressionSupported,
+  getUnsupportedPlatformMessage,
+  MAX_RAW_VIDEO_INPUT_BYTES,
+  NativeVideoError,
+  type PickVideoResult,
+} from "@/lib/native-video-compressor";
 
 type PostType = "video" | "photos";
 
@@ -39,10 +46,11 @@ const LISTING_RULES = [
 
 // ─── File size limits (client-side enforcement) ───────────────────────────────
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20 MB — pre-compression raw limit
-// Videos are compressed in-browser with ffmpeg.wasm before upload, so we accept
-// large raw inputs (up to MAX_RAW_INPUT_BYTES) and let the compressor shrink
-// them to the 20 MB server cap.
-const MAX_VIDEO_INPUT_BYTES = MAX_RAW_INPUT_BYTES;
+// Videos are compressed natively (Android Media3 Transformer) before upload,
+// so we accept large raw inputs (up to MAX_RAW_VIDEO_INPUT_BYTES) and let the
+// compressor shrink them to the 20 MB server cap. There is NO raw-video
+// fallback: if compression fails, the upload fails.
+const MAX_VIDEO_INPUT_BYTES = MAX_RAW_VIDEO_INPUT_BYTES;
 
 // ─── Allowed categories ───────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -72,16 +80,30 @@ interface GeoCoords {
 // submitError box — no more generic "Something went wrong".
 function describeSubmitError(
   err: unknown,
-  step: "compress" | "upload_video" | "upload_image" | "create_db",
-  lang: "en" | "ar",
+  step: "pick_video" | "compress" | "upload_video" | "upload_image" | "create_db",
+  lang: string, // accepts the full Language union; only "ar" is special-cased.
 ): string {
   // Preserve full details in console for remote debugging via the user.
   console.error(`[create-auction] step=${step} failed:`, err);
 
   const isAr = lang === "ar";
   const stepLabel = isAr
-    ? { compress: "ضغط الفيديو", upload_video: "رفع الفيديو", upload_image: "رفع الصورة", create_db: "نشر المزاد" }[step]
-    : { compress: "Video compression", upload_video: "Video upload", upload_image: "Image upload", create_db: "Publishing auction" }[step];
+    ? { pick_video: "اختيار الفيديو", compress: "ضغط الفيديو", upload_video: "رفع الفيديو", upload_image: "رفع الصورة", create_db: "نشر المزاد" }[step]
+    : { pick_video: "Video selection", compress: "Video compression", upload_video: "Video upload", upload_image: "Image upload", create_db: "Publishing auction" }[step];
+
+  // Friendly message for native compression failures — does NOT fall back to
+  // raw-video upload (product rule).
+  if (err instanceof NativeVideoError) {
+    if (err.step === "compress" || err.step === "validate") {
+      return isAr
+        ? `${stepLabel}: تعذّر ضغط الفيديو. حاول مقطعاً أقصر ثم أعد المحاولة. (${err.message})`
+        : `${stepLabel}: Could not compress this video. Try a shorter clip and try again. (${err.message})`;
+    }
+    if (err.step === "unsupported") {
+      return getUnsupportedPlatformMessage(lang);
+    }
+    return `${stepLabel}: ${err.message}`;
+  }
 
   if (err instanceof PresignedUploadError) {
     const statusPart = err.httpStatus ? ` [HTTP ${err.httpStatus}]` : "";
@@ -104,23 +126,19 @@ export default function CreateAuction() {
   const { t, lang } = useLang();
   const { user, isLoading: userLoading } = useCurrentUser();
 
-  const videoInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState(1);
   const [postType, setPostType] = useState<PostType>("video");
 
-  // ── Video state ─────────────────────────────────────────────────────────────
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  // ── Video state (native pre-upload compression flow) ────────────────────────
+  // pickedVideo holds the result of the native picker — both the cache file
+  // path (for the compressor) and a WebView-fetchable URL (for preview).
+  // There is no longer a JS File here; the bytes only enter the JS heap once,
+  // briefly, after compression, just before being handed to uploadMedia().
+  const [pickedVideo, setPickedVideo] = useState<PickVideoResult | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoPreviewUrl]);
+  const videoSupported = isVideoCompressionSupported();
 
   // ── Photos state ────────────────────────────────────────────────────────────
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
@@ -244,35 +262,41 @@ export default function CreateAuction() {
 
   // ── File selection handlers ──────────────────────────────────────────────────
 
-  const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const handlePickVideo = async () => {
     setVideoError(null);
-    const maxMb = MAX_VIDEO_INPUT_BYTES / 1024 / 1024;
-    if (file.size > MAX_VIDEO_INPUT_BYTES) {
-      setVideoError(lang === "ar"
-        ? `الفيديو كبير جداً: ${(file.size / 1024 / 1024).toFixed(1)} ميغابايت. الحد الأقصى ${maxMb} ميغابايت.`
-        : `Video too large: ${(file.size / 1024 / 1024).toFixed(1)} MB. Maximum is ${maxMb} MB.`);
-      e.target.value = "";
+    if (!videoSupported) {
+      setVideoError(getUnsupportedPlatformMessage(lang));
       return;
     }
-    if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
-    const objectUrl = URL.createObjectURL(file);
-    setVideoFile(file);
-    setVideoPreviewUrl(objectUrl);
-    console.log(`[create-auction] Video selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
-    // Warm up ffmpeg.wasm so the compress step is fast when the user submits.
-    preloadFFmpeg();
-    e.target.value = "";
+    try {
+      const picked = await pickVideoNative();
+      const maxMb = MAX_VIDEO_INPUT_BYTES / 1024 / 1024;
+      if (picked.sizeBytes > MAX_VIDEO_INPUT_BYTES) {
+        setVideoError(lang === "ar"
+          ? `الفيديو كبير جداً: ${(picked.sizeBytes / 1024 / 1024).toFixed(1)} ميغابايت. الحد الأقصى ${maxMb} ميغابايت.`
+          : `Video too large: ${(picked.sizeBytes / 1024 / 1024).toFixed(1)} MB. Maximum is ${maxMb} MB.`);
+        return;
+      }
+      setPickedVideo(picked);
+      console.log(
+        `[create-auction] Video picked natively: ${picked.inputPath} ` +
+        `(${(picked.sizeBytes / 1024 / 1024).toFixed(1)} MB, ${picked.width}x${picked.height}, ` +
+        `${(picked.durationMs / 1000).toFixed(1)}s)`,
+      );
+    } catch (err) {
+      // Silently ignore explicit user-cancel; surface real errors.
+      if (err instanceof NativeVideoError && err.message === "USER_CANCELLED") {
+        console.log("[create-auction] Video pick cancelled by user");
+        return;
+      }
+      console.error("[create-auction] pickVideoNative failed:", err);
+      setVideoError(describeSubmitError(err, "pick_video", lang));
+    }
   };
 
   const clearVideo = () => {
-    if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
-    setVideoFile(null);
-    setVideoPreviewUrl(null);
+    setPickedVideo(null);
     setVideoError(null);
-    if (videoInputRef.current) videoInputRef.current.value = "";
     console.log("[create-auction] Video cleared by user");
   };
 
@@ -327,25 +351,26 @@ export default function CreateAuction() {
       let thumbnailUrl: string;
 
       if (postType === "video") {
-        if (!videoFile) {
+        if (!videoSupported) {
+          setSubmitError(getUnsupportedPlatformMessage(lang));
+          return;
+        }
+        if (!pickedVideo) {
           setSubmitError(lang === "ar" ? "يرجى اختيار ملف فيديو." : "Please select a video file.");
           return;
         }
 
-        // ── 1. Try to compress in-browser. If ffmpeg.wasm can't load
-        //      (blocked CDN, mobile WebView, etc.) AND the raw file already
-        //      fits the 20 MB server cap, fall back to the original file so
-        //      the user can still publish. The UI tells them compression
-        //      was skipped instead of failing silently.
-        // Initial label covers the ffmpeg core load phase (up to a one-time
-        // ~32 MB download on first use). The onProgress handler below switches
-        // to the per-percent transcoding label as soon as encoding begins.
+        // ── 1. Native pre-upload compression (Android Media3 Transformer).
+        //      STRICT: if compression fails, the upload fails. There is no
+        //      raw-video fallback (product rule).
         setUploadProgress(lang === "ar"
-          ? "جارٍ تجهيز أداة الضغط (لمرة واحدة)…"
-          : "Preparing optimizer (one-time setup)…");
-        let result: Awaited<ReturnType<typeof compressVideoWithFallback>>;
+          ? "جارٍ ضغط الفيديو… 0%"
+          : "Optimizing video… 0%");
+        let compressed: Awaited<ReturnType<typeof compressVideoNative>>;
         try {
-          result = await compressVideoWithFallback(videoFile, {
+          compressed = await compressVideoNative(pickedVideo.inputPath, {
+            maxHeight: 720,
+            videoBitrateBps: 2_000_000,
             onProgress: (pct) => {
               setUploadProgress(lang === "ar"
                 ? `جارٍ ضغط الفيديو… ${pct}%`
@@ -358,23 +383,23 @@ export default function CreateAuction() {
           return;
         }
 
-        const origMb = (result.originalBytes / 1024 / 1024).toFixed(1);
-        const outMb  = (result.outputBytes   / 1024 / 1024).toFixed(1);
+        const origMb = (pickedVideo.sizeBytes  / 1024 / 1024).toFixed(1);
+        const outMb  = (compressed.sizeBytes   / 1024 / 1024).toFixed(1);
         console.log(
-          `[create-auction] ${result.compressed ? "✅ Compressed" : "⚠️ Skipped compression"} ` +
-          `video: ${origMb} MB → ${outMb} MB in ${(result.durationMs / 1000).toFixed(1)}s` +
-          (result.fallbackReason ? ` (reason=${result.fallbackReason})` : ""),
+          `[create-auction] ✅ Native compressed: ${origMb} MB → ${outMb} MB ` +
+          `in ${(compressed.durationMs / 1000).toFixed(1)}s`,
         );
 
-        // ── 2. Upload the resulting file (compressed or raw) ─────────────
-        const uploadLabel = result.compressed
-          ? (lang === "ar" ? "جارٍ رفع الفيديو…" : "Uploading video…")
-          : (lang === "ar"
-              ? "تعذّر الضغط — جارٍ رفع الفيديو الأصلي…"
-              : "Compression unavailable — uploading original video…");
+        // ── 2. Read the compressed file back into a JS Blob and upload it ─
+        const uploadLabel = lang === "ar" ? "جارٍ رفع الفيديو…" : "Uploading video…";
         setUploadProgress(uploadLabel);
         try {
-          videoUrl = await uploadMedia(result.file, "video", pct => {
+          const compressedFile = await readCompressedFile(
+            compressed.outputPath,
+            `bidreel_${Date.now()}.mp4`,
+            "video/mp4",
+          );
+          videoUrl = await uploadMedia(compressedFile, "video", pct => {
             setUploadProgress(`${uploadLabel} ${pct}%`);
           });
         } catch (err) {
@@ -382,7 +407,25 @@ export default function CreateAuction() {
           setSubmitError(describeSubmitError(err, "upload_video", lang));
           return;
         }
-        thumbnailUrl = videoUrl;
+
+        // ── 3. Upload the extracted poster frame as the auction thumbnail ─
+        //      Falls back to the video URL if extraction failed at pick time.
+        if (pickedVideo.thumbnailPath) {
+          try {
+            const thumbFile = await readCompressedFile(
+              pickedVideo.thumbnailPath,
+              `bidreel_thumb_${Date.now()}.jpg`,
+              "image/jpeg",
+            );
+            const compressedThumb = await compressListingThumbnail(thumbFile);
+            thumbnailUrl = await uploadMedia(compressedThumb, "image");
+          } catch (err) {
+            console.warn("[create-auction] Thumbnail upload failed; falling back to video URL:", err);
+            thumbnailUrl = videoUrl;
+          }
+        } else {
+          thumbnailUrl = videoUrl;
+        }
       } else {
         if (photoFiles.length === 0) {
           setSubmitError(lang === "ar" ? "يرجى إضافة صورة واحدة على الأقل." : "Please add at least one photo.");
@@ -477,7 +520,7 @@ export default function CreateAuction() {
   const isSubmitting = isUploading || isCreating;
 
   const canProceedFromStep1 =
-    postType === "video" ? !!videoFile : photoFiles.length > 0;
+    postType === "video" ? !!pickedVideo : photoFiles.length > 0;
 
   const canPublish =
     !!form.title &&
@@ -546,9 +589,7 @@ export default function CreateAuction() {
                 ))}
               </div>
 
-              {/* Hidden inputs */}
-              <input ref={videoInputRef} type="file" accept="video/mp4,video/quicktime,video/webm"
-                className="hidden" onChange={handleVideoSelect} />
+              {/* Hidden inputs (photos only — video uses the native picker) */}
               <input ref={photoInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
                 multiple className="hidden" onChange={handlePhotosSelect} />
 
@@ -561,11 +602,11 @@ export default function CreateAuction() {
                       : "Select a video from your device. We auto-compress before upload — up to 100 MB raw (MP4, MOV, or WebM)."}
                   </p>
 
-                  {videoPreviewUrl ? (
+                  {pickedVideo ? (
                     /* Video preview with clear video controls */
                     <div className="flex-1 min-h-56 rounded-3xl overflow-hidden bg-black border border-emerald-500/30 relative">
                       <video
-                        src={videoPreviewUrl}
+                        src={pickedVideo.inputWebPath}
                         controls
                         playsInline
                         preload="metadata"
@@ -575,7 +616,7 @@ export default function CreateAuction() {
                       {/* Action buttons overlay */}
                       <div className="absolute top-2 right-2 flex gap-1.5">
                         <button
-                          onClick={() => videoInputRef.current?.click()}
+                          onClick={handlePickVideo}
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-black/70 text-white text-xs font-semibold border border-white/20 hover:bg-black/90 transition-colors"
                         >
                           <RefreshCw size={11} /> {t("change_video")}
@@ -589,20 +630,27 @@ export default function CreateAuction() {
                       </div>
                       <div className="absolute bottom-2 left-2 bg-black/70 rounded-lg px-2.5 py-1 flex items-center gap-1.5">
                         <CheckCircle2 size={12} className="text-emerald-400" />
-                        <span className="text-xs text-emerald-300 font-medium truncate max-w-[180px]">{videoFile?.name}</span>
+                        <span className="text-xs text-emerald-300 font-medium truncate max-w-[180px]">
+                          {(pickedVideo.sizeBytes / 1024 / 1024).toFixed(1)} MB · {pickedVideo.width}×{pickedVideo.height}
+                        </span>
                       </div>
                     </div>
                   ) : (
                     /* Upload CTA */
                     <button
-                      onClick={() => videoInputRef.current?.click()}
-                      className="flex-1 min-h-56 border-2 border-dashed border-white/12 rounded-3xl bg-white/3 flex flex-col items-center justify-center p-8 text-center cursor-pointer transition-all active:scale-[0.98] hover:border-primary/50 hover:bg-primary/5"
+                      onClick={handlePickVideo}
+                      disabled={!videoSupported}
+                      className="flex-1 min-h-56 border-2 border-dashed border-white/12 rounded-3xl bg-white/3 flex flex-col items-center justify-center p-8 text-center cursor-pointer transition-all active:scale-[0.98] hover:border-primary/50 hover:bg-primary/5 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <div className="w-16 h-16 rounded-2xl bg-primary/15 flex items-center justify-center mb-4">
                         <Upload size={28} className="text-primary" />
                       </div>
                       <h3 className="font-bold text-white text-lg mb-1">{t("tap_to_select_video")}</h3>
-                      <p className="text-xs text-muted-foreground">MP4, MOV, WebM — up to 100 MB (auto-compressed)</p>
+                      <p className="text-xs text-muted-foreground">
+                        {videoSupported
+                          ? "MP4, MOV, WebM — up to 200 MB (compressed natively before upload)"
+                          : getUnsupportedPlatformMessage(lang)}
+                      </p>
                     </button>
                   )}
 
@@ -615,8 +663,9 @@ export default function CreateAuction() {
 
                   <div className="mt-5 grid grid-cols-2 gap-3">
                     <button
-                      onClick={() => videoInputRef.current?.click()}
-                      className="py-4 rounded-2xl bg-white/6 border border-white/10 text-white font-semibold flex items-center justify-center gap-2 active:scale-[0.98]">
+                      onClick={handlePickVideo}
+                      disabled={!videoSupported}
+                      className="py-4 rounded-2xl bg-white/6 border border-white/10 text-white font-semibold flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed">
                       <Camera size={18} />{t("record_now")}
                     </button>
                     <motion.button whileTap={{ scale: 0.97 }}

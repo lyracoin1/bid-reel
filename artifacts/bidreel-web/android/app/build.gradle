@@ -36,6 +36,17 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
+
+    // ─── Native pre-upload video compression (VideoCompressorPlugin) ───
+    // Media3 Transformer + companion modules are required to re-encode user
+    // videos to H.264 / AAC / MP4 at 720p / 2 Mbps before upload.
+    def media3Version = "1.4.1"
+    implementation "androidx.media3:media3-transformer:$media3Version"
+    implementation "androidx.media3:media3-effect:$media3Version"
+    implementation "androidx.media3:media3-common:$media3Version"
+    implementation "androidx.media3:media3-exoplayer:$media3Version"
+    implementation "com.google.guava:guava:33.0.0-android"
+
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

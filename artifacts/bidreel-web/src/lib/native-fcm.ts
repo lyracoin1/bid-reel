@@ -60,6 +60,40 @@ export async function initNativeFcm(callbacks: NativeFcmCallbacks): Promise<void
       return;
     }
 
+    // ── 1b. Notification channel (Android 8+) ────────────────────────────────
+    // The server's FCM payload sets `channelId: "bidreel_default"` and the
+    // AndroidManifest pins the same id as `default_notification_channel_id`.
+    // BUT a referenced channel only WORKS if it has been created on the
+    // device via NotificationManager.createNotificationChannel(). Without
+    // this call, Samsung / Xiaomi / OnePlus ROMs silently drop the push or
+    // bury it under a muted "Miscellaneous" fallback channel — which is
+    // exactly the "no entry in the notification shade" symptom we hit.
+    //
+    // Importance 5 = IMPORTANCE_HIGH → heads-up banner + sound + vibration.
+    // Safe to call repeatedly: createChannel is idempotent on the platform
+    // side (matching id = no-op).
+    if (Capacitor.getPlatform() === "android") {
+      try {
+        await FirebaseMessaging.createChannel({
+          id: "bidreel_default",
+          name: "BidReel notifications",
+          description: "Bids, outbids, follows, won auctions, and account alerts.",
+          importance: 5,                 // HIGH — heads-up + sound + vibrate
+          visibility: 1,                 // VISIBILITY_PUBLIC — show on lockscreen
+          sound: "default",
+          vibration: true,
+          lights: true,
+          lightColor: "#6D28D9",
+        });
+        console.info("[native-fcm] Channel 'bidreel_default' ensured");
+      } catch (chErr) {
+        // Plugin throws if the channel already exists with different settings —
+        // that's fine, log and carry on. Real failures (no Notif Manager etc.)
+        // shouldn't block token registration either.
+        console.warn("[native-fcm] createChannel non-fatal error:", chErr);
+      }
+    }
+
     // ── 2. Token ─────────────────────────────────────────────────────────────
     const { token } = await FirebaseMessaging.getToken();
     if (token) {

@@ -363,13 +363,15 @@ export default function Interests() {
     if (wasFirstTime && !localStorage.getItem("bidreel_rules_seen")) {
       setStep("rules");
     } else {
-      setLocation("/feed");
+      // REPLACE — onboarding completion must NOT leave /interests in history.
+      setLocation("/feed", { replace: true });
     }
   };
 
   const finishRules = () => {
     localStorage.setItem("bidreel_rules_seen", "1");
-    setLocation("/feed");
+    // REPLACE — same reason: onboarding screens are one-shot.
+    setLocation("/feed", { replace: true });
   };
 
   // ── Username status icon ──

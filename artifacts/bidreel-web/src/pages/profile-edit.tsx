@@ -220,7 +220,9 @@ export default function ProfileEdit() {
       );
 
       // ── ONLY now navigate. ──
-      setLocation("/profile");
+      // REPLACE — after a successful save the edit screen must NOT remain in
+      // the back stack (otherwise back from /profile would re-open the form).
+      setLocation("/profile", { replace: true });
     } catch (err) {
       if (err instanceof UsernameTakenError) {
         setUsernameState("taken");

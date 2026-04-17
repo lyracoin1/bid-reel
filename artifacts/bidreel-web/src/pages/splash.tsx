@@ -14,7 +14,9 @@ export default function Splash() {
       const token = await getToken();
       if (cancelled) return;
       if (!token) {
-        setLocation("/login");
+        // REPLACE — splash is a one-shot redirect; back from /login must NOT
+        // return to the splash screen.
+        setLocation("/login", { replace: true });
         return;
       }
       // Authenticated users always go to /feed.
@@ -23,7 +25,8 @@ export default function Splash() {
       // localStorage flag is no longer used for routing — it was unreliable (cleared
       // by storage wipe or cross-device) and caused existing users to be sent back
       // through the onboarding flow incorrectly.
-      setLocation("/feed");
+      // REPLACE — same reason: splash must never live in the back stack.
+      setLocation("/feed", { replace: true });
     };
     void run();
     return () => { cancelled = true; };

@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { useNotifications, type AppNotification, type NotificationType } from "@/hooks/use-notifications";
+import { useOverlayBack } from "@/hooks/use-overlay-back";
 
 // ─── Notification panel helpers (duplicated from NotificationBell to keep
 //     the nav self-contained; NotificationBell is still used on profile header
@@ -93,6 +94,9 @@ function BellNavItem() {
   }, [unreadCount, markAllRead]);
 
   const handleClose = useCallback(() => setOpen(false), []);
+
+  // Android hardware back closes the notifications panel first.
+  useOverlayBack(open, handleClose);
 
   return (
     <>

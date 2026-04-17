@@ -80,7 +80,9 @@ export default function ChangePassword() {
           <h1 className="text-2xl font-bold text-white">{t("change_pw_success")}</h1>
           <motion.button
             whileTap={{ scale: 0.96 }}
-            onClick={() => setLocation("/profile")}
+            // REPLACE — after success the change-password screen must not be
+            // reachable via back from /profile.
+            onClick={() => setLocation("/profile", { replace: true })}
             className="mt-2 px-8 py-3.5 rounded-xl bg-primary text-white text-sm font-bold shadow-lg shadow-primary/30"
           >
             {t("continue")}

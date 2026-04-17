@@ -17,6 +17,7 @@ import { useBidPolling, getUserBidStatus } from "@/hooks/use-bid-polling";
 import { useRealtimeBids } from "@/hooks/use-realtime-bids";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { useOverlayBack } from "@/hooks/use-overlay-back";
 import { getWhatsAppUrl, cn } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { useLiveAuctionStatus } from "@/hooks/use-countdown";
@@ -57,6 +58,9 @@ export default function AuctionDetail() {
   const [bidSuccess, setBidSuccess] = useState(false);
   const [showBiddingRulesModal, setShowBiddingRulesModal] = useState(false);
   const bidPanelRef = useRef<HTMLDivElement>(null);
+
+  // Android hardware back closes the bidding-rules modal first.
+  useOverlayBack(showBiddingRulesModal, () => setShowBiddingRulesModal(false));
 
   const { mutate: placeBid, isPending: isBidding } = usePlaceBid({
     onSuccess: () => {

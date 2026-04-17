@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { NotificationBannerProvider } from "@/contexts/NotificationBannerContext";
 import { useFcmToken } from "@/hooks/use-fcm-token";
+import { useAndroidBack } from "@/hooks/use-android-back";
 import { supabase } from "@/lib/supabase";
 import { setToken, clearToken, API_BASE } from "@/lib/api-client";
 import { CapApp, isNative, OAUTH_SCHEME, closeBrowser } from "@/lib/capacitor-app";
@@ -87,6 +88,21 @@ function FcmInit() {
 }
 
 /**
+ * Centralised Android hardware-back-button policy. No-op on web.
+ *
+ *   1. Close any open overlay (modal/sheet/drawer/lightbox) first
+ *   2. Inner page → wouter setLocation(parent, { replace: true })
+ *   3. Root tab    → double-tap to exit via App.exitApp()
+ *   4. Unknown     → wouter setLocation("/feed", { replace: true })
+ *
+ * Mounted ONCE inside <WouterRouter> so useLocation is available.
+ */
+function AndroidBackPolicy() {
+  useAndroidBack();
+  return null;
+}
+
+/**
  * Handles the OAuth redirect callback (Google Sign-In and any future OAuth provider).
  *
  * When the user is redirected back from the OAuth provider, Supabase appends
@@ -127,13 +143,14 @@ function OAuthCallbackHandler() {
               // Only route genuinely new users to /interests for onboarding.
               // Existing users (even with an incomplete profile) go to /feed —
               // missing fields are enforced at the action level (create-auction).
-              setWouterLocation(isNewUser && !isComplete ? "/interests" : "/feed");
+              // REPLACE — OAuth callback URL (?code=…) must NEVER stay in history.
+              setWouterLocation(isNewUser && !isComplete ? "/interests" : "/feed", { replace: true });
             } else {
               // Ensure-profile failed — let the user into the app anyway.
-              setWouterLocation("/feed");
+              setWouterLocation("/feed", { replace: true });
             }
           } catch {
-            setWouterLocation("/feed");
+            setWouterLocation("/feed", { replace: true });
           }
         }
       },
@@ -253,7 +270,8 @@ function CapacitorOAuthHandler() {
           // Navigate to login so the user gets visual feedback.
           // The next Google sign-in attempt will have a different URL (new PKCE
           // code), so the URL-based dedup guard won't block it.
-          if (mounted) setWouterLocation("/login");
+          // REPLACE — never leave the deep-link callback URL in history.
+          if (mounted) setWouterLocation("/login", { replace: true });
           return;
         }
         if (!mounted) {
@@ -279,19 +297,20 @@ function CapacitorOAuthHandler() {
             const isComplete = data.user?.isCompleted ?? false;
             const dest = isNewUser && !isComplete ? "/interests" : "/feed";
             console.log("[CapacitorOAuth] Navigating to:", dest, "| isNewUser:", isNewUser, "| isComplete:", isComplete);
-            if (mounted) setWouterLocation(dest);
+            // REPLACE — back from /feed must not return to the OAuth deep-link URL.
+            if (mounted) setWouterLocation(dest, { replace: true });
           } else {
             console.warn("[CapacitorOAuth] ensure-profile failed — navigating to /feed anyway");
-            if (mounted) setWouterLocation("/feed");
+            if (mounted) setWouterLocation("/feed", { replace: true });
           }
         } catch (err) {
           console.error("[CapacitorOAuth] ensure-profile network error:", err, "— navigating to /feed");
-          if (mounted) setWouterLocation("/feed");
+          if (mounted) setWouterLocation("/feed", { replace: true });
         }
       } catch (err) {
         console.error("[CapacitorOAuth] Deep link processing error:", err);
         // Unexpected error — navigate to login so the user is not frozen.
-        if (mounted) setWouterLocation("/login");
+        if (mounted) setWouterLocation("/login", { replace: true });
       }
     }
 
@@ -380,6 +399,7 @@ function App() {
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
               <AuthSync />
               <FcmInit />
+              <AndroidBackPolicy />
               <OAuthCallbackHandler />
               <CapacitorOAuthHandler />
               <Router />

@@ -1,0 +1,138 @@
+Fix auction time synchronization so the published auction duration is exact and trustworthy.
+
+## PROBLEM
+
+When the seller chooses an auction duration before publishing (for example 24 hours), the live auction sometimes shows a much larger remaining time after publish.
+This is unacceptable.
+
+## GOAL
+
+Make auction timing fully synchronized and server-authoritative, with accurate countdown even to the minute.
+
+## REQUIRED RULES
+
+1. The frontend must NOT be the source of truth for auction end time.
+2. The backend/server must be the only authority that computes `ends_at`.
+3. All stored auction times must use UTC.
+4. The countdown displayed in UI must stay synchronized with the real stored `ends_at`.
+5. The remaining time shown after publish must match the selected duration precisely.
+
+---
+
+## PART 1 — CREATION FLOW
+
+Audit the auction creation path.
+
+Find exactly:
+
+* where duration is selected in frontend
+* what is sent in the publish request
+* whether frontend is precomputing `ends_at`
+* whether backend is recomputing or trusting frontend time
+
+### Required fix
+
+The frontend must send only the intended duration, for example:
+
+* duration_hours
+  or equivalent
+
+The backend must compute:
+
+* `ends_at = server_now + chosen_duration`
+
+Do NOT trust a client-computed end timestamp.
+
+---
+
+## PART 2 — DATABASE / SERVER TIME
+
+Ensure:
+
+* `ends_at` is stored in UTC
+* server uses a single consistent time source
+* no local timezone math leaks into persistence
+
+Audit:
+
+* DB insert
+* DB read
+* API response shape
+
+---
+
+## PART 3 — FRONTEND DISPLAY
+
+Audit the countdown UI.
+
+Find:
+
+* where remaining time is calculated
+* whether it uses device time only
+* whether it uses stale local values
+* whether it is recomputed after publish
+
+### Required fix
+
+Countdown must be based on:
+
+* `ends_at` from backend
+* and preferably a server-aligned current time reference
+
+The UI must:
+
+* refresh countdown continuously
+* re-sync when page opens
+* re-sync after publish
+* re-sync on polling/realtime refresh
+
+---
+
+## PART 4 — TIMEZONE SAFETY
+
+Explicitly verify:
+
+* no local timezone conversion bug
+* no duplicated offset addition
+* no parsing bug between ISO string and local date
+* no mismatch between web and Android app
+
+Use UTC everywhere internally.
+
+---
+
+## PART 5 — VALIDATION
+
+Prove these cases:
+
+1. Seller chooses 24 hours
+
+* published auction shows very close to 24h remaining immediately after publish
+
+2. Seller chooses 1 hour
+
+* published auction shows very close to 1h remaining immediately after publish
+
+3. Refresh page
+
+* remaining time stays consistent
+
+4. Open from Android app and web
+
+* both show nearly identical time
+
+5. Wait several minutes
+
+* countdown decreases correctly without drift
+
+---
+
+## OUTPUT
+
+Return ONLY:
+
+1. exact root cause
+2. exact files changed
+3. exact create-flow fix
+4. exact countdown-display fix
+5. exact proof the remaining time now matches the selected duration

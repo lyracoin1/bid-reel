@@ -10,6 +10,7 @@ import { MobileLayout } from "@/components/layout/MobileLayout";
 import { useCreateAuction } from "@/hooks/use-auctions";
 import { useLang } from "@/contexts/LanguageContext";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useOverlayBack } from "@/hooks/use-overlay-back";
 import { cn } from "@/lib/utils";
 import { reverseGeocodeCountry, getCurrencyForCountry, type CurrencyInfo } from "@/lib/geo";
 import {
@@ -164,6 +165,9 @@ export default function CreateAuction() {
 
   // ── First-listing rules gate ─────────────────────────────────────────────────
   const [showRulesModal, setShowRulesModal] = useState(false);
+
+  // Android hardware back closes the rules modal first.
+  useOverlayBack(showRulesModal, () => setShowRulesModal(false));
 
   // ── Geolocation + currency detection ─────────────────────────────────────────
   const [geoStatus, setGeoStatus] = useState<GeoStatus>("idle");
@@ -485,7 +489,9 @@ export default function CreateAuction() {
           durationHours,
         });
         setUploadProgress(null);
-        setLocation(`/auction/${id}`);
+        // REPLACE — publish is terminal; back from the new auction detail
+        // must return to /feed, NOT to a half-cleared create form.
+        setLocation(`/auction/${id}`, { replace: true });
       } catch (err) {
         setUploadProgress(null);
         setSubmitError(describeSubmitError(err, "create_db", lang));

@@ -11,6 +11,7 @@ import { X, Users } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { useFollow } from "@/hooks/use-follow";
+import { useOverlayBack } from "@/hooks/use-overlay-back";
 import { useLang } from "@/contexts/LanguageContext";
 import { getFollowersApi, getFollowingApi, type ApiFollowUser } from "@/lib/api-client";
 
@@ -29,6 +30,10 @@ export function FollowListModal({ userId, mode, onClose }: FollowListModalProps)
   const { isFollowing, isPending, toggle } = useFollow();
   const [, setLocation] = useLocation();
   const { t } = useLang();
+
+  // Android hardware back closes this sheet first (before navigating).
+  // The sheet is open for its entire mounted lifetime, hence isOpen={true}.
+  useOverlayBack(true, onClose);
 
   useEffect(() => {
     setLoading(true);

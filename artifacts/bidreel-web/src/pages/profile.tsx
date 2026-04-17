@@ -9,6 +9,7 @@ import { MobileLayout } from "@/components/layout/MobileLayout";
 import { formatAuctionPrice } from "@/lib/geo";
 import { HamburgerMenu } from "@/components/HamburgerMenu";
 import { useCurrentUser, clearCurrentUserCache } from "@/hooks/use-current-user";
+import { useOverlayBack } from "@/hooks/use-overlay-back";
 import { useAuctions, useMyAuctions } from "@/hooks/use-auctions";
 import { getSavedIdsApi, clearToken, deleteAccountApi, getBiddedAuctionsApi, type ApiBiddedAuction } from "@/lib/api-client";
 import { clearAdminSession } from "@/pages/admin/admin-session";
@@ -36,6 +37,13 @@ export default function Profile() {
   const [, setLocation] = useLocation();
   const { t } = useLang();
 
+  // Android hardware back closes overlays in priority order:
+  //  - delete-confirm modal (highest priority — destructive action)
+  //  - follow-list sheet
+  // The HamburgerMenu drawer registers its own handler internally.
+  useOverlayBack(showDeleteConfirm, () => setShowDeleteConfirm(false));
+  useOverlayBack(followModal !== null, () => setFollowModal(null));
+
   const { user, isLoading: userLoading } = useCurrentUser();
 
   async function handleDeleteAccount() {
@@ -47,7 +55,9 @@ export default function Profile() {
       clearCurrentUserCache();
       clearAdminSession();
       clearToken();
-      setLocation("/login");
+      // REPLACE — account deletion is a hard auth-boundary; back from /login
+      // must NEVER return to a profile page for an account that no longer exists.
+      setLocation("/login", { replace: true });
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : "Failed to delete account. Please try again.");
       setIsDeleting(false);
@@ -99,7 +109,9 @@ export default function Profile() {
     clearCurrentUserCache();
     clearAdminSession();
     clearToken();
-    setLocation("/login");
+    // REPLACE — logout is a hard auth-boundary; back from /login must NOT
+    // return to a now-unauthenticated profile page.
+    setLocation("/login", { replace: true });
   }
 
   // Completeness — backend requires 5 fields (username, display_name, phone,

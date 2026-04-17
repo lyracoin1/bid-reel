@@ -26,6 +26,7 @@ import {
   type ApiMutualFollow, type ContentSignal,
 } from "@/lib/api-client";
 import { removeAuctionFromCache } from "@/hooks/use-auctions";
+import { useOverlayBack } from "@/hooks/use-overlay-back";
 import { toast } from "@/hooks/use-toast";
 import { getPublicBaseUrl } from "@/lib/utils";
 
@@ -117,6 +118,10 @@ export function AuctionMenu({
     setMentionSearch("");
     setAlreadyReported(false);
   }, []);
+
+  // Android hardware back closes whichever sheet is currently open
+  // (menu / confirm_delete / report_step1 / report_step2 / report_done / mention).
+  useOverlayBack(sheet !== "closed", close);
 
   // ESC key
   useEffect(() => {

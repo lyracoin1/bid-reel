@@ -100,14 +100,15 @@ export default function Login() {
         // Existing users (isNewUser === false) go straight to /feed even if some
         // profile fields are missing — incomplete-profile enforcement happens at
         // the action level (e.g. create-auction), not at login time.
-        setLocation(isNewUser && !isComplete ? "/interests" : "/feed");
+        // REPLACE — login screen must NEVER live in the back stack.
+        setLocation(isNewUser && !isComplete ? "/interests" : "/feed", { replace: true });
       } else {
         // Profile creation failed — let the user into the app anyway.
-        setLocation("/feed");
+        setLocation("/feed", { replace: true });
       }
     } catch {
       // Network error on ensure-profile — let user in, don't block at login.
-      setLocation("/feed");
+      setLocation("/feed", { replace: true });
     }
   }
 

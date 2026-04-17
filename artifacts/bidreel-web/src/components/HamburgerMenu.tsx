@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { X, Globe, Check, Menu, ShieldAlert, Lock } from "lucide-react";
 import { useLocation } from "wouter";
 import { useLang } from "@/contexts/LanguageContext";
+import { useOverlayBack } from "@/hooks/use-overlay-back";
 import { type Language, LANGUAGE_NAMES } from "@/lib/i18n";
 
 const LANGUAGES: Language[] = ["en", "ar", "ru", "es", "fr"];
@@ -33,6 +34,9 @@ export function HamburgerMenu({ className = "", open: controlledOpen, onOpenChan
   };
   const { lang, setLang, t } = useLang();
   const [, navigate] = useLocation();
+
+  // Android hardware back closes the drawer instead of navigating.
+  useOverlayBack(open, () => setOpen(false));
 
   const navigateTo = (path: string) => {
     setOpen(false);

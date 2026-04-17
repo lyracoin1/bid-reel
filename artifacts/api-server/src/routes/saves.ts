@@ -12,6 +12,7 @@ import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { supabaseAdmin } from "../lib/supabase";
 import { logger } from "../lib/logger";
+import { notifySavedYourAuction } from "../lib/notifications";
 
 const router: IRouter = Router();
 
@@ -126,10 +127,11 @@ router.post("/auctions/:auctionId/save", requireAuth, async (req, res) => {
     return;
   }
 
-  // Verify the auction exists
+  // Verify the auction exists. Pull seller_id + title so we can notify the
+  // seller when this is a fresh save (not a duplicate).
   const { data: auction } = await supabaseAdmin
     .from("auctions")
-    .select("id")
+    .select("id, seller_id, title")
     .eq("id", auctionId)
     .maybeSingle();
 
@@ -137,6 +139,16 @@ router.post("/auctions/:auctionId/save", requireAuth, async (req, res) => {
     res.status(404).json({ error: "AUCTION_NOT_FOUND", message: "No auction found with that ID." });
     return;
   }
+
+  // Detect whether this is a brand-new save (vs. a duplicate idempotent save)
+  // BEFORE we upsert, so we only fire the notification on first save.
+  const { data: existing } = await supabaseAdmin
+    .from("saved_auctions")
+    .select("id")
+    .eq("user_id", callerId)
+    .eq("auction_id", auctionId)
+    .maybeSingle();
+  const wasAlreadySaved = !!existing;
 
   const { error } = await supabaseAdmin
     .from("saved_auctions")
@@ -160,6 +172,24 @@ router.post("/auctions/:auctionId/save", requireAuth, async (req, res) => {
     .from("saved_auctions")
     .select("id", { count: "exact", head: true })
     .eq("auction_id", auctionId);
+
+  // Fire-and-forget notification to the seller — only on first save by this
+  // user, never to themselves. Dedup is also enforced inside the helper.
+  const sellerId = (auction as { seller_id?: string | null }).seller_id ?? null;
+  const auctionTitle = (auction as { title?: string | null }).title ?? "your auction";
+  if (!wasAlreadySaved && sellerId && sellerId !== callerId) {
+    void (async () => {
+      const { data: saverProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("display_name, username")
+        .eq("id", callerId)
+        .maybeSingle();
+      const saverName = saverProfile?.display_name ?? saverProfile?.username ?? "Someone";
+      await notifySavedYourAuction(sellerId, callerId, saverName, auctionId, auctionTitle);
+    })().catch(err =>
+      logger.warn({ err: String(err), auctionId }, "POST save: notifySavedYourAuction failed"),
+    );
+  }
 
   res.json({ isSaved: true, savedCount: count ?? 0 });
 });

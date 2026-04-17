@@ -1,0 +1,204 @@
+You are fixing the auction bidding experience in a production app. Do not explain. Do not give theory. Execute.
+
+## GOAL
+
+Make the bidding system feel real, transparent, and live to users.
+
+The current UX is wrong:
+
+* when the current user becomes the highest bidder, the status text appears in red in English
+* the bid history still says "No bids yet. Be the first to bid" even after a valid first bid
+* ranking/history is not clearly updated after each bid
+
+This must be fixed end-to-end.
+
+---
+
+## PART 1 — HIGHEST BIDDER STATUS UI
+
+Find the status text shown after the current user places a valid bid and becomes the highest bidder.
+
+### Required behavior
+
+* If current user is the highest bidder:
+
+  * show a positive success state
+  * text color must be green, not red
+  * wording must be positive, not warning/danger
+
+Use wording like:
+
+* "You are the highest bidder"
+  or equivalent localized text
+
+### Rules
+
+* red is only for danger / outbid / error
+* green is for success / highest bidder / winning position
+
+---
+
+## PART 2 — BID HISTORY MUST BE REAL
+
+Fix the bid history section under the auction.
+
+### Current broken behavior
+
+After the first valid bid, it still shows:
+
+* "No bids yet. Be the first to bid"
+
+This is unacceptable.
+
+### Required behavior
+
+After the first successful bid:
+
+* remove the empty-state message immediately
+* insert the first bid row
+* show bidder rank/order starting from #1
+* show bid amount
+* show timestamp
+* show bidder identity in the existing privacy-safe format used by the app
+
+Example:
+
+* #1 — You — 301 USD — just now
+
+If another user bids later:
+
+* #2 — User X — 351 USD — just now
+
+If another user bids after that:
+
+* #3 — User Y — 401 USD — just now
+
+This list must always reflect real bid order from the database.
+
+---
+
+## PART 3 — LIVE ORDERING / TRANSPARENCY
+
+The bid list must be transparently ordered and updated after every successful bid.
+
+### Required behavior
+
+* sort bids by creation time ascending for rank numbering
+* newest bid can still be visually highlighted, but ranking must remain true
+* every successful bid must re-fetch or update the list immediately
+* current price / highest bid / bid history / highest-bidder status must all stay in sync
+
+### Required fields per row
+
+* rank number (#1, #2, #3...)
+* bidder label
+* resulting price after that bid
+* bid time
+
+---
+
+## PART 4 — SERVER TRUTH
+
+Do not fake the order on the client.
+
+Use server/database truth:
+
+* bids must come from the real bids table
+* order must come from created_at ascending (or deterministic server order)
+* highest bidder must come from the latest valid highest bid
+* UI must not rely on stale local optimistic state after completion
+
+After a successful bid:
+
+* refresh auction detail payload
+* refresh bid history payload
+* refresh highest bidder state
+
+---
+
+## PART 5 — OUTBID / WINNING STATES
+
+Implement clear user-facing states:
+
+1. If current user is highest bidder:
+
+* green positive label
+* "You are the highest bidder"
+
+2. If current user was outbid:
+
+* red or warning label
+* "You have been outbid"
+
+3. If there are zero bids:
+
+* show empty state only then
+* "No bids yet. Be the first to bid"
+
+4. If at least one bid exists:
+
+* never show the empty state
+
+---
+
+## PART 6 — FILES TO CHECK
+
+Audit and fix the exact files responsible for:
+
+* auction detail page
+* bid submission handler
+* API response mapping for bids
+* bid history component / section
+* highest bidder status label
+* any localization strings involved
+
+Likely places include:
+
+* auction-detail.tsx
+* api-client bid mapping
+* server auction detail endpoint
+* server place-bid endpoint
+* i18n strings
+
+Fix all affected files, not just the text color.
+
+---
+
+## PART 7 — VALIDATION
+
+Return only after verifying all of this:
+
+1. First bid on an auction:
+
+* empty state disappears
+* bid row #1 appears
+* highest bidder label turns green for the bidder
+
+2. Second bid by another user:
+
+* row #2 appears
+* first bidder sees outbid state
+* second bidder sees highest bidder state
+
+3. Third bid:
+
+* row #3 appears correctly
+* history stays ordered and truthful
+
+4. Refresh page:
+
+* same history order remains
+* same highest bidder status remains
+
+---
+
+## OUTPUT
+
+Return ONLY:
+
+* exact root cause
+* exact files changed
+* exact fixes applied
+* proof that first bid replaces empty state
+* proof that bid ranks update correctly
+* proof that highest bidder state is now green and truthful

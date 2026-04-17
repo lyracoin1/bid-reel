@@ -1,6 +1,9 @@
 import { useState, useCallback } from "react";
 import { Link, useLocation } from "wouter";
-import { Home, Search, Plus, User, Bell, X, ShoppingBag, Gavel, Trophy, Tag, UserPlus } from "lucide-react";
+import {
+  Home, Search, Plus, User, Bell, X, ShoppingBag, Gavel, Trophy, Tag, UserPlus,
+  Heart, Bookmark, MessageCircle, AtSign, ShieldAlert, Megaphone, XCircle,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
@@ -14,14 +17,27 @@ const TYPE_CONFIG: Record<
   NotificationType,
   { icon: typeof Bell; colour: string }
 > = {
-  outbid:             { icon: Gavel,      colour: "text-red-400"     },
-  auction_started:    { icon: Tag,        colour: "text-primary"     },
-  auction_won:        { icon: Trophy,     colour: "text-amber-400"   },
-  new_bid:            { icon: ShoppingBag,colour: "text-emerald-400" },
-  new_bid_received:   { icon: ShoppingBag,colour: "text-emerald-400" },
-  new_follower:       { icon: UserPlus,   colour: "text-blue-400"    },
-  auction_ending_soon:{ icon: Gavel,      colour: "text-orange-400"  },
-  auction_removed:    { icon: Tag,        colour: "text-white/40"    },
+  // canonical
+  followed_you:              { icon: UserPlus,    colour: "text-blue-400"    },
+  liked_your_auction:        { icon: Heart,       colour: "text-pink-400"    },
+  saved_your_auction:        { icon: Bookmark,    colour: "text-purple-400"  },
+  commented_on_your_auction: { icon: MessageCircle, colour: "text-cyan-400"  },
+  replied_to_your_comment:   { icon: MessageCircle, colour: "text-cyan-400"  },
+  mentioned_you:             { icon: AtSign,      colour: "text-indigo-400"  },
+  bid_received:              { icon: ShoppingBag, colour: "text-emerald-400" },
+  outbid:                    { icon: Gavel,       colour: "text-red-400"     },
+  auction_won:               { icon: Trophy,      colour: "text-amber-400"   },
+  auction_ended:             { icon: Trophy,      colour: "text-amber-400"   },
+  auction_unsold:            { icon: XCircle,     colour: "text-white/50"    },
+  auction_ending_soon:       { icon: Gavel,       colour: "text-orange-400"  },
+  admin_message:             { icon: Megaphone,   colour: "text-yellow-300"  },
+  account_warning:           { icon: ShieldAlert, colour: "text-red-500"     },
+  // legacy aliases
+  new_follower:     { icon: UserPlus,    colour: "text-blue-400"    },
+  new_bid:          { icon: ShoppingBag, colour: "text-emerald-400" },
+  new_bid_received: { icon: ShoppingBag, colour: "text-emerald-400" },
+  auction_started:  { icon: Tag,         colour: "text-primary"     },
+  auction_removed:  { icon: Tag,         colour: "text-white/40"    },
 };
 
 function timeAgo(iso: string): string {

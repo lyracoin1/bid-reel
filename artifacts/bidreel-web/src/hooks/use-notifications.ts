@@ -25,21 +25,38 @@ import { getCurrentUserId, subscribeToUserChange } from "@/hooks/use-current-use
 import { API_BASE, getToken } from "@/lib/api-client";
 
 export type NotificationType =
+  // canonical (spec) names
+  | "followed_you"
+  | "liked_your_auction"
+  | "saved_your_auction"
+  | "commented_on_your_auction"
+  | "replied_to_your_comment"
+  | "mentioned_you"
+  | "bid_received"
   | "outbid"
-  | "auction_started"
   | "auction_won"
+  | "auction_unsold"
+  | "auction_ended"
+  | "auction_ending_soon"
+  | "admin_message"
+  | "account_warning"
+  // legacy aliases (still emitted by older rows in production)
+  | "new_follower"
   | "new_bid"
   | "new_bid_received"
-  | "new_follower"
-  | "auction_ending_soon"
+  | "auction_started"
   | "auction_removed";
 
 export interface AppNotification {
   id: string;
   type: NotificationType;
+  /** Long-form body. Falls back to `message` for legacy rows. */
   message: string;
+  /** Optional short headline (added in migration 026). */
+  title?: string;
   auctionId?: string;
   actorId?: string;
+  metadata?: Record<string, unknown>;
   read: boolean;
   createdAt: string;
 }
@@ -88,6 +105,9 @@ export function useNotifications(): UseNotificationsReturn {
             id: string;
             type: string;
             message: string;
+            title?: string | null;
+            body?: string | null;
+            metadata?: Record<string, unknown> | null;
             auction_id?: string;
             actor_id?: string;
             read: boolean;
@@ -97,9 +117,11 @@ export function useNotifications(): UseNotificationsReturn {
         const historical: AppNotification[] = (json.notifications ?? []).map(row => ({
           id: row.id,
           type: row.type as NotificationType,
-          message: row.message,
+          message: row.body ?? row.message,
+          title: row.title ?? undefined,
           auctionId: row.auction_id,
           actorId: row.actor_id,
+          metadata: row.metadata ?? undefined,
           read: row.read ?? false,
           createdAt: row.created_at,
         }));
@@ -140,6 +162,9 @@ export function useNotifications(): UseNotificationsReturn {
             id: string;
             type: string;
             message: string;
+            title?: string | null;
+            body?: string | null;
+            metadata?: Record<string, unknown> | null;
             auction_id?: string;
             actor_id?: string;
             read: boolean;
@@ -149,9 +174,11 @@ export function useNotifications(): UseNotificationsReturn {
           const incoming: AppNotification = {
             id: row.id,
             type: row.type as NotificationType,
-            message: row.message,
+            message: row.body ?? row.message,
+            title: row.title ?? undefined,
             auctionId: row.auction_id,
             actorId: row.actor_id,
+            metadata: row.metadata ?? undefined,
             read: row.read ?? false,
             createdAt: row.created_at,
           };

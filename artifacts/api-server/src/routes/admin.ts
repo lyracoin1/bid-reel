@@ -28,6 +28,7 @@ import { requireAdmin } from "../middlewares/requireAdmin";
 import { runMediaCleanup } from "../lib/media-lifecycle";
 import { logger } from "../lib/logger";
 import { env } from "../config/env";
+import { notifyAdminMessage, notifyAccountWarning } from "../lib/notifications";
 
 const adminRouter = Router();
 
@@ -712,6 +713,79 @@ adminRouter.post("/deploy", async (req, res) => {
     logger.error({ err }, "POST /admin/deploy failed");
     res.status(500).json({ error: "DEPLOY_FAILED", message: "Failed to trigger deployment" });
   }
+});
+
+// ─── POST /admin/notify ──────────────────────────────────────────────────────
+// Send an admin_message to one user, a list of users, or all users.
+// Body: { userId?: string, userIds?: string[], all?: true, title: string, body: string }
+// ─────────────────────────────────────────────────────────────────────────────
+
+adminRouter.post("/notify", async (req, res) => {
+  const adminId = req.user!.id;
+  const { userId, userIds, all, title, body, metadata } = req.body as {
+    userId?: string;
+    userIds?: string[];
+    all?: boolean;
+    title?: string;
+    body?: string;
+    metadata?: Record<string, unknown>;
+  };
+
+  if (typeof title !== "string" || title.trim().length === 0 ||
+      typeof body !== "string" || body.trim().length === 0) {
+    res.status(400).json({ error: "VALIDATION_ERROR", message: "title and body are required" });
+    return;
+  }
+
+  // Resolve recipient list
+  let recipients: string[] = [];
+  if (all === true) {
+    const { data, error } = await supabaseAdmin.from("profiles").select("id").eq("is_banned", false);
+    if (error) {
+      logger.error({ err: error.message, adminId }, "POST /admin/notify: failed to enumerate users");
+      res.status(500).json({ error: "FETCH_FAILED", message: "Could not enumerate recipients." });
+      return;
+    }
+    recipients = (data ?? []).map((r: { id: string }) => r.id);
+  } else if (Array.isArray(userIds) && userIds.length > 0) {
+    recipients = userIds;
+  } else if (typeof userId === "string" && userId.length > 0) {
+    recipients = [userId];
+  } else {
+    res.status(400).json({ error: "VALIDATION_ERROR", message: "Provide userId, userIds, or all=true" });
+    return;
+  }
+
+  logger.info({ adminId, recipientCount: recipients.length }, "POST /admin/notify: dispatching admin_message");
+
+  await Promise.all(
+    recipients.map(uid =>
+      notifyAdminMessage(uid, title.trim(), body.trim(), metadata).catch(err =>
+        logger.warn({ err: String(err), uid }, "POST /admin/notify: helper failed for one recipient"),
+      ),
+    ),
+  );
+
+  res.json({ success: true, sent: recipients.length });
+});
+
+// ─── POST /admin/users/:id/warn ──────────────────────────────────────────────
+// Send an account_warning to a single user. Body: { reason: string }
+// ─────────────────────────────────────────────────────────────────────────────
+
+adminRouter.post("/users/:id/warn", async (req, res) => {
+  const adminId = req.user!.id;
+  const targetId = req.params["id"] as string;
+  const { reason } = req.body as { reason?: string };
+
+  if (typeof reason !== "string" || reason.trim().length === 0) {
+    res.status(400).json({ error: "VALIDATION_ERROR", message: "reason is required" });
+    return;
+  }
+
+  await notifyAccountWarning(targetId, reason.trim(), { issuedBy: adminId });
+  await logAdminAction(adminId, "dismiss_report", "user", targetId, `warning: ${reason.trim().slice(0, 200)}`);
+  res.json({ success: true });
 });
 
 // ─── Legacy media-lifecycle routes (kept for backward compat) ─────────────────

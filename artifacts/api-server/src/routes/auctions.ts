@@ -11,7 +11,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
-import { notifyOutbid, notifyAuctionStarted, notifyNewBidReceived } from "../lib/notifications";
+import { notifyOutbid, notifyAuctionStarted, notifyBidReceived } from "../lib/notifications";
 import { getBidderCol, getBidderUserId, hasWinnerBidIdCol } from "../lib/dbSchema";
 import { deleteMediaFile } from "../lib/media-lifecycle";
 import { runAuctionLifecycle } from "../lib/auction-lifecycle";
@@ -802,7 +802,7 @@ async function executePlaceBid(
   // 10. Fire outbid notification to the previous leader (fire-and-forget, non-fatal).
   const prevLeaderUserId = prevLeader ? getBidderUserId(prevLeader) : null;
   if (prevLeaderUserId && prevLeaderUserId !== userId) {
-    void notifyOutbid(prevLeaderUserId, auctionId, auction.title ?? "this auction", newPrice);
+    void notifyOutbid(prevLeaderUserId, userId, auctionId, auction.title ?? "this auction", newPrice);
   }
 
   // 11. Fire "new bid received" notification to the seller (fire-and-forget, non-fatal).
@@ -817,15 +817,16 @@ async function executePlaceBid(
         .eq("id", userId)
         .maybeSingle();
       const bidderName = bidderProfile?.display_name ?? bidderProfile?.username ?? null;
-      await notifyNewBidReceived(
+      await notifyBidReceived(
         auction.seller_id,
+        userId,
+        bidderName,
         auctionId,
         auction.title ?? "this auction",
         newPrice,
-        bidderName,
       );
     })().catch(err =>
-      logger.warn({ err: String(err), auctionId }, `${logTag}: notifyNewBidReceived failed`),
+      logger.warn({ err: String(err), auctionId }, `${logTag}: notifyBidReceived failed`),
     );
   }
 

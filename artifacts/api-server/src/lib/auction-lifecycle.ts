@@ -24,7 +24,7 @@
 import { supabaseAdmin } from "./supabase";
 import { logger } from "./logger";
 import { getBidderCol, getBidderUserId, hasWinnerBidIdCol } from "./dbSchema";
-import { notifyAuctionWon } from "./notifications";
+import { notifyAuctionWon, notifyAuctionEnded, notifyAuctionUnsold } from "./notifications";
 
 /**
  * Expire all active auctions whose ends_at is in the past.
@@ -44,7 +44,7 @@ export async function expireAuctions(): Promise<void> {
   //    title is fetched here so notifyAuctionWon can include it in the message.
   const { data: expired, error: fetchErr } = await supabaseAdmin
     .from("auctions")
-    .select("id, title")
+    .select("id, title, seller_id")
     .eq("status", "active")
     .lt("ends_at", now)
     .limit(50);
@@ -61,7 +61,7 @@ export async function expireAuctions(): Promise<void> {
   const bCol = await getBidderCol();
   const wbidColExists = await hasWinnerBidIdCol();
 
-  for (const { id, title } of expired) {
+  for (const { id, title, seller_id: sellerId } of expired as Array<{ id: string; title: string | null; seller_id: string | null }>) {
     // 2. Find the highest bid for this auction (winner determination).
     //    Ordering by amount desc, then by created_at desc as tiebreaker
     //    ensures we always pick a deterministic winner.
@@ -123,23 +123,45 @@ export async function expireAuctions(): Promise<void> {
       "expireAuctions: auction ended",
     );
 
-    // 5. Fire auction_won notification — only when:
-    //    a) This call actually flipped the status (updatedCount === 1)
-    //    b) There was at least one bid (winnerId is not null)
+    // 5. Fire end-of-auction notifications — only when this call actually
+    //    flipped the status (updatedCount === 1), guaranteeing once-per-auction
+    //    delivery even with concurrent expiry calls.
+    //
+    //    Recipients:
+    //      - winner       → auction_won           (if there was a winning bid)
+    //      - seller       → auction_ended         (if there was a winning bid)
+    //      - seller       → auction_unsold        (if no bids)
+    //
     //    Fire-and-forget: never throws, never delays the loop.
-    if (updatedCount === 1 && winnerId !== null && winnerBidAmount !== null) {
-      void (async () => {
-        try {
-          await notifyAuctionWon(
-            winnerId!,
-            id,
-            (title as string | null) ?? "Auction",
-            winnerBidAmount!,
-          );
-        } catch (err) {
-          logger.warn({ err: String(err), auctionId: id }, "expireAuctions: notifyAuctionWon failed");
+    if (updatedCount === 1) {
+      const auctionTitle = title ?? "Auction";
+
+      if (winnerId !== null && winnerBidAmount !== null) {
+        void (async () => {
+          try {
+            await notifyAuctionWon(winnerId!, id, auctionTitle, winnerBidAmount!);
+          } catch (err) {
+            logger.warn({ err: String(err), auctionId: id }, "expireAuctions: notifyAuctionWon failed");
+          }
+        })();
+        if (sellerId) {
+          void (async () => {
+            try {
+              await notifyAuctionEnded(sellerId, id, auctionTitle, winnerBidAmount!);
+            } catch (err) {
+              logger.warn({ err: String(err), auctionId: id }, "expireAuctions: notifyAuctionEnded failed");
+            }
+          })();
         }
-      })();
+      } else if (sellerId) {
+        void (async () => {
+          try {
+            await notifyAuctionUnsold(sellerId, id, auctionTitle);
+          } catch (err) {
+            logger.warn({ err: String(err), auctionId: id }, "expireAuctions: notifyAuctionUnsold failed");
+          }
+        })();
+      }
     }
   }
 }

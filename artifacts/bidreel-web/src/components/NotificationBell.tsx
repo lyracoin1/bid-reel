@@ -9,8 +9,12 @@
  */
 
 import { useState, useCallback } from "react";
+import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, X, ShoppingBag, Gavel, Trophy, Tag, UserPlus } from "lucide-react";
+import {
+  Bell, X, ShoppingBag, Gavel, Trophy, Tag, UserPlus,
+  Heart, Bookmark, MessageCircle, AtSign, ShieldAlert, Megaphone, XCircle,
+} from "lucide-react";
 import { useNotifications, type AppNotification, type NotificationType } from "@/hooks/use-notifications";
 
 // ─── Icon + colour per notification type ──────────────────────────────────────
@@ -19,47 +23,74 @@ const TYPE_CONFIG: Record<
   NotificationType,
   { icon: typeof Bell; colour: string; label: string }
 > = {
-  outbid: {
-    icon: Gavel,
-    colour: "text-red-400",
-    label: "Outbid",
-  },
-  auction_started: {
-    icon: Tag,
-    colour: "text-primary",
-    label: "Live",
-  },
-  auction_won: {
-    icon: Trophy,
-    colour: "text-amber-400",
-    label: "Won",
-  },
-  new_bid: {
-    icon: ShoppingBag,
-    colour: "text-emerald-400",
-    label: "New Bid",
-  },
-  new_bid_received: {
-    icon: ShoppingBag,
-    colour: "text-emerald-400",
-    label: "New Bid",
-  },
-  new_follower: {
-    icon: UserPlus,
-    colour: "text-blue-400",
-    label: "Follower",
-  },
-  auction_ending_soon: {
-    icon: Gavel,
-    colour: "text-orange-400",
-    label: "Ending Soon",
-  },
-  auction_removed: {
-    icon: Tag,
-    colour: "text-white/40",
-    label: "Removed",
-  },
+  // ── Canonical (spec) types ──────────────────────────────────────────────────
+  followed_you:              { icon: UserPlus,    colour: "text-blue-400",    label: "Follower" },
+  liked_your_auction:        { icon: Heart,       colour: "text-pink-400",    label: "Like" },
+  saved_your_auction:        { icon: Bookmark,    colour: "text-purple-400",  label: "Saved" },
+  commented_on_your_auction: { icon: MessageCircle, colour: "text-cyan-400",  label: "Comment" },
+  replied_to_your_comment:   { icon: MessageCircle, colour: "text-cyan-400",  label: "Reply" },
+  mentioned_you:             { icon: AtSign,      colour: "text-indigo-400",  label: "Mention" },
+  bid_received:              { icon: ShoppingBag, colour: "text-emerald-400", label: "New Bid" },
+  outbid:                    { icon: Gavel,       colour: "text-red-400",     label: "Outbid" },
+  auction_won:               { icon: Trophy,      colour: "text-amber-400",   label: "Won" },
+  auction_ended:             { icon: Trophy,      colour: "text-amber-400",   label: "Sold" },
+  auction_unsold:            { icon: XCircle,     colour: "text-white/50",    label: "Unsold" },
+  auction_ending_soon:       { icon: Gavel,       colour: "text-orange-400",  label: "Ending Soon" },
+  admin_message:             { icon: Megaphone,   colour: "text-yellow-300",  label: "Announcement" },
+  account_warning:           { icon: ShieldAlert, colour: "text-red-500",     label: "Warning" },
+  // ── Legacy aliases (still emitted by old rows) ──────────────────────────────
+  new_follower:     { icon: UserPlus,    colour: "text-blue-400",    label: "Follower" },
+  new_bid:          { icon: ShoppingBag, colour: "text-emerald-400", label: "New Bid" },
+  new_bid_received: { icon: ShoppingBag, colour: "text-emerald-400", label: "New Bid" },
+  auction_started:  { icon: Tag,         colour: "text-primary",     label: "Live" },
+  auction_removed:  { icon: Tag,         colour: "text-white/40",    label: "Removed" },
 };
+
+// ─── Deep-link target per notification type ──────────────────────────────────
+// Returns the route to navigate to when the row is tapped, or null when there
+// is no useful destination (e.g. admin_message with no metadata link).
+
+function getDeepLink(n: AppNotification): string | null {
+  switch (n.type) {
+    case "followed_you":
+    case "new_follower":
+      return n.actorId ? `/profile/${n.actorId}` : null;
+
+    case "liked_your_auction":
+    case "saved_your_auction":
+    case "bid_received":
+    case "new_bid_received":
+    case "new_bid":
+    case "outbid":
+    case "auction_won":
+    case "auction_ended":
+    case "auction_unsold":
+    case "auction_ending_soon":
+    case "auction_started":
+    case "auction_removed":
+      return n.auctionId ? `/auction/${n.auctionId}` : null;
+
+    case "commented_on_your_auction":
+    case "replied_to_your_comment":
+    case "mentioned_you": {
+      const commentId = (n.metadata?.["commentId"] as string | undefined);
+      if (n.auctionId && commentId) return `/auction/${n.auctionId}?comment=${commentId}`;
+      return n.auctionId ? `/auction/${n.auctionId}` : null;
+    }
+
+    case "admin_message":
+    case "account_warning": {
+      // SECURITY: only honour internal in-app paths. Anything that doesn't
+      // start with a single "/" (or that uses "//", which would be a
+      // protocol-relative URL) is dropped to prevent a malicious or
+      // compromised admin from broadcasting a phishing link.
+      const link = n.metadata?.["link"];
+      if (typeof link !== "string") return null;
+      if (!link.startsWith("/") || link.startsWith("//")) return null;
+      return link;
+    }
+  }
+}
 
 // ─── Time formatter ───────────────────────────────────────────────────────────
 
@@ -75,17 +106,32 @@ function timeAgo(iso: string): string {
 
 // ─── Single notification row ──────────────────────────────────────────────────
 
-function NotificationRow({ n }: { n: AppNotification }) {
+function NotificationRow({ n, onNavigate }: { n: AppNotification; onNavigate: (path: string) => void }) {
   const cfg = TYPE_CONFIG[n.type] ?? TYPE_CONFIG.outbid;
   const Icon = cfg.icon;
+  const target = getDeepLink(n);
+
+  const handleClick = () => {
+    if (target) onNavigate(target);
+  };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
+      onClick={handleClick}
+      role={target ? "button" : undefined}
+      tabIndex={target ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (target && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          onNavigate(target);
+        }
+      }}
       className={[
         "flex items-start gap-3 px-5 py-4 border-b border-white/6 transition-colors",
         n.read ? "opacity-50" : "bg-white/3",
+        target ? "cursor-pointer active:bg-white/8" : "",
       ].join(" ")}
     >
       {/* Type icon */}
@@ -124,6 +170,7 @@ function NotificationRow({ n }: { n: AppNotification }) {
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const { notifications, unreadCount, markAllRead } = useNotifications();
+  const [, setLocation] = useLocation();
 
   const handleOpen = useCallback(() => {
     setOpen(true);
@@ -132,6 +179,15 @@ export function NotificationBell() {
   }, [unreadCount, markAllRead]);
 
   const handleClose = useCallback(() => setOpen(false), []);
+
+  const handleNavigate = useCallback((path: string) => {
+    // getDeepLink() already filtered out any non-internal URLs, but defend in
+    // depth: only ever navigate to single-leading-slash, non-protocol-relative
+    // in-app routes.
+    if (!path.startsWith("/") || path.startsWith("//")) return;
+    setOpen(false);
+    setLocation(path);
+  }, [setLocation]);
 
   return (
     <>
@@ -229,7 +285,7 @@ export function NotificationBell() {
                     <p className="text-sm">No notifications yet</p>
                   </div>
                 ) : (
-                  notifications.map(n => <NotificationRow key={n.id} n={n} />)
+                  notifications.map(n => <NotificationRow key={n.id} n={n} onNavigate={handleNavigate} />)
                 )}
               </div>
 

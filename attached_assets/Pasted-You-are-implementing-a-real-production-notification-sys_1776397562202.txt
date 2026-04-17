@@ -1,0 +1,132 @@
+You are implementing a real production notification system for BidReel. Do not give a plan. Do not explain. Execute.
+
+## GOAL
+
+Build a complete user-centric notification system. Notifications must trigger for events that personally matter to the user.
+
+## REQUIRED NOTIFICATION TYPES
+
+Implement these exact notification types:
+
+* followed_you
+* liked_your_auction
+* saved_your_auction
+* commented_on_your_auction
+* replied_to_your_comment
+* mentioned_you
+* bid_received
+* outbid
+* auction_won
+* auction_unsold
+* auction_ended
+* auction_ending_soon
+* admin_message
+* account_warning
+
+## RULES
+
+* notifications must be created server-side, never client-side
+* no self-notifications
+* no duplicate spam for the same low-value action
+* all notifications must support in-app delivery
+* high-value notifications must support push delivery if token exists
+* each notification must include enough metadata to deep-link to the correct screen
+
+## DATABASE
+
+Ensure notifications table supports:
+
+* user_id
+* actor_id
+* type
+* title
+* body
+* auction_id
+* metadata jsonb
+* is_read
+* created_at
+
+If table already exists, extend it safely. Do not break existing data.
+
+## SERVER IMPLEMENTATION
+
+Add or complete notification creation in the exact event flows:
+
+1. follow creation
+   → notify followed user with followed_you
+
+2. auction like creation
+   → notify seller with liked_your_auction
+
+3. auction save creation
+   → notify seller with saved_your_auction
+
+4. auction comment creation
+   → notify seller with commented_on_your_auction
+
+5. comment reply creation
+   → notify parent comment author with replied_to_your_comment
+
+6. mention parsing in comments/replies
+   → notify mentioned user with mentioned_you
+
+7. bid placement
+   → notify seller with bid_received
+   → notify previous highest bidder with outbid
+
+8. auction completion
+   → notify winner with auction_won
+   → notify seller with auction_ended
+   → if no winner, notify seller with auction_unsold
+
+9. scheduled ending soon
+   → notify seller + interested bidders/watchers once only
+
+## DEDUP RULES
+
+Implement dedup for:
+
+* liked_your_auction
+* saved_your_auction
+* followed_you
+* auction_ending_soon
+
+Do not dedup:
+
+* outbid
+* bid_received
+* auction_won
+
+## FRONTEND
+
+Implement:
+
+* notifications list page
+* unread badge count
+* mark as read
+* mark all as read
+* deep-link navigation per notification type
+
+## PUSH
+
+If push token exists, send push for:
+
+* followed_you
+* bid_received
+* outbid
+* auction_won
+* auction_ending_soon
+* admin_message
+* account_warning
+
+Do not send push for low-value spammy events like every like/save unless already approved in code.
+
+## OUTPUT
+
+Return only:
+
+* files changed
+* notification types implemented
+* where each type is triggered
+* which ones are push-enabled
+* proof unread count and deep-linking work

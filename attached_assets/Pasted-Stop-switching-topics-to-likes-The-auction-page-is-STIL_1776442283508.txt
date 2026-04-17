@@ -1,0 +1,84 @@
+Stop switching topics to likes. The auction page is STILL broken on production.
+
+## REAL PRODUCTION FAILURES STILL PRESENT
+
+On the live auction page, after real bidding:
+
+1. the red warning text still appears
+2. bid history still says "No bids yet"
+3. bidder rows do not appear
+4. ranks (#1, #2, #3) do not appear
+5. highest-bidder success state does not turn green
+6. bids are not being shown transparently or ordered live
+
+So the auction/bidding fix is NOT live or NOT applied to the real production path.
+
+---
+
+## YOUR TASK
+
+Ignore likes for now. Focus only on the live auction page.
+
+Trace the actual production route and fix the real broken path.
+
+### You must verify:
+
+1. which exact component renders `/auction/:id`
+2. which exact hook provides the bid history
+3. which exact hook handles bid realtime updates
+4. which exact code chooses the red warning state
+5. which exact code decides whether to show:
+
+   * empty state
+   * bidder rows
+   * rank numbers
+   * highest-bidder green state
+
+Do not assume your previous fix touched the live path.
+
+---
+
+## REQUIRED BEHAVIOR
+
+After first successful bid:
+
+* the empty-state text must disappear immediately
+* bidder row `#1` must appear immediately
+* current user's row must appear as `You`
+* highest-bidder state must be green
+* red text must not appear unless it is a real outbid/error state
+
+After second successful bid:
+
+* bidder row `#2` must appear
+* first bidder sees outbid state
+* second bidder sees green highest-bidder state
+
+After refresh:
+
+* same bidder rows remain
+* same chronological order remains
+* same highest bidder remains
+
+---
+
+## PROVE IT
+
+Return ONLY:
+
+1. exact root cause of the live auction page still being broken
+2. exact files changed
+3. exact proof the production route was the one you fixed
+4. exact proof the empty state now disappears after first bid
+5. exact proof bidder rows now render
+6. exact proof ranks now render
+7. exact proof green highest-bidder state now appears
+8. exact proof red text is now limited to true outbid/error only
+
+## RULES
+
+* no discussion about likes
+* no discussion about future deploys without checking the real production path
+* no theory
+* no “should”
+* fix the real auction page that the user is testing

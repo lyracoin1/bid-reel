@@ -418,19 +418,44 @@ export async function notifyBidReceived(
   auctionTitle: string,
   newAmount: number,
 ): Promise<void> {
-  if (sellerId === bidderId) return;
-  const who = bidderName?.trim() || "Someone";
-  const dollars = fmtMoney(newAmount);
-  logger.info({ sellerId, auctionId, newAmount }, "notifications: bid_received");
-  await createNotification({
-    userId: sellerId,
-    type: "bid_received",
-    title: "New bid on your auction 💰",
-    body: `${who} placed a bid of ${dollars} on "${auctionTitle}"`,
-    auctionId,
-    actorId: bidderId,
-    metadata: { auctionId, actorId: bidderId, bidAmountCents: newAmount },
-  });
+  logger.info(
+    { sellerId, bidderId, auctionId, newAmount, hasBidderName: bidderName != null },
+    "push-chain[2.A]: notifyBidReceived ENTER",
+  );
+  if (sellerId === bidderId) {
+    logger.warn(
+      { sellerId, bidderId, auctionId },
+      "push-chain[2.A]: notifyBidReceived SKIP — self-notification (sellerId === bidderId)",
+    );
+    return;
+  }
+  try {
+    const who = bidderName?.trim() || "Someone";
+    const dollars = fmtMoney(newAmount);
+    logger.info(
+      { sellerId, auctionId, type: "bid_received" },
+      "push-chain[2.B]: notifyBidReceived → about to call createNotification",
+    );
+    await createNotification({
+      userId: sellerId,
+      type: "bid_received",
+      title: "New bid on your auction 💰",
+      body: `${who} placed a bid of ${dollars} on "${auctionTitle}"`,
+      auctionId,
+      actorId: bidderId,
+      metadata: { auctionId, actorId: bidderId, bidAmountCents: newAmount },
+    });
+    logger.info(
+      { sellerId, auctionId },
+      "push-chain[2.C]: notifyBidReceived → createNotification returned",
+    );
+  } catch (err) {
+    logger.error(
+      { err: err instanceof Error ? err.message : String(err), sellerId, auctionId },
+      "push-chain[2.X]: notifyBidReceived THREW",
+    );
+    throw err;
+  }
 }
 
 /** Legacy alias preserved. */

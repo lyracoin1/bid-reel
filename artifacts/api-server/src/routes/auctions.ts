@@ -1019,19 +1019,39 @@ async function executePlaceBid(
     };
   }
 
-  // 10. Fire outbid notification to the previous leader (fire-and-forget, non-fatal).
+  // 10/11. Bid notifications.
+  //
+  // IMPORTANT — these MUST be awaited, not fire-and-forget.
+  //
+  // On Vercel serverless, once this handler returns and `res.json(...)` flushes,
+  // the lambda is suspended/frozen and any detached promises (`void notifyX(...)`
+  // or `void (async () => {})()`) are killed mid-await. That is exactly why the
+  // earlier production trace showed [1] and [2.x] (which ran synchronously
+  // before the await boundary) but never [3] onward — the notification work was
+  // scheduled, then the lambda froze before `createNotification` resumed past
+  // its first `await`.
+  //
+  // We collect both notification tasks and `Promise.all` them before returning.
+  // Each task .catch's its own error so one failure can't reject the other.
+  // Cost: ~100–300ms added latency per bid POST, in exchange for actual
+  // delivery. Correctness > latency.
   const prevLeaderUserId = prevLeader ? getBidderUserId(prevLeader) : null;
   logger.info(
     { auctionId, bidderId: userId, prevLeaderUserId, sellerId: auction.seller_id, newPrice },
     "push-chain[1]: bid notification path ENTERED",
   );
+
+  const notifyTasks: Promise<unknown>[] = [];
+
   if (prevLeaderUserId && prevLeaderUserId !== userId) {
     logger.info(
       { auctionId, recipient: prevLeaderUserId, actor: userId },
       "push-chain[2.outbid]: calling notifyOutbid",
     );
-    void notifyOutbid(prevLeaderUserId, userId, auctionId, auction.title ?? "this auction", newPrice)
-      .catch(err => logger.error({ err: String(err), auctionId, recipient: prevLeaderUserId }, "push-chain[2.outbid]: notifyOutbid threw"));
+    notifyTasks.push(
+      notifyOutbid(prevLeaderUserId, userId, auctionId, auction.title ?? "this auction", newPrice)
+        .catch(err => logger.error({ err: String(err), auctionId, recipient: prevLeaderUserId }, "push-chain[2.outbid]: notifyOutbid threw")),
+    );
   } else {
     logger.info(
       { auctionId, prevLeaderUserId, bidderId: userId },
@@ -1039,34 +1059,40 @@ async function executePlaceBid(
     );
   }
 
-  // 11. Fire "new bid received" notification to the seller (fire-and-forget, non-fatal).
-  //     Step 4 already guarantees auction.seller_id !== userId, so the seller never
-  //     gets notified about their own bid. Looks up the bidder's display name for a
-  //     friendlier message; falls back to "Someone" when the lookup fails.
   if (auction.seller_id) {
     logger.info(
       { auctionId, recipient: auction.seller_id, actor: userId },
       "push-chain[2.bid_received]: calling notifyBidReceived",
     );
-    void (async () => {
-      const { data: bidderProfile } = await supabaseAdmin
-        .from("profiles")
-        .select("display_name, username")
-        .eq("id", userId)
-        .maybeSingle();
-      const bidderName = bidderProfile?.display_name ?? bidderProfile?.username ?? null;
-      await notifyBidReceived(
-        auction.seller_id,
-        userId,
-        bidderName,
-        auctionId,
-        auction.title ?? "this auction",
-        newPrice,
-      );
-    })().catch(err =>
-      logger.warn({ err: String(err), auctionId }, `${logTag}: notifyBidReceived failed`),
+    notifyTasks.push(
+      (async () => {
+        const { data: bidderProfile } = await supabaseAdmin
+          .from("profiles")
+          .select("display_name, username")
+          .eq("id", userId)
+          .maybeSingle();
+        const bidderName = bidderProfile?.display_name ?? bidderProfile?.username ?? null;
+        await notifyBidReceived(
+          auction.seller_id,
+          userId,
+          bidderName,
+          auctionId,
+          auction.title ?? "this auction",
+          newPrice,
+        );
+      })().catch(err =>
+        logger.warn({ err: String(err), auctionId }, `${logTag}: notifyBidReceived failed`),
+      ),
     );
   }
+
+  // Wait for both before returning so the serverless runtime doesn't kill
+  // them on response flush. The .catch on each task means this never rejects.
+  await Promise.all(notifyTasks);
+  logger.info(
+    { auctionId, taskCount: notifyTasks.length },
+    "push-chain[1.done]: all bid notification tasks settled",
+  );
 
   logger.info(
     { bidId: (newBid as { id: string }).id, auctionId, userId, bidIncrement, newPrice },

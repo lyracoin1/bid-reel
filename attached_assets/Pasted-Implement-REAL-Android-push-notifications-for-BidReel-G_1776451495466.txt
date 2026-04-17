@@ -1,0 +1,167 @@
+Implement REAL Android push notifications for BidReel.
+
+## GOAL
+
+I want true mobile push notifications that appear in the Android notification shade, not only inside the in-app notifications bell.
+
+This must work for the installed Android app built with Capacitor.
+
+---
+
+## REQUIRED EVENTS
+
+Implement push notifications for these high-value events first:
+
+1. outbid
+2. bid_received
+3. auction_won
+4. followed_you
+
+Optional after that:
+
+* liked_your_auction
+* saved_your_auction
+* auction_ending_soon
+* admin_message
+* account_warning
+
+Do NOT start with low-value spammy notifications only.
+
+---
+
+## PLATFORM
+
+Target:
+
+* Capacitor Android app
+* Firebase Cloud Messaging (FCM)
+
+Do not give me theory. Execute.
+
+---
+
+## PART 1 — ANDROID / CAPACITOR SETUP
+
+Set up real push support for the Android app:
+
+1. install and configure the Capacitor push notifications plugin
+2. wire Firebase Cloud Messaging correctly
+3. ensure Android project includes the required Firebase config
+4. request push permission on app startup or first eligible session
+5. register the device and obtain the FCM token
+6. handle token refresh
+7. handle foreground notification reception
+8. handle notification tap to deep-link into the correct screen
+
+---
+
+## PART 2 — DEVICE TOKEN STORAGE
+
+Build server-side token persistence.
+
+Requirements:
+
+1. create a table for push tokens if not already present
+2. store:
+
+   * user_id
+   * push token
+   * platform
+   * created_at
+   * updated_at
+   * is_active
+3. add an authenticated endpoint for registering/updating a token
+4. deactivate old tokens when needed
+5. support multiple devices per user safely
+
+Do not store push tokens only in local storage. They must be persisted server-side.
+
+---
+
+## PART 3 — SERVER PUSH SENDER
+
+Build a real push sending service.
+
+Requirements:
+
+1. create a server-side push notification sender using FCM
+2. send push only for high-value notification types
+3. include:
+
+   * title
+   * body
+   * data payload
+   * deep link target
+4. do not break in-app notifications
+5. push must be additive to existing in-app notifications, not a replacement
+
+---
+
+## PART 4 — EVENT WIRING
+
+Wire push sending into the real backend event flows.
+
+At minimum:
+
+* when seller receives a new bid → send bid_received push
+* when previous highest bidder is outbid → send outbid push
+* when winner is determined → send auction_won push
+* when someone follows a user → send followed_you push
+
+Each event must:
+
+1. create the in-app notification row
+2. then send push if the user has active tokens
+
+No self-notifications.
+No duplicate spam.
+
+---
+
+## PART 5 — APP RUNTIME BEHAVIOR
+
+In the Android app:
+
+1. if app is foregrounded:
+
+   * show in-app handling or local display behavior appropriately
+2. if app is backgrounded or closed:
+
+   * notification must appear in the real Android notification shade
+3. when user taps the notification:
+
+   * open the correct screen:
+
+     * auction detail for bid/outbid/win
+     * profile for follow
+     * notifications page if no deep target exists
+
+---
+
+## PART 6 — VALIDATION
+
+Prove the following on a real Android device:
+
+1. install app
+2. sign in
+3. device token is registered on backend
+4. another user places a bid on my auction
+5. I receive a real Android push in the notification shade
+6. tapping it opens the correct screen
+7. another user outbids me
+8. I receive outbid push
+9. app still keeps in-app bell notifications working
+
+---
+
+## PART 7 — OUTPUT
+
+Return ONLY:
+
+1. exact files changed
+2. exact DB schema / migration added
+3. exact token registration endpoint
+4. exact backend push sender implementation
+5. exact events wired to push
+6. exact Android files/config added or changed
+7. exact proof that a real device receives notification-shade push

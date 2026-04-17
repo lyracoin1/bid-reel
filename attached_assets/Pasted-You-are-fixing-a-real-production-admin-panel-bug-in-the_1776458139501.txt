@@ -1,0 +1,128 @@
+You are fixing a real production admin-panel bug in the reports screen.
+
+Do not explain. Do not give theory. Execute.
+
+## PROBLEM 1 — REPORT ROW MUST OPEN FULL DETAILS
+
+On the admin reports page, clicking a report row must open the report details view.
+
+Current broken behavior:
+
+* the report row is visible
+* but clicking it does not properly open a detailed view
+* the full report text/content is not shown clearly
+
+## REQUIRED FIX
+
+When admin clicks a report row:
+
+1. open the report details immediately
+2. show the full report text/content
+3. show all related data clearly, including:
+
+   * report reason
+   * report message/body
+   * reporter user
+   * target auction/user if applicable
+   * created date
+   * current status
+4. do not truncate the content
+5. if the text is long, render it in a scrollable details panel or modal
+6. support Arabic text correctly (RTL safe)
+
+---
+
+## PROBLEM 2 — THREE-DOTS MENU DOES NOT OPEN
+
+Current broken behavior:
+
+* clicking the three-dots button does nothing
+* no action menu appears
+
+## REQUIRED FIX
+
+When admin clicks the three-dots button on a report:
+
+1. open the action menu reliably
+2. menu must render above everything else
+3. menu must not be clipped by the table/container
+4. menu must stay visible even near the bottom/edge
+5. clicking outside closes it
+6. clicking an action runs the action correctly
+
+### Required actions in the menu
+
+At minimum include:
+
+* View details
+* Mark as reviewed / resolved
+* Reject / dismiss report
+* Delete related content (if applicable)
+* Warn user (if already supported)
+* Ban/suspend user (if already supported)
+
+If some actions are not implemented server-side yet, still make the menu open correctly and wire the actions that already exist.
+
+---
+
+## INVESTIGATION REQUIREMENTS
+
+Trace the real admin reports path and fix the actual broken layers.
+
+You must check:
+
+1. the reports page component
+2. the row click handler
+3. the details modal/panel rendering path
+4. the three-dots button click handler
+5. event propagation issues
+6. z-index / overflow clipping issues
+7. portal/popover/dropdown positioning issues
+8. whether the menu is rendering but hidden
+9. whether row click is swallowing the menu click
+10. whether RTL layout is breaking positioning
+
+Take these suspicions seriously:
+
+* the row is not wired to open details
+* the details modal is mounted but receives no selected report
+* the menu is rendered inside an overflow-hidden container
+* z-index is too low
+* stopPropagation is missing or misplaced
+* the menu opens off-screen or under another layer
+* the reports list uses stale selected state
+
+---
+
+## UI REQUIREMENTS
+
+1. clicking the row opens full details
+2. clicking the three dots opens the actions menu only
+3. row click and menu click must not conflict
+4. details must be readable on desktop and mobile widths
+5. actions menu must be usable near screen edges
+6. no clipped dropdowns inside table rows
+
+---
+
+## IMPLEMENTATION PREFERENCES
+
+* use a portal/popover rendered outside clipping containers if needed
+* fix overflow and z-index properly
+* use explicit selectedReport state
+* use explicit menuOpenForReportId state
+* prevent row-click from hijacking the menu click
+* keep the behavior production-safe and deterministic
+
+---
+
+## OUTPUT
+
+Return ONLY:
+
+1. exact root cause of row/details bug
+2. exact root cause of three-dots menu bug
+3. exact files changed
+4. exact fixes applied
+5. proof that clicking a report opens full details
+6. proof that the three-dots menu now opens and actions are visible

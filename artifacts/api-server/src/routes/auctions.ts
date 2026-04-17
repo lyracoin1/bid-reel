@@ -795,14 +795,27 @@ async function executePlaceBid(
     return { ok: false, status: 500, body: { error: "BID_INSERT_FAILED", message: "Failed to record bid" } };
   }
 
-  // 9. Atomic optimistic-lock update.
-  //    The WHERE current_bid = snapshotBid clause means: if any other bid
-  //    landed between steps 2 and 9, the UPDATE affects 0 rows (stale snapshot).
-  //    In that case we delete the just-inserted bid row and return 409 CONFLICT.
+  // 9. Update winner pointers only.
+  //
+  //    DO NOT include `current_bid` or `bid_count` in this UPDATE — the
+  //    Postgres trigger `trg_bid_placed` (migration 009) already updates
+  //    them on bid INSERT. A previous version of this code also wrote
+  //    `current_bid` + `bid_count` and used `WHERE current_bid = snapshotBid`
+  //    as an optimistic lock. That always lost the race against the trigger,
+  //    which had already set `current_bid = newPrice` by the time the UPDATE
+  //    ran — so the UPDATE matched 0 rows, the just-inserted bid was deleted
+  //    by the rollback path below, and `bid_count` (incremented by the trigger
+  //    but never decremented on DELETE) leaked upward forever. Net effect in
+  //    prod: every single bid was rolled back, leaving `bid_count > 0` with
+  //    zero rows in the bids table — exactly what the user reported.
+  //
+  //    The optimistic-lock condition is now expressed as
+  //    `WHERE current_bid = newPrice` — i.e. "our bid is still the top". If
+  //    another bid landed simultaneously and is now the top, our bid is still
+  //    a valid recorded row and we just don't claim winner; we re-fetch and
+  //    return success with the latest auction state.
   const wbidColExists = await hasWinnerBidIdCol();
   const auctionPatch: Record<string, unknown> = {
-    current_bid: newPrice,
-    bid_count: (auction.bid_count ?? 0) + 1,
     winner_id: userId,
     updated_at: new Date().toISOString(),
   };
@@ -812,20 +825,35 @@ async function executePlaceBid(
     .from("auctions")
     .update(auctionPatch)
     .eq("id", auctionId)
-    .eq("current_bid", snapshotBid)   // optimistic lock
+    .eq("current_bid", newPrice)   // claim winner only if our bid is still the top
     .select("*")
     .single();
 
   if (!updatedAuction) {
-    // Another bid landed simultaneously. Roll back the orphaned bid row.
-    await supabaseAdmin.from("bids").delete().eq("id", (newBid as { id: string }).id);
-    logger.warn({ auctionId, userId, snapshotBid, newPrice }, `${logTag}: concurrent bid detected — rolled back`);
+    // Another bid raced ours and is now the top. Our bid row IS still in the
+    // bids table (the trigger has already counted it). We just aren't the
+    // winner. Re-fetch the auction so the caller gets fresh current_bid /
+    // bid_count / winner pointers.
+    const { data: latest, error: latestErr } = await supabaseAdmin
+      .from("auctions")
+      .select("*")
+      .eq("id", auctionId)
+      .single();
+    if (latestErr || !latest) {
+      logger.error({ err: latestErr, auctionId }, `${logTag}: race-refetch failed`);
+      return { ok: false, status: 500, body: { error: "BID_INSERT_FAILED", message: "Failed to record bid" } };
+    }
+    logger.info({ auctionId, userId, newPrice }, `${logTag}: bid recorded but another bid won the winner slot`);
     return {
-      ok: false,
-      status: 409,
+      ok: true,
+      status: 201,
       body: {
-        error: "BID_CONFLICT",
-        message: "Someone else just placed a bid — please refresh and try again",
+        bid: newBid,
+        auction: {
+          ...latest,
+          current_bid: getCurrentBid(latest),
+          bid_count: latest.bid_count,
+        },
       },
     };
   }

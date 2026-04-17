@@ -19,14 +19,57 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
-// CDN base for the single-threaded UMD core. Pinned to a known-good version.
-// unpkg is the primary; jsDelivr is a fallback in case unpkg is blocked on the
-// user's network (e.g. mobile WebView on restrictive carriers).
+// Self-hosted ffmpeg core — copied from node_modules into public/ffmpeg/ by
+// the package.json `copy:ffmpeg` script (runs automatically before `dev` and
+// `build`). Served from the SAME ORIGIN as the app, which eliminates every
+// class of CDN failure we previously hit:
+//   • unpkg / jsdelivr unreachable on MENA mobile carriers (Saudi STC,
+//     Vodafone Egypt, Etisalat) — the BidReel target market.
+//   • Cross-origin Blob conversion blocked in older Android System WebViews.
+//   • CORS preflight failing under Capacitor's `https://localhost` origin.
+//   • Generic CDN outages / latency.
+//
+// BASE_URL handles both the standalone deploy ("/") and any sub-path mount
+// (e.g. Replit's "/bidreel-web/"). Capacitor builds set BASE_PATH=/ at build
+// time, so the file resolves to a relative path inside the WebView bundle.
+const ffmpegBase = `${import.meta.env.BASE_URL}ffmpeg/`;
+const coreURLLocal = `${ffmpegBase}ffmpeg-core.js`;
+const wasmURLLocal = `${ffmpegBase}ffmpeg-core.wasm`;
+
+// CDN fallbacks — only consulted if the self-hosted asset somehow fails
+// (e.g. the build pipeline didn't copy it). Pinned to the same version we
+// bundle locally so the UMD JS and the WASM binary always match.
 const FFMPEG_CORE_VERSION = "0.12.6";
 const CORE_CDNS = [
   `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/umd`,
   `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/umd`,
 ];
+
+// Hard ceiling on a single core+wasm load attempt. Without this, a stalled
+// fetch on a flaky mobile network hangs forever and the user sees only a
+// generic "Preparing video…" spinner. With it, we surface a clear error and
+// fall through to raw upload after at most 20 s.
+const LOAD_ATTEMPT_TIMEOUT_MS = 20_000;
+
+// Global wall-clock budget across the whole load (all sources combined).
+// Prevents a worst case of self-hosted-fail (20s) + unpkg-fail (40s) +
+// jsdelivr-fail (40s) ≈ 100s, which still feels like a hang to the user.
+// We bail out and let the raw-upload fallback kick in instead.
+const LOAD_GLOBAL_BUDGET_MS = 35_000;
+
+/** Reject a promise after `ms` if it hasn't settled. */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(
+      () => reject(new Error(`${label} timed out after ${ms}ms`)),
+      ms,
+    );
+    p.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); },
+    );
+  });
+}
 
 /** Thrown when ffmpeg.wasm fails to load from every CDN. Callers can catch
  *  this to fall back to raw upload without compression. */
@@ -50,28 +93,70 @@ async function getFFmpeg(): Promise<FFmpeg> {
   loadingPromise = (async () => {
     const ff = new FFmpeg();
 
-    // Mirror the core + wasm into Blob URLs so the worker can `importScripts`
-    // them under the page's own origin (works around any cross-origin worker
-    // restrictions in mobile WebViews). Try each CDN in order — if one is
-    // blocked / down, move to the next.
+    // Build the source list: self-hosted asset URLs first (same-origin,
+    // hashed by Vite, no CORS, no third-party reachability concerns), then
+    // CDN fallbacks if the local URLs unexpectedly 404 (e.g. asset stripped
+    // by a misconfigured deploy pipeline).
+    const sources: Array<{ label: string; coreSrc: string; wasmSrc: string }> = [
+      { label: "self-hosted", coreSrc: coreURLLocal, wasmSrc: wasmURLLocal },
+      ...CORE_CDNS.map((base) => ({
+        label: base,
+        coreSrc: `${base}/ffmpeg-core.js`,
+        wasmSrc: `${base}/ffmpeg-core.wasm`,
+      })),
+    ];
+
     let lastErr: unknown = null;
-    for (const base of CORE_CDNS) {
+    const globalDeadline = performance.now() + LOAD_GLOBAL_BUDGET_MS;
+    for (const { label, coreSrc, wasmSrc } of sources) {
+      const remaining = globalDeadline - performance.now();
+      if (remaining <= 0) {
+        console.warn(
+          `[video-compressor] ⏱ global ${LOAD_GLOBAL_BUDGET_MS}ms budget exhausted, skipping remaining sources`,
+        );
+        break;
+      }
+      // Cap this attempt at min(per-attempt timeout, remaining global budget)
+      // so a slow source can't burn the entire budget on its own.
+      const attemptTimeoutMs = Math.min(LOAD_ATTEMPT_TIMEOUT_MS, remaining);
+      const startedAt = performance.now();
       try {
-        const [coreURL, wasmURL] = await Promise.all([
-          toBlobURL(`${base}/ffmpeg-core.js`,   "text/javascript"),
-          toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
-        ]);
-        await ff.load({ coreURL, wasmURL });
+        // Mirror the core + wasm into Blob URLs so the worker can
+        // `importScripts` them under the page's own origin. Wrap in a hard
+        // timeout so a stalled fetch on a flaky mobile network never traps
+        // the user behind an infinite spinner.
+        const [coreURL, wasmURL] = await withTimeout(
+          Promise.all([
+            toBlobURL(coreSrc, "text/javascript"),
+            toBlobURL(wasmSrc, "application/wasm"),
+          ]),
+          attemptTimeoutMs,
+          `ffmpeg core fetch from ${label}`,
+        );
+        const remainingForInit = Math.max(
+          1_000,
+          globalDeadline - performance.now(),
+        );
+        await withTimeout(
+          ff.load({ coreURL, wasmURL }),
+          Math.min(LOAD_ATTEMPT_TIMEOUT_MS, remainingForInit),
+          `ffmpeg worker init (${label})`,
+        );
         ffmpegInstance = ff;
-        console.log(`[video-compressor] ✅ ffmpeg core loaded from ${base}`);
+        const ms = Math.round(performance.now() - startedAt);
+        console.log(`[video-compressor] ✅ ffmpeg core loaded from ${label} in ${ms}ms`);
         return ff;
       } catch (err) {
-        console.warn(`[video-compressor] ⚠️ ffmpeg core load failed from ${base}:`, err);
+        const ms = Math.round(performance.now() - startedAt);
+        console.warn(
+          `[video-compressor] ⚠️ ffmpeg core load failed from ${label} after ${ms}ms:`,
+          err,
+        );
         lastErr = err;
       }
     }
     throw new FFmpegLoadError(
-      `Failed to load ffmpeg core from any CDN (${CORE_CDNS.join(", ")})`,
+      `Failed to load ffmpeg core from any source (self-hosted + ${CORE_CDNS.length} CDN fallbacks)`,
       lastErr,
     );
   })();

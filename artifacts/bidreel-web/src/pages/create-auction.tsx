@@ -337,7 +337,12 @@ export default function CreateAuction() {
         //      fits the 20 MB server cap, fall back to the original file so
         //      the user can still publish. The UI tells them compression
         //      was skipped instead of failing silently.
-        setUploadProgress(lang === "ar" ? "جارٍ تجهيز الفيديو…" : "Preparing video…");
+        // Initial label covers the ffmpeg core load phase (up to a one-time
+        // ~32 MB download on first use). The onProgress handler below switches
+        // to the per-percent transcoding label as soon as encoding begins.
+        setUploadProgress(lang === "ar"
+          ? "جارٍ تجهيز أداة الضغط (لمرة واحدة)…"
+          : "Preparing optimizer (one-time setup)…");
         let result: Awaited<ReturnType<typeof compressVideoWithFallback>>;
         try {
           result = await compressVideoWithFallback(videoFile, {

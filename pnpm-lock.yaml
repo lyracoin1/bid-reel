@@ -466,6 +466,9 @@ importers:
       '@capacitor/splash-screen':
         specifier: ^8.0.1
         version: 8.0.1(@capacitor/core@8.3.0)
+      '@ffmpeg/core':
+        specifier: 0.12.6
+        version: 0.12.6
       '@ffmpeg/ffmpeg':
         specifier: ^0.12.15
         version: 0.12.15
@@ -1249,6 +1252,10 @@ packages:
 
   '@fastify/busboy@3.2.0':
     resolution: {integrity: sha512-m9FVDXU3GT2ITSe0UaMA5rU3QkfC/UXtCU8y0gSN/GugTqtVldOBWIB5V6V3sbmenVZUIpU6f+mPEO2+m5iTaA==}
+
+  '@ffmpeg/core@0.12.6':
+    resolution: {integrity: sha512-PrjWBTfGn2WVn9T7wGnzfFwChbqWeZc7tM9vvJZVRadYFUDakfzy7W0LpYC0cvvK0xT82qlBsk38lQhJ/Hps5A==}
+    engines: {node: '>=16.x'}
 
   '@ffmpeg/ffmpeg@0.12.15':
     resolution: {integrity: sha512-1C8Obr4GsN3xw+/1Ww6PFM84wSQAGsdoTuTWPOj2OizsRDLT4CXTaVjPhkw6ARyDus1B9X/L2LiXHqYYsGnRFw==}
@@ -5761,6 +5768,8 @@ snapshots:
   '@fastify/busboy@2.1.1': {}
 
   '@fastify/busboy@3.2.0': {}
+
+  '@ffmpeg/core@0.12.6': {}
 
   '@ffmpeg/ffmpeg@0.12.15':
     dependencies:

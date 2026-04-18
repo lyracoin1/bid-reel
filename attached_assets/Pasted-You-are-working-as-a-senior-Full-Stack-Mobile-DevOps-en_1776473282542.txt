@@ -1,0 +1,101 @@
+You are working as a senior Full-Stack + Mobile + DevOps engineer on the BidReel project.
+
+Do NOT guess. Do NOT suggest. Do NOT add features. Work only on the current code.
+
+## Current confirmed state
+
+* In-app notifications: working
+* Firebase Admin SDK: working
+* `public.user_devices` table: exists and working
+* Tokens were previously stored
+* Latest Vercel logs show:
+
+push-chain[5]: token lookup START
+push-chain[6]: token lookup OK
+tokenCount: 0
+push-chain[6.E]: NO TOKENS for recipient
+
+This means:
+The system reached push fanout, but no device tokens exist for the recipient.
+So the problem is NOT Firebase send.
+The problem is token registration on the mobile side.
+
+## Your task (strict)
+
+Fix the device token registration pipeline end-to-end.
+
+### 1) Verify Android token lifecycle
+
+Check and FIX if needed:
+
+* `PushNotifications.requestPermissions()` is called
+* `PushNotifications.register()` is called
+* `registration` listener is firing
+* `token.value` is actually received from FCM
+
+### 2) Ensure token is sent to backend AFTER login
+
+Critical:
+
+* Token must NOT be sent before auth session is ready
+* Must include valid Supabase access token
+
+Fix flow if needed:
+
+* wait for auth session
+* then register push
+* then send token
+
+### 3) Verify API call to backend
+
+Ensure a real request is sent:
+
+POST /api/devices
+
+Body:
+{
+"token": "...",
+"platform": "android"
+}
+
+Headers:
+Authorization: Bearer <access_token>
+
+### 4) Fix backend if needed
+
+Verify:
+
+* Route `/api/devices` exists
+* It inserts or upserts into `public.user_devices`
+* It binds `user_id` from auth (NOT from body)
+* No silent failures
+* Proper logging on insert
+
+### 5) Add HARD logs (required)
+
+Add logs:
+
+* when token is received on device
+* before sending to backend
+* after backend response
+* on backend insert success
+
+### 6) Final requirement
+
+After your fix:
+
+* A fresh install + login must result in:
+  → one valid row in `user_devices`
+  → correct user_id
+  → platform = android
+  → non-empty token
+
+DO NOT move to Firebase sending.
+DO NOT touch notifications logic.
+ONLY fix token registration until DB is correct.
+
+When done, output:
+
+* exact files changed
+* exact code added
+* confirmation that token is now stored correctly

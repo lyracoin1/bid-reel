@@ -778,12 +778,15 @@ export async function deleteAuctionApi(auctionId: string): Promise<void> {
 export async function registerDeviceToken(
   token: string,
   platform: "web" | "ios" | "android" = "web",
-): Promise<void> {
+): Promise<boolean> {
   const authToken = await getToken();
-  if (!authToken) return;
+  if (!authToken) {
+    console.warn("[api-client] registerDeviceToken: no auth token — skipping");
+    return false;
+  }
 
   try {
-    await fetch(`${API_BASE}/notifications/register-device`, {
+    const res = await fetch(`${API_BASE}/notifications/register-device`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -791,8 +794,18 @@ export async function registerDeviceToken(
       },
       body: JSON.stringify({ token, platform }),
     });
-  } catch {
-    console.warn("[api-client] registerDeviceToken failed — server unreachable");
+    if (!res.ok) {
+      const bodyText = await res.text().catch(() => "");
+      console.warn("[api-client] registerDeviceToken: server returned non-2xx", {
+        status: res.status,
+        body: bodyText.slice(0, 200),
+      });
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("[api-client] registerDeviceToken failed — server unreachable", err);
+    return false;
   }
 }
 

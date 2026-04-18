@@ -29,6 +29,12 @@ import {
 import { registerDeviceToken } from "@/lib/api-client";
 import { initNativeFcm } from "@/lib/native-fcm";
 import { useNotificationBanner } from "@/contexts/NotificationBannerContext";
+import { supabase } from "@/lib/supabase";
+
+// Module-level cache so we can re-send the same FCM token to the backend on
+// SIGNED_IN without re-running the (heavy) native plugin init.
+let lastFcmToken: string | null = null;
+let lastRegisteredForUserId: string | null = null;
 
 export function useFcmToken(): void {
   const [, navigate] = useLocation();
@@ -43,11 +49,40 @@ export function useFcmToken(): void {
   useEffect(() => { showBannerRef.current = showBanner; }, [showBanner]);
 
   useEffect(() => {
+    // Helper: actually call the backend, but ONLY if we have a session.
+    // No-op + log otherwise (the auth listener below will retry on SIGNED_IN).
+    async function tryRegister(token: string, platform: "android" | "ios" | "web", trigger: string) {
+      lastFcmToken = token;
+      const session = supabase ? (await supabase.auth.getSession()).data.session : null;
+      if (!session?.access_token) {
+        console.info(
+          "[fcm] token received but NO auth session yet — deferring backend register until SIGNED_IN",
+          { trigger, tokenPrefix: token.slice(0, 24) + "…" },
+        );
+        return;
+      }
+      const userId = session.user.id;
+      console.info("[fcm] registering token with backend", {
+        trigger,
+        userId,
+        platform,
+        tokenPrefix: token.slice(0, 24) + "…",
+      });
+      const ok = await registerDeviceToken(token, platform);
+      if (ok) {
+        lastRegisteredForUserId = userId;
+        console.info("[fcm] backend register OK", { userId, platform });
+      } else {
+        console.warn("[fcm] backend register FAILED — will retry on next auth/token event", { userId });
+      }
+    }
+
     // ── Native path (Android / iOS) ─────────────────────────────────────────
     if (Capacitor.isNativePlatform()) {
+      const platform: "android" | "ios" = Capacitor.getPlatform() === "ios" ? "ios" : "android";
       void initNativeFcm({
         onToken: async (token) => {
-          await registerDeviceToken(token, "android");
+          await tryRegister(token, platform, "onToken");
         },
         onForegroundNotification: ({ title, body }) => {
           showBannerRef.current({ name: title, message: body });
@@ -62,7 +97,26 @@ export function useFcmToken(): void {
           }
         },
       });
-      return;
+
+      // Retry registration whenever auth state changes — covers the common
+      // case where FCM init runs at app launch (cold start, no session) and
+      // the user signs in seconds later. Without this listener the device
+      // token would never reach the backend on the first install.
+      let unsubAuth: (() => void) | undefined;
+      if (supabase) {
+        const { data } = supabase.auth.onAuthStateChange((event, session) => {
+          if (event === "SIGNED_OUT") {
+            lastRegisteredForUserId = null;
+            return;
+          }
+          if (!session?.user?.id || !lastFcmToken) return;
+          if (lastRegisteredForUserId === session.user.id) return; // already done
+          console.info("[fcm] auth state change — retrying device register", { event, userId: session.user.id });
+          void tryRegister(lastFcmToken, platform, `auth:${event}`);
+        });
+        unsubAuth = () => data.subscription.unsubscribe();
+      }
+      return () => { if (unsubAuth) unsubAuth(); };
     }
 
     // ── Web browser path ────────────────────────────────────────────────────
@@ -78,12 +132,31 @@ export function useFcmToken(): void {
       return;
     }
 
-    void initWebFcm();
+    void initWebFcm((token, _platform, trigger) => tryRegister(token, "web", trigger));
+
+    // Same SIGNED_IN retry on web.
+    let unsubAuth: (() => void) | undefined;
+    if (supabase) {
+      const { data } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === "SIGNED_OUT") {
+          lastRegisteredForUserId = null;
+          return;
+        }
+        if (!session?.user?.id || !lastFcmToken) return;
+        if (lastRegisteredForUserId === session.user.id) return;
+        console.info("[fcm] auth state change (web) — retrying device register", { event, userId: session.user.id });
+        void tryRegister(lastFcmToken, "web", `auth:${event}`);
+      });
+      unsubAuth = () => data.subscription.unsubscribe();
+    }
+    return () => { if (unsubAuth) unsubAuth(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 }
 
-async function initWebFcm(): Promise<void> {
+async function initWebFcm(
+  onToken: (token: string, platform: "web", trigger: string) => Promise<void> | void,
+): Promise<void> {
   try {
     // 1. Request notification permission
     const permission = await Notification.requestPermission();

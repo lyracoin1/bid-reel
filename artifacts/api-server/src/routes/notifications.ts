@@ -260,7 +260,10 @@ router.post("/notifications/register-device", async (req, res) => {
     return;
   }
 
-  logger.debug({ userId, platform }, "FCM device token registered");
+  logger.info(
+    { userId, platform, tokenPrefix: token.slice(0, 24) + "…" },
+    "register-device: FCM token upserted into user_devices",
+  );
   res.json({ success: true });
 });
 

@@ -27,6 +27,10 @@ export function useViewTracker(args: {
 }) {
   const { auctionId, active, source = "feed" } = args;
 
+  // [VIEW TRACK] DEBUG — fires on every render of every FeedCard. Confirms the
+  // hook is mounted at all and shows the live `active` flag from the parent.
+  console.log("[VIEW TRACK]", { auctionId, active });
+
   // Mutable timing state (ref so re-renders don't reset it).
   const startedAtRef    = useRef<number | null>(null); // perf-clock when active+visible
   const accumulatedRef  = useRef<number>(0);           // ms collected this session
@@ -50,28 +54,37 @@ export function useViewTracker(args: {
     endInterval();
     const watchMs = Math.round(accumulatedRef.current);
     accumulatedRef.current = 0;
-    if (sentRef.current) return;          // never POST twice for one session
-    if (watchMs <= 0) return;             // nothing to report
-    sentRef.current = true;
-    void reportViewApi(auctionId, { watchMs, source }).catch(() => { /* swallow */ });
-    if (typeof console !== "undefined" && console.debug) {
-      console.debug(`[view-tracker] flush: auction=${auctionId} watchMs=${watchMs} reason=${reason}`);
+    if (sentRef.current) {
+      console.log("[VIEW FLUSH SKIP]", { auctionId, reason, why: "already_sent" });
+      return;                              // never POST twice for one session
     }
+    if (watchMs <= 0) {
+      console.log("[VIEW FLUSH SKIP]", { auctionId, reason, why: "watchMs<=0", watchMs });
+      return;                              // nothing to report
+    }
+    sentRef.current = true;
+    console.log("[VIEW API CALL]", auctionId, { watchMs, reason, source });
+    void reportViewApi(auctionId, { watchMs, source })
+      .then((r) => console.log("[VIEW API OK]", auctionId, r))
+      .catch((e) => console.warn("[VIEW API ERR]", auctionId, e));
   };
 
   // ── Lifecycle: respond to `active` flag from parent ────────────────────────
   useEffect(() => {
     if (!active) {
       // Becoming inactive → flush the session.
+      console.log("[VIEW EFFECT] inactive branch", { auctionId });
       flush("inactive");
       return;
     }
 
     // Becoming active → reset session and start measuring (only if visible).
+    const vis = typeof document === "undefined" ? "visible" : document.visibilityState;
+    console.log("[VIEW EFFECT] active branch", { auctionId, visibility: vis });
     accumulatedRef.current = 0;
     sentRef.current = false;
     startedAtRef.current = null;
-    if (typeof document === "undefined" || document.visibilityState === "visible") {
+    if (vis === "visible") {
       beginInterval();
     }
 

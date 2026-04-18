@@ -52,20 +52,33 @@ export function useViewTracker(args: {
 
   const flush = (reason: string) => {
     endInterval();
-    const watchMs = Math.round(accumulatedRef.current);
+    const rawMs   = Math.round(accumulatedRef.current);
+    // FORCE: if no time was actually accumulated (e.g. visibility never flipped
+    // to "visible", or StrictMode double-mount swallowed the first interval),
+    // still send a synthetic 2500ms so we can verify the network/db end-to-end.
+    const watchMs = rawMs > 0 ? rawMs : 2500;
     accumulatedRef.current = 0;
-    if (sentRef.current) {
-      console.log("[VIEW FLUSH SKIP]", { auctionId, reason, why: "already_sent" });
-      return;                              // never POST twice for one session
-    }
-    if (watchMs <= 0) {
-      console.log("[VIEW FLUSH SKIP]", { auctionId, reason, why: "watchMs<=0", watchMs });
-      return;                              // nothing to report
-    }
+
+    console.log("[VIEW FLUSH CHECK]", {
+      auctionId,
+      reason,
+      rawMs,
+      forcedWatchMs: watchMs,
+      hasStartTime:  startedAtRef.current != null,
+      alreadySent:   sentRef.current,
+      active,
+    });
+
+    // ── DEBUG MODE: ALL GUARDS DISABLED ────────────────────────────────────
+    // Normal guards (commented out — restore after DB confirms it's writing):
+    //   if (sentRef.current)  return;   // dedupe within one active session
+    //   if (watchMs <= 0)     return;   // nothing measured
     sentRef.current = true;
+
+    console.log("[FORCE VIEW SEND]", auctionId, watchMs);
     console.log("[VIEW API CALL]", auctionId, { watchMs, reason, source });
     void reportViewApi(auctionId, { watchMs, source })
-      .then((r) => console.log("[VIEW API OK]", auctionId, r))
+      .then((r) => console.log("[VIEW API RESULT]", auctionId, r))
       .catch((e) => console.warn("[VIEW API ERR]", auctionId, e));
   };
 

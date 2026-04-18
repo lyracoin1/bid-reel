@@ -241,6 +241,16 @@ export interface AdminAuction {
   notInterestedCount: number;
   /** Number of users who have saved this auction. */
   saveCount: number;
+  /** Raw card-on-screen impressions (every accepted POST /view call). */
+  impressionsCount: number;
+  /** Public "views" — server-decided qualified views (≥2s, deduped 30 min). */
+  qualifiedViewsCount: number;
+  /** Qualified views where the viewer also liked / saved / bid / opened detail. */
+  engagedViewsCount: number;
+  /** Distinct viewers ever (user_id when logged-in, else session_id). */
+  uniqueViewersCount: number;
+  /** ISO timestamp of the most recent accepted view event. */
+  lastViewedAt: string | null;
 }
 
 export async function adminGetAuctions(): Promise<AdminAuction[]> {

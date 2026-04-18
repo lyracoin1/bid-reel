@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   Loader2, AlertCircle, Gavel, MoreHorizontal, EyeOff, Trash2, CheckCircle, Search, X,
-  ThumbsUp, ThumbsDown, Bookmark, ChevronUp, ChevronDown, ChevronsUpDown,
+  ThumbsUp, ThumbsDown, Bookmark, Eye, ChevronUp, ChevronDown, ChevronsUpDown,
   TrendingUp, Clock, User, Tag, DollarSign, ChevronLeft, Minus,
 } from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
@@ -45,6 +45,14 @@ function formatDateTime(iso: string | null) {
     month: "short", day: "numeric", year: "numeric",
     hour: "numeric", minute: "2-digit",
   });
+}
+
+/** Compact view-count formatter. 1234 → "1.2K", 1_234_567 → "1.2M". */
+function formatViewCount(n: number): string {
+  if (!n) return "0";
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0).replace(/\.0$/, "")}K`;
+  return `${(n / 1_000_000).toFixed(n < 10_000_000 ? 1 : 0).replace(/\.0$/, "")}M`;
 }
 
 function formatPrice(n: number, currencyCode = "USD") {
@@ -583,6 +591,9 @@ export default function Auctions() {
                 <th className="text-left px-4 py-3 font-semibold">
                   <span title="مهتم · غير مهتم · محفوظات">التفاعل</span>
                 </th>
+                <th className="text-left px-4 py-3 font-semibold">
+                  <span title="مشاهدات مؤهلة · مشاهدون فريدون · مشاهدات تفاعلية">المشاهدات</span>
+                </th>
                 <th
                   className="text-left px-4 py-3 font-semibold cursor-pointer hover:text-gray-200 select-none transition-colors"
                   onClick={() => toggleSort("createdAt")}
@@ -649,6 +660,24 @@ export default function Auctions() {
                           </span>
                         )}
                       </div>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      {/* Views: qualified · unique · engaged. Hidden when zero across the board. */}
+                      {(a.qualifiedViewsCount + a.uniqueViewersCount + a.engagedViewsCount) > 0 ? (
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="flex items-center gap-1 text-violet-400 text-xs font-semibold tabular-nums" title="مشاهدات مؤهلة (≥2 ثانية)">
+                            <Eye size={11} /> {formatViewCount(a.qualifiedViewsCount)}
+                          </span>
+                          <span className="flex items-center gap-1 text-indigo-300/80 text-xs font-semibold tabular-nums" title="مشاهدون فريدون">
+                            <User size={11} /> {formatViewCount(a.uniqueViewersCount)}
+                          </span>
+                          <span className="flex items-center gap-1 text-amber-300/80 text-xs font-semibold tabular-nums" title="مشاهدات تفاعلية (لايك / حفظ / مزايدة)">
+                            <TrendingUp size={11} /> {formatViewCount(a.engagedViewsCount)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-600">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3.5 text-gray-400 text-xs">{formatDate(a.createdAt)}</td>
                     <td className="px-4 py-3.5 text-gray-400 text-xs">{formatDate(a.endsAt)}</td>

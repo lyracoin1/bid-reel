@@ -38,4 +38,6 @@ export interface Auction {
   currencyLabel?: string | null;
   /** The current user's saved signal for this auction, or null if they haven't signaled. */
   userSignal?: "interested" | "not_interested" | null;
+  /** Public qualified-views count (server-decided; ≥2s watch, deduped per viewer / 30 min). */
+  views?: number;
 }

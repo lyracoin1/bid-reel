@@ -15,6 +15,7 @@ import { supabaseAdmin } from "../lib/supabase";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
 import { notifyLikedYourAuction } from "../lib/notifications";
+import { recordEngagement } from "./views";
 
 const router = Router();
 
@@ -96,6 +97,10 @@ router.post("/auctions/:auctionId/like", requireAuth, async (req, res) => {
   // this user, never to themselves. The helper double-checks self + dedup.
   const sellerId = (auction as { seller_id?: string | null }).seller_id ?? null;
   const auctionTitle = (auction as { title?: string | null }).title ?? "your auction";
+  // Mark this viewer's most recent qualified view (≤30 min) as engaged.
+  // Fire-and-forget — does not block the response and never throws.
+  void recordEngagement({ auctionId, userId: callerId, sessionId: null, action: "like" });
+
   if (isFreshLike && sellerId && sellerId !== callerId) {
     void (async () => {
       const { data: likerProfile } = await supabaseAdmin

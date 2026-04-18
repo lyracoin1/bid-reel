@@ -13,6 +13,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { supabaseAdmin } from "../lib/supabase";
 import { logger } from "../lib/logger";
 import { notifySavedYourAuction } from "../lib/notifications";
+import { recordEngagement } from "./views";
 
 const router: IRouter = Router();
 
@@ -177,6 +178,10 @@ router.post("/auctions/:auctionId/save", requireAuth, async (req, res) => {
   // user, never to themselves. Dedup is also enforced inside the helper.
   const sellerId = (auction as { seller_id?: string | null }).seller_id ?? null;
   const auctionTitle = (auction as { title?: string | null }).title ?? "your auction";
+  // Mark this viewer's most recent qualified view (≤30 min) as engaged.
+  // Fire-and-forget — does not block the response and never throws.
+  void recordEngagement({ auctionId, userId: callerId, sessionId: null, action: "save" });
+
   if (!wasAlreadySaved && sellerId && sellerId !== callerId) {
     void (async () => {
       const { data: saverProfile } = await supabaseAdmin

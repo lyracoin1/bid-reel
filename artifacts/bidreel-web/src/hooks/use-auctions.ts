@@ -122,6 +122,7 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
     type: videoUrl ? 'video' : 'album',
     seller: apiProfileToUser(raw.seller, raw.seller_id),
     likes: r.like_count ?? 0,
+    views: r.views_count ?? 0,
     bidCount: r.bid_count ?? 0,
     bids: bids.map(apiBidToFrontend),
     isLikedByMe: r.is_liked_by_me === true,

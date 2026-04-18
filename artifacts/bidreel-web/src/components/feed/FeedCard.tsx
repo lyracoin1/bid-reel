@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { Gavel, Bell, MapPin, Volume2, VolumeX, Bookmark, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Gavel, Bell, MapPin, Volume2, VolumeX, Bookmark, ThumbsUp, ThumbsDown, Eye } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type Auction } from "@/lib/mock-data";
 import { cn, getPublicBaseUrl } from "@/lib/utils";
@@ -18,7 +18,15 @@ import type { AuctionState } from "@/lib/utils";
 import { useViewerLocation } from "@/hooks/use-viewer-location";
 import { haversineDistance, formatDistance, formatAuctionPrice } from "@/lib/geo";
 import { sendSignalApi, removeSignalApi, type ContentSignal } from "@/lib/api-client";
+import { useViewTracker } from "@/hooks/use-view-tracker";
 import { useGlobalMute, getGlobalMuted } from "@/lib/global-mute";
+
+/** Compact view-count formatter. 1234 → "1.2K", 1_234_567 → "1.2M". */
+function formatViewCount(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0).replace(/\.0$/, "")}K`;
+  return `${(n / 1_000_000).toFixed(n < 10_000_000 ? 1 : 0).replace(/\.0$/, "")}M`;
+}
 
 function AlbumIcon({ size = 20 }: { size?: number }) {
   return (
@@ -120,6 +128,13 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
       void sendSignalApi(auction.id, s);
     }
   }, [localSignal, auction.id]);
+
+  // ── View tracking ─────────────────────────────────────────────────────────
+  // Measures real on-screen watch time only while this card is the active
+  // (centred) one in the feed AND the tab is visible. Reports raw ms to the
+  // server on every transition out of active / on tab hide / on page unload.
+  // The server decides what counts as a qualified view (≥2s + 30-min dedupe).
+  useViewTracker({ auctionId: auction.id, active: isActive, source: "feed" });
 
   // Global mute — shared across all videos, persisted to localStorage.
   const [isMuted, setMuted] = useGlobalMute();
@@ -530,12 +545,24 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
           </div>
         )}
 
-        {distanceText && (
-          <div className="flex items-center gap-1 mt-0.5">
-            <MapPin size={11} className="text-white/40 shrink-0" />
-            <span className="text-[11px] font-medium text-white/40">{distanceText}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-3 mt-0.5">
+          {distanceText && (
+            <div className="flex items-center gap-1">
+              <MapPin size={11} className="text-white/40 shrink-0" />
+              <span className="text-[11px] font-medium text-white/40">{distanceText}</span>
+            </div>
+          )}
+          {/* Public views (qualified). Hidden for ≤0 to avoid showing "0 views"
+              on brand-new auctions that haven't been seen yet. */}
+          {(auction.views ?? 0) > 0 && (
+            <div className="flex items-center gap-1" aria-label={`${auction.views} views`}>
+              <Eye size={11} className="text-white/40 shrink-0" />
+              <span className="text-[11px] font-medium text-white/40 tabular-nums">
+                {formatViewCount(auction.views!)}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Signal strip: Interested / Not Interested ─────────────────────── */}

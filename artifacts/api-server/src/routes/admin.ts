@@ -330,7 +330,7 @@ adminRouter.delete("/users/:id", async (req, res) => {
 
 adminRouter.get("/auctions", async (_req, res) => {
   try {
-    const [{ data, error }, { data: signalRows }, { data: saveRows }] = await Promise.all([
+    const [{ data, error }, { data: signalRows }, { data: saveRows }, { data: viewRows, error: viewErr }] = await Promise.all([
       supabaseAdmin
         .from("auctions")
         .select("*, seller:profiles!seller_id(id, display_name)")
@@ -342,7 +342,16 @@ adminRouter.get("/auctions", async (_req, res) => {
       supabaseAdmin
         .from("saved_auctions")
         .select("auction_id"),
+      // Pre-aggregated view counters (impressions / qualified / engaged / unique).
+      // Missing rows just yield zero for that auction.
+      supabaseAdmin
+        .from("auction_view_stats")
+        .select("auction_id, impressions_count, qualified_views_count, engaged_views_count, unique_viewers_count, last_viewed_at"),
     ]);
+
+    if (viewErr) {
+      logger.warn({ err: viewErr.message }, "GET /admin/auctions: view_stats lookup failed (returning zeros)");
+    }
 
     if (error) throw error;
 
@@ -361,6 +370,21 @@ adminRouter.get("/auctions", async (_req, res) => {
     for (const s of saveRows ?? []) {
       const aId = s["auction_id"] as string;
       saveMap[aId] = (saveMap[aId] ?? 0) + 1;
+    }
+
+    // Map view counters per auction
+    const viewMap: Record<string, {
+      impressions: number; qualified: number; engaged: number; unique: number; lastViewedAt: string | null;
+    }> = {};
+    for (const v of viewRows ?? []) {
+      const aId = v["auction_id"] as string;
+      viewMap[aId] = {
+        impressions:  (v["impressions_count"]     as number | null) ?? 0,
+        qualified:    (v["qualified_views_count"] as number | null) ?? 0,
+        engaged:      (v["engaged_views_count"]   as number | null) ?? 0,
+        unique:       (v["unique_viewers_count"]  as number | null) ?? 0,
+        lastViewedAt: (v["last_viewed_at"]        as string | null) ?? null,
+      };
     }
 
     const auctions = (data ?? []).map((row: Record<string, unknown>) => {
@@ -386,6 +410,11 @@ adminRouter.get("/auctions", async (_req, res) => {
         interestedCount: signalMap[aId]?.interested ?? 0,
         notInterestedCount: signalMap[aId]?.not_interested ?? 0,
         saveCount: saveMap[aId] ?? 0,
+        impressionsCount:    viewMap[aId]?.impressions  ?? 0,
+        qualifiedViewsCount: viewMap[aId]?.qualified    ?? 0,
+        engagedViewsCount:   viewMap[aId]?.engaged      ?? 0,
+        uniqueViewersCount:  viewMap[aId]?.unique       ?? 0,
+        lastViewedAt:        viewMap[aId]?.lastViewedAt ?? null,
       };
     });
 

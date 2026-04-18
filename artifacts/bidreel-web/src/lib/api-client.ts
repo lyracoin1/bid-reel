@@ -155,6 +155,9 @@ export interface ApiAuctionRaw {
   thumbnail_url: string | null;
   bid_count: number;
   like_count: number;
+  /** Public qualified-views count (server-decided). May be absent on legacy
+   *  servers; treat undefined as 0 in the UI. */
+  views_count?: number;
   status: string;
   starts_at: string | null;
   ends_at: string;
@@ -987,6 +990,69 @@ export async function unlikeAuctionApi(auctionId: string): Promise<ApiLikeResult
     throw new Error(err.message ?? "Failed to unlike auction");
   }
   return res.json() as Promise<ApiLikeResult>;
+}
+
+// ─── View tracking (impression / qualified-view) ─────────────────────────────
+//
+// The frontend reports raw watch-time. The server decides whether the view
+// counts (≥2s = qualified), whether it's a duplicate (30-min window per
+// viewer), and whether the viewer is brand new.
+//
+// Public, fire-and-forget — anonymous viewers send a stable session_id from
+// localStorage (lib/anon-session.ts) when no Bearer token is present.
+
+import { getAnonSessionId } from "./anon-session";
+
+export interface ApiTrackViewResult {
+  ok:        boolean;
+  eventType: "impression" | "qualified_view" | "qualified_view_dedup" | "engaged_view";
+  qualified: boolean;
+  dedup:     boolean;
+  unique:    boolean;
+}
+
+export async function reportViewApi(
+  auctionId: string,
+  args: {
+    watchMs:  number;
+    source?:  "feed" | "profile" | "search" | "saved" | "direct";
+    platform?: "web" | "android" | "ios";
+  },
+): Promise<ApiTrackViewResult | null> {
+  const token = await getToken();
+  const platform: "web" | "android" | "ios" =
+    args.platform ?? (Capacitor.isNativePlatform() ? (Capacitor.getPlatform() === "ios" ? "ios" : "android") : "web");
+
+  const body = {
+    sessionId: token ? null : getAnonSessionId(),
+    watchMs:   Math.max(0, Math.min(args.watchMs | 0, 60 * 60 * 1000)),
+    source:    args.source ?? "feed",
+    platform,
+  };
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  try {
+    const res = await fetch(`${API_BASE}/auctions/${auctionId}/view`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      keepalive: true, // survives page-unload
+    });
+    if (!res.ok) {
+      // 503 (table not ready) and 404 (auction missing) are silent.
+      if (res.status >= 500 || res.status === 400) {
+        const txt = await res.text().catch(() => "");
+        console.warn(`[api-client] reportViewApi → ${res.status}`, txt.slice(0, 200));
+      }
+      return null;
+    }
+    return await res.json() as ApiTrackViewResult;
+  } catch (err) {
+    console.warn("[api-client] reportViewApi failed:", (err as Error).message);
+    return null;
+  }
 }
 
 // ─── Content Signal system (Interested / Not Interested) ─────────────────────

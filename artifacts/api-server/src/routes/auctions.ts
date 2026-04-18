@@ -18,6 +18,7 @@ import { runAuctionLifecycle } from "../lib/auction-lifecycle";
 import { processVideoAsync } from "../lib/video-processing";
 import { assertOwnedMediaUrl } from "../lib/r2";
 import { buildUserFeedContext, scoreAuction } from "../lib/feed-ranking";
+import { recordEngagement } from "./views";
 
 const router = Router();
 
@@ -149,10 +150,30 @@ router.get("/auctions", async (req, res) => {
 
   const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
 
+  // Batch-fetch view counters so the public feed can render the views badge.
+  // Missing rows are treated as zero (table not yet provisioned, or auction
+  // never viewed). Failures degrade gracefully — feed still renders without views.
+  const auctionIds = (auctions ?? []).map((a) => a.id as string);
+  const { data: viewRows, error: viewsErr } = auctionIds.length > 0
+    ? await supabaseAdmin
+        .from("auction_view_stats")
+        .select("auction_id, qualified_views_count")
+        .in("auction_id", auctionIds)
+    : { data: [], error: null };
+
+  if (viewsErr) {
+    logger.warn({ err: viewsErr.message }, "GET /auctions: view_stats lookup failed (continuing without views)");
+  }
+
+  const viewMap = new Map<string, number>(
+    (viewRows ?? []).map((r) => [r.auction_id as string, (r.qualified_views_count as number | null) ?? 0]),
+  );
+
   // Base list — ordered by created_at DESC from the DB query (already stable).
   type AuctionWithMeta = ReturnType<typeof normalizeAuction> & {
     seller: (typeof profileMap extends Map<string, infer V> ? V : null) | null;
     user_signal: "interested" | "not_interested" | null;
+    views_count: number;
   };
 
   // ── Cursor for next page ──────────────────────────────────────────────────
@@ -168,6 +189,7 @@ router.get("/auctions", async (req, res) => {
     ...normalizeAuction(a),
     seller: profileMap.get(a.seller_id) ?? null,
     user_signal: null as "interested" | "not_interested" | null,
+    views_count: viewMap.get(a.id as string) ?? 0,
   }));
 
   // ── Feed intelligence ranking (optional — skipped for unauthenticated) ──────
@@ -534,9 +556,17 @@ router.get("/auctions/:id", async (req, res) => {
     isLikedByMe = !!likeRow;
   }
 
-  logger.info({ auctionId: id, bidCount: bids.length }, "GET /auctions/:id → returning detail");
+  // Public view counter — used by the auction detail screen. Missing row → 0.
+  const { data: viewStatRow } = await supabaseAdmin
+    .from("auction_view_stats")
+    .select("qualified_views_count")
+    .eq("auction_id", id)
+    .maybeSingle();
+  const viewsCount = (viewStatRow as { qualified_views_count?: number } | null)?.qualified_views_count ?? 0;
+
+  logger.info({ auctionId: id, bidCount: bids.length, views: viewsCount }, "GET /auctions/:id → returning detail");
   res.json({
-    auction: { ...auctionWithSeller, is_liked_by_me: isLikedByMe },
+    auction: { ...auctionWithSeller, is_liked_by_me: isLikedByMe, views_count: viewsCount },
     bids: bidsWithBidders,
   });
 });
@@ -1085,6 +1115,10 @@ async function executePlaceBid(
       ),
     );
   }
+
+  // Mark this bidder's most recent qualified view (≤30 min) as engaged.
+  // Fire-and-forget — does not block the response and never throws.
+  void recordEngagement({ auctionId, userId, sessionId: null, action: "bid" });
 
   // Wait for both before returning so the serverless runtime doesn't kill
   // them on response flush. The .catch on each task means this never rejects.

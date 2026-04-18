@@ -1,0 +1,214 @@
+You are working on the existing BidReel codebase as a senior Full-Stack + Product engineer.
+
+Do not redesign the architecture. Do not add unrelated features. Implement a real, production-grade auction views system on the current stack only:
+
+* Frontend: React + Vite
+* Backend: Express on Vercel
+* Database: Supabase
+* Admin app: existing separate admin frontend
+
+## Goal
+
+Implement a real views system for auctions that is useful both:
+
+1. in the user-facing app
+2. in the admin dashboard
+
+This must be a real tracked system, not a fake counter.
+
+## Product rules
+
+We need 3 internal levels:
+
+1. impression
+
+   * the auction card appeared on screen
+
+2. qualified view
+
+   * the auction stayed visible long enough to count as a real view
+   * this is the MAIN public view count shown to users
+
+3. engaged view
+
+   * the viewer interacted meaningfully after viewing
+   * examples: like, save, share, open details, place bid
+
+For now, the public app should display only:
+
+* `views`
+  Where `views` = `qualified_views_count`
+
+## Required implementation
+
+### 1) Database schema
+
+Create the proper SQL migration(s) for:
+
+#### A. `auction_view_events`
+
+Must store raw tracking events / accepted view records.
+
+Include fields like:
+
+* id
+* auction_id
+* user_id nullable
+* session_id nullable
+* platform
+* source
+* watch_ms
+* event_type
+* is_qualified
+* is_engaged
+* created_at
+
+Design it cleanly for Supabase/Postgres.
+
+#### B. `auction_view_stats`
+
+Must store pre-aggregated counters per auction for fast reads.
+
+Include at least:
+
+* auction_id primary key
+* impressions_count
+* qualified_views_count
+* engaged_views_count
+* unique_viewers_count
+* last_viewed_at
+* updated_at
+
+Add indexes and constraints properly.
+
+### 2) Server endpoint
+
+Implement a backend endpoint:
+
+POST /api/auctions/:id/view
+
+Behavior:
+
+* validate input
+* resolve authenticated user if present
+* otherwise require sessionId
+* compute whether the view is qualified
+* dedupe repeated qualified views
+* update stats safely
+* avoid race-condition-prone blind counting
+* never trust the frontend to decide the final count
+
+### 3) Dedupe rule
+
+Implement this exact rule:
+
+A qualified view should count only once per:
+
+* auction_id
+* user_id if logged in, otherwise session_id
+* within a rolling 30 minute window
+
+If the same viewer sees the same auction again within 30 minutes:
+
+* do not increment qualified_views_count again
+
+But if enough time passes later, it may count again.
+
+### 4) Unique viewers rule
+
+Track `unique_viewers_count` separately.
+
+This should count the first known viewer occurrence for that auction, based on:
+
+* user_id if available
+* otherwise session_id
+
+This should not increase repeatedly for the same viewer.
+
+### 5) Frontend tracking
+
+Implement real tracking in the existing feed/card flow.
+
+Requirements:
+
+* do not send a qualified view immediately on render
+* start tracking only when the card is sufficiently visible
+* only send a view after about 2 seconds of real visibility
+* visibility threshold should be meaningful, not trivial
+* send source context such as:
+
+  * feed
+  * profile
+  * search
+  * saved
+  * direct
+
+Also create or reuse a persistent client/session identifier for anonymous users.
+
+### 6) Public UI integration
+
+Integrate the real count into the user app:
+
+* show `views` on auction cards/details
+* `views` must come from `qualified_views_count`
+* use real backend data only
+* do not invent temporary fake UI values
+
+### 7) Admin dashboard integration
+
+Integrate this into the existing admin dashboard in a useful way.
+
+For each auction, expose at least:
+
+* qualified views
+* unique viewers
+* engaged views
+* impressions if available
+* last viewed at
+
+Also add useful derived rates where possible:
+
+* like rate
+* save rate
+* bid conversion rate
+
+Add admin UI sections such as:
+
+* top viewed auctions
+* top engaged auctions
+* recent activity / last viewed
+
+Keep it clean and serious. No fake analytics.
+
+### 8) Engaged view behavior
+
+Design engaged view tracking so that meaningful follow-up actions can mark the view as engaged.
+Use current available actions in the app, such as:
+
+* like
+* save
+* open details
+* bid
+
+Do not overcomplicate this. Keep it reliable.
+
+### 9) Code quality rules
+
+* do not break current architecture
+* do not introduce large rewrites
+* do not add generic abstraction layers for no reason
+* keep the implementation concrete and production-oriented
+* log important backend decisions for debugging
+* avoid silent failures
+* ensure type safety
+
+## What to return
+
+Return:
+
+1. the migration SQL
+2. exact backend files changed
+3. exact frontend files changed
+4. admin files changed
+5. the final tracking flow end-to-end
+6. any manual steps I must run after merge

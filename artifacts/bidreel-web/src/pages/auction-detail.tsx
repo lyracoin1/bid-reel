@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import {
   ArrowLeft, ArrowDown, Clock, TrendingUp, Gavel,
-  Bell, Trophy, RefreshCw, ChevronDown, MapPin, Volume2, VolumeX,
+  Bell, Trophy, RefreshCw, ChevronDown, MapPin, Volume2, VolumeX, Eye,
   ShieldAlert, CheckCircle2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -421,12 +421,22 @@ export default function AuctionDetail() {
               </div>
             )}
 
-            {distanceText && (
-              <div className="flex items-center gap-1.5 pt-0.5">
-                <MapPin size={13} className="text-white/35 shrink-0" />
-                <span className="text-[13px] font-medium text-white/40">{distanceText}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-4 pt-0.5">
+              {distanceText && (
+                <div className="flex items-center gap-1.5">
+                  <MapPin size={13} className="text-white/35 shrink-0" />
+                  <span className="text-[13px] font-medium text-white/40">{distanceText}</span>
+                </div>
+              )}
+              {(auction.views ?? 0) > 0 && (
+                <div className="flex items-center gap-1.5" aria-label={`${auction.views} views`}>
+                  <Eye size={13} className="text-white/35 shrink-0" />
+                  <span className="text-[13px] font-medium text-white/40 tabular-nums">
+                    {auction.views!.toLocaleString()}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* ── INLINE BID PANEL ─────────────────────────────────────────────── */}

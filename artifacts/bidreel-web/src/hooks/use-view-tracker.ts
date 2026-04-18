@@ -27,10 +27,6 @@ export function useViewTracker(args: {
 }) {
   const { auctionId, active, source = "feed" } = args;
 
-  // [VIEW TRACK] DEBUG — fires on every render of every FeedCard. Confirms the
-  // hook is mounted at all and shows the live `active` flag from the parent.
-  console.log("[VIEW TRACK]", { auctionId, active });
-
   // Mutable timing state (ref so re-renders don't reset it).
   const startedAtRef    = useRef<number | null>(null); // perf-clock when active+visible
   const accumulatedRef  = useRef<number>(0);           // ms collected this session
@@ -50,54 +46,32 @@ export function useViewTracker(args: {
     }
   };
 
-  const flush = (reason: string) => {
+  const flush = () => {
     endInterval();
-    const rawMs   = Math.round(accumulatedRef.current);
-    // FORCE: if no time was actually accumulated (e.g. visibility never flipped
-    // to "visible", or StrictMode double-mount swallowed the first interval),
-    // still send a synthetic 2500ms so we can verify the network/db end-to-end.
-    const watchMs = rawMs > 0 ? rawMs : 2500;
+    const watchMs = Math.round(accumulatedRef.current);
     accumulatedRef.current = 0;
-
-    console.log("[VIEW FLUSH CHECK]", {
-      auctionId,
-      reason,
-      rawMs,
-      forcedWatchMs: watchMs,
-      hasStartTime:  startedAtRef.current != null,
-      alreadySent:   sentRef.current,
-      active,
-    });
-
-    // ── DEBUG MODE: ALL GUARDS DISABLED ────────────────────────────────────
-    // Normal guards (commented out — restore after DB confirms it's writing):
-    //   if (sentRef.current)  return;   // dedupe within one active session
-    //   if (watchMs <= 0)     return;   // nothing measured
+    if (sentRef.current) return;          // never POST twice for one session
+    if (watchMs <= 0)     return;         // nothing to report
     sentRef.current = true;
-
-    console.log("[FORCE VIEW SEND]", auctionId, watchMs);
-    console.log("[VIEW API CALL]", auctionId, { watchMs, reason, source });
-    void reportViewApi(auctionId, { watchMs, source })
-      .then((r) => console.log("[VIEW API RESULT]", auctionId, r))
-      .catch((e) => console.warn("[VIEW API ERR]", auctionId, e));
+    console.log("[VIEW API CALL]", auctionId, watchMs);
+    void reportViewApi(auctionId, { watchMs, source }).catch(() => { /* swallow */ });
   };
 
   // ── Lifecycle: respond to `active` flag from parent ────────────────────────
+  // Single source of truth for "session ended": the effect's cleanup function.
+  // It fires on `active` flipping, on `auctionId` changing, and on unmount —
+  // so we never need an explicit !active branch (which would double-flush).
   useEffect(() => {
     if (!active) {
-      // Becoming inactive → flush the session.
-      console.log("[VIEW EFFECT] inactive branch", { auctionId });
-      flush("inactive");
+      // Idle. Cleanup of the previous active-run already flushed.
       return;
     }
 
     // Becoming active → reset session and start measuring (only if visible).
-    const vis = typeof document === "undefined" ? "visible" : document.visibilityState;
-    console.log("[VIEW EFFECT] active branch", { auctionId, visibility: vis });
     accumulatedRef.current = 0;
     sentRef.current = false;
     startedAtRef.current = null;
-    if (vis === "visible") {
+    if (typeof document === "undefined" || document.visibilityState === "visible") {
       beginInterval();
     }
 
@@ -112,7 +86,7 @@ export function useViewTracker(args: {
     // App-going-away events — flush so we never lose a session.
     // pagehide is the only event guaranteed to fire on iOS Safari and on
     // Capacitor app-suspend, hence preferred over beforeunload.
-    const onPageHide = () => flush("pagehide");
+    const onPageHide = () => flush();
 
     document.addEventListener("visibilitychange", onVisChange);
     window.addEventListener("pagehide", onPageHide);
@@ -121,7 +95,7 @@ export function useViewTracker(args: {
       document.removeEventListener("visibilitychange", onVisChange);
       window.removeEventListener("pagehide", onPageHide);
       // Component unmount or `active` flipping → flush this session.
-      flush("cleanup");
+      flush();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, auctionId]);

@@ -123,21 +123,20 @@ CREATE TRIGGER trg_auction_deals_updated_at
 CREATE OR REPLACE FUNCTION create_deal_on_auction_end()
 RETURNS TRIGGER
 LANGUAGE plpgsql AS $$
-DECLARE
-  v_winning_amount NUMERIC;
 BEGIN
   IF NEW.status IN ('ended', 'archived')
      AND NEW.winner_id IS NOT NULL
      AND NEW.seller_id IS NOT NULL
      AND NEW.seller_id <> NEW.winner_id
   THEN
-    -- Best-effort lookup of the winning bid amount.
-    IF NEW.winner_bid_id IS NOT NULL THEN
-      SELECT amount INTO v_winning_amount FROM bids WHERE id = NEW.winner_bid_id;
-    END IF;
-
     INSERT INTO auction_deals (auction_id, seller_id, buyer_id, winning_bid_id, winning_amount)
-    VALUES (NEW.id, NEW.seller_id, NEW.winner_id, NEW.winner_bid_id, v_winning_amount)
+    VALUES (
+      NEW.id,
+      NEW.seller_id,
+      NEW.winner_id,
+      NEW.winner_bid_id,
+      (SELECT amount FROM bids WHERE id = NEW.winner_bid_id)
+    )
     ON CONFLICT (auction_id) DO NOTHING;
   END IF;
   RETURN NEW;

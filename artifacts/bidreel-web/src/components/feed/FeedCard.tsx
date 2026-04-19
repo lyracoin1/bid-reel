@@ -20,6 +20,21 @@ import { haversineDistance, formatDistance, formatAuctionPrice } from "@/lib/geo
 import { sendSignalApi, removeSignalApi, type ContentSignal } from "@/lib/api-client";
 import { useViewTracker } from "@/hooks/use-view-tracker";
 import { useGlobalMute, getGlobalMuted } from "@/lib/global-mute";
+import { TrustBadge } from "@/components/trust/TrustBadge";
+import { useUserTrust } from "@/hooks/use-user-trust";
+
+function SellerTrust({ sellerId }: { sellerId: string }) {
+  const { trust } = useUserTrust(sellerId);
+  if (!trust) return null;
+  return (
+    <TrustBadge
+      score={trust.final_seller_score}
+      color={trust.final_seller_color}
+      size="xs"
+      className="shrink-0"
+    />
+  );
+}
 
 /** Compact view-count formatter. 1234 → "1.2K", 1_234_567 → "1.2M". */
 function formatViewCount(n: number): string {
@@ -504,17 +519,20 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
         style={{ bottom: "calc(11rem + env(safe-area-inset-bottom, 0px))" }}
         onClick={() => setLocation(`/auction/${auction.id}`)}
       >
-        {/* Seller name — tap navigates to seller's profile */}
-        <button
-          onClick={handleOpenProfile}
-          className="text-[12px] font-semibold text-white/70 leading-none truncate text-left hover:text-white transition-colors w-fit max-w-full"
-          aria-label={`View ${auction.seller.name}'s profile`}
-        >
-          {auction.seller.name}
-          {auction.seller.handle ? (
-            <span className="font-normal text-white/40"> {auction.seller.handle}</span>
-          ) : null}
-        </button>
+        {/* Seller name + trust badge — tap navigates to seller's profile */}
+        <div className="flex items-center gap-1.5 max-w-full">
+          <button
+            onClick={handleOpenProfile}
+            className="text-[12px] font-semibold text-white/70 leading-none truncate text-left hover:text-white transition-colors min-w-0"
+            aria-label={`View ${auction.seller.name}'s profile`}
+          >
+            {auction.seller.name}
+            {auction.seller.handle ? (
+              <span className="font-normal text-white/40"> {auction.seller.handle}</span>
+            ) : null}
+          </button>
+          <SellerTrust sellerId={auction.seller.id} />
+        </div>
 
         <h2 className="text-[21px] font-bold text-white leading-snug line-clamp-2 drop-shadow-sm">
           {auction.title}

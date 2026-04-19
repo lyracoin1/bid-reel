@@ -28,6 +28,8 @@ import SafetyRules from "@/pages/safety-rules";
 import ChangePassword from "@/pages/change-password";
 import NotFound from "@/pages/not-found";
 import PrivacyPolicy from "@/pages/privacy";
+import MyDealsPage from "@/pages/my-deals";
+import DealDetailPage from "@/pages/deal-detail";
 
 const queryClient = new QueryClient();
 
@@ -75,6 +77,8 @@ function Router() {
         <Route path="/safety-rules" component={SafetyRules} />
         <Route path="/change-password" component={ChangePassword} />
         <Route path="/privacy" component={PrivacyPolicy} />
+        <Route path="/deals" component={MyDealsPage} />
+        <Route path="/deals/:dealId" component={DealDetailPage} />
 
         <Route component={NotFound} />
       </Switch>

@@ -1148,6 +1148,137 @@ export async function getMutualFollowsApi(): Promise<ApiMutualFollow[]> {
   }
 }
 
+// ─── Trust + Deals ────────────────────────────────────────────────────────────
+
+export type DealStatus = "pending_buyer" | "pending_seller" | "pending_both" | "completed" | "failed" | "disputed";
+export type DealConfirmation = "pending" | "completed" | "failed";
+export type DealRole = "buyer" | "seller";
+
+export interface ApiDeal {
+  id: string;
+  auction_id: string;
+  seller_id: string;
+  buyer_id: string;
+  winning_bid_id: string | null;
+  winning_amount: string | number;
+  status: DealStatus;
+  seller_confirmation: DealConfirmation;
+  buyer_confirmation: DealConfirmation;
+  failed_by: string | null;
+  completed_at: string | null;
+  failed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  role: DealRole;
+}
+
+export type ApiDealDetail = ApiDeal;
+
+export interface ApiDealRating {
+  id: string;
+  rater_id: string;
+  ratee_id: string;
+  role: "buyer_rates_seller" | "seller_rates_buyer";
+  f1: boolean;
+  f2: boolean;
+  f3: boolean;
+  f4: boolean;
+  f5: boolean;
+  score: string | number;
+  created_at: string;
+}
+
+export interface ApiTrust {
+  user_id: string | null;
+  completed_sales: number;
+  total_sell_deals: number;
+  completed_buys: number;
+  total_buy_deals: number;
+  seller_completion_rate: number | null;
+  buyer_completion_rate: number | null;
+  seller_review_score: number | null;
+  buyer_review_score: number | null;
+  seller_reviews_count: number;
+  buyer_reviews_count: number;
+  final_seller_score: number | null;
+  final_buyer_score: number | null;
+  final_seller_color: "green" | "yellow" | "red" | null;
+  final_buyer_color: "green" | "yellow" | "red" | null;
+  number_of_completed_deals: number;
+}
+
+export async function getMyDealsApi(): Promise<ApiDeal[]> {
+  const res = await fetch(`${API_BASE}/deals/me`, { headers: await authHeaders() });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to load deals");
+  }
+  const data = await res.json() as { deals: ApiDeal[] };
+  return data.deals ?? [];
+}
+
+export async function getDealApi(dealId: string): Promise<{ deal: ApiDealDetail; ratings: ApiDealRating[] }> {
+  const res = await fetch(`${API_BASE}/deals/${dealId}`, { headers: await authHeaders() });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to load deal");
+  }
+  return await res.json() as { deal: ApiDealDetail; ratings: ApiDealRating[] };
+}
+
+export async function confirmDealApi(dealId: string, outcome: "completed" | "failed"): Promise<ApiDealDetail> {
+  const res = await fetch(`${API_BASE}/deals/${dealId}/confirm`, {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({ outcome }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to confirm deal");
+  }
+  const data = await res.json() as { deal: ApiDealDetail };
+  return data.deal;
+}
+
+export type RatePayload =
+  | { commitment: boolean; communication: boolean; authenticity: boolean; accuracy: boolean; experience: boolean }
+  | { commitment: boolean; communication: boolean; seriousness: boolean; timeliness: boolean; experience: boolean };
+
+export async function rateDealApi(dealId: string, payload: RatePayload): Promise<ApiDealRating> {
+  const res = await fetch(`${API_BASE}/deals/${dealId}/rate`, {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to submit rating");
+  }
+  const data = await res.json() as { rating: ApiDealRating };
+  return data.rating;
+}
+
+export async function getMyTrustApi(): Promise<ApiTrust> {
+  const res = await fetch(`${API_BASE}/users/me/trust`, { headers: await authHeaders() });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to load trust stats");
+  }
+  const data = await res.json() as { trust: ApiTrust };
+  return data.trust;
+}
+
+export async function getUserTrustApi(userId: string): Promise<ApiTrust> {
+  // Public endpoint — no auth required, but include token if available
+  const res = await fetch(`${API_BASE}/users/${userId}/trust`, { headers: await authHeaders() });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to load trust stats");
+  }
+  const data = await res.json() as { trust: ApiTrust };
+  return data.trust;
+}
+
 /** Permanently delete the authenticated user's account and all associated data. */
 export async function deleteAccountApi(): Promise<void> {
   const token = await getToken();

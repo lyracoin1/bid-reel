@@ -18,6 +18,8 @@ import { getTimeRemaining } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { FollowListModal } from "@/components/FollowListModal";
+import { TrustStatCard } from "@/components/trust/TrustBadge";
+import { useUserTrust } from "@/hooks/use-user-trust";
 
 type Tab = "my_auctions" | "my_bids" | "saved";
 type FollowModal = "followers" | "following" | null;
@@ -45,6 +47,7 @@ export default function Profile() {
   useOverlayBack(followModal !== null, () => setFollowModal(null));
 
   const { user, isLoading: userLoading } = useCurrentUser();
+  const { trust } = useUserTrust(user?.id ?? null);
 
   async function handleDeleteAccount() {
     setIsDeleting(true);
@@ -297,6 +300,33 @@ export default function Profile() {
             </button>
           </div>
         </div>
+
+        {/* ── Trust scores — seller + buyer (tap to open My Deals) ── */}
+        {trust && (
+          <div className="px-5 mt-3 mb-3">
+            <button
+              onClick={() => setLocation("/deals")}
+              className="w-full grid grid-cols-2 gap-3 active:opacity-80 transition-opacity"
+            >
+              <TrustStatCard
+                title="Seller Trust"
+                score={trust.final_seller_score}
+                color={trust.final_seller_color}
+                completed={trust.completed_sales}
+                total={trust.total_sell_deals}
+                reviewsCount={trust.seller_reviews_count}
+              />
+              <TrustStatCard
+                title="Buyer Trust"
+                score={trust.final_buyer_score}
+                color={trust.final_buyer_color}
+                completed={trust.completed_buys}
+                total={trust.total_buy_deals}
+                reviewsCount={trust.buyer_reviews_count}
+              />
+            </button>
+          </div>
+        )}
 
         {/* ── Tabs ── */}
         <div className="px-5 mb-1">

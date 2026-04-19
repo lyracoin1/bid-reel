@@ -25,6 +25,8 @@ import { getTimeRemaining } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { FollowListModal } from "@/components/FollowListModal";
 import { AnimatePresence } from "framer-motion";
+import { TrustStatCard } from "@/components/trust/TrustBadge";
+import { useUserTrust } from "@/hooks/use-user-trust";
 
 type FollowModal = "followers" | "following" | null;
 
@@ -46,6 +48,7 @@ export default function PublicProfilePage() {
   const [localFollowersCount, setLocalFollowersCount] = useState<number | null>(null);
 
   const { data: allAuctions, isLoading: auctionsLoading } = useAuctions();
+  const { trust } = useUserTrust(userId);
 
   const isSelf = !!currentUser && currentUser.id === userId;
   const following = isFollowing(userId);
@@ -187,6 +190,28 @@ export default function PublicProfilePage() {
                   <p className="text-[11px] text-muted-foreground mt-1 font-medium">{t("following")}</p>
                 </button>
               </div>
+
+              {/* Trust scores — seller + buyer */}
+              {trust && (
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <TrustStatCard
+                    title="Seller Trust"
+                    score={trust.final_seller_score}
+                    color={trust.final_seller_color}
+                    completed={trust.completed_sales}
+                    total={trust.total_sell_deals}
+                    reviewsCount={trust.seller_reviews_count}
+                  />
+                  <TrustStatCard
+                    title="Buyer Trust"
+                    score={trust.final_buyer_score}
+                    color={trust.final_buyer_color}
+                    completed={trust.completed_buys}
+                    total={trust.total_buy_deals}
+                    reviewsCount={trust.buyer_reviews_count}
+                  />
+                </div>
+              )}
 
               {/* Follow / Unfollow button — hidden on own profile */}
               {!isSelf && !profileLoading && (

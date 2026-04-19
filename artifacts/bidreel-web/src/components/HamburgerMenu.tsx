@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
-import { X, Globe, Check, Menu, ShieldAlert, Lock } from "lucide-react";
+import { X, Globe, Check, Menu, ShieldAlert, Lock, Handshake } from "lucide-react";
 import { useLocation } from "wouter";
 import { useLang } from "@/contexts/LanguageContext";
 import { useOverlayBack } from "@/hooks/use-overlay-back";
@@ -125,6 +125,14 @@ export function HamburgerMenu({ className = "", open: controlledOpen, onOpenChan
               {/* Navigation section */}
               <div>
                 <div className="rounded-2xl bg-white/4 border border-white/8 overflow-hidden divide-y divide-white/6">
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => navigateTo("/deals")}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-white/5"
+                  >
+                    <Handshake size={16} className="text-primary shrink-0" />
+                    <span className="text-sm font-semibold text-white/70">My Deals</span>
+                  </motion.button>
                   <motion.button
                     whileTap={{ scale: 0.98 }}
                     onClick={() => navigateTo("/safety-rules")}

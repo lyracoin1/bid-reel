@@ -1,0 +1,133 @@
+The backend trust/rating system is now fully integrated and verified.
+
+Start the UI phase now.
+
+STRICT RULES:
+
+* Do not change architecture
+* Do not touch WhatsApp
+* Do not start fixed-price yet
+* Do not add strikes yet
+* Only implement trust/rating UI using the existing backend endpoints
+
+GOAL:
+Expose seller/buyer trust clearly in the app without cluttering the feed.
+
+---
+
+PART 1 — PROFILE UI
+
+In the user profile screen:
+
+1. Show:
+
+* Seller trust score
+* Buyer trust score
+* Seller color
+* Buyer color
+* Completed deals count
+* Seller completion rate
+* Buyer completion rate
+
+2. Display format:
+
+* percentage only
+* no stars
+* use color:
+
+  * green for 80–100
+  * yellow for 50–79
+  * red for below 50
+
+3. Use:
+   GET /api/users/:userId/trust
+
+---
+
+PART 2 — FEED UI
+
+In auction cards / reel overlay:
+
+1. Show seller trust score only
+2. Keep it minimal:
+
+* small colored dot
+* percentage beside seller name
+
+Do not add more trust details into the feed.
+
+---
+
+PART 3 — MY DEALS UI
+
+Create a simple “My Deals” screen using:
+
+GET /api/deals/me
+
+For each deal show:
+
+* auction reference
+* seller / buyer role
+* deal status:
+  pending / completed / failed
+* whether user already confirmed
+* whether user already rated
+
+---
+
+PART 4 — DEAL DETAIL UI
+
+Using:
+GET /api/deals/:dealId
+
+Show:
+
+1. Deal status
+2. Confirmation actions:
+
+* completed
+* failed
+
+3. Rating flow:
+
+* show rating only if deal.status = completed
+* start with like/dislike choice
+* then show 5 rating items
+* save only on final submit
+
+Rating items:
+
+If buyer rates seller:
+
+* commitment
+* communication
+* authenticity
+* accuracy
+* experience
+
+If seller rates buyer:
+
+* commitment
+* communication
+* seriousness
+* timeliness
+* experience
+
+---
+
+PART 5 — UI RULES
+
+* no stars
+* no free-text review
+* no clutter
+* no feed redesign
+* no extra metrics in video overlay
+* profile and deal screens carry the full details
+
+---
+
+OUTPUT:
+
+1. What UI was implemented
+2. Which screens were updated
+3. Any blocker if found

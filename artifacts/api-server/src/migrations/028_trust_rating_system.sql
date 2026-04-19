@@ -164,49 +164,43 @@ ON CONFLICT (auction_id) DO NOTHING;
 -- Single source of truth for deriving the final `status` column from the two
 -- per-side confirmations. Called by the API route on every confirmation write.
 
+-- Plain SQL function — no PL/pgSQL, no local record variables.
+-- Same business logic:
+--   both confirmations 'completed' → status='completed'
+--   any  confirmation  'failed'    → status='failed'  (+ failed_by = seller|buyer|both)
+--   otherwise                       → status='pending'
+-- completed_at / failed_at are stamped on first transition only.
 CREATE OR REPLACE FUNCTION recompute_deal_status(p_deal_id UUID)
 RETURNS auction_deals
-LANGUAGE plpgsql
+LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
 AS $$
-DECLARE
-  v_row     auction_deals;
-  v_status  TEXT;
-  v_failed  TEXT;
-BEGIN
-  SELECT * INTO v_row FROM auction_deals WHERE id = p_deal_id FOR UPDATE;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'recompute_deal_status: deal % not found', p_deal_id;
-  END IF;
-
-  IF v_row.seller_confirmation = 'failed' AND v_row.buyer_confirmation = 'failed' THEN
-    v_status := 'failed';
-    v_failed := 'both';
-  ELSIF v_row.seller_confirmation = 'failed' THEN
-    v_status := 'failed';
-    v_failed := 'seller';
-  ELSIF v_row.buyer_confirmation = 'failed' THEN
-    v_status := 'failed';
-    v_failed := 'buyer';
-  ELSIF v_row.seller_confirmation = 'completed' AND v_row.buyer_confirmation = 'completed' THEN
-    v_status := 'completed';
-    v_failed := NULL;
-  ELSE
-    v_status := 'pending';
-    v_failed := NULL;
-  END IF;
-
-  UPDATE auction_deals
-     SET status       = v_status,
-         failed_by    = v_failed,
-         completed_at = CASE WHEN v_status = 'completed' AND completed_at IS NULL THEN now() ELSE completed_at END,
-         failed_at    = CASE WHEN v_status = 'failed'    AND failed_at    IS NULL THEN now() ELSE failed_at    END
-   WHERE id = p_deal_id
-   RETURNING * INTO v_row;
-
-  RETURN v_row;
-END;
+  UPDATE auction_deals AS d
+     SET status = CASE
+           WHEN d.seller_confirmation = 'failed' OR d.buyer_confirmation = 'failed'        THEN 'failed'
+           WHEN d.seller_confirmation = 'completed' AND d.buyer_confirmation = 'completed' THEN 'completed'
+           ELSE 'pending'
+         END,
+         failed_by = CASE
+           WHEN d.seller_confirmation = 'failed' AND d.buyer_confirmation = 'failed' THEN 'both'
+           WHEN d.seller_confirmation = 'failed'                                     THEN 'seller'
+           WHEN d.buyer_confirmation  = 'failed'                                     THEN 'buyer'
+           ELSE NULL
+         END,
+         completed_at = CASE
+           WHEN d.seller_confirmation = 'completed'
+            AND d.buyer_confirmation  = 'completed'
+            AND d.completed_at IS NULL                                               THEN now()
+           ELSE d.completed_at
+         END,
+         failed_at = CASE
+           WHEN (d.seller_confirmation = 'failed' OR d.buyer_confirmation = 'failed')
+            AND d.failed_at IS NULL                                                  THEN now()
+           ELSE d.failed_at
+         END
+   WHERE d.id = p_deal_id
+  RETURNING d.*;
 $$;
 
 -- ─── F. user_trust_stats view ───────────────────────────────────────────────

@@ -1,0 +1,153 @@
+You are working on the BidReel production repository.
+
+Implement a TRUST + RATING SYSTEM similar to P2P platforms (Bybit-style), adapted for auctions.
+
+STRICT RULES:
+
+* Do NOT change architecture
+* Do NOT break existing systems
+* Do NOT implement WhatsApp here
+* Focus ONLY on rating + trust logic
+
+---
+
+CORE CONCEPT
+
+We do NOT use stars.
+
+We use:
+
+1. Completion Rate (PRIMARY)
+2. Review System (SECONDARY)
+3. Separate scores for buyer and seller
+
+---
+
+PART 1 — COMPLETION RATE (PRIMARY METRIC)
+
+Implement:
+
+seller_completion_rate =
+completed_sales / total_sell_deals * 100
+
+buyer_completion_rate =
+completed_buys / total_buy_deals * 100
+
+Definitions:
+
+* completed = deal finished successfully
+* failed = winner did not execute OR confirmed issue
+
+Track:
+
+* completed_sales
+* total_sell_deals
+* completed_buys
+* total_buy_deals
+
+---
+
+PART 2 — REVIEW SYSTEM (BOOLEAN, NOT STARS)
+
+After a deal is completed:
+
+Buyer rates Seller
+Seller rates Buyer
+
+Each rating includes 5 fields:
+
+Seller evaluation:
+
+* commitment
+* communication
+* authenticity
+* accuracy
+* experience
+
+Buyer evaluation:
+
+* commitment
+* communication
+* seriousness
+* timeliness
+* experience
+
+Each field:
+
+* true (👍)
+* false (👎)
+
+---
+
+PART 3 — REVIEW SCORE CALCULATION
+
+For each rating:
+
+score = (number_of_positive / 5) * 100
+
+Store per rating.
+
+Then compute:
+
+seller_review_score = average of all seller ratings
+buyer_review_score  = average of all buyer ratings
+
+---
+
+PART 4 — FINAL SCORE (CRITICAL)
+
+Final score is NOT based only on reviews.
+
+Use weighted formula:
+
+final_seller_score =
+(seller_completion_rate * 0.85) +
+(seller_review_score * 0.15)
+
+final_buyer_score =
+(buyer_completion_rate * 0.85) +
+(buyer_review_score * 0.15)
+
+---
+
+PART 5 — RULES
+
+* Rating allowed ONLY after deal completion
+* Each user can rate ONLY once per deal
+* No rating without real interaction
+* Prevent duplicate submissions
+
+---
+
+PART 6 — OUTPUT DATA
+
+Expose:
+
+* final_seller_score
+* final_buyer_score
+* seller_completion_rate
+* buyer_completion_rate
+* seller_review_score
+* buyer_review_score
+* number_of_completed_deals
+
+---
+
+PART 7 — COLORS
+
+Apply:
+
+* 80–100 → green
+* 50–79 → yellow
+* <50 → red
+
+---
+
+OUTPUT:
+
+1. What was implemented
+2. Any blockers
+3. Any assumptions made
+
+DO NOT add UI yet
+DO NOT touch other systems

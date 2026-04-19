@@ -11,6 +11,7 @@ import auctionRouter from "./auctions";
 import notificationRouter from "./notifications";
 import reportsRouter from "./reports";
 import viewsRouter from "./views";
+import dealsRouter from "./deals";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(auctionRouter);
 router.use(notificationRouter);
 router.use(reportsRouter);
 router.use(viewsRouter);
+router.use(dealsRouter);
 
 export default router;

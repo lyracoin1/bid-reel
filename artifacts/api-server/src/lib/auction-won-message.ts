@@ -111,3 +111,197 @@ export function buildAuctionWonTitle(language: WonMessageLang): string {
     default:   return "🏆 You won!";
   }
 }
+
+// ─── 24-hour reminder (purchase still not completed) ─────────────────────────
+// Sent ~24h after the win, when the winner still has 24h left to act. The
+// seller's phone is re-included so the message is fully self-contained — the
+// winner does not need to scroll back to the original "won" message.
+
+export function buildPurchaseReminderTitle(language: WonMessageLang): string {
+  switch (language) {
+    case "ar": return "⏰ تذكير: 24 ساعة متبقية";
+    case "tr": return "⏰ Hatırlatma: 24 saat kaldı";
+    case "es": return "⏰ Recordatorio: quedan 24 horas";
+    case "fr": return "⏰ Rappel : il reste 24 heures";
+    case "ru": return "⏰ Напоминание: осталось 24 часа";
+    case "en":
+    default:   return "⏰ Reminder: 24 hours left";
+  }
+}
+
+export function buildPurchaseReminderMessage(
+  language: WonMessageLang,
+  sellerPhone: string,
+): string {
+  switch (language) {
+    case "ar":
+      return [
+        "⏰ تذكير: لم تكمل عملية الشراء بعد.",
+        "",
+        "تبقّى لديك 24 ساعة فقط قبل انتهاء المهلة.",
+        "",
+        `يرجى التواصل مع البائع على: ${sellerPhone}`,
+      ].join("\n");
+    case "tr":
+      return [
+        "⏰ Hatırlatma: Satın alma işleminizi henüz tamamlamadınız.",
+        "",
+        "Süre dolmadan önce yalnızca 24 saatiniz kaldı.",
+        "",
+        `Lütfen satıcıyla iletişime geçin: ${sellerPhone}`,
+      ].join("\n");
+    case "es":
+      return [
+        "⏰ Recordatorio: aún no has completado la compra.",
+        "",
+        "Te quedan solo 24 horas antes de que expire el plazo.",
+        "",
+        `Por favor, contacta al vendedor en: ${sellerPhone}`,
+      ].join("\n");
+    case "fr":
+      return [
+        "⏰ Rappel : vous n’avez pas encore finalisé l’achat.",
+        "",
+        "Il ne vous reste que 24 heures avant l’expiration du délai.",
+        "",
+        `Veuillez contacter le vendeur au : ${sellerPhone}`,
+      ].join("\n");
+    case "ru":
+      return [
+        "⏰ Напоминание: вы ещё не завершили покупку.",
+        "",
+        "У вас осталось всего 24 часа до истечения срока.",
+        "",
+        `Пожалуйста, свяжитесь с продавцом: ${sellerPhone}`,
+      ].join("\n");
+    case "en":
+    default:
+      return [
+        "⏰ Reminder: you have not completed your purchase yet.",
+        "",
+        "Only 24 hours remain before the deadline expires.",
+        "",
+        `Please contact the seller at: ${sellerPhone}`,
+      ].join("\n");
+  }
+}
+
+// ─── 48-hour deadline expired ────────────────────────────────────────────────
+// Sent once per auction after the 48h window passes without completion.
+// Phone is intentionally omitted — at this point the listing is no longer
+// transactable and a future strike may be issued (see migration 031 marker).
+
+export function buildPurchaseExpiredTitle(language: WonMessageLang): string {
+  switch (language) {
+    case "ar": return "❌ انتهت مهلة الشراء";
+    case "tr": return "❌ Satın alma süresi doldu";
+    case "es": return "❌ Plazo de compra expirado";
+    case "fr": return "❌ Délai d’achat expiré";
+    case "ru": return "❌ Срок покупки истёк";
+    case "en":
+    default:   return "❌ Purchase deadline expired";
+  }
+}
+
+export function buildPurchaseExpiredMessage(language: WonMessageLang): string {
+  switch (language) {
+    case "ar":
+      return [
+        "❌ انتهت مهلة الـ 48 ساعة لإتمام عملية الشراء.",
+        "",
+        "لم تعد هذه الصفقة متاحة. قد يؤثر ذلك على تقييم حسابك مستقبلاً.",
+      ].join("\n");
+    case "tr":
+      return [
+        "❌ Satın alma için verilen 48 saatlik süre doldu.",
+        "",
+        "Bu işlem artık geçerli değildir. Bu durum hesabınızın gelecekteki güvenilirlik puanını etkileyebilir.",
+      ].join("\n");
+    case "es":
+      return [
+        "❌ El plazo de 48 horas para completar la compra ha expirado.",
+        "",
+        "Esta transacción ya no está disponible. Esto podría afectar la reputación futura de tu cuenta.",
+      ].join("\n");
+    case "fr":
+      return [
+        "❌ Le délai de 48 heures pour finaliser l’achat a expiré.",
+        "",
+        "Cette transaction n’est plus disponible. Cela pourra affecter la fiabilité future de votre compte.",
+      ].join("\n");
+    case "ru":
+      return [
+        "❌ 48-часовой срок для завершения покупки истёк.",
+        "",
+        "Эта сделка больше недоступна. Это может повлиять на надёжность вашего аккаунта в будущем.",
+      ].join("\n");
+    case "en":
+    default:
+      return [
+        "❌ The 48-hour purchase deadline has expired.",
+        "",
+        "This transaction is no longer available. This may affect your account's future trust standing.",
+      ].join("\n");
+  }
+}
+
+// ─── Password-reset OTP message ──────────────────────────────────────────────
+// 6-digit code delivered via WhatsApp. Plain code in body — the recipient is
+// the one entering it. Includes a 10-minute validity hint.
+
+export function buildPasswordOtpTitle(language: WonMessageLang): string {
+  switch (language) {
+    case "ar": return "🔐 رمز التحقق - BidReel";
+    case "tr": return "🔐 Doğrulama kodu - BidReel";
+    case "es": return "🔐 Código de verificación - BidReel";
+    case "fr": return "🔐 Code de vérification - BidReel";
+    case "ru": return "🔐 Код подтверждения - BidReel";
+    case "en":
+    default:   return "🔐 Verification code - BidReel";
+  }
+}
+
+export function buildPasswordOtpMessage(
+  language: WonMessageLang,
+  code: string,
+): string {
+  switch (language) {
+    case "ar":
+      return [
+        `🔐 رمز إعادة تعيين كلمة المرور: ${code}`,
+        "",
+        "صالح لمدة 10 دقائق. لا تشاركه مع أي شخص.",
+      ].join("\n");
+    case "tr":
+      return [
+        `🔐 Şifre sıfırlama kodunuz: ${code}`,
+        "",
+        "10 dakika boyunca geçerlidir. Kimseyle paylaşmayın.",
+      ].join("\n");
+    case "es":
+      return [
+        `🔐 Tu código para restablecer la contraseña: ${code}`,
+        "",
+        "Válido por 10 minutos. No lo compartas con nadie.",
+      ].join("\n");
+    case "fr":
+      return [
+        `🔐 Votre code de réinitialisation : ${code}`,
+        "",
+        "Valable 10 minutes. Ne le partagez avec personne.",
+      ].join("\n");
+    case "ru":
+      return [
+        `🔐 Ваш код для сброса пароля: ${code}`,
+        "",
+        "Действителен 10 минут. Никому не сообщайте его.",
+      ].join("\n");
+    case "en":
+    default:
+      return [
+        `🔐 Your password reset code: ${code}`,
+        "",
+        "Valid for 10 minutes. Do not share it with anyone.",
+      ].join("\n");
+  }
+}

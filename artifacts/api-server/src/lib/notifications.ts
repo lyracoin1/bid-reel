@@ -30,6 +30,7 @@ import {
   buildAuctionWonTitle,
   normalizeWonLang,
 } from "./auction-won-message";
+import { sendWhatsApp } from "./whatsapp";
 
 // ─── Type taxonomy ────────────────────────────────────────────────────────────
 
@@ -543,28 +544,58 @@ export async function notifyAuctionWon(
     return;
   }
 
-  // 2. Winner language — read defensively. The `language` column may not exist
-  //    on every deployment; treat any error or missing value as English.
+  // 2. Winner language + phone — read defensively. The `language` column may
+  //    not exist on every deployment; treat any error or missing value as
+  //    English. Phone is needed for the WhatsApp side-channel below.
   let winnerLang = "en";
+  let winnerPhone = "";
   try {
     const { data: winnerRow } = await supabaseAdmin
       .from("profiles")
-      .select("language")
+      .select("language, phone")
       .eq("id", winnerId)
       .maybeSingle();
     if (winnerRow && typeof (winnerRow as { language?: unknown }).language === "string") {
       winnerLang = (winnerRow as { language: string }).language;
     }
+    if (winnerRow && typeof (winnerRow as { phone?: unknown }).phone === "string") {
+      winnerPhone = (winnerRow as { phone: string }).phone.trim();
+    }
   } catch {
-    // column missing or other read issue — fall through to default 'en'
+    // column missing or other read issue — fall through to defaults
+    try {
+      const { data: winnerPhoneRow } = await supabaseAdmin
+        .from("profiles")
+        .select("phone")
+        .eq("id", winnerId)
+        .maybeSingle();
+      if (winnerPhoneRow && typeof (winnerPhoneRow as { phone?: unknown }).phone === "string") {
+        winnerPhone = (winnerPhoneRow as { phone: string }).phone.trim();
+      }
+    } catch {
+      /* leave defaults */
+    }
   }
 
   const lang = normalizeWonLang(winnerLang);
   const title = buildAuctionWonTitle(lang);
   const body = buildAuctionWonMessage(lang, sellerPhone);
 
+  // 3. Stamp the 48-hour purchase deadline on the auction (idempotent — only
+  //    sets it the first time so re-running expireAuctions is safe). This is
+  //    the single source of truth for the reminder/expired schedulers.
+  const deadline = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+  const { error: deadlineErr } = await supabaseAdmin
+    .from("auctions")
+    .update({ purchase_deadline: deadline })
+    .eq("id", auctionId)
+    .is("purchase_deadline", null);
+  if (deadlineErr) {
+    logger.warn({ err: deadlineErr, auctionId }, "notifications: auction_won — purchase_deadline stamp failed");
+  }
+
   logger.info(
-    { winnerId, auctionId, finalAmount, lang, phoneIncluded: true },
+    { winnerId, auctionId, finalAmount, lang, phoneIncluded: true, deadline },
     "notifications: auction_won",
   );
   await createNotification({
@@ -579,9 +610,25 @@ export async function notifyAuctionWon(
       auctionTitle,
       sellerPhone,
       deadlineHours: 48,
+      purchaseDeadline: deadline,
       language: lang,
     },
   });
+
+  // 4. WhatsApp side-channel — winner gets the same body via WA. Best effort.
+  //    If the winner has no phone we just skip the WA leg; the in-app
+  //    notification has already been recorded above so they will still see it.
+  if (winnerPhone) {
+    void sendWhatsApp({
+      phone: winnerPhone,
+      body,
+      lang,
+      kind: "auction_won",
+      meta: { auctionId, winnerId },
+    }).catch(err => logger.warn({ err: String(err), auctionId }, "notifications: auction_won — WA dispatch failed"));
+  } else {
+    logger.info({ winnerId, auctionId }, "notifications: auction_won — winner has no phone, skipping WA leg");
+  }
 }
 
 /** Seller-side: auction finished with a winner. PUSH. */

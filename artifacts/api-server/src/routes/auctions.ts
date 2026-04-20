@@ -1337,9 +1337,17 @@ router.post("/auctions/:id/buy", requireAuth, async (req, res) => {
   // 3. ATOMIC claim. The .eq("status", "active") clause is the concurrency
   //    guard: if two buyers race, only one .update() will return a row — the
   //    other will see zero rows back and gets ALREADY_SOLD.
+  //    Stamps purchase_deadline = now + 48h in the same write so the
+  //    reminder/expiry scheduler picks this row up.
+  const purchaseDeadline = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
   const { data: updated, error: updateErr } = await supabaseAdmin
     .from("auctions")
-    .update({ status: "sold", buyer_id: buyerId, winner_id: buyerId })
+    .update({
+      status: "sold",
+      buyer_id: buyerId,
+      winner_id: buyerId,
+      purchase_deadline: purchaseDeadline,
+    })
     .eq("id", auctionId)
     .eq("status", "active")
     .eq("sale_type", "fixed")

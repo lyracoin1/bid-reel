@@ -6,6 +6,7 @@ import { useLang } from "@/contexts/LanguageContext";
 import { setToken, API_BASE } from "@/lib/api-client";
 import { supabase } from "@/lib/supabase";
 import { isNative, OAUTH_REDIRECT_URL, openInBrowser } from "@/lib/capacitor-app";
+import ForgotPasswordModal from "@/components/ForgotPasswordModal";
 
 function GoogleIcon() {
   return (
@@ -45,6 +46,7 @@ export default function Login() {
   const [error, setError]       = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
   const [signedUp, setSignedUp] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
 
   const copy = {
     title:     lang === "ar" ? "مرحباً بك في BidReel" : "Welcome to BidReel",
@@ -66,6 +68,7 @@ export default function Login() {
     backToLogin: lang === "ar" ? "العودة لتسجيل الدخول" : "Back to sign in",
     orContinueWith: lang === "ar" ? "أو تابع بـ" : "or continue with",
     googleSignIn: lang === "ar" ? "تسجيل الدخول بـ Google" : "Continue with Google",
+    forgotPw: lang === "ar" ? "هل نسيت كلمة السر؟" : "Forgot password?",
   };
 
   function clearForm() {
@@ -480,6 +483,17 @@ export default function Login() {
               </div>
             </div>
 
+            {/* Forgot password — sign-in only */}
+            {mode === "signin" && (
+              <button
+                type="button"
+                onClick={() => setForgotOpen(true)}
+                className={`text-sm text-primary/90 hover:text-primary transition-colors -mt-1 ${isRtl ? "self-start" : "self-end"}`}
+              >
+                {copy.forgotPw}
+              </button>
+            )}
+
             {/* Confirm password — signup only */}
             {mode === "signup" && (
               <div className="flex flex-col gap-1.5">
@@ -530,6 +544,8 @@ export default function Login() {
           </motion.form>
         </AnimatePresence>
       </div>
+
+      <ForgotPasswordModal open={forgotOpen} onClose={() => setForgotOpen(false)} />
     </div>
   );
 }

@@ -1,0 +1,86 @@
+The WhatsApp flow is still failing in production after adding the Wapilot environment variables to Vercel.
+
+Do NOT guess. Diagnose the exact failure source and return concrete evidence.
+
+## TASK: Deep production diagnosis for Wapilot delivery failure
+
+We need to determine exactly why WhatsApp messages are not being delivered from production.
+
+### Check all of the following:
+
+1. Verify which runtime is actually serving the API in production
+
+* confirm the active production deployment
+* confirm the API route is using the latest code
+* confirm the WhatsApp code path in production is the updated one
+
+2. Verify environment variables in production
+   Check whether the production runtime actually sees:
+
+* WAPILOT_API_KEY
+* WAPILOT_INSTANCE_ID
+* WAPILOT_BASE_URL
+
+Do not just assume they exist because they were added in the dashboard.
+Confirm what the runtime sees safely (presence / masked values / length), without exposing secrets.
+
+3. Add temporary diagnostic logs in whatsapp.ts
+   Log:
+
+* whether BASE_URL is present
+* whether API_KEY is present
+* whether INSTANCE_ID is present
+* the exact endpoint URL used
+* the normalized phone number
+* the HTTP status returned by Wapilot
+* the FULL provider response body
+* whether the code path is being reached at all
+
+Do NOT log the full raw secret values.
+
+4. Verify request format in production
+   Confirm that production is sending exactly:
+
+* POST https://api.wapilot.net/api/send-message
+* header: Token: <api_key>
+* body:
+  {
+  "instance_id": "...",
+  "phone": "...",
+  "message": "..."
+  }
+
+5. Run a real controlled production test
+   Use the forgot-password WhatsApp OTP flow with a known registered phone.
+   Trigger one message only.
+   Capture the exact production logs for that single request.
+
+6. Determine the exact failure category
+   Classify the result as one of:
+
+* environment variable missing in production
+* stale deployment / old code still running
+* incorrect Wapilot endpoint
+* incorrect request body fields
+* invalid phone formatting
+* invalid or mismatched instance ID
+* invalid API key
+* Wapilot account / connection issue
+* other
+
+7. Return evidence, not theory
+   Return:
+
+* files modified
+* exact temporary logs added
+* the exact production log output
+* the exact Wapilot response body
+* the final root cause
+* the exact fix needed
+
+## IMPORTANT
+
+* Do not stop at “probably”
+* Do not say “seems”
+* Do not give assumptions without logs
+* Use real production evidence

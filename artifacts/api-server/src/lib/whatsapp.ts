@@ -60,6 +60,29 @@ const SEND_PATH = process.env["WAPILOT_SEND_PATH"] ?? "/api/send-message";
 const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_LOGGED_BODY_CHARS = 4096;
 
+// ── Startup diagnostic banner ──────────────────────────────────────────────
+// Emitted ONCE on cold start (Vercel serverless container init, or Node
+// process boot on Replit). Logs presence + length only — never the secret
+// value itself. This is the single source of truth for "did the runtime
+// actually receive my env vars?".
+logger.info(
+  {
+    channel: "whatsapp",
+    provider: "wapilot",
+    diag: "startup",
+    runtime: process.env["VERCEL"] ? "vercel" : (process.env["REPL_ID"] ? "replit" : "other"),
+    nodeEnv: process.env["NODE_ENV"] ?? null,
+    hasBaseUrl: Boolean(BASE_URL),
+    baseUrlHost: BASE_URL ? new URL(BASE_URL).host : null,
+    hasApiKey: Boolean(API_KEY),
+    apiKeyLen: API_KEY.length,
+    hasInstanceId: Boolean(INSTANCE_ID),
+    instanceIdLen: INSTANCE_ID.length,
+    sendPath: SEND_PATH,
+  },
+  "whatsapp: Wapilot config snapshot at module load",
+);
+
 function isConfigured(): boolean {
   return Boolean(BASE_URL && API_KEY && INSTANCE_ID);
 }
@@ -70,9 +93,30 @@ function normalizeNumberForWapilot(phone: string): string {
 }
 
 export async function sendWhatsApp(input: SendWhatsAppInput): Promise<boolean> {
+  // Per-call entry marker — proves the code path was reached at all
+  // (rules out "stale bundle / old code still running" theories).
+  logger.info(
+    {
+      channel: "whatsapp",
+      provider: "wapilot",
+      diag: "entered",
+      kind: input.kind,
+      lang: input.lang,
+      phoneLen: (input.phone ?? "").length,
+      bodyLen: (input.body ?? "").length,
+      hasBaseUrl: Boolean(BASE_URL),
+      hasApiKey: Boolean(API_KEY),
+      apiKeyLen: API_KEY.length,
+      hasInstanceId: Boolean(INSTANCE_ID),
+      instanceIdLen: INSTANCE_ID.length,
+      ...input.meta,
+    },
+    "whatsapp: sendWhatsApp invoked",
+  );
+
   const phone = (input.phone ?? "").trim();
   if (!phone || !/^\+?[1-9]\d{6,14}$/.test(phone)) {
-    logger.warn({ kind: input.kind, ...input.meta }, "whatsapp: invalid phone — skipping");
+    logger.warn({ kind: input.kind, phoneLen: phone.length, ...input.meta }, "whatsapp: invalid phone — skipping");
     return false;
   }
 
@@ -83,6 +127,9 @@ export async function sendWhatsApp(input: SendWhatsAppInput): Promise<boolean> {
         hasBase: Boolean(BASE_URL),
         hasKey: Boolean(API_KEY),
         hasInstance: Boolean(INSTANCE_ID),
+        baseUrlLen: BASE_URL.length,
+        apiKeyLen: API_KEY.length,
+        instanceIdLen: INSTANCE_ID.length,
         ...input.meta,
       },
       "whatsapp: Wapilot not configured — message NOT sent",
@@ -98,6 +145,27 @@ export async function sendWhatsApp(input: SendWhatsAppInput): Promise<boolean> {
     phone: number,
     message: input.body,
   };
+
+  // Pre-flight log — captures the EXACT outbound shape (without secrets)
+  // so any "wrong endpoint / wrong body / wrong number format" claim can
+  // be verified from a single log line in production.
+  logger.info(
+    {
+      channel: "whatsapp",
+      provider: "wapilot",
+      diag: "request",
+      kind: input.kind,
+      method: "POST",
+      url,
+      authHeader: "Token",
+      bodyKeys: Object.keys(payload),
+      phoneNormalized: number,
+      phoneStartsWithPlus: phone.startsWith("+"),
+      messageLen: input.body.length,
+      instanceIdLen: INSTANCE_ID.length,
+    },
+    "whatsapp: outgoing Wapilot request",
+  );
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);

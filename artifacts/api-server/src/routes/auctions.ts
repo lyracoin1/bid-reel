@@ -61,13 +61,10 @@ async function insertAuction(payload: {
   lng?: number;
   currency_code?: string;
   currency_label?: string;
-  sale_type?: "auction" | "fixed";
-  fixed_price?: number | null;
 }) {
   const {
     start_price_value, min_increment_value, media_purge_after,
     lat, lng, currency_code, currency_label,
-    sale_type, fixed_price,
     ...base
   } = payload;
 
@@ -75,10 +72,6 @@ async function insertAuction(payload: {
   const currencyFields = {
     currency_code: currency_code ?? "USD",
     currency_label: currency_label ?? "US Dollar",
-  };
-  const saleFields = {
-    sale_type: sale_type ?? "auction",
-    fixed_price: sale_type === "fixed" ? (fixed_price ?? null) : null,
   };
 
   return supabaseAdmin
@@ -90,7 +83,6 @@ async function insertAuction(payload: {
       media_purge_after,
       ...locationFields,
       ...currencyFields,
-      ...saleFields,
     })
     .select("*")
     .single();
@@ -622,18 +614,9 @@ const createAuctionSchema = z.object({
   category: z.enum(VALID_CATEGORIES, {
     errorMap: () => ({ message: `Category must be one of: ${VALID_CATEGORIES.join(", ")}` }),
   }),
-  // saleType selects between traditional auction (default) and fixed-price.
-  // For fixed-price listings, startPrice / minIncrement / durationHours are
-  // ignored on the server and fixedPrice is required instead.
-  saleType: z.enum(["auction", "fixed"]).optional().default("auction"),
   startPrice: z
     .number()
-    .positive("Start price must be greater than 0")
-    .optional(),
-  fixedPrice: z
-    .number()
-    .positive("Fixed price must be greater than 0")
-    .optional(),
+    .positive("Start price must be greater than 0"),
   minIncrement: z
     .number()
     .positive("Minimum increment must be greater than 0")
@@ -658,24 +641,6 @@ const createAuctionSchema = z.object({
     })
     .optional()
     .default(24),
-}).superRefine((data, ctx) => {
-  if (data.saleType === "fixed") {
-    if (data.fixedPrice === undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "fixedPrice is required when saleType is 'fixed'",
-        path: ["fixedPrice"],
-      });
-    }
-  } else {
-    if (data.startPrice === undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "startPrice is required when saleType is 'auction'",
-        path: ["startPrice"],
-      });
-    }
-  }
 });
 
 // Columns returned to the client — never expose internal/deleted fields.
@@ -698,13 +663,10 @@ router.post("/auctions", requireAuth, async (req, res) => {
     return;
   }
 
-  const { title, description, category, saleType, startPrice, fixedPrice, minIncrement, videoUrl, thumbnailUrl, lat, lng, currencyCode, currencyLabel, durationHours } =
+  const { title, description, category, startPrice, minIncrement, videoUrl, thumbnailUrl, lat, lng, currencyCode, currencyLabel, durationHours } =
     parsed.data;
   const sellerId = req.user!.id;
-  // For fixed-price listings, the "start_price" stored on the row mirrors
-  // fixed_price so any legacy code that reads start_price still gets a
-  // sensible value. Bidding is gated separately by sale_type='auction'.
-  const effectiveStartPrice = saleType === "fixed" ? fixedPrice! : startPrice!;
+  const effectiveStartPrice = startPrice;
 
   // ── Phone-required gate ────────────────────────────────────────────────────
   // Auctions cannot be created without a WhatsApp contact phone on file —
@@ -790,8 +752,6 @@ router.post("/auctions", requireAuth, async (req, res) => {
     lng,
     currency_code: currencyCode,
     currency_label: currencyLabel,
-    sale_type: saleType,
-    fixed_price: saleType === "fixed" ? fixedPrice : null,
   });
 
   if (error || !auction) {
@@ -976,18 +936,6 @@ async function executePlaceBid(
   // 3. Auction must be within its active time window.
   if (auction.status === "ended" || !isAuctionActive(auction.starts_at, auction.ends_at)) {
     return { ok: false, status: 409, body: { error: "AUCTION_NOT_ACTIVE", message: "This auction is not currently accepting bids" } };
-  }
-
-  // 3b. Fixed-price listings cannot receive bids — buyers must use Buy Now.
-  if (auction.sale_type === "fixed") {
-    return {
-      ok: false,
-      status: 409,
-      body: {
-        error: "FIXED_PRICE_LISTING",
-        message: "This is a fixed-price listing — use Buy Now instead of bidding",
-      },
-    };
   }
 
   // 4. Seller cannot bid on own auction.
@@ -1268,105 +1216,13 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
 // reserved for a future hold-and-pay step but is not written here.
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.post("/auctions/:id/buy", requireAuth, async (req, res) => {
-  const auctionId = req.params["id"];
-  const userId = req.user!.id;
-
-  if (!auctionId) {
-    res.status(400).json({ error: "MISSING_ID", message: "Auction ID is required" });
-    return;
-  }
-
-  // 0. Lifecycle sync — mirror the bid pre-check so an expired-but-stale
-  //    'active' row is flipped to 'ended' BEFORE we evaluate eligibility.
-  //    Without this, a fixed-price listing whose ends_at has passed could
-  //    still be purchased while the lifecycle scheduler hasn't fired yet.
-  await runAuctionLifecycle().catch(err =>
-    logger.warn({ err: String(err) }, "POST /auctions/:id/buy: runAuctionLifecycle pre-check failed"),
-  );
-
-  // 1. Fetch the listing so we can validate seller / type / status.
-  const { data: listing, error: fetchErr } = await supabaseAdmin
-    .from("auctions")
-    .select("id, seller_id, sale_type, status, fixed_price, title")
-    .eq("id", auctionId)
-    .maybeSingle();
-
-  if (fetchErr || !listing) {
-    res.status(404).json({ error: "NOT_FOUND", message: "Listing not found" });
-    return;
-  }
-
-  if (listing.sale_type !== "fixed") {
-    res.status(409).json({
-      error: "NOT_FIXED_PRICE",
-      message: "This listing is an auction — place a bid instead of Buy Now",
-    });
-    return;
-  }
-
-  if (listing.seller_id === userId) {
-    res.status(403).json({
-      error: "SELLER_CANNOT_BUY",
-      message: "You cannot buy your own listing",
-    });
-    return;
-  }
-
-  if (listing.status === "sold" || listing.status === "reserved") {
-    res.status(409).json({
-      error: "ALREADY_SOLD",
-      message: "This item is no longer available",
-    });
-    return;
-  }
-
-  if (listing.status !== "active") {
-    res.status(409).json({
-      error: "LISTING_NOT_ACTIVE",
-      message: "This listing is not currently available",
-    });
-    return;
-  }
-
-  // 2. Atomic claim — only succeeds if status is still 'active'.
-  //    Two concurrent buyers race here; Postgres serialises the UPDATE and
-  //    only the first writer's filter matches; the loser sees data === null.
-  const { data: updated, error: updateErr } = await supabaseAdmin
-    .from("auctions")
-    .update({
-      status: "sold",
-      buyer_id: userId,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", auctionId)
-    .eq("status", "active")
-    .eq("sale_type", "fixed")
-    .select("*")
-    .maybeSingle();
-
-  if (updateErr) {
-    logger.error({ err: updateErr, auctionId, userId }, "POST /auctions/:id/buy: update failed");
-    res.status(500).json({ error: "BUY_FAILED", message: "Could not complete purchase. Please try again." });
-    return;
-  }
-
-  if (!updated) {
-    // Lost the race against another buyer — listing is no longer active.
-    logger.info({ auctionId, userId }, "POST /auctions/:id/buy: lost race, listing already claimed");
-    res.status(409).json({
-      error: "ALREADY_SOLD",
-      message: "This item was just purchased by someone else",
-    });
-    return;
-  }
-
-  logger.info(
-    { auctionId, buyerId: userId, sellerId: listing.seller_id, fixedPrice: listing.fixed_price },
-    "Fixed-price listing purchased",
-  );
-
-  res.json({ auction: updated });
+router.post("/auctions/:id/buy", requireAuth, async (_req, res) => {
+  // Fixed-price / Buy Now is temporarily disabled — feature not yet shipped.
+  res.status(410).json({
+    error: "FEATURE_DISABLED",
+    message: "Buy Now is not available right now.",
+  });
+  return;
 });
 
 // ─── Content Signal endpoints ─────────────────────────────────────────────────

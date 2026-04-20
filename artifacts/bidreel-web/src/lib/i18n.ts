@@ -150,7 +150,26 @@ export type TKey =
   // Fixed-price (Buy Now) selling
   | "sale_type_label" | "sale_type_auction" | "sale_type_fixed"
   | "fixed_price_label" | "buy_now" | "buy_now_confirm" | "buy_now_success"
-  | "sold" | "reserved";
+  | "sold" | "reserved"
+  // Notifications panel (BottomNav bell)
+  | "notifications_title" | "notifications_empty" | "notifs_short"
+  // Notification type labels (shown above each row)
+  | "notif_label_followed_you" | "notif_label_liked" | "notif_label_saved"
+  | "notif_label_commented" | "notif_label_replied" | "notif_label_mentioned"
+  | "notif_label_bid_received" | "notif_label_outbid" | "notif_label_won"
+  | "notif_label_ended" | "notif_label_unsold" | "notif_label_ending_soon"
+  | "notif_label_admin" | "notif_label_warning"
+  | "notif_label_live" | "notif_label_removed"
+  // Profile — delete account warning
+  | "delete_irreversible" | "delete_account_body" | "delete_account_irreversible_emphasis"
+  // Aria-labels (screen-reader strings on touch buttons)
+  | "aria_open_settings" | "aria_contact_whatsapp"
+  | "aria_follow_seller" | "aria_unfollow_seller"
+  | "aria_like" | "aria_unlike"
+  | "aria_save_auction" | "aria_unsave_auction"
+  | "aria_share_auction"
+  | "aria_remind_me" | "aria_remove_reminder"
+  | "aria_buy_now";
 
 type Translations = Record<TKey, string>;
 
@@ -343,6 +362,25 @@ const en: Translations = {
   buy_now_success: "Purchased — the seller will be notified",
   sold: "Sold",
   reserved: "Reserved",
+  notifications_title: "Notifications",
+  notifications_empty: "No notifications yet",
+  notifs_short: "Notifs",
+  notif_label_followed_you: "Follower", notif_label_liked: "Like", notif_label_saved: "Saved",
+  notif_label_commented: "Comment", notif_label_replied: "Reply", notif_label_mentioned: "Mention",
+  notif_label_bid_received: "New Bid", notif_label_outbid: "Outbid", notif_label_won: "Won",
+  notif_label_ended: "Sold", notif_label_unsold: "Unsold", notif_label_ending_soon: "Ending Soon",
+  notif_label_admin: "Announcement", notif_label_warning: "Warning",
+  notif_label_live: "Live", notif_label_removed: "Removed",
+  delete_irreversible: "This cannot be undone",
+  delete_account_body: "This will permanently delete your account, profile, bids, follows, and saved auctions. Your auction listings will be anonymised.",
+  delete_account_irreversible_emphasis: "This action is irreversible.",
+  aria_open_settings: "Open settings", aria_contact_whatsapp: "Contact seller on WhatsApp",
+  aria_follow_seller: "Follow seller", aria_unfollow_seller: "Unfollow seller",
+  aria_like: "Like", aria_unlike: "Unlike",
+  aria_save_auction: "Save auction", aria_unsave_auction: "Unsave auction",
+  aria_share_auction: "Share auction",
+  aria_remind_me: "Remind me when live", aria_remove_reminder: "Remove reminder",
+  aria_buy_now: "Buy now",
 };
 
 const ar: Translations = {
@@ -534,6 +572,25 @@ const ar: Translations = {
   buy_now_success: "تم الشراء — سيتم إعلام البائع",
   sold: "مُباع",
   reserved: "محجوز",
+  notifications_title: "الإشعارات",
+  notifications_empty: "لا توجد إشعارات بعد",
+  notifs_short: "إشعارات",
+  notif_label_followed_you: "متابع", notif_label_liked: "إعجاب", notif_label_saved: "حفظ",
+  notif_label_commented: "تعليق", notif_label_replied: "رد", notif_label_mentioned: "إشارة",
+  notif_label_bid_received: "مزايدة جديدة", notif_label_outbid: "تم تجاوزك", notif_label_won: "فزت",
+  notif_label_ended: "بيع", notif_label_unsold: "لم يُبَع", notif_label_ending_soon: "ينتهي قريبًا",
+  notif_label_admin: "إعلان", notif_label_warning: "تحذير",
+  notif_label_live: "مباشر", notif_label_removed: "محذوف",
+  delete_irreversible: "لا يمكن التراجع",
+  delete_account_body: "سيؤدي ذلك إلى حذف حسابك وملفك الشخصي ومزايداتك ومتابعاتك ومحفوظاتك بشكل نهائي. سيتم إخفاء هوية إعلاناتك.",
+  delete_account_irreversible_emphasis: "هذا الإجراء لا يمكن التراجع عنه.",
+  aria_open_settings: "فتح الإعدادات", aria_contact_whatsapp: "تواصل مع البائع عبر واتساب",
+  aria_follow_seller: "متابعة البائع", aria_unfollow_seller: "إلغاء المتابعة",
+  aria_like: "إعجاب", aria_unlike: "إلغاء الإعجاب",
+  aria_save_auction: "حفظ المزاد", aria_unsave_auction: "إلغاء الحفظ",
+  aria_share_auction: "مشاركة المزاد",
+  aria_remind_me: "ذكّرني عند البدء", aria_remove_reminder: "إلغاء التذكير",
+  aria_buy_now: "اشترِ الآن",
 };
 
 const ru: Translations = {
@@ -725,6 +782,25 @@ const ru: Translations = {
   buy_now_success: "Куплено — продавец будет уведомлён",
   sold: "Продано",
   reserved: "Зарезервировано",
+  notifications_title: "Уведомления",
+  notifications_empty: "Уведомлений пока нет",
+  notifs_short: "Увед.",
+  notif_label_followed_you: "Подписчик", notif_label_liked: "Лайк", notif_label_saved: "Сохранено",
+  notif_label_commented: "Комментарий", notif_label_replied: "Ответ", notif_label_mentioned: "Упоминание",
+  notif_label_bid_received: "Новая ставка", notif_label_outbid: "Перебили", notif_label_won: "Победа",
+  notif_label_ended: "Продано", notif_label_unsold: "Не продано", notif_label_ending_soon: "Скоро финал",
+  notif_label_admin: "Объявление", notif_label_warning: "Предупреждение",
+  notif_label_live: "В эфире", notif_label_removed: "Удалено",
+  delete_irreversible: "Это действие необратимо",
+  delete_account_body: "Это навсегда удалит ваш аккаунт, профиль, ставки, подписки и сохранённые аукционы. Ваши объявления будут анонимизированы.",
+  delete_account_irreversible_emphasis: "Это действие необратимо.",
+  aria_open_settings: "Открыть настройки", aria_contact_whatsapp: "Связаться с продавцом в WhatsApp",
+  aria_follow_seller: "Подписаться на продавца", aria_unfollow_seller: "Отписаться",
+  aria_like: "Нравится", aria_unlike: "Убрать лайк",
+  aria_save_auction: "Сохранить аукцион", aria_unsave_auction: "Удалить из сохранённых",
+  aria_share_auction: "Поделиться аукционом",
+  aria_remind_me: "Напомнить о начале", aria_remove_reminder: "Убрать напоминание",
+  aria_buy_now: "Купить сейчас",
 };
 
 const es: Translations = {
@@ -916,6 +992,25 @@ const es: Translations = {
   buy_now_success: "Comprado — se notificará al vendedor",
   sold: "Vendido",
   reserved: "Reservado",
+  notifications_title: "Notificaciones",
+  notifications_empty: "No hay notificaciones todavía",
+  notifs_short: "Notif.",
+  notif_label_followed_you: "Seguidor", notif_label_liked: "Me gusta", notif_label_saved: "Guardado",
+  notif_label_commented: "Comentario", notif_label_replied: "Respuesta", notif_label_mentioned: "Mención",
+  notif_label_bid_received: "Nueva puja", notif_label_outbid: "Superado", notif_label_won: "Ganaste",
+  notif_label_ended: "Vendido", notif_label_unsold: "No vendido", notif_label_ending_soon: "Termina pronto",
+  notif_label_admin: "Anuncio", notif_label_warning: "Aviso",
+  notif_label_live: "En vivo", notif_label_removed: "Eliminado",
+  delete_irreversible: "Esto no se puede deshacer",
+  delete_account_body: "Esto eliminará permanentemente tu cuenta, perfil, pujas, seguimientos y subastas guardadas. Tus anuncios serán anonimizados.",
+  delete_account_irreversible_emphasis: "Esta acción es irreversible.",
+  aria_open_settings: "Abrir ajustes", aria_contact_whatsapp: "Contactar al vendedor por WhatsApp",
+  aria_follow_seller: "Seguir al vendedor", aria_unfollow_seller: "Dejar de seguir",
+  aria_like: "Me gusta", aria_unlike: "Quitar me gusta",
+  aria_save_auction: "Guardar subasta", aria_unsave_auction: "Quitar de guardadas",
+  aria_share_auction: "Compartir subasta",
+  aria_remind_me: "Recordármelo al iniciar", aria_remove_reminder: "Quitar recordatorio",
+  aria_buy_now: "Comprar ya",
 };
 
 const fr: Translations = {
@@ -1107,6 +1202,25 @@ const fr: Translations = {
   buy_now_success: "Acheté — le vendeur sera averti",
   sold: "Vendu",
   reserved: "Réservé",
+  notifications_title: "Notifications",
+  notifications_empty: "Aucune notification pour le moment",
+  notifs_short: "Notifs",
+  notif_label_followed_you: "Abonné", notif_label_liked: "J'aime", notif_label_saved: "Enregistré",
+  notif_label_commented: "Commentaire", notif_label_replied: "Réponse", notif_label_mentioned: "Mention",
+  notif_label_bid_received: "Nouvelle enchère", notif_label_outbid: "Surenchéri", notif_label_won: "Gagné",
+  notif_label_ended: "Vendu", notif_label_unsold: "Invendu", notif_label_ending_soon: "Bientôt fini",
+  notif_label_admin: "Annonce", notif_label_warning: "Alerte",
+  notif_label_live: "En direct", notif_label_removed: "Supprimé",
+  delete_irreversible: "Action définitive",
+  delete_account_body: "Cela supprimera définitivement votre compte, profil, enchères, abonnements et enchères enregistrées. Vos annonces seront anonymisées.",
+  delete_account_irreversible_emphasis: "Cette action est irréversible.",
+  aria_open_settings: "Ouvrir les paramètres", aria_contact_whatsapp: "Contacter le vendeur sur WhatsApp",
+  aria_follow_seller: "Suivre le vendeur", aria_unfollow_seller: "Ne plus suivre",
+  aria_like: "J'aime", aria_unlike: "Retirer j'aime",
+  aria_save_auction: "Enregistrer l'enchère", aria_unsave_auction: "Retirer des enregistrées",
+  aria_share_auction: "Partager l'enchère",
+  aria_remind_me: "Me rappeler au démarrage", aria_remove_reminder: "Retirer le rappel",
+  aria_buy_now: "Acheter maintenant",
 };
 
 const tr: Translations = {
@@ -1298,6 +1412,25 @@ const tr: Translations = {
   buy_now_success: "Satın alındı — satıcıya bildirilecek",
   sold: "Satıldı",
   reserved: "Rezerve",
+  notifications_title: "Bildirimler",
+  notifications_empty: "Henüz bildirim yok",
+  notifs_short: "Bildir.",
+  notif_label_followed_you: "Takipçi", notif_label_liked: "Beğeni", notif_label_saved: "Kaydedildi",
+  notif_label_commented: "Yorum", notif_label_replied: "Yanıt", notif_label_mentioned: "Bahsedildi",
+  notif_label_bid_received: "Yeni teklif", notif_label_outbid: "Geçildin", notif_label_won: "Kazandın",
+  notif_label_ended: "Satıldı", notif_label_unsold: "Satılmadı", notif_label_ending_soon: "Yakında bitiyor",
+  notif_label_admin: "Duyuru", notif_label_warning: "Uyarı",
+  notif_label_live: "Canlı", notif_label_removed: "Kaldırıldı",
+  delete_irreversible: "Bu işlem geri alınamaz",
+  delete_account_body: "Bu, hesabını, profilini, tekliflerini, takiplerini ve kaydedilen açık artırmaları kalıcı olarak siler. İlanların anonimleştirilir.",
+  delete_account_irreversible_emphasis: "Bu işlem geri alınamaz.",
+  aria_open_settings: "Ayarları aç", aria_contact_whatsapp: "Satıcıyla WhatsApp'tan iletişime geç",
+  aria_follow_seller: "Satıcıyı takip et", aria_unfollow_seller: "Takibi bırak",
+  aria_like: "Beğen", aria_unlike: "Beğeniyi kaldır",
+  aria_save_auction: "Açık artırmayı kaydet", aria_unsave_auction: "Kaydı kaldır",
+  aria_share_auction: "Açık artırmayı paylaş",
+  aria_remind_me: "Başladığında hatırlat", aria_remove_reminder: "Hatırlatmayı kaldır",
+  aria_buy_now: "Şimdi satın al",
 };
 
 export const TRANSLATIONS: Record<Language, Translations> = { en, ar, ru, es, fr, tr };

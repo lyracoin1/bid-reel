@@ -9,49 +9,62 @@ import { cn } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { useNotifications, type AppNotification, type NotificationType } from "@/hooks/use-notifications";
 import { useOverlayBack } from "@/hooks/use-overlay-back";
+import type { TKey, Language } from "@/lib/i18n";
 
-// ─── Notification panel helpers (duplicated from NotificationBell to keep
-//     the nav self-contained; NotificationBell is still used on profile header
-//     in non-bell-in-nav mode, but will be removed from there) ─────────────────
+// ─── Notification panel helpers (icon + colour + i18n label key per type) ──
 
 const TYPE_CONFIG: Record<
   NotificationType,
-  { icon: typeof Bell; colour: string }
+  { icon: typeof Bell; colour: string; labelKey: TKey }
 > = {
   // canonical
-  followed_you:              { icon: UserPlus,    colour: "text-blue-400"    },
-  liked_your_auction:        { icon: Heart,       colour: "text-pink-400"    },
-  saved_your_auction:        { icon: Bookmark,    colour: "text-purple-400"  },
-  commented_on_your_auction: { icon: MessageCircle, colour: "text-cyan-400"  },
-  replied_to_your_comment:   { icon: MessageCircle, colour: "text-cyan-400"  },
-  mentioned_you:             { icon: AtSign,      colour: "text-indigo-400"  },
-  bid_received:              { icon: ShoppingBag, colour: "text-emerald-400" },
-  outbid:                    { icon: Gavel,       colour: "text-red-400"     },
-  auction_won:               { icon: Trophy,      colour: "text-amber-400"   },
-  auction_ended:             { icon: Trophy,      colour: "text-amber-400"   },
-  auction_unsold:            { icon: XCircle,     colour: "text-white/50"    },
-  auction_ending_soon:       { icon: Gavel,       colour: "text-orange-400"  },
-  admin_message:             { icon: Megaphone,   colour: "text-yellow-300"  },
-  account_warning:           { icon: ShieldAlert, colour: "text-red-500"     },
+  followed_you:              { icon: UserPlus,    colour: "text-blue-400",    labelKey: "notif_label_followed_you" },
+  liked_your_auction:        { icon: Heart,       colour: "text-pink-400",    labelKey: "notif_label_liked"        },
+  saved_your_auction:        { icon: Bookmark,    colour: "text-purple-400",  labelKey: "notif_label_saved"        },
+  commented_on_your_auction: { icon: MessageCircle, colour: "text-cyan-400",  labelKey: "notif_label_commented"    },
+  replied_to_your_comment:   { icon: MessageCircle, colour: "text-cyan-400",  labelKey: "notif_label_replied"      },
+  mentioned_you:             { icon: AtSign,      colour: "text-indigo-400",  labelKey: "notif_label_mentioned"    },
+  bid_received:              { icon: ShoppingBag, colour: "text-emerald-400", labelKey: "notif_label_bid_received" },
+  outbid:                    { icon: Gavel,       colour: "text-red-400",     labelKey: "notif_label_outbid"       },
+  auction_won:               { icon: Trophy,      colour: "text-amber-400",   labelKey: "notif_label_won"          },
+  auction_ended:             { icon: Trophy,      colour: "text-amber-400",   labelKey: "notif_label_ended"        },
+  auction_unsold:            { icon: XCircle,     colour: "text-white/50",    labelKey: "notif_label_unsold"       },
+  auction_ending_soon:       { icon: Gavel,       colour: "text-orange-400",  labelKey: "notif_label_ending_soon"  },
+  admin_message:             { icon: Megaphone,   colour: "text-yellow-300",  labelKey: "notif_label_admin"        },
+  account_warning:           { icon: ShieldAlert, colour: "text-red-500",     labelKey: "notif_label_warning"      },
   // legacy aliases
-  new_follower:     { icon: UserPlus,    colour: "text-blue-400"    },
-  new_bid:          { icon: ShoppingBag, colour: "text-emerald-400" },
-  new_bid_received: { icon: ShoppingBag, colour: "text-emerald-400" },
-  auction_started:  { icon: Tag,         colour: "text-primary"     },
-  auction_removed:  { icon: Tag,         colour: "text-white/40"    },
+  new_follower:     { icon: UserPlus,    colour: "text-blue-400",    labelKey: "notif_label_followed_you" },
+  new_bid:          { icon: ShoppingBag, colour: "text-emerald-400", labelKey: "notif_label_bid_received" },
+  new_bid_received: { icon: ShoppingBag, colour: "text-emerald-400", labelKey: "notif_label_bid_received" },
+  auction_started:  { icon: Tag,         colour: "text-primary",     labelKey: "notif_label_live"         },
+  auction_removed:  { icon: Tag,         colour: "text-white/40",    labelKey: "notif_label_removed"      },
 };
 
-function timeAgo(iso: string): string {
+/**
+ * Locale-aware "5m ago" / "just now" formatter using Intl.RelativeTimeFormat.
+ * Falls back gracefully on environments without the API.
+ */
+function formatTimeAgo(iso: string, lang: Language): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diffMs / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+  try {
+    const rtf = new Intl.RelativeTimeFormat(lang, { numeric: "auto", style: "short" });
+    if (mins < 1) return rtf.format(0, "minute");
+    if (mins < 60) return rtf.format(-mins, "minute");
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return rtf.format(-hrs, "hour");
+    return rtf.format(-Math.floor(hrs / 24), "day");
+  } catch {
+    if (mins < 1) return "now";
+    if (mins < 60) return `${mins}m`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h`;
+    return `${Math.floor(hrs / 24)}d`;
+  }
 }
 
 function NotifRow({ n }: { n: AppNotification }) {
+  const { t, lang } = useLang();
   const cfg = TYPE_CONFIG[n.type] ?? TYPE_CONFIG.outbid;
   const Icon = cfg.icon;
   return (
@@ -69,9 +82,9 @@ function NotifRow({ n }: { n: AppNotification }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2 mb-0.5">
           <span className={`text-xs font-semibold uppercase tracking-wide ${cfg.colour}`}>
-            {n.type.replace(/_/g, " ")}
+            {t(cfg.labelKey)}
           </span>
-          <span className="text-xs text-muted-foreground flex-shrink-0">{timeAgo(n.createdAt)}</span>
+          <span className="text-xs text-muted-foreground flex-shrink-0">{formatTimeAgo(n.createdAt, lang)}</span>
         </div>
         <p className="text-sm text-white/90 leading-snug line-clamp-2">{n.message}</p>
       </div>
@@ -86,6 +99,7 @@ function NotifRow({ n }: { n: AppNotification }) {
 
 function BellNavItem() {
   const [open, setOpen] = useState(false);
+  const { t } = useLang();
   const { notifications, unreadCount, markAllRead } = useNotifications();
 
   const handleOpen = useCallback(() => {
@@ -103,7 +117,7 @@ function BellNavItem() {
       <motion.button
         whileTap={{ scale: 0.85 }}
         onClick={handleOpen}
-        aria-label={`Notifications${unreadCount > 0 ? ` — ${unreadCount} unread` : ""}`}
+        aria-label={t("notifications_title")}
         className="relative flex flex-col items-center justify-center gap-0.5 cursor-pointer"
         style={{ minWidth: 48, minHeight: 48 }}
       >
@@ -141,7 +155,7 @@ function BellNavItem() {
           "relative z-10 text-[10px] font-semibold tracking-wide transition-colors",
           open ? "text-primary" : "text-white/30",
         )}>
-          {unreadCount > 0 ? `(${unreadCount > 99 ? "99+" : unreadCount})` : "Notifs"}
+          {unreadCount > 0 ? `(${unreadCount > 99 ? "99+" : unreadCount})` : t("notifs_short")}
         </span>
       </motion.button>
 
@@ -171,7 +185,7 @@ function BellNavItem() {
               <div className="flex items-center justify-between px-5 py-3">
                 <div className="flex items-center gap-2">
                   <Bell size={18} className="text-white" />
-                  <h2 className="text-base font-bold text-white">Notifications</h2>
+                  <h2 className="text-base font-bold text-white">{t("notifications_title")}</h2>
                   {notifications.length > 0 && (
                     <span className="text-xs text-muted-foreground">({notifications.length})</span>
                   )}
@@ -188,7 +202,7 @@ function BellNavItem() {
                 {notifications.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
                     <Bell size={32} className="opacity-30" />
-                    <p className="text-sm">No notifications yet</p>
+                    <p className="text-sm">{t("notifications_empty")}</p>
                   </div>
                 ) : (
                   notifications.map(n => <NotifRow key={n.id} n={n} />)

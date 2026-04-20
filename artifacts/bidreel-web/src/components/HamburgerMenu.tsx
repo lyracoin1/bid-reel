@@ -71,7 +71,7 @@ export function HamburgerMenu({ className = "", open: controlledOpen, onOpenChan
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 pt-14 pb-5 border-b border-white/6">
-              <h2 className="text-base font-bold text-white">Settings</h2>
+              <h2 className="text-base font-bold text-white">{t("settings")}</h2>
               <motion.button
                 whileTap={{ scale: 0.88 }}
                 onClick={() => setOpen(false)}
@@ -176,7 +176,7 @@ export function HamburgerMenu({ className = "", open: controlledOpen, onOpenChan
       <motion.button
         whileTap={{ scale: 0.88 }}
         onClick={() => setOpen(true)}
-        aria-label="Open settings"
+        aria-label={t("aria_open_settings")}
         className={[
           "w-10 h-10 rounded-full bg-black/50 backdrop-blur-md border border-white/12",
           "flex items-center justify-center text-white",

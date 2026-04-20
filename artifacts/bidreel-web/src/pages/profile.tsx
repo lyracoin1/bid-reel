@@ -651,13 +651,13 @@ export default function Profile() {
                 </div>
                 <div>
                   <h3 className="font-bold text-white text-base">{t("delete_account")}</h3>
-                  <p className="text-xs text-white/40">This cannot be undone</p>
+                  <p className="text-xs text-white/40">{t("delete_irreversible")}</p>
                 </div>
               </div>
 
               <p className="text-sm text-white/60 leading-relaxed">
-                This will permanently delete your account, profile, bids, follows, and saved auctions.
-                Your auction listings will be anonymised. <span className="text-red-400 font-semibold">This action is irreversible.</span>
+                {t("delete_account_body")}{" "}
+                <span className="text-red-400 font-semibold">{t("delete_account_irreversible_emphasis")}</span>
               </p>
 
               {deleteError && (

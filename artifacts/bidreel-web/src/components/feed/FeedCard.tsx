@@ -380,7 +380,7 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
                   whileTap={{ scale: 0.85 }}
                   transition={{ duration: 0.15 }}
                   onClick={(e) => { e.stopPropagation(); toggleFollow(auction.seller.id); }}
-                  aria-label="Follow seller"
+                  aria-label={t("aria_follow_seller")}
                   className="absolute top-9 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-[#fe2c55] border-2 border-black flex items-center justify-center z-10"
                 >
                   <span className="text-white font-bold leading-none" style={{ fontSize: 12 }}>+</span>
@@ -403,7 +403,7 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
           whileTap={{ scale: 0.75 }}
           className="flex flex-col items-center gap-1"
           style={{ minWidth: 44, minHeight: 44 }}
-          aria-label={auction.isLikedByMe ? "Unlike" : "Like"}
+          aria-label={auction.isLikedByMe ? t("aria_unlike") : t("aria_like")}
           onClick={(e) => { e.stopPropagation(); toggleLike(auction.id); }}
         >
           <motion.div
@@ -425,7 +425,7 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
             whileTap={{ scale: 0.8 }}
             className="flex flex-col items-center gap-1"
             style={{ minWidth: 44, minHeight: 44 }}
-            aria-label="Contact seller on WhatsApp"
+            aria-label={t("aria_contact_whatsapp")}
             onClick={handleWhatsApp}
           >
             <div className="w-12 h-12 rounded-full bg-[#25D366]/15 backdrop-blur-md border border-[#25D366]/50 flex items-center justify-center shadow-[0_0_14px_rgba(37,211,102,0.3)]">
@@ -440,7 +440,7 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
           whileTap={{ scale: 0.8 }}
           className="flex flex-col items-center gap-1"
           style={{ minWidth: 44, minHeight: 44 }}
-          aria-label={saved ? "Unsave auction" : "Save auction"}
+          aria-label={saved ? t("aria_unsave_auction") : t("aria_save_auction")}
           onClick={(e) => { e.stopPropagation(); toggleSave(auction.id); }}
         >
           <motion.div
@@ -463,7 +463,7 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
           whileTap={{ scale: 0.8 }}
           className="flex flex-col items-center gap-1"
           style={{ minWidth: 44, minHeight: 44 }}
-          aria-label="Share this auction"
+          aria-label={t("aria_share_auction")}
           onClick={handleShare}
         >
           <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white">
@@ -479,7 +479,7 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
             whileTap={{ scale: 0.88 }}
             className="flex flex-col items-center gap-1 mt-1"
             style={{ minWidth: 44, minHeight: 44 }}
-            aria-label={watching ? "Remove reminder" : "Remind me when live"}
+            aria-label={watching ? t("aria_remove_reminder") : t("aria_remind_me")}
             onClick={(e) => { e.stopPropagation(); toggleWatch(auction.id); }}
           >
             <div className={cn(
@@ -501,7 +501,7 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
             whileTap={{ scale: 0.88 }}
             className="flex flex-col items-center gap-1 mt-1"
             style={{ minWidth: 44, minHeight: 44 }}
-            aria-label={isSold ? "Sold" : "Reserved"}
+            aria-label={isSold ? t("sold") : t("reserved")}
             onClick={(e) => { e.stopPropagation(); setLocation(`/auction/${auction.id}`); }}
           >
             <div className={cn(
@@ -525,7 +525,7 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
             whileTap={{ scale: 0.88 }}
             className="flex flex-col items-center gap-1 mt-1"
             style={{ minWidth: 44, minHeight: 44 }}
-            aria-label="Buy now"
+            aria-label={t("aria_buy_now")}
             onClick={(e) => { e.stopPropagation(); setLocation(`/auction/${auction.id}`); }}
           >
             <div className={cn(

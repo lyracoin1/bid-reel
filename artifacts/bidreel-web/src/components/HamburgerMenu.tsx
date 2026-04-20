@@ -7,7 +7,7 @@ import { useLang } from "@/contexts/LanguageContext";
 import { useOverlayBack } from "@/hooks/use-overlay-back";
 import { type Language, LANGUAGE_NAMES } from "@/lib/i18n";
 
-const LANGUAGES: Language[] = ["en", "ar", "ru", "es", "fr"];
+const LANGUAGES: Language[] = ["en", "ar", "tr", "ru", "es", "fr"];
 
 const LANG_FLAG: Record<Language, string> = {
   en: "🇺🇸",
@@ -15,6 +15,7 @@ const LANG_FLAG: Record<Language, string> = {
   ru: "🇷🇺",
   es: "🇪🇸",
   fr: "🇫🇷",
+  tr: "🇹🇷",
 };
 
 interface HamburgerMenuProps {
@@ -131,7 +132,7 @@ export function HamburgerMenu({ className = "", open: controlledOpen, onOpenChan
                     className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-white/5"
                   >
                     <Handshake size={16} className="text-primary shrink-0" />
-                    <span className="text-sm font-semibold text-white/70">My Deals</span>
+                    <span className="text-sm font-semibold text-white/70">{t("nav_my_deals")}</span>
                   </motion.button>
                   <motion.button
                     whileTap={{ scale: 0.98 }}

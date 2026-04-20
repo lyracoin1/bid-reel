@@ -1,4 +1,5 @@
 import { ShieldCheck } from "lucide-react";
+import { useLang } from "@/contexts/LanguageContext";
 
 export type TrustColor = "green" | "yellow" | "red" | null;
 
@@ -32,6 +33,7 @@ interface TrustBadgeProps {
  * Null score → neutral gray "new user" pill.
  */
 export function TrustBadge({ score, color, size = "sm", showLabel = false, label, className = "" }: TrustBadgeProps) {
+  const { t } = useLang();
   const resolvedColor = color ?? colorForScore(score);
   const palette = resolvedColor ? COLOR_MAP[resolvedColor] : null;
   const pct = score === null || score === undefined ? null : Math.round(score);
@@ -48,7 +50,7 @@ export function TrustBadge({ score, color, size = "sm", showLabel = false, label
           "inline-flex items-center rounded-full border font-bold tabular-nums",
           palette.bg, palette.border, palette.text, dim.pad, dim.gap, dim.text, className,
         ].join(" ")}
-        title={label ?? `Trust ${pct}%`}
+        title={label ?? `${t("trust_tooltip")} ${pct}%`}
       >
         <span className={`rounded-full ${palette.dot} ${dim.dot}`} />
         <span>{pct}%</span>
@@ -64,10 +66,10 @@ export function TrustBadge({ score, color, size = "sm", showLabel = false, label
         "inline-flex items-center rounded-full border border-white/10 bg-white/5 text-white/45",
         "font-semibold", dim.pad, dim.gap, dim.text, className,
       ].join(" ")}
-      title="New user — no completed deals yet"
+      title={t("trust_new_tooltip")}
     >
       <ShieldCheck size={size === "md" ? 12 : 10} />
-      <span>New</span>
+      <span>{t("trust_new")}</span>
       {showLabel && label ? <span className="opacity-70">· {label}</span> : null}
     </span>
   );
@@ -84,6 +86,7 @@ interface TrustStatCardProps {
 
 /** Larger stat card for profile pages — shows score + completed/total ratio. */
 export function TrustStatCard({ title, score, color, completed, total, reviewsCount }: TrustStatCardProps) {
+  const { t } = useLang();
   const resolved = color ?? colorForScore(score);
   const palette = resolved ? COLOR_MAP[resolved] : null;
   const pct = score === null || score === undefined ? null : Math.round(score);
@@ -108,11 +111,15 @@ export function TrustStatCard({ title, score, color, completed, total, reviewsCo
         )}
       </div>
       <div className="flex items-center gap-2 text-[10px] text-white/45 font-medium">
-        <span className="tabular-nums">{completed}/{total} done</span>
+        <span className="tabular-nums">
+          {t("trust_done_count").replace("{done}", String(completed)).replace("{total}", String(total))}
+        </span>
         {typeof reviewsCount === "number" && reviewsCount > 0 && (
           <>
             <span className="text-white/20">·</span>
-            <span className="tabular-nums">{reviewsCount} reviews</span>
+            <span className="tabular-nums">
+              {t("trust_reviews_count").replace("{count}", String(reviewsCount))}
+            </span>
           </>
         )}
       </div>

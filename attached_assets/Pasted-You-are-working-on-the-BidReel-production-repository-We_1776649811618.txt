@@ -1,0 +1,179 @@
+You are working on the BidReel production repository.
+
+We are adding FIXED PRICE selling alongside AUCTION.
+
+STRICT RULES:
+
+* Do NOT break existing auction logic
+* Do NOT change current bidding system
+* Do NOT touch trust system
+* Do NOT modify admin
+* Keep changes minimal and clean
+* Reuse existing structures where possible
+
+GOAL:
+Allow users to create a post as either:
+
+1. Auction
+2. Fixed Price
+
+---
+
+## FLOW (VERY IMPORTANT — FOLLOW EXACTLY)
+
+When user creates a post:
+
+STEP 1:
+Add a required field:
+"sale_type"
+
+Values:
+
+* "auction"
+* "fixed"
+
+Default = "auction"
+
+---
+
+STEP 2: FORM BEHAVIOR
+
+IF sale_type = "auction":
+
+* Keep current behavior EXACTLY as is
+* No changes
+
+IF sale_type = "fixed":
+
+* Hide ALL auction-related fields:
+
+  * starting price
+  * bid increment
+  * auction duration
+* Show ONLY:
+
+  * price (required)
+
+---
+
+STEP 3: DATABASE
+
+In auctions table:
+Add:
+
+* sale_type (text or enum: "auction" | "fixed")
+* fixed_price (number, nullable)
+* status (extend existing or reuse):
+
+  * "active"
+  * "reserved"
+  * "sold"
+
+Rules:
+
+* If sale_type = "fixed":
+  → fixed_price must be set
+* If sale_type = "auction":
+  → fixed_price = null
+
+---
+
+STEP 4: FEED / UI
+
+IF post is AUCTION:
+
+* Show current UI (price increases, bids, etc.)
+
+IF post is FIXED:
+
+* Show:
+
+  * fixed price clearly
+  * NO bid UI
+  * NO increment
+  * NO "current bid"
+
+Replace bid button with:
+
+BUTTON:
+"Buy Now"
+
+---
+
+STEP 5: BUY FLOW (IMPORTANT)
+
+When user clicks "Buy Now":
+
+1. Confirm action (simple modal)
+2. On confirm:
+
+* Update post:
+  status = "reserved"
+
+* Save buyer_id
+
+3. Immediately mark as:
+
+status = "sold"
+
+(we do not implement payment system now)
+
+---
+
+STEP 6: VISIBILITY
+
+If status = "sold":
+
+* Disable button
+* Show label: "Sold"
+
+If status = "reserved":
+
+* Show label: "Reserved"
+
+---
+
+STEP 7: SAFETY
+
+* Prevent multiple users from buying same item
+* Use atomic update (same approach as bidding protection)
+
+---
+
+STEP 8: API
+
+Reuse existing endpoints if possible
+
+If needed:
+
+* POST /api/fixed/buy/:id
+
+Must:
+
+* require auth
+* check not already sold
+* update safely
+
+---
+
+STEP 9: DO NOT OVERBUILD
+
+Do NOT add:
+
+* negotiation
+* cart
+* payments
+* shipping
+* offers
+
+Keep it simple.
+
+---
+
+OUTPUT REQUIRED:
+
+1. Files changed
+2. DB changes
+3. API changes
+4. UI changes
+5. Confirmation that auctions still work unchanged

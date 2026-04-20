@@ -1,0 +1,84 @@
+You are working on the BidReel production repository.
+
+Fix localization consistency completely.
+
+STRICT RULES:
+
+* Do not change architecture
+* Do not refactor unrelated code
+* Do not change business logic
+* Do not skip any visible mixed-language string
+* Keep the existing i18n approach and extend it cleanly
+
+GOAL:
+Make English 100% English, Arabic 100% Arabic, and add full Turkish support.
+
+REQUIRED WORK:
+
+1. Audit all user-visible strings in the app
+   Scan all screens, components, tabs, buttons, badges, profile cards, trust UI, deals UI, auth flow, onboarding, admin-facing user UI, modals, toasts, empty states, validation messages, and navigation labels.
+
+2. Find and remove all hardcoded mixed-language strings
+   Examples of current problem:
+
+* Arabic UI with English labels like:
+
+  * BUYER TRUST
+  * SELLER TRUST
+  * done 0/0
+* English UI with Arabic leftovers
+  Replace every visible hardcoded string with translation keys.
+
+3. Normalize language behavior
+
+* When app language is English → every visible UI string must be English
+* When app language is Arabic → every visible UI string must be Arabic
+* Add Turkish as a full supported language
+* Turkish must be available in the language selector and fully wired into the existing i18n system
+
+4. Add missing translation keys for ALL current features, including:
+
+* trust badges
+* buyer trust / seller trust
+* completed deals
+* done count
+* my deals
+* pending / completed / failed
+* you sold / you won
+* confirm completed / confirm failed
+* rate now
+* like / dislike flow
+* profile trust cards
+* feed trust badge labels if any
+* empty states
+* loading states
+* deal detail labels
+* tabs and menu items
+* toasts and validation messages
+
+5. RTL / LTR correctness
+
+* Arabic must render correctly in RTL
+* English and Turkish must render correctly in LTR
+* Fix alignment issues caused by mixed-direction text where needed
+* Do not break existing Arabic layout
+
+6. Language selector
+
+* Add Turkish option everywhere language selection currently exists
+* Ensure persistence works exactly like existing languages
+
+7. Output required
+   Return:
+8. exact files changed
+9. exact languages supported after change
+10. summary of all added translation namespaces/keys
+11. any hardcoded strings that were removed
+12. confirmation that mixed-language UI was fully cleaned
+
+IMPORTANT:
+The result must be production-ready.
+No screen should show mixed Arabic/English anymore.
+English must be fully English.
+Arabic must be fully Arabic.
+Turkish must be added fully, not partially.

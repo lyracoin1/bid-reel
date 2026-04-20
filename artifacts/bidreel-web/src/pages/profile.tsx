@@ -309,7 +309,7 @@ export default function Profile() {
               className="w-full grid grid-cols-2 gap-3 active:opacity-80 transition-opacity"
             >
               <TrustStatCard
-                title="Seller Trust"
+                title={t("trust_seller")}
                 score={trust.final_seller_score}
                 color={trust.final_seller_color}
                 completed={trust.completed_sales}
@@ -317,7 +317,7 @@ export default function Profile() {
                 reviewsCount={trust.seller_reviews_count}
               />
               <TrustStatCard
-                title="Buyer Trust"
+                title={t("trust_buyer")}
                 score={trust.final_buyer_score}
                 color={trust.final_buyer_color}
                 completed={trust.completed_buys}

@@ -14,6 +14,8 @@ import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { getMyDealsApi, type ApiDeal } from "@/lib/api-client";
+import { useLang } from "@/contexts/LanguageContext";
+import type { TKey } from "@/lib/i18n";
 
 type Filter = "all" | "active" | "completed" | "failed";
 
@@ -23,24 +25,31 @@ type Filter = "all" | "active" | "completed" | "failed";
  *   pending_seller = the SELLER hasn't confirmed yet
  * So "Awaiting you" requires checking both deal.status AND deal.role.
  */
-function statusMetaFor(deal: Pick<ApiDeal, "status" | "role">): { label: string; icon: typeof Clock; cls: string } {
+function statusMetaFor(deal: Pick<ApiDeal, "status" | "role">): { labelKey: TKey; icon: typeof Clock; cls: string } {
   switch (deal.status) {
     case "pending_buyer":
-      return { label: deal.role === "buyer" ? "Awaiting you" : "Awaiting buyer", icon: Clock, cls: "text-amber-300" };
+      return {
+        labelKey: deal.role === "buyer" ? "deal_status_awaiting_you" : "deal_status_awaiting_buyer",
+        icon: Clock, cls: "text-amber-300",
+      };
     case "pending_seller":
-      return { label: deal.role === "seller" ? "Awaiting you" : "Awaiting seller", icon: Clock, cls: "text-amber-300" };
+      return {
+        labelKey: deal.role === "seller" ? "deal_status_awaiting_you" : "deal_status_awaiting_seller",
+        icon: Clock, cls: "text-amber-300",
+      };
     case "pending_both":
-      return { label: "Awaiting both confirmations", icon: Clock, cls: "text-white/60" };
+      return { labelKey: "deal_status_awaiting_both", icon: Clock, cls: "text-white/60" };
     case "completed":
-      return { label: "Completed", icon: CheckCircle2, cls: "text-emerald-300" };
+      return { labelKey: "deal_status_completed", icon: CheckCircle2, cls: "text-emerald-300" };
     case "failed":
-      return { label: "Failed", icon: XCircle, cls: "text-red-300" };
+      return { labelKey: "deal_status_failed", icon: XCircle, cls: "text-red-300" };
     case "disputed":
-      return { label: "Disputed", icon: AlertCircle, cls: "text-orange-300" };
+      return { labelKey: "deal_status_disputed", icon: AlertCircle, cls: "text-orange-300" };
   }
 }
 
 export default function MyDealsPage() {
+  const { t } = useLang();
   const [, setLocation] = useLocation();
   const [deals, setDeals] = useState<ApiDeal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,8 +61,9 @@ export default function MyDealsPage() {
     setError(null);
     getMyDealsApi()
       .then(setDeals)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load deals"))
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : t("deal_load_failed")))
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filtered = deals.filter(d => {
@@ -65,10 +75,10 @@ export default function MyDealsPage() {
   });
 
   const tabs: { id: Filter; label: string; count: number }[] = [
-    { id: "all",       label: "All",       count: deals.length },
-    { id: "active",    label: "Active",    count: deals.filter(d => d.status.startsWith("pending")).length },
-    { id: "completed", label: "Completed", count: deals.filter(d => d.status === "completed").length },
-    { id: "failed",    label: "Failed",    count: deals.filter(d => d.status === "failed" || d.status === "disputed").length },
+    { id: "all",       label: t("deal_filter_all"),       count: deals.length },
+    { id: "active",    label: t("deal_filter_active"),    count: deals.filter(d => d.status.startsWith("pending")).length },
+    { id: "completed", label: t("deal_filter_completed"), count: deals.filter(d => d.status === "completed").length },
+    { id: "failed",    label: t("deal_filter_failed"),    count: deals.filter(d => d.status === "failed" || d.status === "disputed").length },
   ];
 
   return (
@@ -84,7 +94,7 @@ export default function MyDealsPage() {
           </button>
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <Handshake size={18} className="text-primary shrink-0" />
-            <h1 className="text-base font-bold text-white truncate">My Deals</h1>
+            <h1 className="text-base font-bold text-white truncate">{t("nav_my_deals")}</h1>
           </div>
         </div>
 
@@ -128,9 +138,9 @@ export default function MyDealsPage() {
               <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/8 flex items-center justify-center">
                 <Handshake size={22} className="text-white/20" />
               </div>
-              <p className="text-sm font-semibold text-white/50">No deals yet</p>
+              <p className="text-sm font-semibold text-white/50">{t("deal_empty_title")}</p>
               <p className="text-xs text-muted-foreground max-w-xs">
-                Deals appear here automatically when an auction you sold or won ends.
+                {t("deal_empty_sub")}
               </p>
             </div>
           ) : (
@@ -152,7 +162,7 @@ export default function MyDealsPage() {
                             ? "text-blue-300 bg-blue-500/10 border-blue-500/25"
                             : "text-purple-300 bg-purple-500/10 border-purple-500/25"
                         }`}>
-                          {deal.role === "seller" ? "You sold" : "You won"}
+                          {deal.role === "seller" ? t("deal_role_seller") : t("deal_role_buyer")}
                         </span>
                       </div>
                       <span className="text-xs text-white/40 tabular-nums shrink-0">
@@ -164,12 +174,12 @@ export default function MyDealsPage() {
                       <span className="text-xl font-bold text-white tabular-nums">
                         {Number(deal.winning_amount).toLocaleString()}
                       </span>
-                      <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">winning bid</span>
+                      <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">{t("deal_winning_bid")}</span>
                     </div>
 
                     <div className={`flex items-center gap-1.5 text-xs font-semibold ${meta.cls}`}>
                       <Icon size={13} />
-                      <span>{meta.label}</span>
+                      <span>{t(meta.labelKey)}</span>
                     </div>
                   </motion.button>
                 );

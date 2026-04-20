@@ -62,8 +62,8 @@ export default function Interests() {
   );
 
   // ── Language step helpers ──
-  const LANG_FLAG: Record<Language, string> = { en: "🇺🇸", ar: "🇸🇦", ru: "🇷🇺", es: "🇪🇸", fr: "🇫🇷" };
-  const LANGUAGES: Language[] = ["ar", "en", "ru", "es", "fr"];
+  const LANG_FLAG: Record<Language, string> = { en: "🇺🇸", ar: "🇸🇦", ru: "🇷🇺", es: "🇪🇸", fr: "🇫🇷", tr: "🇹🇷" };
+  const LANGUAGES: Language[] = ["ar", "en", "tr", "ru", "es", "fr"];
 
   // ── Profile setup state (step 0) ──
   const [displayName, setDisplayName] = useState("");

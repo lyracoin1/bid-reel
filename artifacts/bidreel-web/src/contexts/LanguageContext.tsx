@@ -23,7 +23,9 @@ const LANG_KEY = "bidreel_lang";
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Language>(() => {
     const urlLang = new URLSearchParams(window.location.search).get("lang");
-    if (urlLang === "ar" || urlLang === "en") return urlLang as Language;
+    if (urlLang && ["en", "ar", "ru", "es", "fr", "tr"].includes(urlLang)) {
+      return urlLang as Language;
+    }
     return (localStorage.getItem(LANG_KEY) as Language) || "en";
   });
 
@@ -40,7 +42,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     document.documentElement.setAttribute("dir", dir);
     document.documentElement.setAttribute("lang", lang);
     document.documentElement.style.fontFamily =
-      lang === "ar" ? "'Segoe UI', Tahoma, Arial, sans-serif" : "";
+      lang === "ar" ? "'Segoe UI', Tahoma, Arial, sans-serif"
+      : lang === "tr" ? "'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+      : "";
   }, [lang, dir]);
 
   return (

@@ -139,7 +139,7 @@ export async function expireAuctions(): Promise<void> {
       if (winnerId !== null && winnerBidAmount !== null) {
         void (async () => {
           try {
-            await notifyAuctionWon(winnerId!, id, auctionTitle, winnerBidAmount!);
+            await notifyAuctionWon(winnerId!, id, auctionTitle, winnerBidAmount!, sellerId ?? "");
           } catch (err) {
             logger.warn({ err: String(err), auctionId: id }, "expireAuctions: notifyAuctionWon failed");
           }

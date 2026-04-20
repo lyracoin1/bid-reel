@@ -25,6 +25,11 @@
 import { supabaseAdmin } from "./supabase";
 import { logger } from "./logger";
 import { sendFcmPush } from "./fcm";
+import {
+  buildAuctionWonMessage,
+  buildAuctionWonTitle,
+  normalizeWonLang,
+} from "./auction-won-message";
 
 // ─── Type taxonomy ────────────────────────────────────────────────────────────
 
@@ -491,22 +496,91 @@ export async function notifyOutbid(
 
 // ── Auction completion ───────────────────────────────────────────────────────
 
-/** Winner notification. PUSH. */
+/**
+ * Winner notification. PUSH.
+ *
+ * Behavior change (per spec):
+ *   - Looks up the seller's phone from profiles.phone
+ *   - Builds a localized message in the winner's selected language
+ *     (en, ar, tr, es, fr, ru — fallback en) that includes a 🎉 congrats,
+ *     the explicit 48-hour deadline, and the seller's phone number embedded
+ *     directly in the body so the winner can copy/paste into WhatsApp.
+ *   - SKIPS the notification entirely when the seller has no phone on file —
+ *     a winner-notification without a contact number is useless and the
+ *     spec mandates "Do not send if phone is missing".
+ *
+ * Profile language is read defensively: if the column doesn't exist on this
+ * deployment the lookup falls back to English without erroring.
+ */
 export async function notifyAuctionWon(
   winnerId: string,
   auctionId: string,
   auctionTitle: string,
   finalAmount: number,
+  sellerId: string,
 ): Promise<void> {
-  const dollars = fmtMoney(finalAmount);
-  logger.info({ winnerId, auctionId, finalAmount }, "notifications: auction_won");
+  // 1. Seller phone — required. Without it we cannot meet the spec, so skip.
+  const { data: sellerRow, error: sellerErr } = await supabaseAdmin
+    .from("profiles")
+    .select("phone")
+    .eq("id", sellerId)
+    .maybeSingle();
+
+  if (sellerErr) {
+    logger.warn(
+      { err: sellerErr, sellerId, auctionId },
+      "notifications: auction_won — seller phone lookup failed; skipping",
+    );
+    return;
+  }
+
+  const sellerPhone = (sellerRow?.phone ?? "").trim();
+  if (!sellerPhone) {
+    logger.info(
+      { winnerId, sellerId, auctionId },
+      "notifications: auction_won SKIPPED — seller has no phone on file",
+    );
+    return;
+  }
+
+  // 2. Winner language — read defensively. The `language` column may not exist
+  //    on every deployment; treat any error or missing value as English.
+  let winnerLang = "en";
+  try {
+    const { data: winnerRow } = await supabaseAdmin
+      .from("profiles")
+      .select("language")
+      .eq("id", winnerId)
+      .maybeSingle();
+    if (winnerRow && typeof (winnerRow as { language?: unknown }).language === "string") {
+      winnerLang = (winnerRow as { language: string }).language;
+    }
+  } catch {
+    // column missing or other read issue — fall through to default 'en'
+  }
+
+  const lang = normalizeWonLang(winnerLang);
+  const title = buildAuctionWonTitle(lang);
+  const body = buildAuctionWonMessage(lang, sellerPhone);
+
+  logger.info(
+    { winnerId, auctionId, finalAmount, lang, phoneIncluded: true },
+    "notifications: auction_won",
+  );
   await createNotification({
     userId: winnerId,
     type: "auction_won",
-    title: "🏆 You won!",
-    body: `You won "${auctionTitle}" with a final bid of ${dollars}. Contact the seller to arrange the exchange.`,
+    title,
+    body,
     auctionId,
-    metadata: { auctionId, finalAmountCents: finalAmount },
+    metadata: {
+      auctionId,
+      finalAmountCents: finalAmount,
+      auctionTitle,
+      sellerPhone,
+      deadlineHours: 48,
+      language: lang,
+    },
   });
 }
 

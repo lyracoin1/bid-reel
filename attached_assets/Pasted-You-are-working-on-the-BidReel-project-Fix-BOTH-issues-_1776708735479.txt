@@ -1,0 +1,206 @@
+You are working on the BidReel project.
+
+Fix BOTH issues now, end-to-end, without touching unrelated systems.
+
+## Current confirmed problems
+
+1. The create-auction UI still shows only:
+
+* 24 hours
+* 48 hours
+
+So the frontend 1–48 hours change was NOT applied or not wired correctly.
+
+2. Publishing still fails with:
+
+* `violates check constraint "chk_auction_duration"`
+
+So the inserted auction row still violates the DB duration rule.
+
+Do NOT guess. Verify and fix the full flow.
+
+---
+
+## TASK 1 — Replace the duration UI completely
+
+File:
+
+* `artifacts/bidreel-web/src/pages/create-auction.tsx`
+
+Requirements:
+
+* Remove the old 24/48 toggle buttons completely.
+* Replace them with a real hours selector for **1 to 48 hours only**.
+* Use either:
+
+  * a slider, or
+  * a number input
+* Preferred:
+
+  * slider min=1 max=48 step=1
+
+UI requirements:
+
+* Show a label above it:
+
+  * English: `Auction duration`
+  * Arabic: `مدة المزاد`
+* Show help text:
+
+  * English: `Choose a duration between 1 and 48 hours`
+  * Arabic: `اختر مدة بين ساعة واحدة و48 ساعة`
+* Show the selected value live:
+
+  * Example: `12 hours`
+  * Arabic equivalent too through i18n
+
+Important:
+
+* The selected value must be stored in:
+
+  * `durationHours`
+* Type must be:
+
+  * number
+* Default:
+
+  * 24
+
+---
+
+## TASK 2 — Ensure frontend sends the correct payload
+
+In the create/publish submit handler:
+
+* Send ONLY:
+
+  * `durationHours: <number between 1 and 48>`
+
+Do NOT send:
+
+* days
+* 1/2 mapped values
+* strings pretending to be numbers
+
+Before sending, enforce:
+
+```ts
+const duration = Number(durationHours);
+if (!Number.isFinite(duration) || duration < 1 || duration > 48) {
+  throw new Error("Invalid durationHours");
+}
+```
+
+Also add a temporary frontend debug log before the API call:
+
+```ts
+console.log("PUBLISH durationHours:", durationHours, typeof durationHours);
+```
+
+---
+
+## TASK 3 — Verify and fix backend handling
+
+File:
+
+* `artifacts/api-server/src/routes/auctions.ts`
+
+In the create auction route:
+
+1. Log the incoming value before validation:
+
+```ts
+console.log("DEBUG incoming durationHours:", durationHours, typeof durationHours);
+```
+
+2. Force numeric parse:
+
+```ts
+const duration = Number(durationHours);
+if (!Number.isFinite(duration) || duration < 1 || duration > 48) {
+  return res.status(400).json({
+    error: "INVALID_DURATION",
+    message: "Duration must be between 1 and 48 hours",
+  });
+}
+```
+
+3. Compute both timestamps from the SAME clock:
+
+```ts
+const nowMs = Date.now();
+const createdAt = new Date(nowMs);
+const endsAt = new Date(nowMs + duration * 60 * 60 * 1000);
+```
+
+4. Insert BOTH explicitly:
+
+* `created_at`
+* `ends_at`
+
+Do not rely on Postgres default `created_at` for this route.
+
+---
+
+## TASK 4 — Inspect the real DB constraint
+
+Do NOT assume the constraint allows 1–48 hours.
+
+Check the actual database definition of:
+
+* `chk_auction_duration`
+
+Find whether it currently enforces:
+
+* exactly 24–48 hours
+* or 1–48 hours
+* or some other rule
+
+Return the exact constraint SQL / expression.
+
+If the current constraint still only allows 24 or 48, then update it so it correctly allows:
+
+* minimum 1 hour
+* maximum 48 hours
+
+Do NOT change anything else in schema.
+
+Expected rule:
+
+* auction duration must be >= 1 hour
+* auction duration must be <= 48 hours
+
+---
+
+## TASK 5 — If DB constraint is outdated, fix it properly
+
+If needed, add a migration that drops and recreates `chk_auction_duration` so it matches the new rule of 1–48 hours.
+
+Return the migration file and exact SQL.
+
+---
+
+## TASK 6 — Rebuild mobile/web correctly
+
+After code changes:
+
+1. Build frontend
+2. Sync Capacitor Android
+3. Confirm the new UI is actually present
+4. Confirm publish succeeds on web
+5. Confirm publish succeeds on Android
+
+---
+
+## REQUIRED OUTPUT
+
+Return all of the following:
+
+1. Files modified
+2. Exact frontend state shape for duration
+3. Exact payload sent from frontend
+4. Exact backend logs for incoming durationHours
+5. Exact DB constraint definition for `chk_auction_duration`
+6. Whether migration was needed
+7. Whether publish now works successfully
+8. Confirmation that the UI no longer shows only 24/48 and now supports 1–48

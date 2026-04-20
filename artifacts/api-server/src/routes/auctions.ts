@@ -633,13 +633,13 @@ const createAuctionSchema = z.object({
     .min(-180).max(180),
   currencyCode: z.string().max(10).optional().default("USD"),
   currencyLabel: z.string().max(60).optional().default("US Dollar"),
-  // Product contract: auctions last exactly 24 or 48 hours. No other values
-  // are accepted even via direct API calls so that countdown copy and the
-  // “2d left” prevention in the client stay honest.
+  // Auctions last between 1 and 48 hours. The DB constraint
+  // chk_auction_duration enforces the same range; keep them in sync.
   durationHours: z
-    .union([z.literal(24), z.literal(48)], {
-      errorMap: () => ({ message: "durationHours must be 24 or 48" }),
-    })
+    .number({ invalid_type_error: "durationHours must be a number between 1 and 48" })
+    .int("durationHours must be a whole number")
+    .min(1, "durationHours must be at least 1")
+    .max(48, "durationHours must be at most 48")
     .optional()
     .default(24),
 });
@@ -733,26 +733,28 @@ router.post("/auctions", requireAuth, async (req, res) => {
   }
 
   // ── Timestamps ─────────────────────────────────────────────────────────────
-  // durationHours is validated by the schema (24 or 48). We defensively
-  // re-validate here because this value is fed directly into the DB
-  // duration CHECK constraint — a stray value would surface as an opaque
-  // 500 from Postgres instead of a clean 400.
-  if (durationHours < 1 || durationHours > 48) {
+  // durationHours is validated by the schema (1–48). We defensively
+  // re-coerce + re-validate here because this value is fed directly into
+  // the DB duration CHECK constraint — a stray value would surface as an
+  // opaque 500 from Postgres instead of a clean 400.
+  console.log("DEBUG incoming durationHours:", durationHours, typeof durationHours);
+  const duration = Number(durationHours);
+  if (!Number.isFinite(duration) || duration < 1 || duration > 48) {
     res.status(400).json({
       error: "INVALID_DURATION",
-      message: "Invalid duration",
+      message: "Duration must be between 1 and 48 hours",
     });
     return;
   }
 
   // IMPORTANT: pin `created_at` and `ends_at` to the same Node clock so the
-  // delta is exactly `durationHours` hours. If we let Postgres set
+  // delta is exactly `duration` hours. If we let Postgres set
   // `created_at = NOW()` while we compute `ends_at` from Node's clock, even
   // a few ms of clock skew between Node and Postgres pushes the delta over
   // 48h and trips the chk_auction_duration CHECK constraint.
   const nowMs = Date.now();
   const createdAt = new Date(nowMs);
-  const endsAt = new Date(nowMs + durationHours * 60 * 60 * 1000);
+  const endsAt = new Date(nowMs + duration * 60 * 60 * 1000);
   const mediaPurgeAfter = new Date(endsAt.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const { data: auction, error } = await insertAuction({

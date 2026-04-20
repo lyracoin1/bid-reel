@@ -6,6 +6,7 @@ import {
   getAuctionApi,
   getMyAuctionsApi,
   createAuctionApi,
+  buyNowApi,
   likeAuctionApi,
   unlikeAuctionApi,
   type ApiAuctionRaw,
@@ -131,6 +132,10 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
     currencyCode: r.currency_code ?? null,
     currencyLabel: r.currency_label ?? null,
     userSignal: (r.user_signal as "interested" | "not_interested" | null | undefined) ?? null,
+    saleType: (r.sale_type as "auction" | "fixed" | null | undefined) ?? "auction",
+    fixedPrice: r.fixed_price != null ? Number(r.fixed_price) : null,
+    buyerId: r.buyer_id ?? null,
+    status: (r.status as "active" | "ended" | "removed" | "archived" | "sold" | "reserved" | undefined) ?? "active",
   };
 }
 
@@ -440,6 +445,46 @@ export function useCreateAuction() {
   };
 
   return { mutate, isPending, error };
+}
+
+// ─── useBuyAuction (fixed-price Buy Now) ─────────────────────────────────────
+//
+// One-shot purchase for `sale_type === "fixed"` listings. The server performs
+// an atomic single-row UPDATE; on success it returns the updated auction with
+// status='sold' and buyer_id set. We splice the updated row into the cache so
+// FeedCard / detail page re-render with the Sold badge immediately.
+
+export function useBuyAuction(auctionId: string) {
+  const [isPending, setIsPending] = useState(false);
+  const [lastError, setLastError] = useState<{ code: string; message: string } | null>(null);
+
+  const mutate = async (
+    options: { onSuccess?: () => void; onError?: (code: string, message: string) => void } = {},
+  ): Promise<void> => {
+    setIsPending(true);
+    setLastError(null);
+    console.log(`[useBuyAuction] Buying — auctionId=${auctionId}`);
+
+    try {
+      const { auction } = await buyNowApi(auctionId);
+      const mapped = backendToAuction(auction);
+      globalAuctions = globalAuctions.map((a) => (a.id === auctionId ? { ...a, ...mapped } : a));
+      notify();
+      console.log(`[useBuyAuction] ✅ Purchased — id=${auctionId}`);
+      options.onSuccess?.();
+    } catch (err: unknown) {
+      const e = err as { code?: string; message?: string };
+      const code = e.code ?? 'BUY_FAILED';
+      const message = e.message ?? 'Purchase failed';
+      console.error(`[useBuyAuction] ❌ ${code}: ${message}`);
+      setLastError({ code, message });
+      options.onError?.(code, message);
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return { mutate, isPending, lastError };
 }
 
 // ─── useToggleLike ────────────────────────────────────────────────────────────

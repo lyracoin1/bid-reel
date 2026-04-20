@@ -40,4 +40,13 @@ export interface Auction {
   userSignal?: "interested" | "not_interested" | null;
   /** Public qualified-views count (server-decided; ≥2s watch, deduped per viewer / 30 min). */
   views?: number;
+  /** "auction" (live bidding, default) or "fixed" (Buy Now flow). */
+  saleType?: "auction" | "fixed";
+  /** Flat purchase price for fixed-price listings; null for auctions. */
+  fixedPrice?: number | null;
+  /** ID of the buyer who claimed a fixed-price listing; null while available. */
+  buyerId?: string | null;
+  /** Server-side lifecycle status. UI uses this for Sold/Reserved badges
+   *  on top of the orthogonal time-window state (upcoming/active/ended). */
+  status?: "active" | "ended" | "removed" | "archived" | "sold" | "reserved";
 }

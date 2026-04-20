@@ -146,7 +146,11 @@ export type TKey =
   // Deals — rating field helps
   | "deal_help_commitment_buyer" | "deal_help_commitment_seller"
   | "deal_help_communication" | "deal_help_authenticity" | "deal_help_seriousness"
-  | "deal_help_accuracy" | "deal_help_timeliness" | "deal_help_experience";
+  | "deal_help_accuracy" | "deal_help_timeliness" | "deal_help_experience"
+  // Fixed-price (Buy Now) selling
+  | "sale_type_label" | "sale_type_auction" | "sale_type_fixed"
+  | "fixed_price_label" | "buy_now" | "buy_now_confirm" | "buy_now_success"
+  | "sold" | "reserved";
 
 type Translations = Record<TKey, string>;
 
@@ -329,6 +333,16 @@ const en: Translations = {
   deal_help_accuracy: "Did the item match the description and photos?",
   deal_help_timeliness: "Did the buyer respond and act on time?",
   deal_help_experience: "Would you deal with them again?",
+  // Fixed-price (Buy Now)
+  sale_type_label: "Sale type",
+  sale_type_auction: "Auction",
+  sale_type_fixed: "Buy Now",
+  fixed_price_label: "Fixed price",
+  buy_now: "Buy Now",
+  buy_now_confirm: "Buy this item at the listed price?",
+  buy_now_success: "Purchased — the seller will be notified",
+  sold: "Sold",
+  reserved: "Reserved",
 };
 
 const ar: Translations = {
@@ -510,6 +524,16 @@ const ar: Translations = {
   deal_help_accuracy: "هل طابق العنصر الوصف والصور؟",
   deal_help_timeliness: "هل ردّ المشتري وتصرّف في الوقت المناسب؟",
   deal_help_experience: "هل ستتعامل معه مرة أخرى؟",
+  // الشراء بسعر ثابت
+  sale_type_label: "نوع البيع",
+  sale_type_auction: "مزاد",
+  sale_type_fixed: "اشتر الآن",
+  fixed_price_label: "السعر الثابت",
+  buy_now: "اشتر الآن",
+  buy_now_confirm: "هل تريد شراء هذا العنصر بالسعر المعروض؟",
+  buy_now_success: "تم الشراء — سيتم إعلام البائع",
+  sold: "مُباع",
+  reserved: "محجوز",
 };
 
 const ru: Translations = {
@@ -691,6 +715,16 @@ const ru: Translations = {
   deal_help_accuracy: "Совпадал ли товар с описанием и фотографиями?",
   deal_help_timeliness: "Откликнулся ли покупатель и действовал ли вовремя?",
   deal_help_experience: "Стали бы вы снова с ним сотрудничать?",
+  // Покупка по фиксированной цене
+  sale_type_label: "Тип продажи",
+  sale_type_auction: "Аукцион",
+  sale_type_fixed: "Купить сейчас",
+  fixed_price_label: "Фиксированная цена",
+  buy_now: "Купить сейчас",
+  buy_now_confirm: "Купить этот товар по указанной цене?",
+  buy_now_success: "Куплено — продавец будет уведомлён",
+  sold: "Продано",
+  reserved: "Зарезервировано",
 };
 
 const es: Translations = {
@@ -872,6 +906,16 @@ const es: Translations = {
   deal_help_accuracy: "¿El artículo coincidía con la descripción y las fotos?",
   deal_help_timeliness: "¿El comprador respondió y actuó a tiempo?",
   deal_help_experience: "¿Volverías a hacer una operación con esta persona?",
+  // Compra a precio fijo
+  sale_type_label: "Tipo de venta",
+  sale_type_auction: "Subasta",
+  sale_type_fixed: "Comprar ya",
+  fixed_price_label: "Precio fijo",
+  buy_now: "Comprar ya",
+  buy_now_confirm: "¿Comprar este artículo al precio indicado?",
+  buy_now_success: "Comprado — se notificará al vendedor",
+  sold: "Vendido",
+  reserved: "Reservado",
 };
 
 const fr: Translations = {
@@ -1053,6 +1097,16 @@ const fr: Translations = {
   deal_help_accuracy: "L'article correspondait-il à la description et aux photos ?",
   deal_help_timeliness: "L'acheteur a-t-il répondu et agi dans les temps ?",
   deal_help_experience: "Recommenceriez-vous une transaction avec lui ?",
+  // Achat à prix fixe
+  sale_type_label: "Type de vente",
+  sale_type_auction: "Enchère",
+  sale_type_fixed: "Achat immédiat",
+  fixed_price_label: "Prix fixe",
+  buy_now: "Achat immédiat",
+  buy_now_confirm: "Acheter cet article au prix indiqué ?",
+  buy_now_success: "Acheté — le vendeur sera averti",
+  sold: "Vendu",
+  reserved: "Réservé",
 };
 
 const tr: Translations = {
@@ -1234,6 +1288,16 @@ const tr: Translations = {
   deal_help_accuracy: "Ürün açıklama ve fotoğraflara uydu mu?",
   deal_help_timeliness: "Alıcı zamanında yanıt verip hareket etti mi?",
   deal_help_experience: "Onunla tekrar işlem yapar mıydın?",
+  // Sabit fiyatla satın alma
+  sale_type_label: "Satış türü",
+  sale_type_auction: "Açık artırma",
+  sale_type_fixed: "Hemen Al",
+  fixed_price_label: "Sabit fiyat",
+  buy_now: "Hemen Al",
+  buy_now_confirm: "Bu ürünü listelenen fiyattan satın almak ister misin?",
+  buy_now_success: "Satın alındı — satıcıya bildirilecek",
+  sold: "Satıldı",
+  reserved: "Rezerve",
 };
 
 export const TRANSLATIONS: Record<Language, Translations> = { en, ar, ru, es, fr, tr };

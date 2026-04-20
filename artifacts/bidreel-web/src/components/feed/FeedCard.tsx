@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { Gavel, Bell, MapPin, Volume2, VolumeX, Bookmark, ThumbsUp, ThumbsDown, Eye } from "lucide-react";
+import { Gavel, Bell, MapPin, Volume2, VolumeX, Bookmark, ThumbsUp, ThumbsDown, Eye, ShoppingBag, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type Auction } from "@/lib/mock-data";
 import { cn, getPublicBaseUrl } from "@/lib/utils";
@@ -122,6 +122,17 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   }, [auction.title]);
 
   const { state, timeInfo, countdownToStart } = useLiveAuctionStatus(auction, onStateChange);
+
+  // ── Sale-type / availability ──────────────────────────────────────────────
+  // Fixed-price listings replace the bid CTA with a Buy Now button. Once a
+  // listing's status is sold/reserved we lock the card regardless of state.
+  const saleType = auction.saleType ?? "auction";
+  const isFixedPrice = saleType === "fixed";
+  const isSold = auction.status === "sold";
+  const isReserved = auction.status === "reserved";
+  const displayPrice = isFixedPrice
+    ? (auction.fixedPrice ?? auction.startingBid)
+    : auction.currentBid;
   const following = isFollowing(auction.seller.id);
   const watching = isWatching(auction.id);
   const saved = isSaved(auction.id);
@@ -484,6 +495,55 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
               {watching ? t("reminded") : t("remind_me")}
             </span>
           </motion.button>
+        ) : isSold || isReserved ? (
+          /* Sold / Reserved badge replaces the action button — listing is locked. */
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            className="flex flex-col items-center gap-1 mt-1"
+            style={{ minWidth: 44, minHeight: 44 }}
+            aria-label={isSold ? "Sold" : "Reserved"}
+            onClick={(e) => { e.stopPropagation(); setLocation(`/auction/${auction.id}`); }}
+          >
+            <div className={cn(
+              "w-14 h-14 rounded-full flex items-center justify-center shadow-none border transition-all duration-200",
+              isSold
+                ? "bg-white/8 border-white/15 text-white/40"
+                : "bg-amber-500/15 border-amber-500/35 text-amber-300",
+            )}>
+              {isSold ? <CheckCircle2 size={24} /> : <Bell size={22} />}
+            </div>
+            <span className={cn(
+              "text-[11px] font-bold uppercase tracking-wide",
+              isSold ? "text-white/40" : "text-amber-300",
+            )}>
+              {isSold ? t("sold") : t("reserved")}
+            </span>
+          </motion.button>
+        ) : isFixedPrice ? (
+          /* Fixed-price listing → Buy Now CTA. Tap navigates to detail to confirm. */
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            className="flex flex-col items-center gap-1 mt-1"
+            style={{ minWidth: 44, minHeight: 44 }}
+            aria-label="Buy now"
+            onClick={(e) => { e.stopPropagation(); setLocation(`/auction/${auction.id}`); }}
+          >
+            <div className={cn(
+              "w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg relative transition-all duration-200",
+              state === "active"
+                ? "bg-emerald-500 shadow-emerald-500/40"
+                : "bg-white/8 border border-white/15 shadow-none",
+            )}>
+              {state === "active" && <div className="absolute -inset-1 bg-emerald-500/25 rounded-full animate-ping" />}
+              <ShoppingBag size={24} className={state === "active" ? "" : "opacity-40"} />
+            </div>
+            <span className={cn(
+              "text-[11px] font-bold",
+              state === "active" ? "text-emerald-400" : "text-white/35",
+            )}>
+              {state === "active" ? t("buy_now") : t("ended")}
+            </span>
+          </motion.button>
         ) : (
           <motion.button
             whileTap={{ scale: 0.88 }}
@@ -538,7 +598,21 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
           {auction.title}
         </h2>
 
-        {state === "upcoming" ? (
+        {isFixedPrice ? (
+          /* Fixed-price listings always show the flat price + Buy Now label,
+             plus a Sold/Reserved suffix if applicable. */
+          <div className="flex flex-col gap-0.5 mt-0.5">
+            <span className={cn(
+              "text-[10px] font-bold uppercase tracking-widest",
+              isSold ? "text-white/35" : isReserved ? "text-amber-400/80" : "text-emerald-400/80",
+            )}>
+              {isSold ? t("sold") : isReserved ? t("reserved") : t("buy_now")}
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-white tracking-tight">{fmtPrice(displayPrice)}</span>
+            </div>
+          </div>
+        ) : state === "upcoming" ? (
           <div className="flex flex-col gap-0.5 mt-0.5">
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold text-white tracking-tight">{fmtPrice(auction.startingBid)}</span>

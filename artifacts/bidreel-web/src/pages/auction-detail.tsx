@@ -10,7 +10,7 @@ import { MobileLayout } from "@/components/layout/MobileLayout";
 import { ImageSlider } from "@/components/feed/ImageSlider";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { AuctionMenu } from "@/components/AuctionMenu";
-import { useAuction, usePlaceBid } from "@/hooks/use-auctions";
+import { useAuction, usePlaceBid, useBuyAuction } from "@/hooks/use-auctions";
 import { useFollow } from "@/hooks/use-follow";
 import { useWatchAuction } from "@/hooks/use-watch";
 import { useBidPolling, getUserBidStatus } from "@/hooks/use-bid-polling";
@@ -259,8 +259,32 @@ export default function AuctionDetail() {
     };
   })();
 
+  // ── Sale-type / availability ──────────────────────────────────────────────
+  // saleType defaults to "auction" so legacy rows (no sale_type) keep working.
+  const saleType = auction.saleType ?? "auction";
+  const isFixedPrice = saleType === "fixed";
+  const isSold = auction.status === "sold";
+  const isReserved = auction.status === "reserved";
+
   // ── Can the current user bid? ─────────────────────────────────────────────
-  const canBid = state === "active" && !isSeller;
+  // Bidding only applies to live auctions; fixed-price uses Buy Now instead.
+  const canBid = state === "active" && !isSeller && !isFixedPrice && !isSold && !isReserved;
+
+  // ── Buy Now (fixed-price) hook ────────────────────────────────────────────
+  const { mutate: buyNow, isPending: isBuying } = useBuyAuction(auction.id);
+  const handleBuyNow = useCallback(() => {
+    if (!window.confirm(t("buy_now_confirm"))) return;
+    buyNow({
+      onSuccess: () => {
+        toast({ title: t("buy_now_success") });
+        void refetchAuction();
+      },
+      onError: (_code, message) => {
+        toast({ title: message, variant: "destructive" });
+        void refetchAuction();
+      },
+    });
+  }, [buyNow, t, refetchAuction]);
 
   return (
     <MobileLayout showNav noPadding>
@@ -762,7 +786,35 @@ export default function AuctionDetail() {
 
       {/* ── Sticky bottom action bar ── */}
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-[60] px-4 pb-[88px] pt-4 bg-gradient-to-t from-background via-background/96 to-transparent">
-        {state === "upcoming" ? (
+        {/* Sold / Reserved take precedence over every other state — once the
+            listing is claimed it cannot be acted on, regardless of sale type. */}
+        {isSold ? (
+          <div className="w-full py-4 rounded-2xl bg-white/6 border border-white/10 flex items-center justify-center text-white/40 font-bold text-base gap-2">
+            <CheckCircle2 size={18} className="text-white/40" />
+            {t("sold")}
+          </div>
+        ) : isReserved ? (
+          <div className="w-full py-4 rounded-2xl bg-amber-500/12 border border-amber-500/30 flex items-center justify-center text-amber-300 font-bold text-base gap-2">
+            <Clock size={18} />
+            {t("reserved")}
+          </div>
+        ) : isFixedPrice && state === "active" && !isSeller ? (
+          /* Fixed-price listings: single Buy Now button replaces the bidding UI. */
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={handleBuyNow}
+            disabled={isBuying}
+            className="w-full py-4 rounded-2xl bg-emerald-500 text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-500/35 disabled:opacity-60"
+          >
+            {isBuying ? (
+              <><RefreshCw size={17} className="animate-spin" /> {t("buy_now")}…</>
+            ) : (
+              <>
+                {t("buy_now")} · {fmtPrice(auction.fixedPrice ?? auction.startingBid)}
+              </>
+            )}
+          </motion.button>
+        ) : state === "upcoming" ? (
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => toggleWatch(auction.id)}

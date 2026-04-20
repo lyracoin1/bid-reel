@@ -162,6 +162,12 @@ export interface ApiAuctionRaw {
   starts_at: string | null;
   ends_at: string;
   created_at: string;
+  /** "auction" (default — bidding) or "fixed" (Buy Now flow). */
+  sale_type?: "auction" | "fixed" | null;
+  /** The fixed price for `sale_type === "fixed"` listings; null for auctions. */
+  fixed_price?: number | null;
+  /** Set when a fixed-price listing has been purchased. */
+  buyer_id?: string | null;
   lat?: number | null;
   lng?: number | null;
   currency_code?: string | null;
@@ -533,7 +539,12 @@ export interface CreateAuctionInput {
   title: string;
   description?: string;
   category: string;
-  startPrice: number;
+  /** "auction" (default) for live bidding, "fixed" for Buy Now listings. */
+  saleType?: "auction" | "fixed";
+  /** Required when `saleType === "auction"`. Ignored for fixed-price listings. */
+  startPrice?: number;
+  /** Required when `saleType === "fixed"`. The flat purchase price. */
+  fixedPrice?: number;
   videoUrl: string;
   thumbnailUrl: string;
   lat: number;
@@ -563,6 +574,35 @@ export async function createAuctionApi(input: CreateAuctionInput): Promise<{ auc
   if (!res.ok) {
     const err = data as ApiError;
     throw Object.assign(new Error(err.message ?? "Failed to create auction"), { code: err.error });
+  }
+
+  return data as { auction: ApiAuctionRaw };
+}
+
+// ─── Buy Now (fixed-price) ────────────────────────────────────────────────────
+//
+// Atomically claims a fixed-price listing. The server returns the updated
+// auction row (status='sold', buyer_id=current user) on success, or an error
+// like ALREADY_SOLD if another buyer won the race.
+
+export async function buyNowApi(auctionId: string): Promise<{ auction: ApiAuctionRaw }> {
+  const token = await getToken();
+  if (!token) { redirectToLogin(); throw new Error("Not authenticated"); }
+
+  const res = await fetch(`${API_BASE}/auctions/${encodeURIComponent(auctionId)}/buy`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (res.status === 401) { redirectToLogin(); throw new Error("Session expired"); }
+
+  const data = await res.json();
+  if (!res.ok) {
+    const err = data as ApiError;
+    throw Object.assign(new Error(err.message ?? "Buy Now failed"), {
+      code: err.error,
+      statusCode: res.status,
+    });
   }
 
   return data as { auction: ApiAuctionRaw };

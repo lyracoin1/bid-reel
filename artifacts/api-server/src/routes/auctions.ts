@@ -58,6 +58,8 @@ async function insertAuction(payload: {
   created_at: string;
   ends_at: string;
   media_purge_after: string;
+  sale_type: "auction" | "fixed";
+  fixed_price: number | null;
   lat?: number;
   lng?: number;
   currency_code?: string;
@@ -66,6 +68,7 @@ async function insertAuction(payload: {
   const {
     start_price_value, min_increment_value, media_purge_after,
     lat, lng, currency_code, currency_label,
+    sale_type, fixed_price,
     ...base
   } = payload;
 
@@ -82,6 +85,8 @@ async function insertAuction(payload: {
       current_bid: start_price_value,
       min_increment: min_increment_value,
       media_purge_after,
+      sale_type,
+      fixed_price,
       ...locationFields,
       ...currencyFields,
     })
@@ -617,7 +622,16 @@ const createAuctionSchema = z.object({
   }),
   startPrice: z
     .number()
-    .positive("Start price must be greater than 0"),
+    .positive("Start price must be greater than 0")
+    .optional(),
+  saleType: z
+    .enum(["auction", "fixed"], { errorMap: () => ({ message: "saleType must be 'auction' or 'fixed'" }) })
+    .optional()
+    .default("auction"),
+  fixedPrice: z
+    .number()
+    .positive("Fixed price must be greater than 0")
+    .optional(),
   minIncrement: z
     .number()
     .positive("Minimum increment must be greater than 0")
@@ -642,6 +656,27 @@ const createAuctionSchema = z.object({
     .max(48, "durationHours must be at most 48")
     .optional()
     .default(24),
+}).superRefine((val, ctx) => {
+  // Sale-type / price consistency:
+  //   auction → startPrice required, fixedPrice ignored
+  //   fixed   → fixedPrice required, startPrice optional (defaults to fixedPrice)
+  if (val.saleType === "fixed") {
+    if (val.fixedPrice == null || val.fixedPrice <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["fixedPrice"],
+        message: "fixedPrice is required and must be > 0 when saleType is 'fixed'",
+      });
+    }
+  } else {
+    if (val.startPrice == null || val.startPrice <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["startPrice"],
+        message: "startPrice is required and must be > 0 for auctions",
+      });
+    }
+  }
 });
 
 // Columns returned to the client — never expose internal/deleted fields.
@@ -664,10 +699,16 @@ router.post("/auctions", requireAuth, async (req, res) => {
     return;
   }
 
-  const { title, description, category, startPrice, minIncrement, videoUrl, thumbnailUrl, lat, lng, currencyCode, currencyLabel, durationHours } =
+  const { title, description, category, startPrice, saleType, fixedPrice, minIncrement, videoUrl, thumbnailUrl, lat, lng, currencyCode, currencyLabel, durationHours } =
     parsed.data;
   const sellerId = req.user!.id;
-  const effectiveStartPrice = startPrice;
+  // Sale-type normalization:
+  //   - For fixed-price listings, both start_price and fixed_price are set to
+  //     the chosen flat price so the existing UI columns ("price") still render
+  //     a sensible number for any code path that doesn't yet branch on saleType.
+  //   - For auctions, fixed_price is null (DB CHECK constraint requires this).
+  const effectiveStartPrice = saleType === "fixed" ? (fixedPrice as number) : (startPrice as number);
+  const effectiveFixedPrice = saleType === "fixed" ? (fixedPrice as number) : null;
 
   // ── Phone-required gate ────────────────────────────────────────────────────
   // Auctions cannot be created without a WhatsApp contact phone on file —
@@ -770,6 +811,8 @@ router.post("/auctions", requireAuth, async (req, res) => {
     created_at: createdAt.toISOString(),
     ends_at: endsAt.toISOString(),
     media_purge_after: mediaPurgeAfter.toISOString(),
+    sale_type: saleType,
+    fixed_price: effectiveFixedPrice,
     lat,
     lng,
     currency_code: currencyCode,
@@ -958,6 +1001,16 @@ async function executePlaceBid(
   // 3. Auction must be within its active time window.
   if (auction.status === "ended" || !isAuctionActive(auction.starts_at, auction.ends_at)) {
     return { ok: false, status: 409, body: { error: "AUCTION_NOT_ACTIVE", message: "This auction is not currently accepting bids" } };
+  }
+
+  // 3a. Fixed-price listings do not accept bids — they use POST /:id/buy.
+  if (auction.sale_type === "fixed") {
+    return { ok: false, status: 409, body: { error: "FIXED_PRICE_LISTING", message: "This is a fixed-price listing — use Buy Now instead." } };
+  }
+
+  // 3b. A 'sold' or 'reserved' listing cannot receive bids either.
+  if (auction.status === "sold" || auction.status === "reserved") {
+    return { ok: false, status: 409, body: { error: "AUCTION_NOT_ACTIVE", message: "This listing is no longer accepting bids" } };
   }
 
   // 4. Seller cannot bid on own auction.
@@ -1238,13 +1291,93 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
 // reserved for a future hold-and-pay step but is not written here.
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.post("/auctions/:id/buy", requireAuth, async (_req, res) => {
-  // Fixed-price / Buy Now is temporarily disabled — feature not yet shipped.
-  res.status(410).json({
-    error: "FEATURE_DISABLED",
-    message: "Buy Now is not available right now.",
-  });
-  return;
+router.post("/auctions/:id/buy", requireAuth, async (req, res) => {
+  const auctionId = req.params["id"] as string;
+  const buyerId = req.user!.id;
+
+  // 1. Fetch auction.
+  const { data: auction, error: fetchErr } = await supabaseAdmin
+    .from("auctions")
+    .select("*")
+    .eq("id", auctionId)
+    .maybeSingle();
+
+  if (fetchErr) {
+    logger.error({ err: fetchErr, auctionId }, "POST /auctions/:id/buy: fetch failed");
+    res.status(500).json({ error: "FETCH_FAILED", message: "Could not load listing" });
+    return;
+  }
+  if (!auction) {
+    res.status(404).json({ error: "AUCTION_NOT_FOUND", message: "Listing not found" });
+    return;
+  }
+
+  // 2. Sale-type / status / self-buy guards (cheap pre-checks).
+  if (auction.sale_type !== "fixed") {
+    res.status(409).json({ error: "NOT_FIXED_PRICE", message: "This listing is not a fixed-price listing" });
+    return;
+  }
+  if (auction.status !== "active") {
+    res.status(409).json({
+      error: auction.status === "sold" ? "ALREADY_SOLD" : "NOT_AVAILABLE",
+      message: auction.status === "sold" ? "This listing has already been sold" : "This listing is not available",
+    });
+    return;
+  }
+  if (auction.seller_id === buyerId) {
+    res.status(403).json({ error: "SELLER_CANNOT_BUY", message: "You cannot buy your own listing" });
+    return;
+  }
+  if (auction.fixed_price == null) {
+    logger.error({ auctionId }, "POST /auctions/:id/buy: fixed-price listing has null fixed_price");
+    res.status(500).json({ error: "INVALID_LISTING", message: "Listing is missing a price" });
+    return;
+  }
+
+  // 3. ATOMIC claim. The .eq("status", "active") clause is the concurrency
+  //    guard: if two buyers race, only one .update() will return a row — the
+  //    other will see zero rows back and gets ALREADY_SOLD.
+  const { data: updated, error: updateErr } = await supabaseAdmin
+    .from("auctions")
+    .update({ status: "sold", buyer_id: buyerId, winner_id: buyerId })
+    .eq("id", auctionId)
+    .eq("status", "active")
+    .eq("sale_type", "fixed")
+    .select("*")
+    .maybeSingle();
+
+  if (updateErr) {
+    logger.error({ err: updateErr, auctionId, buyerId }, "POST /auctions/:id/buy: atomic claim failed");
+    res.status(500).json({ error: "BUY_FAILED", message: "Could not complete purchase" });
+    return;
+  }
+  if (!updated) {
+    // Lost the race — another buyer claimed it first.
+    res.status(409).json({ error: "ALREADY_SOLD", message: "This listing has just been sold to another buyer" });
+    return;
+  }
+
+  // 4. Record the deal so it shows up in both parties' Trust/Deals tabs.
+  //    Idempotent on auction_id (UNIQUE constraint).
+  const { error: dealErr } = await supabaseAdmin
+    .from("auction_deals")
+    .insert({
+      auction_id: auctionId,
+      seller_id: auction.seller_id,
+      buyer_id: buyerId,
+      winning_bid_id: null,
+      winning_amount: auction.fixed_price,
+    });
+
+  if (dealErr && !/duplicate key/i.test(dealErr.message ?? "")) {
+    // The auction is already marked sold — surface the deal failure but do
+    // NOT roll back the sale. Log loudly so it can be reconciled.
+    logger.error({ err: dealErr, auctionId, buyerId }, "POST /auctions/:id/buy: auction_deals insert failed (sale stands)");
+  }
+
+  logger.info({ auctionId, buyerId, sellerId: auction.seller_id, price: auction.fixed_price }, "Buy Now succeeded");
+
+  res.status(200).json({ auction: updated });
 });
 
 // ─── Content Signal endpoints ─────────────────────────────────────────────────

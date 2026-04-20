@@ -1,0 +1,225 @@
+You are working on the BidReel project.
+
+❗ Follow strictly:
+
+* Do NOT change architecture
+* Do NOT break auction system
+* Do NOT touch admin
+* Implement Fixed Price as a clean extension
+
+---
+
+## 🎯 TASK: Implement Fixed Price (Buy Now) System
+
+We want to support two sale types:
+
+1. auction (existing)
+2. fixed (new)
+
+---
+
+## 🧩 STEP 1 — DATABASE
+
+Add required columns to auctions table:
+
+```sql
+ALTER TABLE auctions
+ADD COLUMN sale_type text DEFAULT 'auction' CHECK (sale_type IN ('auction', 'fixed')),
+ADD COLUMN fixed_price numeric,
+ADD COLUMN status text DEFAULT 'active' CHECK (status IN ('active', 'reserved', 'sold'));
+```
+
+Rules:
+
+* fixed_price must be NULL for auctions
+* fixed_price required if sale_type = 'fixed'
+
+---
+
+## 🧩 STEP 2 — BACKEND (Express / Vercel)
+
+File:
+artifacts/api-server/src/routes/auctions.ts
+
+---
+
+### 1. Create Auction
+
+Accept:
+
+* saleType: "auction" | "fixed"
+* fixedPrice (required if fixed)
+
+Validation:
+
+if (saleType === "fixed") {
+if (!fixedPrice || fixedPrice <= 0) {
+return 400
+}
+}
+
+if (saleType === "auction") {
+fixedPrice = null
+}
+
+Insert:
+
+* sale_type
+* fixed_price
+* status = "active"
+
+---
+
+### 2. GET auctions
+
+Return:
+
+* sale_type
+* fixed_price
+* status
+
+---
+
+### 3. BUY NOW ENDPOINT
+
+Create:
+
+POST /api/auctions/:id/buy
+
+---
+
+### Logic:
+
+1. Fetch auction
+
+2. Ensure:
+
+   * sale_type === "fixed"
+   * status === "active"
+
+3. Prevent race condition:
+
+UPDATE auctions
+SET status = 'sold'
+WHERE id = $1 AND status = 'active'
+RETURNING *
+
+If no row returned → already sold
+
+---
+
+### 4. Create deal
+
+Insert into deals:
+
+* buyer_id
+* seller_id
+* auction_id
+* price = fixed_price
+* status = "pending"
+
+---
+
+### 5. Return success
+
+---
+
+## 🧩 STEP 3 — FRONTEND
+
+File:
+create-auction.tsx
+
+---
+
+### Add selector:
+
+* Auction
+* Fixed Price
+
+---
+
+### If fixed:
+
+* hide bidding UI
+* show fixed price input
+
+---
+
+### If auction:
+
+* hide fixed price
+
+---
+
+---
+
+## 🧩 STEP 4 — FEED UI
+
+In FeedCard / auction detail:
+
+---
+
+### If sale_type === "fixed":
+
+Show button:
+
+"Buy Now"
+
+---
+
+### On click:
+
+Call:
+
+POST /api/auctions/:id/buy
+
+---
+
+### After success:
+
+* show "Sold"
+* disable button
+
+---
+
+## 🧩 STEP 5 — SAFETY
+
+* No multiple purchases
+* Atomic update
+* No double buy
+
+---
+
+## 🧩 STEP 6 — DO NOT ADD
+
+* Payments
+* Shipping
+* Chat
+
+---
+
+## ✅ EXPECTED RESULT
+
+* User can choose:
+
+  * Auction
+  * Fixed price
+
+* Fixed price:
+
+  * no bidding
+  * instant buy
+  * status → sold
+
+* Auction:
+
+  * unchanged
+
+---
+
+## 📤 RETURN
+
+1. Files modified
+2. DB changes
+3. Endpoints added
+4. Confirmation both flows work

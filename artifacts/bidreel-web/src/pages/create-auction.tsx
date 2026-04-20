@@ -151,8 +151,16 @@ export default function CreateAuction() {
     title: "",
     description: "",
     startingBid: "",
+    fixedPrice: "",
     category: "other" as Category,
   });
+
+  // ── Sale type — auction (default) or fixed-price Buy Now ──────────────────
+  // Toggling this swaps the price input below: auctions ask for a starting
+  // bid (bidding ladder), fixed-price asks for a single flat price routed
+  // through POST /:id/buy on the server. Both use the same POST /auctions
+  // creation endpoint, distinguished by `saleType` in the payload.
+  const [saleType, setSaleType] = useState<"auction" | "fixed">("auction");
 
   // ── Duration — 1 to 48 hours ────────────────────────────────────────────────
   // Users pick any whole number of hours from 1 to 48. Sent to the server as
@@ -342,7 +350,8 @@ export default function CreateAuction() {
 
   const handleSubmit = async () => {
     if (!form.title) return;
-    if (!form.startingBid) return;
+    if (saleType === "auction" && !form.startingBid) return;
+    if (saleType === "fixed" && !form.fixedPrice) return;
 
     const duration = Number(durationHours);
     if (!Number.isFinite(duration) || duration < 1 || duration > 48) {
@@ -489,7 +498,10 @@ export default function CreateAuction() {
           title: form.title,
           description: form.description || undefined,
           category: form.category,
-          startPrice: parseInt(form.startingBid, 10),
+          saleType,
+          ...(saleType === "auction"
+            ? { startPrice: parseInt(form.startingBid, 10) }
+            : { fixedPrice: parseInt(form.fixedPrice, 10) }),
           videoUrl,
           thumbnailUrl,
           lat: coords.lat,
@@ -540,7 +552,7 @@ export default function CreateAuction() {
 
   const canPublish =
     !!form.title &&
-    !!form.startingBid &&
+    (saleType === "auction" ? !!form.startingBid : !!form.fixedPrice) &&
     geoStatus === "granted" &&
     !isSubmitting;
 
@@ -764,10 +776,43 @@ export default function CreateAuction() {
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder:text-white/25 focus:outline-none focus:border-primary/60 focus:bg-white/8 transition-all text-[15px]" />
                 </div>
 
-                {/* Starting bid + Currency */}
+                {/* Sale type — Auction vs Buy Now (fixed price) */}
                 <div>
                   <label className="block text-xs font-bold text-white/50 uppercase tracking-widest mb-2">
-                    {t("starting_bid")} *
+                    {t("sale_type_label")} *
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSaleType("auction")}
+                      className={cn(
+                        "flex-1 py-2.5 rounded-xl text-sm font-bold border transition-all",
+                        saleType === "auction"
+                          ? "bg-primary/20 border-primary/50 text-primary"
+                          : "bg-white/5 border-white/10 text-white/50",
+                      )}
+                    >
+                      {t("sale_type_auction")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSaleType("fixed")}
+                      className={cn(
+                        "flex-1 py-2.5 rounded-xl text-sm font-bold border transition-all",
+                        saleType === "fixed"
+                          ? "bg-primary/20 border-primary/50 text-primary"
+                          : "bg-white/5 border-white/10 text-white/50",
+                      )}
+                    >
+                      {t("sale_type_fixed")}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Starting bid / Fixed price + Currency */}
+                <div>
+                  <label className="block text-xs font-bold text-white/50 uppercase tracking-widest mb-2">
+                    {saleType === "fixed" ? t("fixed_price_label") : t("starting_bid")} *
                   </label>
 
                   {/* Currency selector — two options */}
@@ -813,8 +858,8 @@ export default function CreateAuction() {
                     <input
                       type="number"
                       min="1"
-                      value={form.startingBid}
-                      onChange={set("startingBid")}
+                      value={saleType === "fixed" ? form.fixedPrice : form.startingBid}
+                      onChange={saleType === "fixed" ? set("fixedPrice") : set("startingBid")}
                       placeholder="0"
                       className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white text-xl font-bold placeholder:text-white/25 focus:outline-none focus:border-primary/60 focus:bg-white/8 transition-all" />
                   </div>

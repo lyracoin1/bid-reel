@@ -55,6 +55,7 @@ async function insertAuction(payload: {
   min_increment_value: number;
   video_url: string;
   thumbnail_url: string;
+  created_at: string;
   ends_at: string;
   media_purge_after: string;
   lat?: number;
@@ -732,8 +733,26 @@ router.post("/auctions", requireAuth, async (req, res) => {
   }
 
   // ── Timestamps ─────────────────────────────────────────────────────────────
-  // durationHours is validated by the schema (1–48 h), default 24 h.
-  const endsAt = new Date(Date.now() + durationHours * 60 * 60 * 1000);
+  // durationHours is validated by the schema (24 or 48). We defensively
+  // re-validate here because this value is fed directly into the DB
+  // duration CHECK constraint — a stray value would surface as an opaque
+  // 500 from Postgres instead of a clean 400.
+  if (durationHours < 1 || durationHours > 48) {
+    res.status(400).json({
+      error: "INVALID_DURATION",
+      message: "Invalid duration",
+    });
+    return;
+  }
+
+  // IMPORTANT: pin `created_at` and `ends_at` to the same Node clock so the
+  // delta is exactly `durationHours` hours. If we let Postgres set
+  // `created_at = NOW()` while we compute `ends_at` from Node's clock, even
+  // a few ms of clock skew between Node and Postgres pushes the delta over
+  // 48h and trips the chk_auction_duration CHECK constraint.
+  const nowMs = Date.now();
+  const createdAt = new Date(nowMs);
+  const endsAt = new Date(nowMs + durationHours * 60 * 60 * 1000);
   const mediaPurgeAfter = new Date(endsAt.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const { data: auction, error } = await insertAuction({
@@ -746,6 +765,7 @@ router.post("/auctions", requireAuth, async (req, res) => {
     min_increment_value: minIncrement,
     video_url: videoUrl,
     thumbnail_url: thumbnailUrl,
+    created_at: createdAt.toISOString(),
     ends_at: endsAt.toISOString(),
     media_purge_after: mediaPurgeAfter.toISOString(),
     lat,

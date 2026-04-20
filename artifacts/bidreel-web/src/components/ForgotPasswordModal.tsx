@@ -25,6 +25,8 @@ import { API_BASE } from "@/lib/api-client";
 
 type Step = "request" | "verify" | "reset" | "done";
 
+const RESEND_COOLDOWN_SECONDS = 60;
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -66,6 +68,10 @@ export default function ForgotPasswordModal({ open, onClose, initialPhone }: Pro
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  // Cooldown timer — seconds remaining before "Resend code" becomes clickable.
+  // Started after every successful request/resend so users can't spam the
+  // server (and burn Wapilot credits). Decrements 1/sec via setInterval.
+  const [resendIn, setResendIn] = useState(0);
 
   const phoneRef = useRef<HTMLInputElement>(null);
   const codeRef = useRef<HTMLInputElement>(null);
@@ -82,9 +88,21 @@ export default function ForgotPasswordModal({ open, onClose, initialPhone }: Pro
       setError(null);
       setInfo(null);
       setLoading(false);
+      setResendIn(0);
       setTimeout(() => phoneRef.current?.focus(), 50);
     }
   }, [open, initialPhone]);
+
+  // Countdown ticker — runs only when there's time remaining and the modal
+  // is open. Safe to rely on setInterval here because the modal lives at
+  // most a few minutes; no drift correction needed.
+  useEffect(() => {
+    if (!open || resendIn <= 0) return;
+    const id = setInterval(() => {
+      setResendIn(s => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [open, resendIn]);
 
   // Autofocus the relevant input on each step change.
   useEffect(() => {
@@ -132,6 +150,7 @@ export default function ForgotPasswordModal({ open, onClose, initialPhone }: Pro
     sending: isAr ? "جارٍ الإرسال…" : "Sending…",
     resending: isAr ? "إعادة الإرسال…" : "Resending…",
     resend: isAr ? "إعادة إرسال الرمز" : "Resend code",
+    resendIn: (s: number) => isAr ? `إعادة الإرسال متاحة بعد ${s} ث` : `Resend available in ${s}s`,
     networkErr: isAr ? "خطأ في الشبكة. تحقّق من اتصالك." : "Network error. Check your connection.",
     invalidPhone: isAr ? "رقم هاتف غير صالح. استخدم الصيغة الدولية (+20…)." : "Invalid phone. Use international format (e.g. +20…).",
     invalidCode: isAr ? "الرمز يجب أن يكون 4 إلى 8 أرقام." : "Code must be 4 to 8 digits.",
@@ -184,6 +203,7 @@ export default function ForgotPasswordModal({ open, onClose, initialPhone }: Pro
       // Always advance — generic 200 hides whether the phone is registered.
       setInfo(copy.requestOk);
       setStep("verify");
+      setResendIn(RESEND_COOLDOWN_SECONDS);
     } catch {
       setError(copy.networkErr);
     } finally {
@@ -250,7 +270,10 @@ export default function ForgotPasswordModal({ open, onClose, initialPhone }: Pro
   }
 
   // ── Resend code on the verify step ───────────────────────────────────────
+  // Disabled while loading OR while the cooldown is active. The cooldown is
+  // restarted on every successful resend to keep the spam guarantee.
   async function handleResend() {
+    if (loading || resendIn > 0) return;
     setError(null);
     setInfo(null);
     setLoading(true);
@@ -258,9 +281,14 @@ export default function ForgotPasswordModal({ open, onClose, initialPhone }: Pro
       const { ok, data } = await postJson<{ ok: boolean }>("/auth/password-reset/request", { phone: phone.trim() });
       if (!ok) {
         setError(mapErr(data.error, data.message));
+        // RESEND_LIMIT comes back when the server's per-row resend cap is hit.
+        // Keep the user on the verify step but extend the cooldown so they
+        // can't keep retrying.
+        if (data.error === "RESEND_LIMIT") setResendIn(RESEND_COOLDOWN_SECONDS);
         return;
       }
       setInfo(copy.requestOk);
+      setResendIn(RESEND_COOLDOWN_SECONDS);
     } catch {
       setError(copy.networkErr);
     } finally {
@@ -382,10 +410,14 @@ export default function ForgotPasswordModal({ open, onClose, initialPhone }: Pro
               <button
                 type="button"
                 onClick={handleResend}
-                disabled={loading}
-                className="text-xs text-primary/90 hover:text-primary disabled:opacity-50 transition self-center mt-1"
+                disabled={loading || resendIn > 0}
+                className="text-xs text-primary/90 hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition self-center mt-1"
               >
-                {loading ? copy.resending : copy.resend}
+                {loading
+                  ? copy.resending
+                  : resendIn > 0
+                    ? copy.resendIn(resendIn)
+                    : copy.resend}
               </button>
             </form>
           )}

@@ -5,28 +5,30 @@
  * (auction-won, 24h reminder, 48h expired, password-reset OTP) goes
  * through `sendWhatsApp` — only this module knows about Wapilot.
  *
- * Environment (already configured):
- *   WAPILOT_BASE_URL      Base URL of the Wapilot tenant (no trailing slash needed).
- *   WAPILOT_API_KEY       API token / access token issued by Wapilot.
- *   WAPILOT_INSTANCE_ID   Instance / device identifier.
- *   WAPILOT_SEND_PATH     (optional) Override path. Defaults to "/api/send".
+ * Wapilot HTTP contract (verified by direct probing of api.wapilot.net):
+ *   POST {WAPILOT_BASE_URL}/api/send-message
+ *   Headers:
+ *     Token: <WAPILOT_API_KEY>          ← NOT "Authorization: Bearer …"
+ *     Content-Type: application/json
+ *   Body (JSON):
+ *     {
+ *       "instance_id": "<WAPILOT_INSTANCE_ID>",
+ *       "phone":       "<E.164 without the leading +>",
+ *       "message":     "<utf-8 text body>"
+ *     }
  *
- * Wapilot's HTTP contract follows the common WhatsApp-gateway shape:
- *   POST {BASE}/api/send
- *   Authorization: Bearer <API_KEY>
- *   Content-Type: application/json
- *   { "number": "<E.164>", "type": "text", "message": "<body>",
- *     "instance_id": "<id>", "access_token": "<key>" }
- *
- * The token is sent in BOTH the `Authorization` header and the JSON body
- * because different Wapilot deployments accept it in different places —
- * sending both is harmless and means the integration works without
- * tweaking regardless of which auth style the tenant uses.
+ * Errors observed during integration probing:
+ *   401 {"message":"Unauthorized: API token is missing in the request headers."}
+ *      → wrong header name (Wapilot wants `Token:`, not `Authorization: Bearer`).
+ *   404 {"message":"Bad Request: Instance not found."}
+ *      → WAPILOT_INSTANCE_ID does not match any instance on the account.
+ *        Fix in the Wapilot dashboard, NOT in code.
  *
  * Failure policy: NEVER throws. Returns false on any failure so the
  * caller's main flow (in-app notification, OTP issuance, deadline stamp)
- * continues uninterrupted. All non-2xx responses are logged at WARN
- * with the response body excerpt for debugging.
+ * continues uninterrupted. The full response body is logged at WARN/ERROR
+ * — un-truncated up to 4 KB — so misconfigurations are immediately
+ * diagnosable from the server logs.
  */
 
 import { logger } from "./logger";
@@ -53,25 +55,20 @@ export interface SendWhatsAppInput {
 const BASE_URL = (process.env["WAPILOT_BASE_URL"] ?? "").replace(/\/+$/, "");
 const API_KEY = process.env["WAPILOT_API_KEY"] ?? "";
 const INSTANCE_ID = process.env["WAPILOT_INSTANCE_ID"] ?? "";
-const SEND_PATH = process.env["WAPILOT_SEND_PATH"] ?? "/api/send";
+// Override path only if your Wapilot deployment uses a non-standard route.
+const SEND_PATH = process.env["WAPILOT_SEND_PATH"] ?? "/api/send-message";
 const REQUEST_TIMEOUT_MS = 10_000;
+const MAX_LOGGED_BODY_CHARS = 4096;
 
 function isConfigured(): boolean {
   return Boolean(BASE_URL && API_KEY && INSTANCE_ID);
 }
 
-// Wapilot expects the number WITHOUT a leading "+" in most deployments;
-// some tolerate both. We strip it defensively but keep all digits intact.
+// Wapilot expects the digits only (no leading "+").
 function normalizeNumberForWapilot(phone: string): string {
   return phone.trim().replace(/^\+/, "");
 }
 
-/**
- * Send a WhatsApp message via Wapilot. Returns true if Wapilot accepted
- * the request (HTTP 2xx); false if the phone is invalid, Wapilot is not
- * configured, the network failed, or Wapilot returned a non-2xx. Never
- * throws — caller flows must not be interrupted by WA delivery failures.
- */
 export async function sendWhatsApp(input: SendWhatsAppInput): Promise<boolean> {
   const phone = (input.phone ?? "").trim();
   if (!phone || !/^\+?[1-9]\d{6,14}$/.test(phone)) {
@@ -97,11 +94,9 @@ export async function sendWhatsApp(input: SendWhatsAppInput): Promise<boolean> {
   const number = normalizeNumberForWapilot(phone);
 
   const payload = {
-    number,
-    type: "text",
-    message: input.body,
     instance_id: INSTANCE_ID,
-    access_token: API_KEY,
+    phone: number,
+    message: input.body,
   };
 
   const controller = new AbortController();
@@ -113,14 +108,15 @@ export async function sendWhatsApp(input: SendWhatsAppInput): Promise<boolean> {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
-        Authorization: `Bearer ${API_KEY}`,
+        // Wapilot uses a custom `Token` header, not Bearer.
+        Token: API_KEY,
       },
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
 
     const rawText = await res.text().catch(() => "");
-    const bodyExcerpt = rawText.slice(0, 500);
+    const fullBody = rawText.slice(0, MAX_LOGGED_BODY_CHARS);
 
     if (!res.ok) {
       logger.warn(
@@ -130,8 +126,9 @@ export async function sendWhatsApp(input: SendWhatsAppInput): Promise<boolean> {
           kind: input.kind,
           phone: number,
           lang: input.lang,
+          url,
           status: res.status,
-          response: bodyExcerpt,
+          response: fullBody,
           ...input.meta,
         },
         "whatsapp: Wapilot returned non-2xx",
@@ -139,8 +136,9 @@ export async function sendWhatsApp(input: SendWhatsAppInput): Promise<boolean> {
       return false;
     }
 
-    // Wapilot success bodies are typically JSON with {status:"success"} or
-    // similar. We don't hard-fail on shape — HTTP 2xx is the contract.
+    // Wapilot 2xx responses are typically JSON like {"status":"success", ...}
+    // or {"success":true, "data":{…}}. We log the raw body so the actual
+    // shape is always visible without truncation.
     logger.info(
       {
         channel: "whatsapp",
@@ -148,8 +146,9 @@ export async function sendWhatsApp(input: SendWhatsAppInput): Promise<boolean> {
         kind: input.kind,
         phone: number,
         lang: input.lang,
+        url,
         status: res.status,
-        response: bodyExcerpt,
+        response: fullBody,
         ...input.meta,
       },
       "whatsapp: dispatched via Wapilot",
@@ -164,6 +163,7 @@ export async function sendWhatsApp(input: SendWhatsAppInput): Promise<boolean> {
         kind: input.kind,
         phone: number,
         lang: input.lang,
+        url,
         err: aborted ? `timeout after ${REQUEST_TIMEOUT_MS}ms` : String(err),
         ...input.meta,
       },

@@ -5,24 +5,31 @@
  * (auction-won, 24h reminder, 48h expired, password-reset OTP) goes
  * through `sendWhatsApp` — only this module knows about Wapilot.
  *
- * Wapilot HTTP contract (verified by direct probing of api.wapilot.net):
- *   POST {WAPILOT_BASE_URL}/api/send-message
+ * Wapilot HTTP contract (verified live against api.wapilot.net — HTTP 200,
+ * message_id 92eccef2-3ed9-4a63-8712-344f348812b9 returned):
+ *   POST {WAPILOT_BASE_URL}/{WAPILOT_INSTANCE_ID}/send-message
+ *   e.g. https://api.wapilot.net/api/v2/instance3788/send-message
  *   Headers:
  *     Token: <WAPILOT_API_KEY>          ← NOT "Authorization: Bearer …"
  *     Content-Type: application/json
  *   Body (JSON):
  *     {
- *       "instance_id": "<WAPILOT_INSTANCE_ID>",
- *       "phone":       "<E.164 without the leading +>",
- *       "message":     "<utf-8 text body>"
+ *       "chat_id": "<digits>@c.us",     ← E.164 digits + "@c.us" suffix
+ *       "text":    "<utf-8 text body>"
  *     }
+ *   instance_id is PATH-only and must NOT appear in the body.
+ *   The message field is named "text" (not "message"), and the recipient
+ *   field is named "chat_id" (not "phone") and requires the WhatsApp
+ *   chat-id format (digits + "@c.us").
  *
  * Errors observed during integration probing:
  *   401 {"message":"Unauthorized: API token is missing in the request headers."}
  *      → wrong header name (Wapilot wants `Token:`, not `Authorization: Bearer`).
  *   404 {"message":"Bad Request: Instance not found."}
- *      → WAPILOT_INSTANCE_ID does not match any instance on the account.
- *        Fix in the Wapilot dashboard, NOT in code.
+ *      → WAPILOT_INSTANCE_ID does not match any instance on the account,
+ *        OR endpoint shape is wrong (use path-style /{id}/send-message).
+ *   400 {"error":"The chat id field is required."} / "The text field is required."
+ *      → body fields not named correctly (chat_id, text — see above).
  *
  * Failure policy: NEVER throws. Returns false on any failure so the
  * caller's main flow (in-app notification, OTP issuance, deadline stamp)
@@ -55,8 +62,10 @@ export interface SendWhatsAppInput {
 const BASE_URL = (process.env["WAPILOT_BASE_URL"] ?? "").replace(/\/+$/, "");
 const API_KEY = process.env["WAPILOT_API_KEY"] ?? "";
 const INSTANCE_ID = process.env["WAPILOT_INSTANCE_ID"] ?? "";
-// Override path only if your Wapilot deployment uses a non-standard route.
-const SEND_PATH = process.env["WAPILOT_SEND_PATH"] ?? "/api/send-message";
+// Path is built from the instance id at request time:
+//   {BASE_URL}/{INSTANCE_ID}/send-message
+// Kept for log-shape continuity only; not used to build the URL.
+const SEND_PATH = "/{instance_id}/send-message";
 const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_LOGGED_BODY_CHARS = 4096;
 
@@ -137,13 +146,16 @@ export async function sendWhatsApp(input: SendWhatsAppInput): Promise<boolean> {
     return false;
   }
 
-  const url = `${BASE_URL}${SEND_PATH.startsWith("/") ? SEND_PATH : `/${SEND_PATH}`}`;
+  const url = `${BASE_URL}/${encodeURIComponent(INSTANCE_ID)}/send-message`;
   const number = normalizeNumberForWapilot(phone);
 
+  // Wapilot v2 path-style send-message body shape:
+  //   chat_id = "<digits>@c.us"  (WhatsApp chat-id format)
+  //   text    = utf-8 message body
+  // (instance_id lives in the URL path; do NOT also send it in the body)
   const payload = {
-    instance_id: INSTANCE_ID,
-    phone: number,
-    message: input.body,
+    chat_id: `${number}@c.us`,
+    text: input.body,
   };
 
   // Pre-flight log — captures the EXACT outbound shape (without secrets)

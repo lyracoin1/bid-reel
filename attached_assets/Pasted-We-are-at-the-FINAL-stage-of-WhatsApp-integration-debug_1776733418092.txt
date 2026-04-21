@@ -1,0 +1,170 @@
+We are at the FINAL stage of WhatsApp integration debugging in BidReel.
+
+DO NOT GUESS.
+DO NOT GIVE THEORY.
+PROVE EVERYTHING WITH LOGS OR LIVE TESTS.
+
+## CURRENT STATE (IMPORTANT — DO NOT IGNORE)
+
+* Phone normalization bug is FIXED and VERIFIED
+
+* sendWhatsApp() IS being called
+
+* Wapilot returns:
+
+  404 → "Bad Request: Instance not found."
+
+* Instance visible in dashboard:
+  instance3788
+
+* Vercel env contains:
+  WAPILOT_API_KEY
+  WAPILOT_INSTANCE_ID
+  WAPILOT_BASE_URL
+
+* BASE URL currently may include /api/v2
+
+---
+
+## GOAL
+
+Find EXACTLY why Wapilot still says "Instance not found" and FIX IT completely.
+
+---
+
+## STEP 1 — VERIFY ENV AT RUNTIME (CRITICAL)
+
+Inside whatsapp.ts:
+
+* Log at runtime:
+
+  * instance_id value
+  * its length
+  * base URL
+  * whether env is undefined
+
+Example log:
+instanceId: value
+instanceIdLen: X
+baseUrl: value
+
+This MUST be from production runtime, not local guess.
+
+---
+
+## STEP 2 — VERIFY REAL REQUEST SENT
+
+Log EXACT request:
+
+* FULL URL used
+* Headers (without exposing token)
+* Body JSON
+
+Confirm:
+
+* endpoint path
+* header name = Token
+* payload keys:
+  instance_id, phone, message
+
+---
+
+## STEP 3 — VERIFY AGAINST WAPILOT API DOCS
+
+Cross-check:
+
+* Is endpoint correct?
+* Should it be:
+  /api/send-message
+  OR
+  /api/v2/send-message
+  OR
+  something else?
+
+DO NOT assume.
+
+---
+
+## STEP 4 — DIRECT LIVE TEST (MANDATORY)
+
+From server or safe environment:
+
+Call Wapilot directly using SAME env values:
+
+POST https://api.wapilot.net/api/send-message
+
+Body:
+{
+"instance_id": "...",
+"phone": "201559035388",
+"message": "direct test"
+}
+
+Return FULL response.
+
+---
+
+## STEP 5 — VERIFY INSTANCE ID IS REAL (NOT FRIENDLY NAME)
+
+Check Wapilot dashboard deeply:
+
+* Confirm if "instance3788" is:
+
+  * actual API instance_id
+    OR
+    just display name
+
+If needed:
+
+* fetch instance list via API
+* compare IDs
+
+---
+
+## STEP 6 — VERIFY TOKEN ↔ INSTANCE RELATION
+
+Check:
+
+* is API key linked to THIS instance?
+* is instance active for API sending?
+
+---
+
+## STEP 7 — CHECK FOR HIDDEN ISSUES
+
+* whitespace in env values
+* wrong env scope (Preview vs Production)
+* stale deployment
+* incorrect base URL duplication (/api/v2/api/)
+
+---
+
+## STEP 8 — FIX + PROVE
+
+Do NOT stop until:
+
+* Wapilot returns 200
+* AND a real WhatsApp message is delivered
+
+---
+
+## RETURN FORMAT (MANDATORY)
+
+1. exact root cause
+2. env values (sanitized)
+3. actual request sent
+4. actual Wapilot response
+5. what was wrong
+6. what you changed
+7. final working proof (message delivered)
+
+---
+
+## IMPORTANT
+
+* If you can run real test → DO IT
+* If you cannot → explain EXACTLY why
+* No "maybe"
+* No guessing
+
+This is final resolution task.

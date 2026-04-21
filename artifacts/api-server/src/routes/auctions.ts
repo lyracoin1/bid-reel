@@ -108,6 +108,44 @@ function normalizeAuction(a: any): any {
   };
 }
 
+/**
+ * Returns true when an auction listing is "locked" — i.e. it requires the
+ * seller's $1 Gumroad activation payment before bidding opens and seller
+ * contact details may be revealed. Fixed-price listings (sale_type='fixed')
+ * are NEVER locked: the activation gate exists only for auctions.
+ *
+ * eslint-disable-next-line @typescript-eslint/no-explicit-any */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isAuctionLocked(a: any): boolean {
+  if (!a) return false;
+  if (a.sale_type === "fixed") return false;
+  // Pre-migration safety: if migration 031 hasn't been applied yet the column
+  // doesn't exist on the row at all (`undefined`). Treat that as ACTIVATED
+  // so we don't lock every auction on environments that haven't run the
+  // migration yet. Only an explicit `null` (column exists, never set) means
+  // locked. Once 031 runs everywhere, all legacy rows are back-filled with
+  // created_at, so this distinction becomes a no-op.
+  if (a.activated_at === undefined) return false;
+  return a.activated_at === null;
+}
+
+/**
+ * Strip the seller's phone number from a seller profile if the listing is
+ * a locked auction. Other profile fields (name, avatar, username) stay so
+ * the UI can still show "Listed by @username" — only the contact channel
+ * is gated by activation.
+ *
+ *   redactSellerForLocked(auctionRow, sellerProfileFromDb)
+ *
+ * Always returns a NEW object when redacting; never mutates input.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function redactSellerForLocked(auction: any, seller: any): any {
+  if (!seller) return seller;
+  if (!isAuctionLocked(auction)) return seller;
+  return { ...seller, phone: null };
+}
+
 router.get("/auctions", async (req, res) => {
   // Run lifecycle cleanup before serving the list (fire-and-forget — does not
   // block the response; status changes will be accurate on the next fetch).
@@ -195,7 +233,9 @@ router.get("/auctions", async (req, res) => {
 
   let feed: AuctionWithMeta[] = rawItems.map((a) => ({
     ...normalizeAuction(a),
-    seller: profileMap.get(a.seller_id) ?? null,
+    // Redact seller phone for locked auctions (sale_type='auction' &&
+    // !activated_at). Fixed-price listings always expose the phone.
+    seller: redactSellerForLocked(a, profileMap.get(a.seller_id) ?? null),
     user_signal: null as "interested" | "not_interested" | null,
     views_count: viewMap.get(a.id as string) ?? 0,
   }));
@@ -303,9 +343,15 @@ router.get("/auctions/mine", requireAuth, async (req, res) => {
     .eq("id", userId)
     .maybeSingle();
 
+  // NOTE: This is the seller's own auctions endpoint. We still redact the
+  // phone field on the embedded `seller` for locked auctions so the response
+  // shape exactly mirrors the public feed — the seller's real phone lives on
+  // their /api/users/me profile, never on auction rows. The activation panel
+  // in the UI doesn't need the phone; it just needs to know the auction is
+  // locked (saleType='auction' && !activatedAt).
   const feed = (auctions ?? []).map((a) => ({
     ...normalizeAuction(a),
-    seller: profile ?? null,
+    seller: redactSellerForLocked(a, profile ?? null),
     user_signal: null,
   }));
 
@@ -543,7 +589,7 @@ router.get("/auctions/:id", async (req, res) => {
 
   const auctionWithSeller = {
     ...normalizeAuction(auctionData),
-    seller: profileMap.get(auctionData.seller_id) ?? null,
+    seller: redactSellerForLocked(auctionData, profileMap.get(auctionData.seller_id) ?? null),
   };
 
   const bidsWithBidders = bids.map((b) => ({
@@ -1008,6 +1054,24 @@ async function executePlaceBid(
   // 3a. Fixed-price listings do not accept bids — they use POST /:id/buy.
   if (auction.sale_type === "fixed") {
     return { ok: false, status: 409, body: { error: "FIXED_PRICE_LISTING", message: "This is a fixed-price listing — use Buy Now instead." } };
+  }
+
+  // 3a-bis. Activation gate — auction listings (sale_type='auction') must be
+  // paid-activated by the seller ($1 Gumroad → "I have paid" button) before
+  // anyone can bid. Fixed-price listings are exempt (they remain free).
+  // Legacy rows pre-dating migration 031 were back-filled with
+  // activated_at=created_at so this gate never trips for them.
+  // Same pre-migration safety as isAuctionLocked: undefined = column not yet
+  // present (treat as activated). Only explicit null = locked.
+  if (auction.activated_at === null) {
+    return {
+      ok: false,
+      status: 402,
+      body: {
+        error: "AUCTION_NOT_ACTIVATED",
+        message: "This auction is locked. The seller must complete the $1 activation payment before bidding opens.",
+      },
+    };
   }
 
   // 3b. A 'sold' or 'reserved' listing cannot receive bids either.
@@ -1486,6 +1550,112 @@ router.delete("/auctions/:id/signal", requireAuth, async (req, res) => {
     .eq("auction_id", req.params.id);
 
   res.json({ ok: true });
+});
+
+// ─── POST /api/auctions/:id/activate ─────────────────────────────────────────
+//
+// Per-auction activation gate ("Pay $1 to Activate Auction").
+//
+// MVP flow (per business rule §7 — Temporary MVP logic):
+//   1. Seller creates an auction listing (sale_type='auction').
+//      The row is inserted with `activated_at = NULL` → locked.
+//   2. Seller is shown a "Pay $1 to Activate Auction" button that opens
+//      Gumroad in a new tab.
+//   3. After paying, the seller returns and clicks "I have paid".
+//   4. The frontend POSTs here. We mark THIS auction as activated by
+//      setting `activated_at = NOW()`. Activation state is per-auction,
+//      never per-user — paying once does not unlock other auctions.
+//
+// Trust model: this endpoint trusts the seller's "I have paid" claim. A
+// production implementation would verify a Gumroad webhook / receipt
+// before flipping the flag. That hardening is out of scope for the MVP
+// (explicit user requirement: "Temporary MVP logic").
+//
+// Authorization rules:
+//   • Only the auction's seller may activate it (403 otherwise).
+//   • Only sale_type='auction' rows are activatable. Calling this for a
+//     fixed-price listing returns 400 — fixed-price listings are free
+//     and don't need activation (§5 — fixed-price has no payment gate).
+//   • Idempotent: a second call on an already-activated row returns 200
+//     with the current activated_at timestamp; we do NOT bump it, so
+//     historical activation time is preserved for audit.
+//   • Soft-deleted ('removed') rows return 404.
+router.post("/auctions/:id/activate", requireAuth, async (req, res) => {
+  const auctionId = req.params["id"];
+  const userId = req.user!.id;
+
+  if (!auctionId) {
+    res.status(400).json({ error: "MISSING_ID", message: "Auction ID is required" });
+    return;
+  }
+
+  const { data: auction, error: fetchErr } = await supabaseAdmin
+    .from("auctions")
+    .select("id, seller_id, sale_type, status, activated_at")
+    .eq("id", auctionId)
+    .maybeSingle();
+
+  if (fetchErr) {
+    logger.error({ err: fetchErr.message, auctionId }, "POST /auctions/:id/activate: lookup failed");
+    res.status(500).json({ error: "LOOKUP_FAILED", message: "Could not load auction." });
+    return;
+  }
+  if (!auction || auction.status === "removed") {
+    res.status(404).json({ error: "NOT_FOUND", message: "Auction not found" });
+    return;
+  }
+  if (auction.seller_id !== userId) {
+    res.status(403).json({ error: "NOT_SELLER", message: "Only the auction's seller can activate it." });
+    return;
+  }
+  if (auction.sale_type === "fixed") {
+    res.status(400).json({
+      error: "NOT_AN_AUCTION",
+      message: "Fixed-price listings are free and do not require activation.",
+    });
+    return;
+  }
+
+  // Idempotent: already activated → return current timestamp, no DB write.
+  if (auction.activated_at) {
+    logger.info({ auctionId, userId }, "POST /auctions/:id/activate: already activated — no-op");
+    res.json({ ok: true, activatedAt: auction.activated_at, alreadyActivated: true });
+    return;
+  }
+
+  const nowIso = new Date().toISOString();
+  const { data: updated, error: updErr } = await supabaseAdmin
+    .from("auctions")
+    .update({ activated_at: nowIso, updated_at: nowIso })
+    .eq("id", auctionId)
+    // Defensive: only flip when still NULL — prevents a race from clobbering
+    // an existing activation timestamp if two "I have paid" clicks arrive
+    // simultaneously.
+    .is("activated_at", null)
+    .select("activated_at")
+    .maybeSingle();
+
+  if (updErr) {
+    logger.error({ err: updErr.message, auctionId }, "POST /auctions/:id/activate: update failed");
+    res.status(500).json({ error: "ACTIVATION_FAILED", message: "Could not activate auction." });
+    return;
+  }
+
+  // updated == null means the WHERE filter (activated_at IS NULL) didn't match,
+  // i.e. someone else activated this row in the same millisecond. Re-read and
+  // return idempotently rather than 500-ing.
+  if (!updated) {
+    const { data: fresh } = await supabaseAdmin
+      .from("auctions")
+      .select("activated_at")
+      .eq("id", auctionId)
+      .maybeSingle();
+    res.json({ ok: true, activatedAt: fresh?.activated_at ?? nowIso, alreadyActivated: true });
+    return;
+  }
+
+  logger.info({ auctionId, userId, activatedAt: updated.activated_at }, "Auction activated (MVP — trust-on-claim)");
+  res.json({ ok: true, activatedAt: updated.activated_at, alreadyActivated: false });
 });
 
 export default router;

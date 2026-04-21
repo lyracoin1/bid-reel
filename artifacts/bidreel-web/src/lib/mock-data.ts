@@ -49,4 +49,9 @@ export interface Auction {
   /** Server-side lifecycle status. UI uses this for Sold/Reserved badges
    *  on top of the orthogonal time-window state (upcoming/active/ended). */
   status?: "active" | "ended" | "removed" | "archived" | "sold" | "reserved";
+  /** Per-auction $1 activation timestamp (ISO 8601) — null = locked.
+   *  When `saleType === "auction"` and this is null, bidding is blocked
+   *  and the seller's contact details are hidden from buyers. Fixed-price
+   *  listings are exempt and ignore this field. See migration 031. */
+  activatedAt?: string | null;
 }

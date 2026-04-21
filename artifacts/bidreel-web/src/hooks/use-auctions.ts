@@ -9,6 +9,7 @@ import {
   buyNowApi,
   likeAuctionApi,
   unlikeAuctionApi,
+  activateAuctionApi,
   type ApiAuctionRaw,
   type ApiAuctionBid,
   type CreateAuctionInput,
@@ -135,6 +136,13 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
     saleType: (r.sale_type as "auction" | "fixed" | null | undefined) ?? "auction",
     fixedPrice: r.fixed_price != null ? Number(r.fixed_price) : null,
     buyerId: r.buyer_id ?? null,
+    // Per-auction activation gate (migration 031). We deliberately preserve
+    // `undefined` here (do NOT collapse to null) so the locked check in the
+    // detail page can distinguish two states:
+    //   • undefined → migration not yet applied / column missing → activated
+    //   • null      → column present but never set → LOCKED
+    //   • string    → activated at this timestamp
+    activatedAt: r.activated_at as string | null | undefined,
     status: (r.status as "active" | "ended" | "removed" | "archived" | "sold" | "reserved" | undefined) ?? "active",
   };
 }
@@ -477,6 +485,49 @@ export function useBuyAuction(auctionId: string) {
       const code = e.code ?? 'BUY_FAILED';
       const message = e.message ?? 'Purchase failed';
       console.error(`[useBuyAuction] ❌ ${code}: ${message}`);
+      setLastError({ code, message });
+      options.onError?.(code, message);
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return { mutate, isPending, lastError };
+}
+
+// ─── useActivateAuction ($1 Gumroad gate — MVP "I have paid") ───────────────
+//
+// Wraps activateAuctionApi and patches the cached auction row in place so
+// the UI flips from locked → activated without an extra refetch. Failures
+// surface a code + message via onError; idempotent re-activation succeeds
+// silently (alreadyActivated=true).
+
+export function useActivateAuction(auctionId: string) {
+  const [isPending, setIsPending] = useState(false);
+  const [lastError, setLastError] = useState<{ code: string; message: string } | null>(null);
+
+  const mutate = async (
+    options: { onSuccess?: (alreadyActivated: boolean) => void; onError?: (code: string, message: string) => void } = {},
+  ): Promise<void> => {
+    setIsPending(true);
+    setLastError(null);
+    console.log(`[useActivateAuction] Activating — auctionId=${auctionId}`);
+
+    try {
+      const { activatedAt, alreadyActivated } = await activateAuctionApi(auctionId);
+      // Patch the cache in place so the locked panel disappears immediately.
+      const idx = globalAuctions.findIndex((a) => a.id === auctionId);
+      if (idx >= 0) {
+        globalAuctions[idx] = { ...globalAuctions[idx], activatedAt };
+        notify();
+      }
+      console.log(`[useActivateAuction] ✅ Activated — id=${auctionId} alreadyActivated=${alreadyActivated}`);
+      options.onSuccess?.(alreadyActivated);
+    } catch (err: unknown) {
+      const e = err as { code?: string; message?: string };
+      const code = e.code ?? "ACTIVATION_FAILED";
+      const message = e.message ?? "Activation failed";
+      console.error(`[useActivateAuction] ❌ ${code}: ${message}`);
       setLastError({ code, message });
       options.onError?.(code, message);
     } finally {

@@ -585,6 +585,46 @@ export async function createAuctionApi(input: CreateAuctionInput): Promise<{ auc
 // auction row (status='sold', buyer_id=current user) on success, or an error
 // like ALREADY_SOLD if another buyer won the race.
 
+// ─── Activate auction ($1 Gumroad gate) ──────────────────────────────────────
+//
+// MVP "I have paid" flow: after the seller pays via the Gumroad link in a new
+// tab, they return and click the confirm button. This POST flips
+// `activated_at = NOW()` for THIS auction only — activation is per-auction,
+// not per-user. The server enforces seller-only access and idempotency.
+//
+// Possible error codes from the server:
+//   • NOT_SELLER       — caller is not the seller (403)
+//   • NOT_AN_AUCTION   — listing is fixed-price, no activation needed (400)
+//   • NOT_FOUND        — auction id is invalid or soft-deleted (404)
+//   • LOOKUP_FAILED / ACTIVATION_FAILED — server-side DB errors (500)
+//
+// Returns the activated_at timestamp the server stored (the caller maps it
+// back into the cached auction so the UI flips out of the locked state
+// without an extra refetch).
+export async function activateAuctionApi(
+  auctionId: string,
+): Promise<{ ok: true; activatedAt: string; alreadyActivated: boolean }> {
+  const token = await getToken();
+  if (!token) { redirectToLogin(); throw new Error("Not authenticated"); }
+
+  const res = await fetch(`${API_BASE}/auctions/${encodeURIComponent(auctionId)}/activate`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (res.status === 401) { redirectToLogin(); throw new Error("Session expired"); }
+
+  const data = await res.json();
+  if (!res.ok) {
+    const err = data as ApiError;
+    throw Object.assign(new Error(err.message ?? "Activation failed"), {
+      code: err.error,
+      statusCode: res.status,
+    });
+  }
+  return data as { ok: true; activatedAt: string; alreadyActivated: boolean };
+}
+
 export async function buyNowApi(auctionId: string): Promise<{ auction: ApiAuctionRaw }> {
   const token = await getToken();
   if (!token) { redirectToLogin(); throw new Error("Not authenticated"); }

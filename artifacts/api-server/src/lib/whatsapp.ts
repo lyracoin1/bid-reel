@@ -1,39 +1,46 @@
 /**
- * whatsapp.ts — Real WhatsApp dispatch.
+ * whatsapp.ts — Real WhatsApp dispatch via Wapilot.
  *
  * Single integration point for outbound WhatsApp. Every caller
  * (auction-won, 24h reminder, 48h expired, password-reset OTP) goes
- * through `sendWhatsApp` — only this module knows about providers.
+ * through `sendWhatsApp` — only this module knows about Wapilot.
  *
- * Supports two providers behind the same abstraction. The active
- * provider is chosen at module load:
+ * Wapilot HTTP contract (verified live against api.wapilot.net — HTTP 200,
+ * message_id returned):
  *
- *   1. META  (preferred) — used when WHATSAPP_ACCESS_TOKEN +
- *      WHATSAPP_PHONE_NUMBER_ID are both set in the environment.
- *      Calls Meta's WhatsApp Cloud Graph API:
- *        POST https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages
- *        Authorization: Bearer {WHATSAPP_ACCESS_TOKEN}
- *        Body: {
- *          "messaging_product": "whatsapp",
- *          "to":   "<E.164 digits, no leading +>",
- *          "type": "text",
- *          "text": { "body": "<utf-8 message>" }
- *        }
- *      Verified live: HTTP 200 returns {messages:[{id:"wamid…"}]}.
+ *   POST {WAPILOT_BASE_URL}/{WAPILOT_INSTANCE_ID}/send-message
+ *     e.g. https://api.wapilot.net/api/v2/instance3788/send-message
+ *   Headers:
+ *     Token: {WAPILOT_API_KEY}            ← NOT "Authorization: Bearer …"
+ *     Content-Type: application/json
+ *   Body (JSON):
+ *     {
+ *       "chat_id": "<digits>@c.us",       ← E.164 digits + "@c.us" suffix
+ *       "text":    "<utf-8 message body>"
+ *     }
  *
- *   2. WAPILOT (fallback) — used when Meta env vars are missing but
- *      WAPILOT_BASE_URL + WAPILOT_API_KEY + WAPILOT_INSTANCE_ID are set.
- *        POST {WAPILOT_BASE_URL}/{WAPILOT_INSTANCE_ID}/send-message
- *        Token: {WAPILOT_API_KEY}
- *        Body: { "chat_id": "<digits>@c.us", "text": "<message>" }
- *      Verified live: HTTP 200 returns {success:true, message_id:…}.
+ *   - instance_id is PATH-only. Do NOT also send it in the body.
+ *   - The recipient field is "chat_id" (not "phone") and uses the WhatsApp
+ *     chat-id format (digits, no leading "+", followed by "@c.us").
+ *   - The message field is "text" (not "message").
  *
- * If neither provider is configured, sends are skipped (returns false)
- * and the omission is logged loudly so misconfigurations surface fast.
+ * Errors observed during integration probing:
+ *   401 {"message":"Unauthorized: API token is missing in the request headers."}
+ *      → wrong header name (Wapilot wants `Token:`, not `Authorization: Bearer`).
+ *   404 {"message":"Bad Request: Instance not found."}
+ *      → WAPILOT_INSTANCE_ID does not match any instance on the account,
+ *        OR endpoint shape is wrong (use path-style /{id}/send-message).
+ *   400 {"error":"The chat id field is required."} / "The text field is required."
+ *      → body fields not named correctly (chat_id, text — see above).
+ *
+ * NOTE: A Meta WhatsApp Cloud API path was prototyped briefly during
+ * provider evaluation; it is intentionally not present in the codebase.
+ * Wapilot is the sole production transport. The `WHATSAPP_ACCESS_TOKEN`
+ * and `WHATSAPP_PHONE_NUMBER_ID` env vars (if set) are ignored here.
  *
  * Failure policy: NEVER throws. Returns false on any failure so the
  * caller's main flow (in-app notification, OTP issuance, deadline stamp)
- * continues uninterrupted. The full provider response body is logged at
+ * continues uninterrupted. The full Wapilot response body is logged at
  * WARN/ERROR — un-truncated up to 4 KB — so misconfigurations are
  * immediately diagnosable from the server logs.
  */
@@ -60,28 +67,11 @@ export interface SendWhatsAppInput {
   meta?: Record<string, unknown>;
 }
 
-// ── Provider configuration ────────────────────────────────────────────────
-const META_TOKEN = process.env["WHATSAPP_ACCESS_TOKEN"] ?? "";
-const META_PHONE_NUMBER_ID = process.env["WHATSAPP_PHONE_NUMBER_ID"] ?? "";
-const META_API_VERSION = process.env["WHATSAPP_API_VERSION"] ?? "v22.0";
-const META_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
-
-const WAPILOT_BASE_URL = (process.env["WAPILOT_BASE_URL"] ?? "").replace(/\/+$/, "");
-const WAPILOT_API_KEY = process.env["WAPILOT_API_KEY"] ?? "";
-const WAPILOT_INSTANCE_ID = process.env["WAPILOT_INSTANCE_ID"] ?? "";
-
+const BASE_URL = (process.env["WAPILOT_BASE_URL"] ?? "").replace(/\/+$/, "");
+const API_KEY = process.env["WAPILOT_API_KEY"] ?? "";
+const INSTANCE_ID = process.env["WAPILOT_INSTANCE_ID"] ?? "";
 const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_LOGGED_BODY_CHARS = 4096;
-
-type Provider = "meta" | "wapilot" | "none";
-
-function resolveProvider(): Provider {
-  if (META_TOKEN && META_PHONE_NUMBER_ID) return "meta";
-  if (WAPILOT_BASE_URL && WAPILOT_API_KEY && WAPILOT_INSTANCE_ID) return "wapilot";
-  return "none";
-}
-
-const ACTIVE_PROVIDER: Provider = resolveProvider();
 
 // ── Startup diagnostic banner ──────────────────────────────────────────────
 // Emitted ONCE on cold start. Logs presence + length only — never the
@@ -90,140 +80,61 @@ const ACTIVE_PROVIDER: Provider = resolveProvider();
 logger.info(
   {
     channel: "whatsapp",
+    provider: "wapilot",
     diag: "startup",
     runtime: process.env["VERCEL"] ? "vercel" : (process.env["REPL_ID"] ? "replit" : "other"),
     nodeEnv: process.env["NODE_ENV"] ?? null,
-    activeProvider: ACTIVE_PROVIDER,
-    meta: {
-      hasToken: Boolean(META_TOKEN),
-      tokenLen: META_TOKEN.length,
-      hasPhoneNumberId: Boolean(META_PHONE_NUMBER_ID),
-      phoneNumberIdLen: META_PHONE_NUMBER_ID.length,
-      apiVersion: META_API_VERSION,
-    },
-    wapilot: {
-      hasBaseUrl: Boolean(WAPILOT_BASE_URL),
-      baseUrlHost: WAPILOT_BASE_URL ? new URL(WAPILOT_BASE_URL).host : null,
-      hasApiKey: Boolean(WAPILOT_API_KEY),
-      apiKeyLen: WAPILOT_API_KEY.length,
-      hasInstanceId: Boolean(WAPILOT_INSTANCE_ID),
-      instanceIdLen: WAPILOT_INSTANCE_ID.length,
-    },
+    hasBaseUrl: Boolean(BASE_URL),
+    baseUrlHost: BASE_URL ? new URL(BASE_URL).host : null,
+    hasApiKey: Boolean(API_KEY),
+    apiKeyLen: API_KEY.length,
+    hasInstanceId: Boolean(INSTANCE_ID),
+    instanceIdLen: INSTANCE_ID.length,
   },
-  "whatsapp: provider config snapshot at module load",
+  "whatsapp: Wapilot config snapshot at module load",
 );
 
-// E.164 digits only (no leading "+"). Both providers want this format.
-function normalizeDigits(phone: string): string {
-  return phone.trim().replace(/^\+/, "");
+function isConfigured(): boolean {
+  return Boolean(BASE_URL && API_KEY && INSTANCE_ID);
 }
 
-interface DispatchResult {
-  ok: boolean;
-  status: number;
-  body: string;
-  url: string;
-  bodyKeys: string[];
-  err?: string;
-}
-
-async function dispatchMeta(number: string, text: string): Promise<DispatchResult> {
-  const url = `${META_BASE}/${encodeURIComponent(META_PHONE_NUMBER_ID)}/messages`;
-  const payload = {
-    messaging_product: "whatsapp",
-    to: number,
-    type: "text",
-    text: { body: text },
-  };
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${META_TOKEN}`,
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-    const raw = await res.text().catch(() => "");
-    return {
-      ok: res.ok,
-      status: res.status,
-      body: raw.slice(0, MAX_LOGGED_BODY_CHARS),
-      url,
-      bodyKeys: Object.keys(payload),
-    };
-  } catch (err) {
-    const aborted = (err as { name?: string } | null)?.name === "AbortError";
-    return {
-      ok: false,
-      status: 0,
-      body: "",
-      url,
-      bodyKeys: Object.keys(payload),
-      err: aborted ? `timeout after ${REQUEST_TIMEOUT_MS}ms` : String(err),
-    };
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-async function dispatchWapilot(number: string, text: string): Promise<DispatchResult> {
-  const url = `${WAPILOT_BASE_URL}/${encodeURIComponent(WAPILOT_INSTANCE_ID)}/send-message`;
-  const payload = {
-    chat_id: `${number}@c.us`,
-    text,
-  };
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Token: WAPILOT_API_KEY,
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-    const raw = await res.text().catch(() => "");
-    return {
-      ok: res.ok,
-      status: res.status,
-      body: raw.slice(0, MAX_LOGGED_BODY_CHARS),
-      url,
-      bodyKeys: Object.keys(payload),
-    };
-  } catch (err) {
-    const aborted = (err as { name?: string } | null)?.name === "AbortError";
-    return {
-      ok: false,
-      status: 0,
-      body: "",
-      url,
-      bodyKeys: Object.keys(payload),
-      err: aborted ? `timeout after ${REQUEST_TIMEOUT_MS}ms` : String(err),
-    };
-  } finally {
-    clearTimeout(timeoutId);
-  }
+/**
+ * normalizeDigitsForWapilot — strip everything except digits.
+ *
+ * Wapilot wants the chat_id as `<digits>@c.us`. Accepts every form a
+ * user might supply:
+ *   "+201559035388"  → "201559035388"
+ *   "201559035388"   → "201559035388"
+ *   "01559035388"    → "01559035388"  (caller is responsible for resolving
+ *                                       local forms to canonical E.164 BEFORE
+ *                                       calling sendWhatsApp; see
+ *                                       password-reset.ts/phoneCandidates).
+ *
+ * No country-code promotion happens here — that's the caller's job. The
+ * password-reset flow always passes the canonical stored phone so this
+ * function only has to cope with the optional leading "+".
+ */
+function normalizeDigitsForWapilot(phone: string): string {
+  return phone.trim().replace(/\D/g, "");
 }
 
 export async function sendWhatsApp(input: SendWhatsAppInput): Promise<boolean> {
-  // Per-call entry marker — proves the code path was reached at all.
+  // Per-call entry marker — proves the code path was reached at all
+  // (rules out "stale bundle / old code still running" theories).
   logger.info(
     {
       channel: "whatsapp",
+      provider: "wapilot",
       diag: "entered",
-      provider: ACTIVE_PROVIDER,
       kind: input.kind,
       lang: input.lang,
       phoneLen: (input.phone ?? "").length,
       bodyLen: (input.body ?? "").length,
+      hasBaseUrl: Boolean(BASE_URL),
+      hasApiKey: Boolean(API_KEY),
+      apiKeyLen: API_KEY.length,
+      hasInstanceId: Boolean(INSTANCE_ID),
+      instanceIdLen: INSTANCE_ID.length,
       ...input.meta,
     },
     "whatsapp: sendWhatsApp invoked",
@@ -238,97 +149,154 @@ export async function sendWhatsApp(input: SendWhatsAppInput): Promise<boolean> {
     return false;
   }
 
-  if (ACTIVE_PROVIDER === "none") {
+  if (!isConfigured()) {
     logger.error(
-      { kind: input.kind, ...input.meta },
-      "whatsapp: no provider configured (Meta nor Wapilot) — message NOT sent",
+      {
+        kind: input.kind,
+        hasBase: Boolean(BASE_URL),
+        hasKey: Boolean(API_KEY),
+        hasInstance: Boolean(INSTANCE_ID),
+        baseUrlLen: BASE_URL.length,
+        apiKeyLen: API_KEY.length,
+        instanceIdLen: INSTANCE_ID.length,
+        ...input.meta,
+      },
+      "whatsapp: Wapilot not configured — message NOT sent",
     );
     return false;
   }
 
-  const number = normalizeDigits(phone);
+  const url = `${BASE_URL}/${encodeURIComponent(INSTANCE_ID)}/send-message`;
+  const number = normalizeDigitsForWapilot(phone);
+  const chatId = `${number}@c.us`;
 
-  const result =
-    ACTIVE_PROVIDER === "meta"
-      ? await dispatchMeta(number, input.body)
-      : await dispatchWapilot(number, input.body);
+  // Wapilot v2 path-style send-message body shape:
+  //   chat_id = "<digits>@c.us"  (WhatsApp chat-id format)
+  //   text    = utf-8 message body
+  // (instance_id lives in the URL path; do NOT also send it in the body)
+  const payload = {
+    chat_id: chatId,
+    text: input.body,
+  };
 
-  // Pre-flight log — captures the EXACT outbound shape (without secrets).
+  // Pre-flight log — captures the EXACT outbound shape (without secrets)
+  // so any "wrong endpoint / wrong body / wrong number format" claim can
+  // be verified from a single log line in production.
   logger.info(
     {
       channel: "whatsapp",
+      provider: "wapilot",
       diag: "request",
-      provider: ACTIVE_PROVIDER,
       kind: input.kind,
       method: "POST",
-      url: result.url,
-      bodyKeys: result.bodyKeys,
-      phoneNormalized: number,
+      url,
+      authHeader: "Token",
+      bodyKeys: Object.keys(payload),
+      chatId,
       phoneStartsWithPlus: phone.startsWith("+"),
       messageLen: input.body.length,
+      instanceIdLen: INSTANCE_ID.length,
     },
-    "whatsapp: outgoing request",
+    "whatsapp: outgoing Wapilot request",
   );
 
-  if (!result.ok) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        // Wapilot uses a custom `Token` header, not Bearer.
+        Token: API_KEY,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    const rawText = await res.text().catch(() => "");
+    const fullBody = rawText.slice(0, MAX_LOGGED_BODY_CHARS);
+
+    if (!res.ok) {
+      logger.warn(
+        {
+          channel: "whatsapp",
+          provider: "wapilot",
+          kind: input.kind,
+          chatId,
+          lang: input.lang,
+          url,
+          status: res.status,
+          response: fullBody,
+          ...input.meta,
+        },
+        "whatsapp: Wapilot returned non-2xx",
+      );
+      return false;
+    }
+
+    logger.info(
+      {
+        channel: "whatsapp",
+        provider: "wapilot",
+        kind: input.kind,
+        chatId,
+        lang: input.lang,
+        url,
+        status: res.status,
+        response: fullBody,
+        ...input.meta,
+      },
+      "whatsapp: dispatched via Wapilot",
+    );
+    return true;
+  } catch (err) {
+    const aborted = (err as { name?: string } | null)?.name === "AbortError";
     logger.warn(
       {
         channel: "whatsapp",
-        provider: ACTIVE_PROVIDER,
+        provider: "wapilot",
         kind: input.kind,
-        phone: number,
+        chatId,
         lang: input.lang,
-        url: result.url,
-        status: result.status,
-        response: result.body,
-        err: result.err,
+        url,
+        err: aborted ? `timeout after ${REQUEST_TIMEOUT_MS}ms` : String(err),
         ...input.meta,
       },
-      "whatsapp: provider returned non-2xx",
+      "whatsapp: Wapilot dispatch failed",
     );
     return false;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  logger.info(
-    {
-      channel: "whatsapp",
-      provider: ACTIVE_PROVIDER,
-      kind: input.kind,
-      phone: number,
-      lang: input.lang,
-      url: result.url,
-      status: result.status,
-      response: result.body,
-      ...input.meta,
-    },
-    "whatsapp: dispatched successfully",
-  );
-  return true;
 }
 
 /**
- * Returns provider-level diagnostic info for the /api/whatsapp/test route.
- * Never returns the API tokens themselves — only presence + lengths so the
- * test endpoint can confirm the runtime environment without leaking secrets.
+ * Returns Wapilot configuration diagnostic info for the /api/whatsapp/test
+ * route. Never returns the API token itself — only presence + lengths so
+ * the test endpoint can confirm the runtime environment without leaking
+ * secrets.
  */
 export function getWhatsAppDiagnostics(): {
-  activeProvider: Provider;
-  meta: { hasToken: boolean; tokenLen: number; hasPhoneNumberId: boolean; phoneNumberIdLen: number; apiVersion: string };
-  wapilot: { hasBaseUrl: boolean; hasApiKey: boolean; hasInstanceId: boolean };
+  provider: "wapilot";
+  configured: boolean;
+  hasBaseUrl: boolean;
+  baseUrlHost: string | null;
+  hasApiKey: boolean;
+  apiKeyLen: number;
+  hasInstanceId: boolean;
+  instanceIdLen: number;
 } {
   return {
-    activeProvider: ACTIVE_PROVIDER,
-    meta: {
-      hasToken: Boolean(META_TOKEN),
-      tokenLen: META_TOKEN.length,
-      hasPhoneNumberId: Boolean(META_PHONE_NUMBER_ID),
-      phoneNumberIdLen: META_PHONE_NUMBER_ID.length,
-      apiVersion: META_API_VERSION,
-    },
-    wapilot: {
-      hasBaseUrl: Boolean(WAPILOT_BASE_URL),
-      hasApiKey: Boolean(WAPILOT_API_KEY),
-      hasInstanceId: Boolean(WAPILOT_INSTANCE_ID),
-    },
+    provider: "wapilot",
+    configured: isConfigured(),
+    hasBaseUrl: Boolean(BASE_URL),
+    baseUrlHost: BASE_URL ? new URL(BASE_URL).host : null,
+    hasApiKey: Boolean(API_KEY),
+    apiKeyLen: API_KEY.length,
+    hasInstanceId: Boolean(INSTANCE_ID),
+    instanceIdLen: INSTANCE_ID.length,
   };
 }

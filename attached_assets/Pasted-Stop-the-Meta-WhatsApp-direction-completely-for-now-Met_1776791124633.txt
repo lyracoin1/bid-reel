@@ -1,0 +1,133 @@
+Stop the Meta WhatsApp direction completely for now.
+
+Meta Cloud API is not suitable for our immediate need because the current setup is test-only and not a free production path for the forgot-password flow. Do not continue integrating Meta right now.
+
+We are reverting the active WhatsApp delivery path to Wapilot and making it production-ready.
+
+## CONTEXT YOU MUST FOLLOW
+
+We already discovered and verified the following:
+
+1. The correct Wapilot base URL is:
+   `https://api.wapilot.net/api/v2`
+
+2. The correct instance unique name is:
+   `instance3788`
+
+3. The correct send endpoint is:
+   `POST /{instance_id}/send-message`
+
+   Final URL must be:
+   `https://api.wapilot.net/api/v2/instance3788/send-message`
+
+4. The correct payload is NOT:
+
+   * phone
+   * message
+   * instance_id in body
+
+   The correct payload is:
+
+   ```json
+   {
+     "chat_id": "201559035388@c.us",
+     "text": "Your message here"
+   }
+   ```
+
+5. The correct auth header is:
+   `Token: <WAPILOT_API_KEY>`
+
+6. The instance is real and working.
+
+7. Phone lookup bug in forgot-password was already fixed:
+
+   * input variations like `+201...`, `201...`, `015...` must resolve to the same stored profile phone
+   * canonical stored phone must be used for sending
+
+8. We already confirmed Wapilot accepted a real message with HTTP 200 and returned a message_id.
+
+---
+
+## TASK
+
+Make Wapilot the only active WhatsApp transport again.
+
+### 1. Disable Meta path
+
+* remove or disable any in-progress Meta WhatsApp transport work
+* do not use Meta env vars for now
+* keep the code clean and avoid mixed providers
+
+### 2. Finalize whatsapp.ts for Wapilot only
+
+Use exactly:
+
+* URL:
+  `${WAPILOT_BASE_URL}/${WAPILOT_INSTANCE_ID}/send-message`
+* Header:
+  `Token: ${WAPILOT_API_KEY}`
+* Body:
+
+  ```json
+  {
+    "chat_id": "<digits>@c.us",
+    "text": "<message>"
+  }
+  ```
+
+### 3. Normalize phone correctly
+
+Any phone used for Wapilot sending must become:
+
+* digits only
+* then `@c.us`
+
+Example:
+
+* `+201559035388`
+* `201559035388`
+* `01559035388`
+
+must ultimately resolve to the stored production phone and send as:
+
+* `201559035388@c.us`
+
+### 4. Ensure forgot-password uses Wapilot end-to-end
+
+Flow:
+
+* request OTP
+* store OTP
+* call sendWhatsApp()
+* deliver through Wapilot
+
+### 5. Keep diagnostics
+
+Add/keep logs for:
+
+* final URL
+* final chat_id
+* HTTP status
+* Wapilot response body
+
+Do not log secret values.
+
+### 6. If there is any resend/limit block, make it clear in logs
+
+We need to distinguish between:
+
+* resend limit
+* phone not found
+* Wapilot send failure
+
+### 7. Return
+
+Provide:
+
+1. files modified
+2. final Wapilot URL used
+3. final payload shape
+4. confirmation Meta path was disabled
+5. confirmation forgot-password now uses Wapilot only
+6. real test result / Wapilot response

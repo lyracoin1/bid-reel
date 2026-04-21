@@ -1,15 +1,15 @@
 /**
- * /api/whatsapp/test — manual provider verification endpoint.
+ * /api/whatsapp/test — manual Wapilot verification endpoint.
  *
  * POST /api/whatsapp/test
  *   body: { "to": "201559035388", "message": "Hello from BidReel" }
  *   → calls sendWhatsApp() with kind="test" and returns the dispatch
- *     outcome plus current provider diagnostics.
+ *     outcome plus current Wapilot diagnostics.
  *
- * No auth on this route on purpose: the only thing it can do is send a
- * test text message via the already-configured provider, and the provider
- * itself rate-limits abuse. If misuse becomes a concern, gate it behind
- * an admin-only middleware later.
+ * In production, this route requires admin auth so it cannot be used as
+ * an open outbound-WhatsApp relay (would burn provider quota / spam).
+ * In development, it stays unauthenticated so engineers can curl it
+ * directly while integrating.
  */
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { sendWhatsApp, getWhatsAppDiagnostics } from "../lib/whatsapp";
@@ -18,10 +18,6 @@ import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
 
-// In production, this route requires admin auth so it cannot be used as
-// an open outbound-WhatsApp relay (would burn provider quota / spam).
-// In development, it stays unauthenticated so engineers can curl it
-// directly while integrating.
 const isProd = process.env["NODE_ENV"] === "production";
 const guards: Array<(req: Request, res: Response, next: NextFunction) => unknown> = isProd
   ? [requireAuth, requireAdmin]
@@ -50,14 +46,12 @@ router.post("/whatsapp/test", ...guards, async (req: Request, res: Response) => 
     });
   }
 
-  if (diag.activeProvider === "none") {
+  if (!diag.configured) {
     return res.status(503).json({
       ok: false,
       error: "NO_PROVIDER_CONFIGURED",
       message:
-        "Neither Meta (WHATSAPP_ACCESS_TOKEN + WHATSAPP_PHONE_NUMBER_ID) " +
-        "nor Wapilot (WAPILOT_BASE_URL + WAPILOT_API_KEY + WAPILOT_INSTANCE_ID) " +
-        "is configured in the environment.",
+        "Wapilot is not configured. Set WAPILOT_BASE_URL, WAPILOT_API_KEY, and WAPILOT_INSTANCE_ID.",
       diagnostics: diag,
     });
   }
@@ -72,8 +66,9 @@ router.post("/whatsapp/test", ...guards, async (req: Request, res: Response) => 
 
   return res.status(sent ? 200 : 502).json({
     ok: sent,
-    provider: diag.activeProvider,
+    provider: diag.provider,
     to,
+    chatId: `${to.replace(/\D/g, "")}@c.us`,
     messageLen: message.length,
     diagnostics: diag,
   });

@@ -25,6 +25,35 @@ import { supabaseAdmin } from "./supabase";
 import { logger } from "./logger";
 import { getBidderCol, getBidderUserId, hasWinnerBidIdCol } from "./dbSchema";
 import { notifyAuctionWon, notifyAuctionEnded, notifyAuctionUnsold } from "./notifications";
+import { sendWhatsAppMessage } from "./whatsapp";
+import {
+  buildAuctionEndedSellerMessage,
+  buildAuctionActionRequiredMessage,
+} from "./whatsappTemplates";
+
+/**
+ * Best-effort lookup of a profile's phone. Never throws. Returns null when
+ * the row, the column, or the value is missing — callers must treat null as
+ * "no WhatsApp dispatch possible" and move on quietly.
+ */
+async function lookupProfilePhone(profileId: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("profiles")
+      .select("phone")
+      .eq("id", profileId)
+      .maybeSingle();
+    if (error) {
+      logger.warn({ err: error.message, profileId }, "auction-lifecycle: phone lookup failed");
+      return null;
+    }
+    const phone = (data as { phone?: string | null } | null)?.phone ?? null;
+    return phone && phone.trim() ? phone.trim() : null;
+  } catch (err) {
+    logger.warn({ err: String(err), profileId }, "auction-lifecycle: phone lookup threw");
+    return null;
+  }
+}
 
 /**
  * Expire all active auctions whose ends_at is in the past.
@@ -152,6 +181,31 @@ export async function expireAuctions(): Promise<void> {
               logger.warn({ err: String(err), auctionId: id }, "expireAuctions: notifyAuctionEnded failed");
             }
           })();
+
+          // WhatsApp side-channel — short "your auction ended" ping to the
+          // seller. Best effort, gated on the seller having a phone, and
+          // wrapped so any failure never disturbs the lifecycle loop.
+          void (async () => {
+            try {
+              const sellerPhone = await lookupProfilePhone(sellerId);
+              if (!sellerPhone) {
+                logger.info(
+                  { auctionId: id, sellerId },
+                  "expireAuctions: seller has no phone — skipping ended-WA",
+                );
+                return;
+              }
+              await sendWhatsAppMessage({
+                phone: sellerPhone,
+                text: buildAuctionEndedSellerMessage(auctionTitle),
+              });
+            } catch (err) {
+              logger.warn(
+                { err: String(err), auctionId: id, sellerId },
+                "expireAuctions: seller ended-WA dispatch failed — non-blocking",
+              );
+            }
+          })();
         }
       } else if (sellerId) {
         void (async () => {
@@ -159,6 +213,31 @@ export async function expireAuctions(): Promise<void> {
             await notifyAuctionUnsold(sellerId, id, auctionTitle);
           } catch (err) {
             logger.warn({ err: String(err), auctionId: id }, "expireAuctions: notifyAuctionUnsold failed");
+          }
+        })();
+
+        // WhatsApp "action required" ping — auction ended without a winner,
+        // so the deal cannot complete. The short message nudges the seller
+        // to relist or follow up. Best effort, never blocks.
+        void (async () => {
+          try {
+            const sellerPhone = await lookupProfilePhone(sellerId);
+            if (!sellerPhone) {
+              logger.info(
+                { auctionId: id, sellerId },
+                "expireAuctions: seller has no phone — skipping action-required-WA",
+              );
+              return;
+            }
+            await sendWhatsAppMessage({
+              phone: sellerPhone,
+              text: buildAuctionActionRequiredMessage(auctionTitle),
+            });
+          } catch (err) {
+            logger.warn(
+              { err: String(err), auctionId: id, sellerId },
+              "expireAuctions: action-required-WA dispatch failed — non-blocking",
+            );
           }
         })();
       }

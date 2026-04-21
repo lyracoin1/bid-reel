@@ -22,6 +22,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, X, Phone, KeyRound, Lock, CheckCircle2 } from "lucide-react";
 import { useLang } from "@/contexts/LanguageContext";
 import { API_BASE } from "@/lib/api-client";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+
+// Length of the verification code expected by /api/auth/password-reset/verify.
+// The server accepts 4–8 digits but always issues 6, so we lock the UI to 6.
+const OTP_LENGTH = 6;
 
 type Step = "request" | "verify" | "reset" | "done";
 
@@ -74,6 +79,7 @@ export default function ForgotPasswordModal({ open, onClose, initialPhone }: Pro
   const [resendIn, setResendIn] = useState(0);
 
   const phoneRef = useRef<HTMLInputElement>(null);
+  // input-otp's <OTPInput> renders an <input> internally and accepts a ref.
   const codeRef = useRef<HTMLInputElement>(null);
   const pwRef = useRef<HTMLInputElement>(null);
 
@@ -153,14 +159,16 @@ export default function ForgotPasswordModal({ open, onClose, initialPhone }: Pro
     resendIn: (s: number) => isAr ? `إعادة الإرسال متاحة بعد ${s} ث` : `Resend available in ${s}s`,
     networkErr: isAr ? "خطأ في الشبكة. تحقّق من اتصالك." : "Network error. Check your connection.",
     invalidPhone: isAr ? "رقم هاتف غير صالح. استخدم الصيغة الدولية (+20…)." : "Invalid phone. Use international format (e.g. +20…).",
-    invalidCode: isAr ? "الرمز يجب أن يكون 4 إلى 8 أرقام." : "Code must be 4 to 8 digits.",
+    invalidCode: isAr ? "الرمز يجب أن يكون 6 أرقام." : "Code must be 6 digits.",
     pwTooShort: isAr ? "كلمة المرور يجب أن تكون 8 أحرف على الأقل." : "Password must be at least 8 characters.",
     requestOk: isAr
       ? "إذا كان الرقم مسجلاً لدينا، فقد أرسلنا الرمز إلى واتساب."
       : "If this phone is registered, we've sent the code to WhatsApp.",
-    invalidOrExpired: isAr ? "الرمز غير صالح أو منتهي." : "Code is invalid or expired.",
+    invalidOrExpired: isAr ? "الرمز غير صالح أو منتهي." : "Invalid or expired code.",
     tooManyAttempts: isAr ? "محاولات كثيرة. اطلب رمزاً جديداً." : "Too many attempts. Request a new code.",
-    resendLimit: isAr ? "تجاوزت حد إعادة الإرسال. حاول مجدداً لاحقاً." : "Resend limit reached. Try again later.",
+    resendLimit: isAr
+      ? "لقد وصلت إلى الحد الأقصى لإعادة الإرسال. يرجى المحاولة لاحقاً."
+      : "You have reached the maximum resend limit. Please try again later.",
     invalidToken: isAr ? "انتهت صلاحية الجلسة. ابدأ من جديد." : "Session expired. Please start over.",
     doneTitle: isAr ? "تم تحديث كلمة المرور" : "Password updated",
     doneBody: isAr
@@ -171,10 +179,14 @@ export default function ForgotPasswordModal({ open, onClose, initialPhone }: Pro
     stepLabel: (n: number) => isAr ? `الخطوة ${n} من 3` : `Step ${n} of 3`,
   };
 
-  // Map server error codes to localized strings.
+  // Map server error codes to localized strings. INVALID_CODE is a forward-
+  // compatible alias for INVALID_OR_EXPIRED — both surface the same UX
+  // message ("Invalid or expired code.") so future server tweaks that
+  // return a more specific code don't require another frontend edit.
   function mapErr(code: string | undefined, fallback?: string | null): string {
     switch (code) {
       case "INVALID_INPUT": return fallback ?? copy.invalidPhone;
+      case "INVALID_CODE":
       case "INVALID_OR_EXPIRED": return copy.invalidOrExpired;
       case "TOO_MANY_ATTEMPTS": return copy.tooManyAttempts;
       case "RESEND_LIMIT": return copy.resendLimit;
@@ -212,12 +224,15 @@ export default function ForgotPasswordModal({ open, onClose, initialPhone }: Pro
   }
 
   // ── Step 2: verify OTP ───────────────────────────────────────────────────
-  async function handleVerify(e?: React.FormEvent) {
+  async function handleVerify(e?: React.FormEvent, codeOverride?: string) {
     e?.preventDefault();
     setError(null);
     setInfo(null);
-    const trimmedCode = code.trim();
-    if (!/^\d{4,8}$/.test(trimmedCode)) {
+    // Accept an explicit override so the auto-submit path (called from the
+    // OTP onChange handler in the same render tick) doesn't read a stale
+    // `code` from React state.
+    const trimmedCode = (codeOverride ?? code).trim();
+    if (!new RegExp(`^\\d{${OTP_LENGTH}}$`).test(trimmedCode)) {
       setError(copy.invalidCode);
       return;
     }
@@ -384,26 +399,52 @@ export default function ForgotPasswordModal({ open, onClose, initialPhone }: Pro
             </form>
           )}
 
-          {/* Step 2 */}
+          {/* Step 2 — 6-digit OTP via input-otp.
+              - Numeric only, autoFocus on first slot, paste-aware (the
+                `input-otp` lib distributes pasted digits across slots).
+              - Auto-submits as soon as the user fills the final slot, so
+                the most common path (type 6 digits) requires no extra
+                click on the Verify button. */}
           {step === "verify" && (
             <form onSubmit={handleVerify} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className={`text-sm text-muted-foreground font-medium ${isRtl ? "text-right" : "text-left"}`}>
+              <div className="flex flex-col gap-1.5 items-center">
+                <label className={`text-sm text-muted-foreground font-medium self-stretch ${isRtl ? "text-right" : "text-left"}`}>
                   {copy.codeLbl}
                 </label>
-                <input
+                <InputOTP
                   ref={codeRef}
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
+                  maxLength={OTP_LENGTH}
                   value={code}
-                  onChange={e => { setCode(e.target.value.replace(/\D/g, "").slice(0, 8)); setError(null); }}
-                  placeholder={copy.codePh}
-                  autoComplete="one-time-code"
-                  required
+                  onChange={(v: string) => {
+                    // Defensive — `input-otp` already restricts to digits
+                    // when `pattern` is set, but we strip again to be safe.
+                    const digitsOnly = v.replace(/\D/g, "").slice(0, OTP_LENGTH);
+                    setCode(digitsOnly);
+                    setError(null);
+                    if (digitsOnly.length === OTP_LENGTH && !loading) {
+                      // Auto-submit the moment the code is complete. Pass the
+                      // value explicitly — `code` state hasn't flushed yet in
+                      // this render tick, so reading it inside handleVerify
+                      // would still see the previous (5-digit) value.
+                      void handleVerify(undefined, digitsOnly);
+                    }
+                  }}
+                  pattern="^[0-9]+$"
+                  inputMode="numeric"
+                  autoFocus
+                  containerClassName="justify-center"
                   dir="ltr"
-                  className="w-full bg-muted/40 border border-border rounded-xl px-4 py-3.5 text-white text-center text-2xl tracking-[0.5em] font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/60 transition"
-                />
+                >
+                  <InputOTPGroup>
+                    {Array.from({ length: OTP_LENGTH }).map((_, i) => (
+                      <InputOTPSlot
+                        key={i}
+                        index={i}
+                        className="h-12 w-11 text-xl font-mono bg-muted/40 border-border text-white"
+                      />
+                    ))}
+                  </InputOTPGroup>
+                </InputOTP>
               </div>
               <ErrInfo error={error} info={info} isRtl={isRtl} />
               <SubmitBtn loading={loading} label={copy.verifyBtn} loadingLabel={copy.submitting} />

@@ -12,6 +12,8 @@ import { supabaseAdmin } from "../lib/supabase";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
 import { notifyOutbid, notifyAuctionStarted, notifyBidReceived } from "../lib/notifications";
+import { sendWhatsAppMessage } from "../lib/whatsapp";
+import { buildOutbidMessage } from "../lib/whatsappTemplates";
 import { getBidderCol, getBidderUserId, hasWinnerBidIdCol } from "../lib/dbSchema";
 import { deleteMediaFile } from "../lib/media-lifecycle";
 import { runAuctionLifecycle } from "../lib/auction-lifecycle";
@@ -1158,6 +1160,50 @@ async function executePlaceBid(
       notifyOutbid(prevLeaderUserId, userId, auctionId, auction.title ?? "this auction", newPrice)
         .catch(err => logger.error({ err: String(err), auctionId, recipient: prevLeaderUserId }, "push-chain[2.outbid]: notifyOutbid threw")),
     );
+
+    // WhatsApp side-channel for the outbid event. Truly fire-and-forget
+    // (NOT pushed onto `notifyTasks`) so the bid POST response is never
+    // gated on a Wapilot HTTP round-trip + extra DB phone lookup. The
+    // in-app notification + FCM push above remain the authoritative
+    // delivery channels; WA is best-effort enrichment.
+    //
+    // Failure modes (all logged, none re-thrown):
+    //   • profile lookup error → logged at warn, no send attempted
+    //   • previous bidder has no phone on file → logged at info, skipped
+    //   • Wapilot non-2xx / network error → logged at warn by sendWhatsApp
+    void (async () => {
+      try {
+        const { data: prevProfile, error: prevProfileErr } = await supabaseAdmin
+          .from("profiles")
+          .select("phone")
+          .eq("id", prevLeaderUserId)
+          .maybeSingle();
+        if (prevProfileErr) {
+          logger.warn(
+            { err: prevProfileErr.message, auctionId, recipient: prevLeaderUserId },
+            "push-chain[2.outbid.wa]: profile lookup failed — skipping",
+          );
+          return;
+        }
+        const prevPhone = (prevProfile as { phone?: string | null } | null)?.phone ?? null;
+        if (!prevPhone) {
+          logger.info(
+            { auctionId, recipient: prevLeaderUserId },
+            "push-chain[2.outbid.wa]: SKIP — prev leader has no phone on file",
+          );
+          return;
+        }
+        await sendWhatsAppMessage({
+          phone: prevPhone,
+          text: buildOutbidMessage(auction.title),
+        });
+      } catch (err) {
+        logger.warn(
+          { err: String(err), auctionId, recipient: prevLeaderUserId },
+          "push-chain[2.outbid.wa]: WhatsApp dispatch failed — non-blocking",
+        );
+      }
+    })();
   } else {
     logger.info(
       { auctionId, prevLeaderUserId, bidderId: userId },

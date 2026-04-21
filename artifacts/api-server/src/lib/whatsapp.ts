@@ -274,6 +274,53 @@ export async function sendWhatsApp(input: SendWhatsAppInput): Promise<boolean> {
 }
 
 /**
+ * sendWhatsAppMessage — thin centralized wrapper around `sendWhatsApp`.
+ *
+ * The ONLY public entry point that the auction-event hooks (outbid,
+ * auction-ended, action-required) should call. Keeps callers ignorant of
+ * provider details, tagging, and metadata shape.
+ *
+ *   • phone is normalized to digits and sent as `<digits>@c.us` (delegated
+ *     to `sendWhatsApp`).
+ *   • Wapilot endpoint only — never touches Meta or any other provider.
+ *   • No queue, no retry, no delay — direct API call.
+ *   • Never throws. Returns false on any failure (missing phone, bad
+ *     phone shape, provider not configured, network error, non-2xx)
+ *     so the calling auction flow is never blocked.
+ *
+ * For OTP / winner-with-seller-phone use the existing `sendWhatsApp` to
+ * keep their richer logging metadata (kind, lang, userId, auctionId, …).
+ */
+export async function sendWhatsAppMessage(input: {
+  phone: string | null | undefined;
+  text: string;
+}): Promise<boolean> {
+  const phone = (input.phone ?? "").trim();
+  const text = input.text ?? "";
+  if (!phone || !text) {
+    logger.info(
+      { hasPhone: Boolean(phone), hasText: Boolean(text) },
+      "whatsapp: sendWhatsAppMessage skipped — missing phone or text",
+    );
+    return false;
+  }
+  try {
+    return await sendWhatsApp({
+      phone,
+      body: text,
+      lang: "en",
+      kind: "auction_won", // generic categorical bucket for auction-event sends
+      meta: { source: "sendWhatsAppMessage" },
+    });
+  } catch (err) {
+    // Defense-in-depth: sendWhatsApp already swallows; this catch ensures
+    // even an unexpected throw never bubbles into the caller's main flow.
+    logger.warn({ err: String(err) }, "whatsapp: sendWhatsAppMessage caught error");
+    return false;
+  }
+}
+
+/**
  * Returns Wapilot configuration diagnostic info for the /api/whatsapp/test
  * route. Never returns the API token itself — only presence + lengths so
  * the test endpoint can confirm the runtime environment without leaking

@@ -1,0 +1,195 @@
+You are working on the BidReel project.
+
+CRITICAL RULES:
+- DO NOT change architecture
+- DO NOT modify deployment
+- DO NOT touch Supabase schema
+- DO NOT reintroduce Meta WhatsApp
+- Wapilot is the ONLY provider
+- DO NOT break existing OTP flow
+
+--------------------------------------------------
+
+OBJECTIVE:
+
+1) Finish OTP UX improvements (frontend)
+2) Implement a COMPLETE WhatsApp notification system for auction events using Wapilot
+
+--------------------------------------------------
+
+PART 1 — OTP UX (FRONTEND ONLY)
+
+Target file:
+artifacts/bidreel-web/src/components/ForgotPasswordModal.tsx
+
+Do the following:
+
+- Use "input-otp" for 6-digit code input
+- Numeric only (0–9)
+- Auto focus first slot
+- Auto move between slots
+- Handle paste (6 digits)
+
+Error mapping:
+
+- RESEND_LIMIT → "You have reached the maximum resend limit. Please try again later."
+- INVALID_CODE / INVALID_OR_EXPIRED → "Invalid or expired code."
+
+Keep:
+- existing countdown (60s)
+- resend logic
+- NO backend changes
+
+--------------------------------------------------
+
+PART 2 — CENTRALIZE WHATSAPP SENDING (BACKEND)
+
+Target:
+artifacts/api-server/src/lib/whatsapp.ts
+
+Create a clean centralized function:
+
+sendWhatsAppMessage({
+  phone,
+  text
+})
+
+Ensure:
+
+- phone is normalized to digits + "@c.us"
+- uses Wapilot endpoint ONLY
+- NO delays
+- NO queue
+- direct API call
+
+--------------------------------------------------
+
+PART 3 — CREATE MESSAGE TEMPLATES
+
+Create a new file:
+
+artifacts/api-server/src/lib/whatsappTemplates.ts
+
+Implement functions:
+
+1) buildOtpMessage(code)
+→ "BidReel 🔐\nCode: {code}"
+
+2) buildOutbidMessage(title)
+→ "BidReel 📢\nYou were outbid on: {title}"
+
+3) buildAuctionWonMessage(title)
+→ "BidReel 🏆\nYou won: {title}"
+
+4) buildAuctionEndedSellerMessage(title)
+→ "BidReel ✅\nYour auction ended: {title}"
+
+5) buildAuctionActionRequiredMessage(title)
+→ "BidReel ⚠️\nAction required for: {title}"
+
+Keep messages SHORT.
+
+--------------------------------------------------
+
+PART 4 — HOOK INTO AUCTION EVENTS
+
+Find existing logic in backend:
+
+- bidding flow
+- auction status updates
+- notification functions (like notifyOutbid, notifyAuctionWon)
+
+Modify ONLY where needed:
+
+--------------------------------------------------
+
+A) OUTBID EVENT
+
+When a user is outbid:
+
+- get previous highest bidder phone
+- send:
+
+sendWhatsAppMessage({
+  phone: prevUser.phone,
+  text: buildOutbidMessage(auction.title)
+})
+
+--------------------------------------------------
+
+B) AUCTION WON EVENT
+
+When auction transitions:
+active → ended
+
+- identify winner
+- send:
+
+sendWhatsAppMessage({
+  phone: winner.phone,
+  text: buildAuctionWonMessage(auction.title)
+})
+
+--------------------------------------------------
+
+C) SELLER NOTIFICATION
+
+On auction end:
+
+sendWhatsAppMessage({
+  phone: seller.phone,
+  text: buildAuctionEndedSellerMessage(auction.title)
+})
+
+--------------------------------------------------
+
+D) ACTION REQUIRED (OPTIONAL BUT IMPLEMENT)
+
+If:
+
+- auction ended but no confirmation
+- or business rule for incomplete deal
+
+send:
+
+buildAuctionActionRequiredMessage
+
+--------------------------------------------------
+
+PART 5 — SAFETY RULES
+
+- DO NOT send if phone is null
+- DO NOT crash if sending fails
+- wrap all sends in try/catch
+- log errors but DO NOT block main flow
+
+--------------------------------------------------
+
+PART 6 — DO NOT TOUCH
+
+- OTP generation
+- DB schema
+- Auth
+- Existing API contracts
+
+--------------------------------------------------
+
+OUTPUT:
+
+1) List of modified files
+2) Full new file: whatsappTemplates.ts
+3) Updated whatsapp.ts (if changed)
+4) Where exactly events were hooked
+5) Confirm:
+   - OTP still works
+   - WhatsApp sends instantly
+   - No queues added
+   - No architecture changes
+
+--------------------------------------------------
+
+IMPORTANT:
+
+Keep everything minimal, production-safe, and consistent.
+No over-engineering.
+No breaking changes.

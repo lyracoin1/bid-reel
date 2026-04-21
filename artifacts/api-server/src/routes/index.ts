@@ -13,12 +13,17 @@ import notificationRouter from "./notifications";
 import reportsRouter from "./reports";
 import viewsRouter from "./views";
 import dealsRouter from "./deals";
+import whatsappRouter from "./whatsapp";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
 router.use(passwordResetRouter);
+// whatsappRouter must be registered BEFORE notificationRouter, because
+// notificationRouter applies a router-level requireAuth that would
+// otherwise intercept every subsequent /api/* request.
+router.use(whatsappRouter);
 router.use(usersRouter);
 router.use(followsRouter);
 router.use(savesRouter);

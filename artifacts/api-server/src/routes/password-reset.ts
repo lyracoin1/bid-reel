@@ -52,6 +52,41 @@ const MIN_PASSWORD_LEN = 8;
 const HMAC_SECRET = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? "fallback-dev-secret-do-not-use";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * phoneCandidates — produce every plausible stored form of a phone number
+ * given a user's input. Production data shows phones are stored in canonical
+ * E.164 with a leading "+" (e.g. "+201559035388"), but users routinely type:
+ *   • "+201559035388"   — already canonical
+ *   • "201559035388"    — international without "+"
+ *   • "01559035388"     — local Egyptian form (11 digits starting with "0")
+ * Returning all variants lets us match with PostgREST `in()` regardless of
+ * what the user typed, without locking the lookup to a single country.
+ */
+function phoneCandidates(input: string): string[] {
+  const trimmed = input.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  const set = new Set<string>();
+  if (trimmed) set.add(trimmed);
+  if (digits) {
+    set.add(digits);
+    set.add("+" + digits);
+    // Local Arab-market form: starts with a single "0" (national trunk prefix),
+    // 10 or 11 digits. Promote to E.164 by stripping the "0" and prepending the
+    // Egyptian country code (+20) — the platform's primary market. Adding more
+    // country promotions in the future is a one-liner.
+    if (/^0\d{9,10}$/.test(digits)) {
+      set.add("+20" + digits.slice(1));
+      set.add("20" + digits.slice(1));
+    }
+    // Inverse: stored as local "0..." but user typed "+20..." or "20..."
+    if (digits.startsWith("20") && digits.length >= 11) {
+      set.add("0" + digits.slice(2));
+    }
+  }
+  return Array.from(set).filter(Boolean);
+}
+
 function hashOtp(salt: string, code: string): string {
   return createHmac("sha256", salt).update(code).digest("hex");
 }
@@ -131,21 +166,44 @@ router.post("/auth/password-reset/request", async (req, res) => {
     return;
   }
   const { phone } = parsed.data;
+  const candidates = phoneCandidates(phone);
 
-  // 1. Find profile by phone. Always reply with the generic OK regardless.
-  const { data: profile } = await supabaseAdmin
+  // 1. Find profile by phone using EVERY plausible stored variant, not just
+  //    the literal input. Production stores E.164 with leading "+"; users
+  //    often type the local form. A literal `eq("phone", phone)` here was
+  //    the silent root cause of "OTP never arrives" — the privacy-first
+  //    generic 200 hides the lookup miss from the caller.
+  const { data: profileRows, error: profileErr } = await supabaseAdmin
     .from("profiles")
     .select("id, phone")
-    .eq("phone", phone)
-    .maybeSingle();
+    .in("phone", candidates)
+    .limit(1);
+
+  const profile = (profileRows && profileRows[0]) || null;
+  logger.info(
+    {
+      diag: "password-reset",
+      step: "lookup",
+      inputPhone: phone,
+      candidates,
+      lookupErr: profileErr ? String(profileErr.message ?? profileErr) : null,
+      matched: Boolean(profile),
+      matchedPhone: profile ? (profile as { phone: string }).phone : null,
+    },
+    "password-reset: phone lookup",
+  );
 
   if (!profile) {
-    logger.info({ phone }, "password-reset: request — phone not registered (generic ok)");
+    logger.info({ phone, candidates }, "password-reset: request — phone not registered (generic ok)");
     genericRequestOk(res);
     return;
   }
 
   const userId = (profile as { id: string }).id;
+  // Use the CANONICAL stored phone for both the OTP row and the WhatsApp
+  // dispatch, so downstream verify() (which still must accept the user's
+  // input) finds the row, and Wapilot is called with the correct number.
+  const canonicalPhone = (profile as { phone: string }).phone;
 
   // 2. Resend cap. Look at the latest unconsumed OTP row; if its resends
   //    counter has hit the cap, refuse new sends until it expires.
@@ -204,7 +262,7 @@ router.post("/auth/password-reset/request", async (req, res) => {
       .from("password_reset_otps")
       .insert({
         user_id: userId,
-        phone,
+        phone: canonicalPhone,
         code_hash: codeHash,
         salt,
         channel: "whatsapp",
@@ -217,18 +275,24 @@ router.post("/auth/password-reset/request", async (req, res) => {
     }
   }
 
-  // 5. WhatsApp dispatch (localized).
+  // 5. WhatsApp dispatch (localized). Always uses the CANONICAL phone from
+  //    the profile row — not the user's literal input — so Wapilot receives
+  //    a deliverable E.164 number regardless of how the form was filled in.
   const lang = normalizeWonLang(await readUserLanguage(userId));
   const body = buildPasswordOtpMessage(lang, code);
+  logger.info(
+    { diag: "password-reset", step: "dispatching", userId, canonicalPhone, lang },
+    "password-reset: invoking sendWhatsApp",
+  );
   void sendWhatsApp({
-    phone,
+    phone: canonicalPhone,
     body,
     lang,
     kind: "password_otp",
     meta: { userId },
   });
 
-  logger.info({ userId, phone, lang }, "password-reset: OTP issued");
+  logger.info({ userId, canonicalPhone, lang }, "password-reset: OTP issued");
   genericRequestOk(res);
 });
 
@@ -246,12 +310,15 @@ router.post("/auth/password-reset/verify", async (req, res) => {
   }
   const { phone, code } = parsed.data;
 
-  // 1. Find user by phone. Generic-fail if missing.
-  const { data: profile } = await supabaseAdmin
+  // 1. Find user by phone using the same multi-variant lookup as the
+  //    request route, so verify works regardless of which format the user
+  //    typed (and regardless of which one was used in step 1).
+  const { data: profileRows } = await supabaseAdmin
     .from("profiles")
     .select("id")
-    .eq("phone", phone)
-    .maybeSingle();
+    .in("phone", phoneCandidates(phone))
+    .limit(1);
+  const profile = (profileRows && profileRows[0]) || null;
   if (!profile) {
     res.status(400).json({ error: "INVALID_OR_EXPIRED", message: "Code is invalid or expired" });
     return;

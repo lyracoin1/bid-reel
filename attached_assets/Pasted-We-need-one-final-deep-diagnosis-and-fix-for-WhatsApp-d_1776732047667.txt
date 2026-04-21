@@ -1,0 +1,149 @@
+We need one final deep diagnosis and fix for WhatsApp delivery in BidReel.
+
+Do NOT guess.
+Do NOT stop at theory.
+Use real evidence and, if possible, run safe live tests.
+
+## CURRENT FACTS
+
+* Production runs on Vercel
+* WAPILOT_API_KEY exists in Vercel
+* WAPILOT_INSTANCE_ID exists in Vercel
+* WAPILOT_BASE_URL exists in Vercel
+* Wapilot instance appears to exist and is shown as working in the dashboard
+* WhatsApp OTP still does not arrive
+* Forgot-password UI is already implemented
+* The API currently returns generic success for unknown phones, so you must verify whether the tested phone is actually registered before concluding anything
+
+## TASK
+
+Find the exact WhatsApp failure source and fix it.
+
+---
+
+## STEP 1 — Verify whether the tested phone is actually registered
+
+Check the production database path used by forgot-password.
+
+Determine whether the phone being tested is actually linked to a real existing user record in production.
+
+Important:
+
+* Normalize phone formats before checking
+* Compare all likely stored forms:
+
+  * +201559035388
+  * 201559035388
+  * 01559035388
+
+Return clearly:
+
+* whether the phone exists
+* in what exact stored format it exists
+* whether the forgot-password lookup is failing because of phone normalization mismatch
+
+If the lookup format is the problem, fix it.
+
+---
+
+## STEP 2 — Add end-to-end production diagnostics
+
+In the forgot-password request flow and in whatsapp.ts, add temporary diagnostic logs that show:
+
+* whether the incoming phone is received
+* how it is normalized before DB lookup
+* whether a matching user was found
+* whether sendWhatsApp() was called
+* exact Wapilot endpoint used
+* whether env vars are present
+* HTTP status returned by Wapilot
+* FULL Wapilot response body
+* whether the request succeeded or failed
+
+Do NOT log secrets.
+Do NOT truncate the provider response body.
+
+---
+
+## STEP 3 — Verify the exact DB lookup logic
+
+Inspect the forgot-password request route and verify whether it searches by phone exactly as entered.
+
+If the current logic only matches one phone format, fix it so it safely matches the stored production format.
+
+Examples:
+
+* if DB stores +201... but input is 015...
+* if DB stores 015... but sending logic expects 201...
+
+Handle normalization consistently.
+
+---
+
+## STEP 4 — Run safe real tests if possible
+
+If you can safely test without damaging production data, do these:
+
+1. Use a phone number that is confirmed to exist in production
+2. Trigger one forgot-password request
+3. Capture the exact logs
+4. If message still fails, adjust the Wapilot transport until a real message is delivered
+
+If direct live testing is not possible from your environment, still do everything else and return the exact manual test steps with the precise logs we need.
+
+---
+
+## STEP 5 — Verify Wapilot transport again
+
+Confirm production is sending exactly the correct request for this tenant.
+
+Re-check:
+
+* endpoint path
+* header name
+* payload field names
+* phone format expected by Wapilot
+
+If the current payload is wrong for this tenant, fix it and prove it with logs or a real successful test.
+
+---
+
+## STEP 6 — Fix the root cause, not just the symptom
+
+Possible root causes include:
+
+* tested phone not registered
+* phone normalization mismatch
+* forgot-password lookup mismatch
+* sendWhatsApp never called
+* wrong endpoint
+* wrong header
+* wrong payload field names
+* Wapilot account issue
+* stale deployment
+* Vercel env scope issue
+
+Identify exactly which one it is and fix it.
+
+---
+
+## STEP 7 — Return concrete evidence
+
+Return all of the following:
+
+1. files modified
+2. exact root cause
+3. exact phone lookup logic before and after
+4. whether the tested phone exists in production
+5. whether sendWhatsApp() was actually reached
+6. exact Wapilot response
+7. whether a real WhatsApp message was successfully delivered
+8. if yes, what exact fix made it work
+9. if no, what exact remaining blocker still exists
+
+## IMPORTANT
+
+* If you can run a real safe test, do it
+* If you cannot, say exactly what prevented it
+* Do not reply with “probably”
+* Do not stop until you isolate the real cause

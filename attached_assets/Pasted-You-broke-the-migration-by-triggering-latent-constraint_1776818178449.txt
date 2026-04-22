@@ -1,0 +1,68 @@
+You broke the migration by triggering latent constraint violations in the auctions table.
+
+Multiple rows are violating the CHECK constraint "chk_auction_duration", and the backfill is failing repeatedly.
+
+Stop handling this row by row.
+
+You must now fully audit, detect, repair, and complete the migration safely.
+
+DO ALL OF THIS IN ONE PASS.
+
+Tasks:
+
+1. Get the exact definition of the constraint:
+   SELECT conname, pg_get_constraintdef(oid)
+   FROM pg_constraint
+   WHERE conrelid = 'public.auctions'::regclass
+     AND conname = 'chk_auction_duration';
+
+2. Extract the boolean expression from the definition.
+
+3. Generate SQL to list ALL violating rows:
+   SELECT id, status, sale_type, starts_at, ends_at, (ends_at - starts_at) AS duration
+   FROM auctions
+   WHERE NOT (<constraint_expression>);
+
+4. Based on the constraint, generate ONE safe bulk repair query:
+   - Fix rows by adjusting ends_at relative to starts_at
+   - Do NOT break valid rows
+   - Do NOT touch fixed-price listings
+   - Only affect sale_type = 'auction'
+   - Prefer repair over delete
+   - Only delete rows if absolutely impossible to fix
+
+5. Execute the repair logic conceptually and explain:
+   - what exactly is wrong with the current data
+   - why these rows violate the constraint
+
+6. Provide the FINAL SQL sequence I must run in Supabase:
+
+   A) repair all invalid rows
+   B) add column activated_at (if not exists)
+   C) create index idx_auctions_locked
+   D) run backfill ONLY on valid rows:
+      UPDATE auctions
+      SET activated_at = created_at
+      WHERE activated_at IS NULL
+        AND status <> 'removed';
+
+7. Ensure:
+   - No constraint violation will occur again
+   - Migration runs successfully in one pass
+   - Existing auctions remain intact
+   - System behavior remains unchanged
+
+Requirements:
+- No theory
+- No partial answers
+- No “check this manually”
+- Give exact SQL ready to paste
+- Be precise and deterministic
+
+Output format:
+
+A) constraint definition  
+B) violating rows query  
+C) bulk repair SQL  
+D) final migration SQL  
+E) execution order  

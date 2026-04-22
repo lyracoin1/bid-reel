@@ -13,24 +13,31 @@
 --     • NULL  → auction is locked (bidding blocked, seller phone hidden).
 --     • SET   → auction is activated (bidding open, contact visible).
 --
--- This migration is idempotent and safe to re-run.
--- Apply in the Supabase SQL editor before deploying the corresponding
--- server changes.
+-- IMPORTANT — apply order in Supabase SQL Editor:
+--   1. Repair any rows that violate chk_auction_duration (legacy 3-day
+--      auctions left over from before migration 030). See the operator
+--      runbook; the repair clamps ends_at to created_at + 47 hours for
+--      sale_type='auction' rows that fall outside the 1–48h window.
+--   2. Run the schema block below (column + partial index).
+--   3. Run the legacy-row backfill (also below) to mark pre-existing
+--      live auctions as already activated.
+--
+-- Step 2 is intentionally schema-only: there is NO bulk UPDATE here so
+-- it cannot re-validate unrelated CHECK constraints (chk_auction_duration
+-- in particular) and abort partway through. Idempotent and safe to re-run.
 
 ALTER TABLE auctions
   ADD COLUMN IF NOT EXISTS activated_at TIMESTAMPTZ;
 
--- Backfill: every auction that already exists predates this gate, so
--- treat them all as already activated (otherwise live listings would
--- silently lose bidding ability the moment this ships). New rows
--- default to NULL and must be activated explicitly.
-UPDATE auctions
-SET activated_at = COALESCE(activated_at, created_at)
-WHERE activated_at IS NULL;
-
--- Partial index for the "is this locked?" lookup that runs on every
--- bid attempt and on every detail fetch. Cheap because most auctions
--- are activated and the partial WHERE keeps the index tiny.
 CREATE INDEX IF NOT EXISTS idx_auctions_locked
   ON auctions (id)
   WHERE activated_at IS NULL;
+
+-- Step 3 — legacy backfill. Run AFTER step 1 has cleared every
+-- chk_auction_duration violation, otherwise this UPDATE will abort on
+-- the first invalid row it touches.
+--
+--   UPDATE auctions
+--   SET activated_at = created_at
+--   WHERE activated_at IS NULL
+--     AND status <> 'removed';

@@ -14,7 +14,19 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
 
   if (images.length === 0) return null;
   if (images.length === 1) {
-    return <img src={images[0]} alt={alt} className={cn("w-full h-full object-cover", className)} />;
+    // Detail-view consumer expects letterboxing (no crop). The wrapper
+    // already supplies a black background + fixed stage height, so
+    // `object-contain` here keeps the real aspect ratio intact on both
+    // mobile browsers and Capacitor's Android WebView.
+    return (
+      <div className={cn("flex items-center justify-center bg-black", className)}>
+        <img
+          src={images[0]}
+          alt={alt}
+          className="max-w-full max-h-full w-auto h-auto object-contain"
+        />
+      </div>
+    );
   }
 
   const prev = () => setCurrent(c => Math.max(0, c - 1));
@@ -31,12 +43,22 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
   };
 
   return (
-    <div className={cn("relative overflow-hidden", className)} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-      {/* Slides */}
+    <div
+      className={cn("relative overflow-hidden bg-black", className)}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
+      {/* Slides — each slide is a centered letterbox cell so portrait,
+          landscape, and square images all show their full content with no
+          crop or stretch. The black wrapper provides the letterbox bars. */}
       <div className="flex h-full transition-transform duration-300 ease-in-out" style={{ transform: `translateX(-${current * 100}%)` }}>
         {images.map((src, i) => (
-          <div key={i} className="w-full h-full shrink-0">
-            <img src={src} alt={`${alt} ${i + 1}`} className="w-full h-full object-cover" />
+          <div key={i} className="w-full h-full shrink-0 flex items-center justify-center">
+            <img
+              src={src}
+              alt={`${alt} ${i + 1}`}
+              className="max-w-full max-h-full w-auto h-auto object-contain"
+            />
           </div>
         ))}
       </div>

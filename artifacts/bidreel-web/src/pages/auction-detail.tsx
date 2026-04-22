@@ -465,8 +465,19 @@ export default function AuctionDetail() {
           </div>
         </div>
 
-        {/* ── Hero media ── */}
-        <div className="w-full h-[55vh] relative bg-black">
+        {/* ── Hero media ──
+            Container is a fixed-height (55vh) black letterbox stage. Media
+            uses `object-contain` so the real aspect ratio of the video/image
+            is preserved — never cropped, never stretched. The `bg-black`
+            background fills the unused area on either axis (top/bottom for
+            landscape media in a portrait stage, sides for portrait media in
+            a wider stage). Works in mobile Safari, Chrome and Capacitor's
+            Android WebView (object-fit is supported back to WebView 53+).
+
+            Note: feed cards intentionally use `object-cover` for the
+            TikTok-style full-bleed fill — that is a different surface and
+            stays as-is. */}
+        <div className="w-full h-[55vh] relative bg-black flex items-center justify-center overflow-hidden">
           {isAlbum ? (
             <ImageSlider images={auction.images!} alt={auction.title} className="w-full h-full" />
           ) : isVideo ? (
@@ -474,7 +485,12 @@ export default function AuctionDetail() {
               <video
                 ref={videoRef}
                 src={auction.mediaUrl}
-                className={cn("w-full h-full object-cover", state !== "active" && "opacity-80")}
+                // max-w/h + object-contain = native aspect ratio, centered,
+                // letterboxed on the black background. No forced stretch.
+                className={cn(
+                  "max-w-full max-h-full w-auto h-auto object-contain",
+                  state !== "active" && "opacity-80",
+                )}
                 playsInline
                 preload="metadata"
                 loop
@@ -492,7 +508,10 @@ export default function AuctionDetail() {
           ) : (
             <img
               src={auction.mediaUrl} alt={auction.title}
-              className={cn("w-full h-full object-cover", state !== "active" && "opacity-80")}
+              className={cn(
+                "max-w-full max-h-full w-auto h-auto object-contain",
+                state !== "active" && "opacity-80",
+              )}
             />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent pointer-events-none" />

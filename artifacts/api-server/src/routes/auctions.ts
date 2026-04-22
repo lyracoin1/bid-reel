@@ -115,7 +115,7 @@ function normalizeAuction(a: any): any {
 }
 
 /**
- * Buyer-side $1 unlock model (migration 032 — auction_unlocks table).
+ * Buyer-side $2 unlock model (migration 032 — auction_unlocks table).
  *
  * For each (auction, viewer) pair the API decides whether the viewer is
  * "unlocked". Unlocked viewers see the seller's phone and may place bids;
@@ -290,7 +290,7 @@ router.get("/auctions", async (req, res) => {
     ? (rawItems[rawItems.length - 1].created_at as string)
     : null;
 
-  // ── Per-viewer unlock resolution (migration 032 — buyer-side $1 gate) ────
+  // ── Per-viewer unlock resolution (migration 032 — buyer-side $2 gate) ────
   // ONE batch query against auction_unlocks for the visible page. For
   // anonymous viewers viewerId is null and the helper returns an empty set
   // (everything stays locked).
@@ -653,7 +653,7 @@ router.get("/auctions/:id", async (req, res) => {
 
   const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
 
-  // ── Per-viewer unlock resolution (migration 032 — buyer-side $1 gate) ──
+  // ── Per-viewer unlock resolution (migration 032 — buyer-side $2 gate) ──
   // Single (auction, viewer) lookup. callerId is set above from the optional
   // Bearer token — anonymous viewers stay locked.
   const unlockedAuctionIds = await loadUnlockedAuctionIdsForUser(callerId, [id]);
@@ -1134,7 +1134,7 @@ async function executePlaceBid(
   }
 
   // 3a-bis. Buyer-side unlock gate (migration 032). Auction listings
-  // (sale_type='auction') require the BIDDER to have paid $1 for THIS
+  // (sale_type='auction') require the BIDDER to have paid $2 for THIS
   // specific auction before they can bid. Fixed-price is exempt (handled
   // above). The seller of an auction never needs to pay (handled at step
   // 4 below — own-auction → 403 SELLER_CANNOT_BID). For everyone else,
@@ -1147,7 +1147,7 @@ async function executePlaceBid(
       status: 402,
       body: {
         error: "AUCTION_NOT_UNLOCKED",
-        message: "Pay $1 to unlock bidding for this auction.",
+        message: "Pay $2 to unlock bidding for this auction.",
       },
     };
   }
@@ -1729,7 +1729,7 @@ router.delete("/auctions/:id/signal", requireAuth, async (req, res) => {
 });
 
 // ─── Gumroad checkout config ─────────────────────────────────────────────────
-// The single $1 product link. The token query-param is appended per checkout
+// The single $2 product link. The token query-param is appended per checkout
 // so we can later reconcile the Gumroad receipt back to the (auction,user)
 // pair that created it (see /unlock/start). Overridable via env so we never
 // have to redeploy if the seller account or product slug changes.
@@ -1920,7 +1920,7 @@ router.post("/auctions/:id/unlock/start", requireAuth, unlockStartLimiter, async
 //
 // Frontend flow now:
 //   1. Buyer opens auction; if locked, sees the panel.
-//   2. Tap "Pay $1 to Unlock" → POST /unlock/start → opens Gumroad with
+//   2. Tap "Pay $2 to Unlock" → POST /unlock/start → opens Gumroad with
 //      ?token=<unlock_token>.
 //   3. Buyer pays. Gumroad calls our webhook → row becomes 'paid'.
 //   4. Buyer returns, taps "I have paid (refresh)" → this endpoint reports
@@ -1932,7 +1932,7 @@ router.post("/auctions/:id/unlock/start", requireAuth, unlockStartLimiter, async
 //   • { ok:true, unlocked:false, status:'pending' } (HTTP 402) — no verified
 //     payment yet; bid + contact gates remain in place
 //   • { ok:true, unlocked:false, status:'none' }    (HTTP 402) — buyer never
-//     even initiated checkout; tell them to tap Pay $1 to Unlock first
+//     even initiated checkout; tell them to tap Pay $2 to Unlock first
 //
 // Authorization rules (unchanged):
 //   • Caller must be authenticated.

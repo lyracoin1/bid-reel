@@ -54,10 +54,10 @@ export interface Auction {
    *  on top of the orthogonal time-window state (upcoming/active/ended). */
   status?: "active" | "ended" | "removed" | "archived" | "sold" | "reserved";
   /**
-   * Per-viewer unlock state for the $1 buyer-side gate (migration 032). The API computes
+   * Per-viewer unlock state for the $2 buyer-side gate (migration 032). The API computes
    * this server-side based on the calling user:
    *   • true  → fixed-price listing, OR caller is the seller, OR caller has
-   *             paid $1 to unlock THIS auction (auction_unlocks row exists)
+   *             paid $2 to unlock THIS auction (auction_unlocks row exists)
    *   • false → caller has not unlocked → seller phone is hidden in the
    *             response and bid attempts return 402 AUCTION_NOT_UNLOCKED
    *

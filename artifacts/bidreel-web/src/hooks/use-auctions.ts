@@ -143,7 +143,7 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
     saleType: (r.sale_type as "auction" | "fixed" | null | undefined) ?? "auction",
     fixedPrice: r.fixed_price != null ? Number(r.fixed_price) : null,
     buyerId: r.buyer_id ?? null,
-    // Per-viewer unlock flag (migration 032 — buyer-side $1 gate).
+    // Per-viewer unlock flag (migration 032 — buyer-side $2 gate).
     // The server computes this for the calling user: true when fixed-price,
     // when caller is seller, or when (auctionId, callerId) has a paid row in
     // auction_unlocks. Defaults to false (fail-closed = locked) when missing.
@@ -587,7 +587,7 @@ export function useStartUnlock(auctionId: string) {
   return { mutate, isPending, lastError };
 }
 
-// ─── useUnlockAuction ($1 Gumroad gate — buyer-side, per user, per auction) ──
+// ─── useUnlockAuction ($2 Gumroad gate — buyer-side, per user, per auction) ──
 //
 // Wraps unlockAuctionApi and patches the cached auction row in place so the
 // UI flips from locked → unlocked without waiting for a feed refresh. We

@@ -290,7 +290,7 @@ export default function AuctionDetail() {
   const isSold = auction.status === "sold";
   const isReserved = auction.status === "reserved";
 
-  // ── $1 per-viewer-per-auction unlock gate (MVP — buyer side) ──────────────
+  // ── $2 per-viewer-per-auction unlock gate (MVP — buyer side) ──────────────
   // Only applies to auction-type listings. Fixed-price is always free with
   // visible seller contact. The seller of an auction is also always treated
   // as unlocked on their own listing — they never pay to access their own
@@ -300,7 +300,7 @@ export default function AuctionDetail() {
 
   // ── Can the current user bid? ─────────────────────────────────────────────
   // Bidding only applies to live auctions; fixed-price uses Buy Now instead.
-  // Locked viewers (haven't paid $1 for this auction) cannot bid until they
+  // Locked viewers (haven't paid $2 for this auction) cannot bid until they
   // unlock — server enforces with 402 AUCTION_NOT_UNLOCKED.
   const canBid = state === "active" && !isSeller && !isFixedPrice && !isSold && !isReserved && !isLocked;
 
@@ -328,8 +328,8 @@ export default function AuctionDetail() {
     });
   }, [markSold, lang]);
 
-  // ── $1 Gumroad buyer unlock — REAL checkout flow (per-user, per-auction) ──
-  // Step 1 ("Pay $1 to Unlock"): call POST /unlock/start. Server creates a
+  // ── $2 Gumroad buyer unlock — REAL checkout flow (per-user, per-auction) ──
+  // Step 1 ("Pay $2 to Unlock"): call POST /unlock/start. Server creates a
   // pending auction_unlocks row with a unique unlock_token and returns a
   // Gumroad checkout URL like .../l/frgfn?token=<unlock_token>. We open
   // that URL in a new tab so the buyer can complete payment.
@@ -385,10 +385,10 @@ export default function AuctionDetail() {
           title:
             lang === "ar"
               ? status === "none"
-                ? "لم يتم بدء الدفع بعد. اضغط على \"ادفع 1$ لفتح المزاد\" أولاً."
+                ? "لم يتم بدء الدفع بعد. اضغط على \"ادفع 2$ لفتح المزاد\" أولاً."
                 : "لم نستلم تأكيد الدفع بعد. حاول مرة أخرى بعد لحظات."
               : status === "none"
-                ? "Checkout hasn't been started yet. Tap \"Pay $1 to Unlock\" first."
+                ? "Checkout hasn't been started yet. Tap \"Pay $2 to Unlock\" first."
                 : "Payment hasn't been confirmed by Gumroad yet. Try again in a moment.",
           variant: "destructive",
         });
@@ -989,10 +989,10 @@ export default function AuctionDetail() {
             {t("auction_closed")}
           </div>
         ) : isLocked ? (
-          /* ── $1 Gumroad BUYER unlock panel ───────────────────────────────
+          /* ── $2 Gumroad BUYER unlock panel ───────────────────────────────
              Per-user, per-auction unlock (migration 032). Two-step MVP
              "I have paid" flow:
-             (a) Tap "Pay $1 to Unlock" → opens Gumroad in new tab
+             (a) Tap "Pay $2 to Unlock" → opens Gumroad in new tab
              (b) On return, tap "I have paid" → inserts auction_unlocks row
                  for (this auction, current buyer) and flips viewerUnlocked
                  in cache, revealing seller contact + bid UI.
@@ -1006,8 +1006,8 @@ export default function AuctionDetail() {
               <div className="space-y-1 text-start">
                 <p className="text-sm font-bold text-amber-200 leading-snug">
                   {lang === "ar"
-                    ? "ادفع 1$ لفتح المزايدة وتفاصيل التواصل مع البائع لهذا المزاد."
-                    : "Pay $1 to unlock bidding and seller contact details for this auction."}
+                    ? "ادفع 2$ لفتح المزايدة وتفاصيل التواصل مع البائع لهذا المزاد."
+                    : "Pay $2 to unlock bidding and seller contact details for this auction."}
                 </p>
                 <p className="text-[11px] text-amber-100/70 leading-snug">
                   {lang === "ar"
@@ -1027,7 +1027,7 @@ export default function AuctionDetail() {
                   <><RefreshCw size={15} className="animate-spin" /> …</>
                 ) : (
                   <>
-                    {lang === "ar" ? "ادفع 1$ لفتح المزاد" : "Pay $1 to Unlock"}
+                    {lang === "ar" ? "ادفع 2$ لفتح المزاد" : "Pay $2 to Unlock"}
                     <ExternalLink size={15} />
                   </>
                 )}

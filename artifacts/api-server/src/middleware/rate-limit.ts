@@ -2,7 +2,7 @@
  * In-process rate limiters used to protect a few high-blast-radius endpoints.
  *
  * These are intentionally small and conservative — they exist to absorb
- * casual abuse (one buyer hammering "Pay $1 to Unlock" 200 times, an attacker
+ * casual abuse (one buyer hammering "Pay $2 to Unlock" 200 times, an attacker
  * brute-forcing the webhook secret URL) rather than to be a full DDoS shield.
  * For the latter, rely on the platform/CDN edge.
  *

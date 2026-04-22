@@ -32,6 +32,7 @@ import { Router, type Request, type Response } from "express";
 import { timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "../lib/supabase";
 import { logger } from "../lib/logger";
+import { webhookLimiter } from "../middleware/rate-limit";
 
 const router = Router();
 
@@ -69,7 +70,7 @@ function extractToken(body: Record<string, unknown>): string | null {
 }
 
 // ─── POST /api/webhooks/gumroad/:secret ──────────────────────────────────────
-router.post("/webhooks/gumroad/:secret", async (req: Request, res: Response) => {
+router.post("/webhooks/gumroad/:secret", webhookLimiter, async (req: Request, res: Response) => {
   // Layer 1: server-side config must be present, else fail-closed (503).
   if (!WEBHOOK_SECRET) {
     logger.error({}, "Gumroad webhook hit but GUMROAD_WEBHOOK_SECRET is not configured");

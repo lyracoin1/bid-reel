@@ -360,7 +360,6 @@ export default function CreateAuction() {
         : "Auction duration must be between 1 and 48 hours.");
       return;
     }
-    console.log("PUBLISH durationHours:", durationHours, typeof durationHours);
     if (!coords) {
       setSubmitError(lang === "ar"
         ? "يجب تفعيل الموقع قبل نشر المزاد."

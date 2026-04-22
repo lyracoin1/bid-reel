@@ -22,6 +22,11 @@ import { processVideoAsync } from "../lib/video-processing";
 import { assertOwnedMediaUrl } from "../lib/r2";
 import { buildUserFeedContext, scoreAuction } from "../lib/feed-ranking";
 import { recordEngagement } from "./views";
+import {
+  unlockStartLimiter,
+  buyNowLimiter,
+  markSoldLimiter,
+} from "../middleware/rate-limit";
 
 const router = Router();
 
@@ -899,7 +904,6 @@ router.post("/auctions", requireAuth, async (req, res) => {
   // re-coerce + re-validate here because this value is fed directly into
   // the DB duration CHECK constraint — a stray value would surface as an
   // opaque 500 from Postgres instead of a clean 400.
-  console.log("DEBUG incoming durationHours:", durationHours, typeof durationHours);
   const duration = Number(durationHours);
   if (!Number.isFinite(duration) || duration < 1 || duration > 48) {
     res.status(400).json({
@@ -1475,7 +1479,7 @@ router.post("/auctions/:id/bids", requireAuth, async (req, res) => {
 // reserved for a future hold-and-pay step but is not written here.
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.post("/auctions/:id/buy", requireAuth, async (req, res) => {
+router.post("/auctions/:id/buy", requireAuth, buyNowLimiter, async (req, res) => {
   const auctionId = req.params["id"] as string;
   const buyerId = req.user!.id;
 
@@ -1570,6 +1574,104 @@ router.post("/auctions/:id/buy", requireAuth, async (req, res) => {
   logger.info({ auctionId, buyerId, sellerId: auction.seller_id, price: auction.fixed_price }, "Buy Now succeeded");
 
   res.status(200).json({ auction: updated });
+});
+
+// ─── POST /api/auctions/:id/mark-sold ────────────────────────────────────────
+//
+// Seller-only "Mark as sold" for fixed-price listings the seller closed
+// out-of-band (e.g. via WhatsApp). Flips status 'active' → 'sold' atomically.
+//
+// Authorization rules (server-enforced — never trust the client):
+//   • Caller must be authenticated.
+//   • Caller must be the seller (auction.seller_id === req.user.id), else 403.
+//   • Sale type must be 'fixed' — auctions close themselves via the lifecycle
+//     scheduler when the timer expires; sellers must not short-circuit them.
+//   • Status must currently be 'active' — re-marking 'sold' is a no-op 200,
+//     'removed' returns 404, anything else returns 409.
+//
+// We use a status-CAS UPDATE (.eq("status","active")) to make the flip
+// atomic against a concurrent /buy from another buyer; whichever request
+// wins the race wins the row and the other gets a clean 409.
+router.post("/auctions/:id/mark-sold", requireAuth, markSoldLimiter, async (req, res) => {
+  const auctionId = req.params["id"];
+  const userId = req.user!.id;
+
+  // Input shape validation: id is a route param so already a string, but
+  // a malformed/empty id would generate a confusing PostgREST error if we
+  // didn't 400 here.
+  if (!auctionId || typeof auctionId !== "string") {
+    res.status(400).json({ error: "MISSING_ID", message: "Auction ID is required" });
+    return;
+  }
+
+  const { data: auction, error: fetchErr } = await supabaseAdmin
+    .from("auctions")
+    .select("id, seller_id, sale_type, status")
+    .eq("id", auctionId)
+    .maybeSingle();
+
+  if (fetchErr) {
+    logger.error({ err: fetchErr.message, auctionId }, "POST /mark-sold: fetch failed");
+    res.status(500).json({ error: "FETCH_FAILED", message: "Could not load listing" });
+    return;
+  }
+  if (!auction || auction.status === "removed") {
+    res.status(404).json({ error: "NOT_FOUND", message: "Listing not found" });
+    return;
+  }
+  if (auction.seller_id !== userId) {
+    // Hard authorization fail — only the owning seller may close their listing.
+    res.status(403).json({ error: "NOT_SELLER", message: "Only the seller can mark this listing sold" });
+    return;
+  }
+  if (auction.sale_type !== "fixed") {
+    res.status(409).json({
+      error: "NOT_FIXED_PRICE",
+      message: "Only fixed-price listings can be marked sold by the seller",
+    });
+    return;
+  }
+  if (auction.status === "sold") {
+    // Idempotent — re-tap is harmless.
+    res.json({ ok: true, alreadyMarked: true });
+    return;
+  }
+  if (auction.status !== "active") {
+    res.status(409).json({
+      error: "NOT_ACTIVE",
+      message: "Only active listings can be marked sold",
+    });
+    return;
+  }
+
+  // CAS update — defends against a /buy completing between our SELECT
+  // above and our UPDATE here. If the buyer won the race, the buy handler
+  // already stamped buyer_id + status='sold'; that row no longer matches
+  // .eq("status","active") and our UPDATE returns 0 rows, which we treat
+  // as "already sold" (idempotent success).
+  const { data: updated, error: updErr } = await supabaseAdmin
+    .from("auctions")
+    .update({ status: "sold" })
+    .eq("id", auctionId)
+    .eq("seller_id", userId)
+    .eq("sale_type", "fixed")
+    .eq("status", "active")
+    .select("id, status")
+    .maybeSingle();
+
+  if (updErr) {
+    logger.error({ err: updErr.message, auctionId, userId }, "POST /mark-sold: update failed");
+    res.status(500).json({ error: "UPDATE_FAILED", message: "Could not mark sold" });
+    return;
+  }
+  if (!updated) {
+    // Lost the race to a concurrent /buy — the listing is already sold.
+    res.json({ ok: true, alreadyMarked: true });
+    return;
+  }
+
+  logger.info({ auctionId, sellerId: userId }, "Fixed-price listing marked sold by seller");
+  res.json({ ok: true, alreadyMarked: false });
 });
 
 // ─── Content Signal endpoints ─────────────────────────────────────────────────
@@ -1696,7 +1798,7 @@ function buildCheckoutUrl(unlockToken: string): string {
 // (UNIQUE WHERE NOT NULL). It is opaque to the client — used only as a
 // receipt-matching identifier. Pending rows are kept indefinitely so that a
 // buyer who closes the tab mid-checkout can resume with the same token.
-router.post("/auctions/:id/unlock/start", requireAuth, async (req, res) => {
+router.post("/auctions/:id/unlock/start", requireAuth, unlockStartLimiter, async (req, res) => {
   const auctionId = req.params["id"];
   const userId = req.user!.id;
 
@@ -1792,17 +1894,12 @@ router.post("/auctions/:id/unlock/start", requireAuth, async (req, res) => {
 
   const checkoutUrl = buildCheckoutUrl(unlockToken);
 
-  // Log the FULL final checkout URL (token included) so we can verify in
-  // production logs that the buyer is being sent to the correct Gumroad
-  // domain and that the token round-trips back via the webhook.
+  // Production log: do NOT include the full checkoutUrl or unlock_token —
+  // they are bearer-equivalent receipts that map back to a specific
+  // (auction,user) pair. Log only the (auction,user) tuple plus whether
+  // we reused a pending row, which is enough to debug ops issues.
   logger.info(
-    {
-      auctionId,
-      userId,
-      reused: !!existing?.unlock_token,
-      checkoutUrl,
-      productUrl: GUMROAD_PRODUCT_URL,
-    },
+    { auctionId, userId, reused: !!existing?.unlock_token },
     "Unlock checkout session started",
   );
 

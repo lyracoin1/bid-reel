@@ -7,6 +7,7 @@ import {
   getMyAuctionsApi,
   createAuctionApi,
   buyNowApi,
+  markSoldApi,
   likeAuctionApi,
   unlikeAuctionApi,
   startUnlockApi,
@@ -471,20 +472,59 @@ export function useBuyAuction(auctionId: string) {
   ): Promise<void> => {
     setIsPending(true);
     setLastError(null);
-    console.log(`[useBuyAuction] Buying — auctionId=${auctionId}`);
 
     try {
       const { auction } = await buyNowApi(auctionId);
       const mapped = backendToAuction(auction);
       globalAuctions = globalAuctions.map((a) => (a.id === auctionId ? { ...a, ...mapped } : a));
       notify();
-      console.log(`[useBuyAuction] ✅ Purchased — id=${auctionId}`);
       options.onSuccess?.();
     } catch (err: unknown) {
       const e = err as { code?: string; message?: string };
       const code = e.code ?? 'BUY_FAILED';
       const message = e.message ?? 'Purchase failed';
       console.error(`[useBuyAuction] ❌ ${code}: ${message}`);
+      setLastError({ code, message });
+      options.onError?.(code, message);
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return { mutate, isPending, lastError };
+}
+
+// ─── useMarkSold (seller closes a fixed-price listing) ───────────────────────
+//
+// One-shot mutation that flips status='active' → 'sold' for a fixed-price
+// listing the seller closed out-of-band. The server is the only place that
+// can authorize this (seller-only, fixed-price-only, status-CAS), so this
+// hook is a thin wrapper that patches the cache on success.
+export function useMarkSold(auctionId: string) {
+  const [isPending, setIsPending] = useState(false);
+  const [lastError, setLastError] = useState<{ code: string; message: string } | null>(null);
+
+  const mutate = async (
+    options: { onSuccess?: () => void; onError?: (code: string, message: string) => void } = {},
+  ): Promise<void> => {
+    setIsPending(true);
+    setLastError(null);
+    try {
+      await markSoldApi(auctionId);
+      // Locally flip the cache so the UI shows the Sold state immediately
+      // without a round-trip. The next detail refetch will reconcile any
+      // server-side fields we don't track here (e.g. updated_at).
+      const idx = globalAuctions.findIndex((a) => a.id === auctionId);
+      if (idx >= 0) {
+        globalAuctions[idx] = { ...globalAuctions[idx], status: "sold" };
+        notify();
+      }
+      options.onSuccess?.();
+    } catch (err: unknown) {
+      const e = err as { code?: string; message?: string };
+      const code = e.code ?? "MARK_SOLD_FAILED";
+      const message = e.message ?? "Could not mark sold";
+      console.error(`[useMarkSold] ❌ ${code}: ${message}`);
       setLastError({ code, message });
       options.onError?.(code, message);
     } finally {
@@ -521,13 +561,8 @@ export function useStartUnlock(auctionId: string) {
   ): Promise<void> => {
     setIsPending(true);
     setLastError(null);
-    console.log(`[useStartUnlock] Starting checkout — auctionId=${auctionId}`);
     try {
       const result = await startUnlockApi(auctionId);
-      console.log(
-        `[useStartUnlock] ✅ status=${result.status} alreadyUnlocked=${result.alreadyUnlocked} ` +
-        `token=${result.unlock_token?.slice(0, 8) ?? "—"}`,
-      );
       options.onSuccess?.({
         checkout_url: result.checkout_url,
         unlock_token: result.unlock_token,

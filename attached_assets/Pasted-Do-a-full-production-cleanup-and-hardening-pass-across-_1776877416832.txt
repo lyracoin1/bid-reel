@@ -1,0 +1,142 @@
+Do a full production cleanup and hardening pass across the entire project.
+
+This is a pre-release cleanup before deploying to Google Play and production.
+
+Work in one pass. No placeholders. No partial fixes.
+
+========================================
+PART 1 — REMOVE TEST / DEBUG ARTIFACTS
+========================================
+
+1. Remove all test data and debug remnants:
+   - any test auctions (especially named "verify")
+   - any test users if they exist
+   - any mock data still wired in frontend
+   - any debug-only scripts (e.g. verification scripts not needed in production)
+
+2. Remove console logs and debug prints:
+   - console.log
+   - console.debug
+   - temporary logging of tokens, checkout URLs, etc.
+   - keep only structured production logging
+
+3. Remove unused code:
+   - dead functions
+   - unused imports
+   - old activation logic (seller activation must be fully gone)
+   - any legacy fields (activated_at, etc.)
+
+========================================
+PART 2 — PAYMENT HARDENING CHECK
+========================================
+
+1. Ensure Gumroad webhook flow is the ONLY source of truth:
+   - POST /unlock must NOT grant access
+   - only webhook sets payment_status='paid'
+
+2. Ensure:
+   - unlock_token is always required for matching
+   - payment_reference is stored
+   - webhook is idempotent
+
+3. Fail closed:
+   - if webhook verification fails → do NOT unlock
+   - if token not found → ignore request
+
+4. Remove any remaining trust-on-claim logic completely.
+
+========================================
+PART 3 — SECURITY HARDENING
+========================================
+
+1. Validate all inputs on backend:
+   - auction_id
+   - user_id (from auth only, never client input)
+   - unlock_token
+
+2. Enforce authorization server-side:
+   - buyer cannot unlock for another user
+   - buyer cannot mark sold
+   - only seller can mark fixed-price item as sold
+
+3. Add rate limiting:
+   - POST /unlock/start
+   - webhook endpoint
+
+4. Ensure secrets are not exposed:
+   - GUMROAD_WEBHOOK_SECRET must not appear in frontend
+   - no sensitive env vars logged
+
+========================================
+PART 4 — FIXED-PRICE FLOW FINALIZATION
+========================================
+
+1. Ensure fixed-price listings:
+   - always visible contact
+   - no payment required
+   - buyer cannot mark sold
+
+2. Add seller-only "Mark as sold" action:
+   - server enforced
+   - updates status cleanly
+
+3. Ensure UI reflects:
+   - available
+   - sold
+
+========================================
+PART 5 — FRONTEND CLEANUP
+========================================
+
+1. Remove all mock and fallback logic
+2. Ensure all API calls use real backend endpoints
+3. Clean UI:
+   - no debug text
+   - no duplicate buttons
+   - consistent labels (Unlock / Buy Now)
+
+4. Ensure:
+   - locked state is clear
+   - unlocked state is clear
+   - sold state is clear
+
+========================================
+PART 6 — PERFORMANCE & BUILD
+========================================
+
+1. Remove unused dependencies
+2. Optimize bundle size (Vite)
+3. Ensure no dev-only flags remain
+4. Ensure build works cleanly with no warnings
+
+========================================
+PART 7 — ANDROID / PRODUCTION READINESS
+========================================
+
+1. Ensure Capacitor build uses latest web build
+2. Remove any localhost/dev URLs
+3. Ensure production API URL is correct
+4. Ensure no debug flags in Android build
+
+========================================
+FINAL VERIFICATION
+========================================
+
+Run full verification and confirm:
+
+1. auction unlock requires real payment
+2. webhook triggers unlock correctly
+3. buyer cannot bypass payment
+4. cross-user isolation works
+5. cross-auction isolation works
+6. fixed-price flow works correctly
+7. seller-only actions are enforced
+8. no test data appears anywhere
+
+Then give me:
+
+- exact files changed
+- exact removed items
+- exact security checks enforced
+- final production readiness status
+- any remaining risks before Google Play release

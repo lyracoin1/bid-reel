@@ -702,6 +702,36 @@ export async function buyNowApi(auctionId: string): Promise<{ auction: ApiAuctio
   return data as { auction: ApiAuctionRaw };
 }
 
+// ─── Seller-only "Mark as Sold" (fixed-price) ────────────────────────────────
+//
+// Calls POST /auctions/:id/mark-sold. The server is the source of truth on
+// who is the seller and on the listing's current state — this endpoint is
+// 403 for non-sellers and 409 for non-fixed-price listings, so the UI can
+// stay simple without re-validating on the client.
+export async function markSoldApi(
+  auctionId: string,
+): Promise<{ ok: true; alreadyMarked: boolean }> {
+  const token = await getToken();
+  if (!token) { redirectToLogin(); throw new Error("Not authenticated"); }
+
+  const res = await fetch(`${API_BASE}/auctions/${encodeURIComponent(auctionId)}/mark-sold`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (res.status === 401) { redirectToLogin(); throw new Error("Session expired"); }
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = data as ApiError;
+    throw Object.assign(new Error(err.message ?? "Could not mark sold"), {
+      code: err.error,
+      statusCode: res.status,
+    });
+  }
+  return data as { ok: true; alreadyMarked: boolean };
+}
+
 // ─── Current user (own profile) ───────────────────────────────────────────────
 
 export interface ApiUserProfile {

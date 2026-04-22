@@ -10,7 +10,7 @@ import { MobileLayout } from "@/components/layout/MobileLayout";
 import { ImageSlider } from "@/components/feed/ImageSlider";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { AuctionMenu } from "@/components/AuctionMenu";
-import { useAuction, usePlaceBid, useBuyAuction, useUnlockAuction, useStartUnlock } from "@/hooks/use-auctions";
+import { useAuction, usePlaceBid, useBuyAuction, useMarkSold, useUnlockAuction, useStartUnlock } from "@/hooks/use-auctions";
 import { useFollow } from "@/hooks/use-follow";
 import { useWatchAuction } from "@/hooks/use-watch";
 import { useBidPolling, getUserBidStatus } from "@/hooks/use-bid-polling";
@@ -282,6 +282,27 @@ export default function AuctionDetail() {
 
   // ── Buy Now (fixed-price) hook ────────────────────────────────────────────
   const { mutate: buyNow, isPending: isBuying } = useBuyAuction(auction.id);
+
+  // ── Mark-as-sold (seller-only, fixed-price) hook ──────────────────────────
+  // Sellers often close fixed-price listings out-of-band (e.g. WhatsApp DM).
+  // The CTA flips status='active'→'sold' so the listing stops accepting Buy
+  // Now from other viewers. Server enforces seller-only + fixed-only.
+  const { mutate: markSold, isPending: isMarkingSold } = useMarkSold(auction.id);
+  const handleMarkSold = useCallback(() => {
+    const msg =
+      lang === "ar"
+        ? "هل أنت متأكد أنك تريد وضع علامة 'مباع' على هذا الإعلان؟ لن يتمكن المشترون من شرائه بعد ذلك."
+        : "Mark this listing as sold? Buyers will no longer be able to purchase it.";
+    if (!window.confirm(msg)) return;
+    markSold({
+      onSuccess: () => {
+        toast({ title: lang === "ar" ? "تم وضع علامة مباع." : "Marked as sold." });
+      },
+      onError: (_code, message) => {
+        toast({ title: message, variant: "destructive" });
+      },
+    });
+  }, [markSold, lang]);
 
   // ── $1 Gumroad buyer unlock — REAL checkout flow (per-user, per-auction) ──
   // Step 1 ("Pay $1 to Unlock"): call POST /unlock/start. Server creates a
@@ -984,10 +1005,30 @@ export default function AuctionDetail() {
             )}
           </div>
         ) : isSeller ? (
-          <div className="w-full py-4 rounded-2xl bg-white/6 border border-white/10 flex items-center justify-center text-white/40 font-bold text-base gap-2">
-            <span>🏷️</span>
-            Your Listing
-          </div>
+          /* Seller view of their own listing. For active fixed-price
+             listings we expose a "Mark as Sold" CTA so the seller can
+             close the listing manually after handing the item off via
+             WhatsApp. Auctions close themselves on the timer, so the
+             non-fixed branch shows the read-only "Your Listing" pill. */
+          isFixedPrice && state === "active" && !isSold ? (
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={handleMarkSold}
+              disabled={isMarkingSold}
+              className="w-full py-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 font-bold text-base flex items-center justify-center gap-2.5 disabled:opacity-60"
+            >
+              {isMarkingSold ? (
+                <><RefreshCw size={17} className="animate-spin" /> {lang === "ar" ? "جارٍ..." : "Working…"}</>
+              ) : (
+                <>{lang === "ar" ? "وضع علامة كمباع" : "Mark as Sold"}</>
+              )}
+            </motion.button>
+          ) : (
+            <div className="w-full py-4 rounded-2xl bg-white/6 border border-white/10 flex items-center justify-center text-white/40 font-bold text-base gap-2">
+              <span>🏷️</span>
+              {isSold ? (lang === "ar" ? "تم البيع" : "Sold") : "Your Listing"}
+            </div>
+          )
         ) : (
           /* ── Active + can bid: sticky CTA → scrolls to numeric input panel ── */
           <AnimatePresence mode="wait">

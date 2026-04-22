@@ -10,7 +10,7 @@ import { MobileLayout } from "@/components/layout/MobileLayout";
 import { ImageSlider } from "@/components/feed/ImageSlider";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { AuctionMenu } from "@/components/AuctionMenu";
-import { useAuction, usePlaceBid, useBuyAuction, useActivateAuction } from "@/hooks/use-auctions";
+import { useAuction, usePlaceBid, useBuyAuction, useUnlockAuction } from "@/hooks/use-auctions";
 import { useFollow } from "@/hooks/use-follow";
 import { useWatchAuction } from "@/hooks/use-watch";
 import { useBidPolling, getUserBidStatus } from "@/hooks/use-bid-polling";
@@ -266,29 +266,30 @@ export default function AuctionDetail() {
   const isSold = auction.status === "sold";
   const isReserved = auction.status === "reserved";
 
-  // ── $1 per-auction activation gate (MVP) ──────────────────────────────────
-  // Only applies to auction-type listings. Fixed-price stays free.
-  // Tri-state: undefined = pre-migration (column missing) → activated;
-  //            null      = column present but unset → LOCKED;
-  //            string    = activated at this timestamp.
-  // When locked: bidding is blocked AND the seller's phone (WhatsApp CTA)
-  // is hidden. The API also enforces both — UI just mirrors server truth.
-  const isLocked = !isFixedPrice && auction.activatedAt === null;
+  // ── $1 per-viewer-per-auction unlock gate (MVP — buyer side) ──────────────
+  // Only applies to auction-type listings. Fixed-price is always free with
+  // visible seller contact. The seller of an auction is also always treated
+  // as unlocked on their own listing — they never pay to access their own
+  // auction. Server is the source of truth via `viewer_unlocked`; the UI
+  // fails closed (locked) when the field is missing.
+  const isLocked = !isFixedPrice && !isSeller && auction.viewerUnlocked !== true;
 
   // ── Can the current user bid? ─────────────────────────────────────────────
   // Bidding only applies to live auctions; fixed-price uses Buy Now instead.
-  // Locked auctions cannot be bid on by anyone until the seller activates.
+  // Locked viewers (haven't paid $1 for this auction) cannot bid until they
+  // unlock — server enforces with 402 AUCTION_NOT_UNLOCKED.
   const canBid = state === "active" && !isSeller && !isFixedPrice && !isSold && !isReserved && !isLocked;
 
   // ── Buy Now (fixed-price) hook ────────────────────────────────────────────
   const { mutate: buyNow, isPending: isBuying } = useBuyAuction(auction.id);
 
-  // ── $1 Gumroad activation hook (seller-only, per-auction) ─────────────────
-  // The Gumroad link is opened in a new tab; on return, the seller clicks
-  // "I have paid" to flip the locked → activated flag. We track whether the
-  // user has clicked the Gumroad button this session so the "I have paid"
-  // confirmation is only shown after they've had a chance to actually pay.
-  const { mutate: activateAuction, isPending: isActivating } = useActivateAuction(auction.id);
+  // ── $1 Gumroad buyer unlock hook (per-user, per-auction) ──────────────────
+  // The Gumroad link is opened in a new tab; on return, the buyer clicks
+  // "I have paid" to flip viewerUnlocked for THIS auction (and only this
+  // one — paying once does NOT unlock other auctions). We track whether
+  // they've opened Gumroad this session so the "I have paid" confirmation
+  // only appears after they've had a chance to actually pay.
+  const { mutate: unlockAuction, isPending: isUnlocking } = useUnlockAuction(auction.id);
   const [hasOpenedGumroad, setHasOpenedGumroad] = useState(false);
   const GUMROAD_URL = "https://lyracoin.gumroad.com/l/frgfn";
   const handleOpenGumroad = useCallback(() => {
@@ -296,18 +297,19 @@ export default function AuctionDetail() {
     setHasOpenedGumroad(true);
   }, []);
   const handleConfirmPaid = useCallback(() => {
-    activateAuction({
+    unlockAuction({
       onSuccess: () => {
-        // The hook patches the cached auction in place (sets activatedAt),
-        // so the locked panel disappears and bidding UI appears with no
-        // network round-trip. Toast confirms success; no refetch needed.
-        toast({ title: lang === "ar" ? "تم تفعيل المزاد." : "Auction activated." });
+        // The hook flips viewerUnlocked in cache and refetches the detail
+        // so the seller's phone is now populated for the WhatsApp CTA. The
+        // locked panel disappears and the bid UI appears with no extra
+        // user action.
+        toast({ title: lang === "ar" ? "تم فتح المزاد." : "Auction unlocked." });
       },
       onError: (_code, message) => {
         toast({ title: message, variant: "destructive" });
       },
     });
-  }, [activateAuction, lang]);
+  }, [unlockAuction, lang]);
   const handleBuyNow = useCallback(() => {
     if (!window.confirm(t("buy_now_confirm"))) return;
     buyNow({
@@ -869,31 +871,31 @@ export default function AuctionDetail() {
             <Gavel size={20} />
             {t("auction_closed")}
           </div>
-        ) : isLocked && isSeller ? (
-          /* ── $1 Gumroad activation panel — seller view ───────────────────
-             Two-step MVP "I have paid" flow:
-             (a) Tap "Pay $1 to Activate Auction" → opens Gumroad in new tab
-             (b) On return, tap "I have paid" → flips activated_at on this row.
+        ) : isLocked ? (
+          /* ── $1 Gumroad BUYER unlock panel ───────────────────────────────
+             Per-user, per-auction unlock (migration 032). Two-step MVP
+             "I have paid" flow:
+             (a) Tap "Pay $1 to Unlock" → opens Gumroad in new tab
+             (b) On return, tap "I have paid" → inserts auction_unlocks row
+                 for (this auction, current buyer) and flips viewerUnlocked
+                 in cache, revealing seller contact + bid UI.
              The button label switches once the user has opened Gumroad in
-             this session (`hasOpenedGumroad`). The exact copy below is
-             spec-locked verbatim and rendered in EN + AR per the i18n pattern
-             used elsewhere in the seller flows. */
+             this session (`hasOpenedGumroad`). Copy is spec-locked verbatim
+             in EN + AR. The seller branch never reaches this code path —
+             isLocked excludes isSeller above. */
           <div className="w-full rounded-2xl bg-amber-500/10 border border-amber-500/35 p-4 space-y-3">
             <div className="flex items-start gap-2.5">
               <Lock size={18} className="text-amber-300 shrink-0 mt-0.5" />
               <div className="space-y-1 text-start">
                 <p className="text-sm font-bold text-amber-200 leading-snug">
-                  {lang === "ar" ? "ادفع 1$ لتفعيل هذا المزاد." : "Pay $1 to activate this auction."}
-                </p>
-                <p className="text-xs text-amber-100/80 leading-snug">
                   {lang === "ar"
-                    ? "هذا الدفع يفتح المزايدة وتفاصيل الاتصال بالبائع."
-                    : "This payment unlocks bidding and seller contact details."}
+                    ? "ادفع 1$ لفتح المزايدة وتفاصيل التواصل مع البائع لهذا المزاد."
+                    : "Pay $1 to unlock bidding and seller contact details for this auction."}
                 </p>
-                <p className="text-[11px] text-amber-100/60 leading-snug">
+                <p className="text-[11px] text-amber-100/70 leading-snug">
                   {lang === "ar"
-                    ? "هذا الدفع صالح لمزاد واحد فقط."
-                    : "This payment is valid for one auction only."}
+                    ? "هذا الدفع يخص هذا المزاد فقط."
+                    : "This payment applies only to this auction."}
                 </p>
               </div>
             </div>
@@ -903,7 +905,7 @@ export default function AuctionDetail() {
                 onClick={handleOpenGumroad}
                 className="w-full py-3.5 rounded-xl bg-amber-500 text-black font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25"
               >
-                {lang === "ar" ? "ادفع 1$ لتفعيل المزاد" : "Pay $1 to Activate Auction"}
+                {lang === "ar" ? "ادفع 1$ لفتح المزاد" : "Pay $1 to Unlock"}
                 <ExternalLink size={15} />
               </motion.button>
             ) : (
@@ -911,10 +913,10 @@ export default function AuctionDetail() {
                 <motion.button
                   whileTap={{ scale: 0.97 }}
                   onClick={handleConfirmPaid}
-                  disabled={isActivating}
+                  disabled={isUnlocking}
                   className="w-full py-3.5 rounded-xl bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 disabled:opacity-60"
                 >
-                  {isActivating ? (
+                  {isUnlocking ? (
                     <><RefreshCw size={15} className="animate-spin" /> …</>
                   ) : (
                     <><CheckCircle2 size={15} /> {lang === "ar" ? "لقد دفعت" : "I have paid"}</>
@@ -929,17 +931,6 @@ export default function AuctionDetail() {
                 </button>
               </div>
             )}
-          </div>
-        ) : isLocked ? (
-          /* ── Locked auction — non-seller view ────────────────────────────
-             Bidding is blocked at the API layer (402 AUCTION_NOT_ACTIVATED)
-             and seller phone is redacted, so we just show a clear, calm
-             "awaiting seller activation" pill instead of a bid CTA. */
-          <div className="w-full py-4 rounded-2xl bg-white/6 border border-white/10 flex items-center justify-center text-white/55 font-semibold text-sm gap-2 text-center">
-            <Lock size={16} className="text-white/55" />
-            {lang === "ar"
-              ? "المزايدة مقفلة — في انتظار تفعيل البائع."
-              : "Bidding locked — awaiting seller activation."}
           </div>
         ) : isSeller ? (
           <div className="w-full py-4 rounded-2xl bg-white/6 border border-white/10 flex items-center justify-center text-white/40 font-bold text-base gap-2">

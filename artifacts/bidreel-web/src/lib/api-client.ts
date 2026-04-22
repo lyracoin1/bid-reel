@@ -585,29 +585,31 @@ export async function createAuctionApi(input: CreateAuctionInput): Promise<{ auc
 // auction row (status='sold', buyer_id=current user) on success, or an error
 // like ALREADY_SOLD if another buyer won the race.
 
-// ─── Activate auction ($1 Gumroad gate) ──────────────────────────────────────
+// ─── Unlock auction ($1 Gumroad gate — buyer-side, per user, per auction) ────
 //
-// MVP "I have paid" flow: after the seller pays via the Gumroad link in a new
-// tab, they return and click the confirm button. This POST flips
-// `activated_at = NOW()` for THIS auction only — activation is per-auction,
-// not per-user. The server enforces seller-only access and idempotency.
+// MVP "I have paid" flow: after the buyer pays via the Gumroad link in a
+// new tab, they return and click the confirm button. This POST inserts a
+// row in `auction_unlocks` for (auctionId, currentUser) so the API stops
+// redacting the seller's contact for this user on this auction and the
+// bid endpoint stops returning 402 AUCTION_NOT_UNLOCKED for them. The
+// unlock applies ONLY to (this auction, this user) — paying once does
+// not unlock other auctions, and another user remains locked.
 //
 // Possible error codes from the server:
-//   • NOT_SELLER       — caller is not the seller (403)
-//   • NOT_AN_AUCTION   — listing is fixed-price, no activation needed (400)
-//   • NOT_FOUND        — auction id is invalid or soft-deleted (404)
-//   • LOOKUP_FAILED / ACTIVATION_FAILED — server-side DB errors (500)
+//   • SELLER_CANNOT_UNLOCK_OWN — caller is the auction's seller (400)
+//   • FIXED_PRICE_NO_UNLOCK    — listing is fixed-price, no gate exists (400)
+//   • NOT_FOUND                — auction id is invalid or soft-deleted (404)
+//   • LOOKUP_FAILED / UNLOCK_FAILED — server-side DB errors (500)
 //
-// Returns the activated_at timestamp the server stored (the caller maps it
-// back into the cached auction so the UI flips out of the locked state
-// without an extra refetch).
-export async function activateAuctionApi(
+// Idempotent: a second call returns 200 with `alreadyUnlocked: true` and
+// the original `unlockedAt` timestamp.
+export async function unlockAuctionApi(
   auctionId: string,
-): Promise<{ ok: true; activatedAt: string; alreadyActivated: boolean }> {
+): Promise<{ ok: true; unlockedAt: string; alreadyUnlocked: boolean }> {
   const token = await getToken();
   if (!token) { redirectToLogin(); throw new Error("Not authenticated"); }
 
-  const res = await fetch(`${API_BASE}/auctions/${encodeURIComponent(auctionId)}/activate`, {
+  const res = await fetch(`${API_BASE}/auctions/${encodeURIComponent(auctionId)}/unlock`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -617,12 +619,12 @@ export async function activateAuctionApi(
   const data = await res.json();
   if (!res.ok) {
     const err = data as ApiError;
-    throw Object.assign(new Error(err.message ?? "Activation failed"), {
+    throw Object.assign(new Error(err.message ?? "Unlock failed"), {
       code: err.error,
       statusCode: res.status,
     });
   }
-  return data as { ok: true; activatedAt: string; alreadyActivated: boolean };
+  return data as { ok: true; unlockedAt: string; alreadyUnlocked: boolean };
 }
 
 export async function buyNowApi(auctionId: string): Promise<{ auction: ApiAuctionRaw }> {

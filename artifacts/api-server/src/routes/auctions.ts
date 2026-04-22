@@ -109,41 +109,93 @@ function normalizeAuction(a: any): any {
 }
 
 /**
- * Returns true when an auction listing is "locked" — i.e. it requires the
- * seller's $1 Gumroad activation payment before bidding opens and seller
- * contact details may be revealed. Fixed-price listings (sale_type='fixed')
- * are NEVER locked: the activation gate exists only for auctions.
+ * Buyer-side $1 unlock model (migration 032 — auction_unlocks table).
  *
- * eslint-disable-next-line @typescript-eslint/no-explicit-any */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function isAuctionLocked(a: any): boolean {
-  if (!a) return false;
-  if (a.sale_type === "fixed") return false;
-  // Pre-migration safety: if migration 031 hasn't been applied yet the column
-  // doesn't exist on the row at all (`undefined`). Treat that as ACTIVATED
-  // so we don't lock every auction on environments that haven't run the
-  // migration yet. Only an explicit `null` (column exists, never set) means
-  // locked. Once 031 runs everywhere, all legacy rows are back-filled with
-  // created_at, so this distinction becomes a no-op.
-  if (a.activated_at === undefined) return false;
-  return a.activated_at === null;
+ * For each (auction, viewer) pair the API decides whether the viewer is
+ * "unlocked". Unlocked viewers see the seller's phone and may place bids;
+ * locked viewers get a redacted seller (phone=null) and 402 from the bid
+ * endpoint. The seller of an auction is always treated as unlocked on
+ * their own listing (they never pay to access their own auction). Fixed-
+ * price listings (sale_type='fixed') are exempt from the gate entirely.
+ *
+ * The {@link loadUnlockedAuctionIdsForUser} helper does ONE query for
+ * a batch of auction ids so the public feed pays a single round-trip
+ * regardless of page size.
+ */
+async function loadUnlockedAuctionIdsForUser(
+  userId: string | null,
+  auctionIds: string[],
+): Promise<Set<string>> {
+  if (!userId || auctionIds.length === 0) return new Set();
+  const { data, error } = await supabaseAdmin
+    .from("auction_unlocks")
+    .select("auction_id")
+    .eq("user_id", userId)
+    .eq("payment_status", "paid")
+    .eq("can_view_contact", true)
+    .in("auction_id", auctionIds);
+  if (error) {
+    // Log + fail closed (treat user as locked). Schema-cache hiccups should
+    // not silently un-redact phone numbers.
+    logger.warn(
+      { err: error.message, userId, count: auctionIds.length },
+      "loadUnlockedAuctionIdsForUser: query failed — treating as locked",
+    );
+    return new Set();
+  }
+  return new Set((data ?? []).map((r) => r.auction_id as string));
 }
 
 /**
- * Strip the seller's phone number from a seller profile if the listing is
- * a locked auction. Other profile fields (name, avatar, username) stay so
- * the UI can still show "Listed by @username" — only the contact channel
- * is gated by activation.
- *
- *   redactSellerForLocked(auctionRow, sellerProfileFromDb)
+ * Decide whether the calling viewer can see contact / bid on this auction.
+ * Returns true for fixed-price listings, for the auction's own seller, or
+ * when the viewer has a paid unlock row. False otherwise (including when
+ * viewer is anonymous).
+ */
+function isUnlockedForViewer(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  auction: any,
+  viewerId: string | null,
+  unlockedAuctionIds: Set<string>,
+): boolean {
+  if (!auction) return false;
+  if (auction.sale_type === "fixed") return true;
+  if (viewerId && auction.seller_id === viewerId) return true;
+  return unlockedAuctionIds.has(auction.id as string);
+}
+
+/**
+ * Strip the seller's phone number from a seller profile if the calling
+ * viewer is not unlocked for this specific auction. Other profile fields
+ * (name, avatar, username) stay so the UI can still show "Listed by
+ * @username" — only the contact channel is gated.
  *
  * Always returns a NEW object when redacting; never mutates input.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function redactSellerForLocked(auction: any, seller: any): any {
+function redactSellerForViewer(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  auction: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  seller: any,
+  viewerId: string | null,
+  unlockedAuctionIds: Set<string>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): any {
   if (!seller) return seller;
-  if (!isAuctionLocked(auction)) return seller;
+  if (isUnlockedForViewer(auction, viewerId, unlockedAuctionIds)) return seller;
   return { ...seller, phone: null };
+}
+
+/** Best-effort viewer id from the Authorization header. Returns null on any failure. */
+async function getViewerIdFromAuthHeader(authHeader: string | undefined): Promise<string | null> {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+  const token = authHeader.slice(7);
+  try {
+    const { data: { user } } = await supabaseAdmin.auth.getUser(token);
+    return user?.id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 router.get("/auctions", async (req, res) => {
@@ -220,6 +272,7 @@ router.get("/auctions", async (req, res) => {
     seller: (typeof profileMap extends Map<string, infer V> ? V : null) | null;
     user_signal: "interested" | "not_interested" | null;
     views_count: number;
+    viewer_unlocked: boolean;
   };
 
   // ── Cursor for next page ──────────────────────────────────────────────────
@@ -231,13 +284,21 @@ router.get("/auctions", async (req, res) => {
     ? (rawItems[rawItems.length - 1].created_at as string)
     : null;
 
+  // ── Per-viewer unlock resolution (migration 032 — buyer-side $1 gate) ────
+  // ONE batch query against auction_unlocks for the visible page. For
+  // anonymous viewers viewerId is null and the helper returns an empty set
+  // (everything stays locked).
+  const viewerId = await getViewerIdFromAuthHeader(req.headers["authorization"] as string | undefined);
+  const unlockedAuctionIds = await loadUnlockedAuctionIdsForUser(viewerId, auctionIds);
+
   let feed: AuctionWithMeta[] = rawItems.map((a) => ({
     ...normalizeAuction(a),
-    // Redact seller phone for locked auctions (sale_type='auction' &&
-    // !activated_at). Fixed-price listings always expose the phone.
-    seller: redactSellerForLocked(a, profileMap.get(a.seller_id) ?? null),
+    // Redact seller phone unless this viewer is unlocked for this auction.
+    // Fixed-price listings and the seller's own listings are never redacted.
+    seller: redactSellerForViewer(a, profileMap.get(a.seller_id) ?? null, viewerId, unlockedAuctionIds),
     user_signal: null as "interested" | "not_interested" | null,
     views_count: viewMap.get(a.id as string) ?? 0,
+    viewer_unlocked: isUnlockedForViewer(a, viewerId, unlockedAuctionIds),
   }));
 
   // ── Feed intelligence ranking (optional — skipped for unauthenticated) ──────
@@ -343,16 +404,15 @@ router.get("/auctions/mine", requireAuth, async (req, res) => {
     .eq("id", userId)
     .maybeSingle();
 
-  // NOTE: This is the seller's own auctions endpoint. We still redact the
-  // phone field on the embedded `seller` for locked auctions so the response
-  // shape exactly mirrors the public feed — the seller's real phone lives on
-  // their /api/users/me profile, never on auction rows. The activation panel
-  // in the UI doesn't need the phone; it just needs to know the auction is
-  // locked (saleType='auction' && !activatedAt).
+  // NOTE: This is the seller's OWN auctions endpoint. The seller is always
+  // "unlocked" on their own listings (they never pay to access their own
+  // contact info), so we never redact here. viewer_unlocked is also set to
+  // true for every row so the response shape matches the public feed.
   const feed = (auctions ?? []).map((a) => ({
     ...normalizeAuction(a),
-    seller: redactSellerForLocked(a, profile ?? null),
+    seller: profile ?? null,
     user_signal: null,
+    viewer_unlocked: true,
   }));
 
   logger.info({ userId, count: feed.length }, "GET /auctions/mine → returning seller auctions");
@@ -587,9 +647,21 @@ router.get("/auctions/:id", async (req, res) => {
 
   const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
 
+  // ── Per-viewer unlock resolution (migration 032 — buyer-side $1 gate) ──
+  // Single (auction, viewer) lookup. callerId is set above from the optional
+  // Bearer token — anonymous viewers stay locked.
+  const unlockedAuctionIds = await loadUnlockedAuctionIdsForUser(callerId, [id]);
+  const viewerUnlocked = isUnlockedForViewer(auctionData, callerId, unlockedAuctionIds);
+
   const auctionWithSeller = {
     ...normalizeAuction(auctionData),
-    seller: redactSellerForLocked(auctionData, profileMap.get(auctionData.seller_id) ?? null),
+    seller: redactSellerForViewer(
+      auctionData,
+      profileMap.get(auctionData.seller_id) ?? null,
+      callerId,
+      unlockedAuctionIds,
+    ),
+    viewer_unlocked: viewerUnlocked,
   };
 
   const bidsWithBidders = bids.map((b) => ({
@@ -1056,20 +1128,21 @@ async function executePlaceBid(
     return { ok: false, status: 409, body: { error: "FIXED_PRICE_LISTING", message: "This is a fixed-price listing — use Buy Now instead." } };
   }
 
-  // 3a-bis. Activation gate — auction listings (sale_type='auction') must be
-  // paid-activated by the seller ($1 Gumroad → "I have paid" button) before
-  // anyone can bid. Fixed-price listings are exempt (they remain free).
-  // Legacy rows pre-dating migration 031 were back-filled with
-  // activated_at=created_at so this gate never trips for them.
-  // Same pre-migration safety as isAuctionLocked: undefined = column not yet
-  // present (treat as activated). Only explicit null = locked.
-  if (auction.activated_at === null) {
+  // 3a-bis. Buyer-side unlock gate (migration 032). Auction listings
+  // (sale_type='auction') require the BIDDER to have paid $1 for THIS
+  // specific auction before they can bid. Fixed-price is exempt (handled
+  // above). The seller of an auction never needs to pay (handled at step
+  // 4 below — own-auction → 403 SELLER_CANNOT_BID). For everyone else,
+  // we look up the unlock row and reject with 402 if missing. Failing
+  // closed: a query error here also returns 402, never silently allows.
+  const unlockSet = await loadUnlockedAuctionIdsForUser(userId, [auctionId]);
+  if (auction.seller_id !== userId && !unlockSet.has(auctionId)) {
     return {
       ok: false,
       status: 402,
       body: {
-        error: "AUCTION_NOT_ACTIVATED",
-        message: "This auction is locked. The seller must complete the $1 activation payment before bidding opens.",
+        error: "AUCTION_NOT_UNLOCKED",
+        message: "Pay $1 to unlock bidding for this auction.",
       },
     };
   }
@@ -1552,35 +1625,34 @@ router.delete("/auctions/:id/signal", requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
-// ─── POST /api/auctions/:id/activate ─────────────────────────────────────────
+// ─── POST /api/auctions/:id/unlock ───────────────────────────────────────────
 //
-// Per-auction activation gate ("Pay $1 to Activate Auction").
+// Per-user, per-auction buyer unlock ("Pay $1 to unlock bidding and seller
+// contact details for this auction.")
 //
-// MVP flow (per business rule §7 — Temporary MVP logic):
-//   1. Seller creates an auction listing (sale_type='auction').
-//      The row is inserted with `activated_at = NULL` → locked.
-//   2. Seller is shown a "Pay $1 to Activate Auction" button that opens
-//      Gumroad in a new tab.
-//   3. After paying, the seller returns and clicks "I have paid".
-//   4. The frontend POSTs here. We mark THIS auction as activated by
-//      setting `activated_at = NOW()`. Activation state is per-auction,
-//      never per-user — paying once does not unlock other auctions.
+// MVP flow:
+//   1. Buyer opens an auction detail; if not yet unlocked, sees the panel.
+//   2. Tap "Pay $1 to Unlock" → opens Gumroad in a new tab.
+//   3. After paying, buyer returns and taps "I have paid".
+//   4. Frontend POSTs here. We INSERT a row in `auction_unlocks` for
+//      (auctionId, currentUser) with payment_status='paid'. The row is
+//      keyed (auction_id, user_id) UNIQUE, so a second click is a no-op
+//      idempotent return. Unlock state never leaks to other users or to
+//      other auctions of the same user.
 //
-// Trust model: this endpoint trusts the seller's "I have paid" claim. A
-// production implementation would verify a Gumroad webhook / receipt
-// before flipping the flag. That hardening is out of scope for the MVP
-// (explicit user requirement: "Temporary MVP logic").
+// Trust model (MVP): this endpoint trusts the buyer's "I have paid" claim.
+// A production implementation would set payment_status to 'paid' only on a
+// verified Gumroad webhook callback that includes a receipt id we then
+// store in payment_reference.
 //
 // Authorization rules:
-//   • Only the auction's seller may activate it (403 otherwise).
-//   • Only sale_type='auction' rows are activatable. Calling this for a
-//     fixed-price listing returns 400 — fixed-price listings are free
-//     and don't need activation (§5 — fixed-price has no payment gate).
-//   • Idempotent: a second call on an already-activated row returns 200
-//     with the current activated_at timestamp; we do NOT bump it, so
-//     historical activation time is preserved for audit.
+//   • Caller must be authenticated.
+//   • The auction's seller may NOT unlock their own auction (400) — they
+//     never need to (the seller is always treated as unlocked on their own
+//     listings in the redaction layer).
+//   • Fixed-price listings are exempt from the gate entirely (400).
 //   • Soft-deleted ('removed') rows return 404.
-router.post("/auctions/:id/activate", requireAuth, async (req, res) => {
+router.post("/auctions/:id/unlock", requireAuth, async (req, res) => {
   const auctionId = req.params["id"];
   const userId = req.user!.id;
 
@@ -1591,12 +1663,12 @@ router.post("/auctions/:id/activate", requireAuth, async (req, res) => {
 
   const { data: auction, error: fetchErr } = await supabaseAdmin
     .from("auctions")
-    .select("id, seller_id, sale_type, status, activated_at")
+    .select("id, seller_id, sale_type, status")
     .eq("id", auctionId)
     .maybeSingle();
 
   if (fetchErr) {
-    logger.error({ err: fetchErr.message, auctionId }, "POST /auctions/:id/activate: lookup failed");
+    logger.error({ err: fetchErr.message, auctionId }, "POST /auctions/:id/unlock: lookup failed");
     res.status(500).json({ error: "LOOKUP_FAILED", message: "Could not load auction." });
     return;
   }
@@ -1604,58 +1676,67 @@ router.post("/auctions/:id/activate", requireAuth, async (req, res) => {
     res.status(404).json({ error: "NOT_FOUND", message: "Auction not found" });
     return;
   }
-  if (auction.seller_id !== userId) {
-    res.status(403).json({ error: "NOT_SELLER", message: "Only the auction's seller can activate it." });
-    return;
-  }
   if (auction.sale_type === "fixed") {
     res.status(400).json({
-      error: "NOT_AN_AUCTION",
-      message: "Fixed-price listings are free and do not require activation.",
+      error: "FIXED_PRICE_NO_UNLOCK",
+      message: "Fixed-price listings are free — no unlock needed.",
+    });
+    return;
+  }
+  if (auction.seller_id === userId) {
+    res.status(400).json({
+      error: "SELLER_CANNOT_UNLOCK_OWN",
+      message: "You don't need to unlock your own auction.",
     });
     return;
   }
 
-  // Idempotent: already activated → return current timestamp, no DB write.
-  if (auction.activated_at) {
-    logger.info({ auctionId, userId }, "POST /auctions/:id/activate: already activated — no-op");
-    res.json({ ok: true, activatedAt: auction.activated_at, alreadyActivated: true });
-    return;
-  }
-
-  const nowIso = new Date().toISOString();
-  const { data: updated, error: updErr } = await supabaseAdmin
-    .from("auctions")
-    .update({ activated_at: nowIso, updated_at: nowIso })
-    .eq("id", auctionId)
-    // Defensive: only flip when still NULL — prevents a race from clobbering
-    // an existing activation timestamp if two "I have paid" clicks arrive
-    // simultaneously.
-    .is("activated_at", null)
-    .select("activated_at")
+  // INSERT — UNIQUE(auction_id, user_id) guarantees idempotency. We use
+  // upsert with ignoreDuplicates so re-clicks succeed silently and the
+  // returned row count tells us if it was a fresh insert or a no-op.
+  const { data: inserted, error: insErr } = await supabaseAdmin
+    .from("auction_unlocks")
+    .upsert(
+      {
+        auction_id: auctionId,
+        user_id: userId,
+        payment_status: "paid",
+        can_bid: true,
+        can_view_contact: true,
+        payment_provider: "gumroad",
+      },
+      { onConflict: "auction_id,user_id", ignoreDuplicates: true },
+    )
+    .select("created_at")
     .maybeSingle();
 
-  if (updErr) {
-    logger.error({ err: updErr.message, auctionId }, "POST /auctions/:id/activate: update failed");
-    res.status(500).json({ error: "ACTIVATION_FAILED", message: "Could not activate auction." });
+  if (insErr) {
+    logger.error({ err: insErr.message, auctionId, userId }, "POST /auctions/:id/unlock: insert failed");
+    res.status(500).json({ error: "UNLOCK_FAILED", message: "Could not unlock auction." });
     return;
   }
 
-  // updated == null means the WHERE filter (activated_at IS NULL) didn't match,
-  // i.e. someone else activated this row in the same millisecond. Re-read and
-  // return idempotently rather than 500-ing.
-  if (!updated) {
-    const { data: fresh } = await supabaseAdmin
-      .from("auctions")
-      .select("activated_at")
-      .eq("id", auctionId)
-      .maybeSingle();
-    res.json({ ok: true, activatedAt: fresh?.activated_at ?? nowIso, alreadyActivated: true });
+  // Read back the row's created_at — when ignoreDuplicates suppressed an
+  // insert, `inserted` is null and we need to fetch the existing timestamp.
+  if (inserted) {
+    logger.info({ auctionId, userId, unlockedAt: inserted.created_at }, "Auction unlocked for buyer (MVP — trust-on-claim)");
+    res.json({ ok: true, unlockedAt: inserted.created_at, alreadyUnlocked: false });
     return;
   }
 
-  logger.info({ auctionId, userId, activatedAt: updated.activated_at }, "Auction activated (MVP — trust-on-claim)");
-  res.json({ ok: true, activatedAt: updated.activated_at, alreadyActivated: false });
+  const { data: existing } = await supabaseAdmin
+    .from("auction_unlocks")
+    .select("created_at")
+    .eq("auction_id", auctionId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  logger.info({ auctionId, userId }, "POST /auctions/:id/unlock: already unlocked — no-op");
+  res.json({
+    ok: true,
+    unlockedAt: existing?.created_at ?? new Date().toISOString(),
+    alreadyUnlocked: true,
+  });
 });
 
 export default router;

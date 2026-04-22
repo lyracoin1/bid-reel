@@ -1,0 +1,63 @@
+Do this now in one pass, directly and without partial work.
+
+Part 1 — delete fake test auctions
+Delete all test auctions named "verify" immediately.
+
+Requirements:
+1. Remove them from the database completely, not soft-hide only.
+2. Ensure they do not appear in:
+   - public feed
+   - profile listings
+   - admin panels
+   - counts / stats / metrics
+3. Also delete any dependent test data tied to them if needed:
+   - bids
+   - unlock rows
+   - notifications
+   - related references
+4. Confirm deletion with the exact deleted auction IDs.
+
+Part 2 — fixed-price flow correction
+The fixed-price flow must be corrected now.
+
+Required final behavior:
+1. "Buy now" on fixed-price listings must mean direct contact with the seller.
+2. The buyer must not be the one who decides whether the item was sold.
+3. The seller must be the only one who can mark their own fixed-price item as sold.
+4. Fixed-price listings must remain free and unchanged in terms of no unlock payment required.
+5. Seller contact must remain visible on fixed-price listings as before.
+6. The buyer can contact the seller directly, but cannot mark the listing sold, completed, closed, or unavailable.
+7. Add a seller-only action to mark the item as sold.
+8. Once the seller marks it sold:
+   - the listing must no longer behave as available for purchase
+   - the public UI must clearly reflect sold state
+   - the action must be blocked for all non-sellers
+9. Preserve auction behavior exactly as currently implemented. Do not break the new buyer-unlock auction flow.
+
+Implementation requirements:
+- audit the current fixed-price code path fully before editing
+- remove any buyer-controlled sold/completed logic
+- replace it with seller-owned sold state transition only
+- enforce this server-side, not UI-only
+- update frontend labels/buttons to match the corrected meaning
+- keep terminology clear:
+  - fixed-price = direct contact / buy now
+  - seller decides sold state
+  - buyer never confirms sale completion
+
+After implementation, run full verification and confirm with evidence:
+1. verify test auctions named "verify" are fully gone
+2. verify they do not appear in feed or admin
+3. verify fixed-price buyer can contact seller directly
+4. verify fixed-price buyer cannot mark sold
+5. verify seller can mark own fixed-price listing as sold
+6. verify non-seller cannot mark sold
+7. verify sold fixed-price listing displays correctly
+8. verify auction flow still works and is unchanged
+
+Then give me:
+- exact files changed
+- exact SQL applied
+- exact deleted verify auction IDs
+- exact final behavior
+- any remaining gaps or risks

@@ -30,6 +30,10 @@ export interface Auction {
   seller: User;
   likes: number;
   bidCount: number;
+  /** Per-auction minimum bid increment set by the seller. Server is the source
+   *  of truth (validated server-side); this field is just the UI floor so the
+   *  buyer can't even type an invalid value. Defaults to 10 when missing. */
+  minIncrement: number;
   bids: Bid[];
   isLikedByMe?: boolean;
   lat?: number | null;

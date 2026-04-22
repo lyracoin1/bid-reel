@@ -28,8 +28,10 @@ import { useViewerLocation } from "@/hooks/use-viewer-location";
 import { haversineDistance, formatDistance, formatAuctionPrice } from "@/lib/geo";
 import { useGlobalMute, getGlobalMuted } from "@/lib/global-mute";
 
-// Minimum bid increment — server is the source of truth, this is just UI floor.
-const MIN_INCREMENT = 1;
+// Minimum bid increment is read per-auction from `auction.minIncrement`,
+// which is mapped from the server's `min_increment` column in
+// `backendToAuction`. The server validates again (routes/auctions.ts
+// → executePlaceBid) so this stays a UI floor only.
 
 // ─── First-bid rules gate ─────────────────────────────────────────────────────
 // localStorage key — set to "1" when the user accepts the bidding rules and
@@ -66,8 +68,13 @@ export default function AuctionDetail() {
     onSuccess: () => {
       setBidSuccess(true);
       setBidError(null);
-      // Reset after 2.5 s so panel is ready for the next bid
-      setTimeout(() => { setBidSuccess(false); setIncInput(""); }, 2500);
+      // Reset after 2.5 s so panel is ready for the next bid. Re-seed the
+      // input with the per-auction minimum so the default value always
+      // equals min_increment (requirement: input default = min_increment).
+      setTimeout(() => {
+        setBidSuccess(false);
+        setIncInput(String(auction.minIncrement));
+      }, 2500);
     },
     onError: (code, message) => {
       setBidError(message);
@@ -76,7 +83,9 @@ export default function AuctionDetail() {
       // refetch the auction so the UI shows the new highest price + bids,
       // and clear the typed increment so the user re-enters with fresh context.
       if (code === "BID_CONFLICT") {
-        setIncInput("");
+        // Re-seed with the per-auction minimum (not blank) so the default
+        // value invariant holds after a conflict-driven reset.
+        setIncInput(String(auction.minIncrement));
         void refetchAuction();
         // The inline bid panel is now the only place the error is shown
         // (we removed the duplicate in the sticky bar). If the user submitted
@@ -128,6 +137,17 @@ export default function AuctionDetail() {
     el.addEventListener("error", handleError);
     return () => el.removeEventListener("error", handleError);
   }, [auction?.id, auction?.type]);
+
+  // ── Seed the bid-increment input with the per-auction floor ──────────────
+  // Once the auction loads we pre-fill the input with `min_increment` (from
+  // the backend) so the user can submit immediately at the smallest valid
+  // step. We only seed while the input is still empty so we never clobber
+  // what the user has typed, and we re-seed when navigating to a different
+  // auction (different `auction.id`).
+  useEffect(() => {
+    if (!auction) return;
+    setIncInput((prev) => (prev === "" ? String(auction.minIncrement) : prev));
+  }, [auction?.id, auction?.minIncrement]);
 
   // ── Live state + countdown (must be unconditional) ────────────────────────
   // Fallback to epoch when auction is null so the hook always receives valid strings
@@ -195,13 +215,17 @@ export default function AuctionDetail() {
   const fmtPrice = (amount: number) =>
     formatAuctionPrice(amount, auction.currencyCode ?? "USD");
 
+  // Per-auction floor sourced from the backend (`min_increment` column,
+  // default 10 server-side). Never hardcode a number here.
+  const minIncrement = auction.minIncrement;
+
   // Parse the user's increment input. Returns null when invalid.
   const parsedInc = (() => {
     const trimmed = incInput.trim();
     if (!trimmed) return null;
     if (!/^\d+$/.test(trimmed)) return null;   // integers only
     const n = Number(trimmed);
-    if (!Number.isFinite(n) || n < MIN_INCREMENT) return null;
+    if (!Number.isFinite(n) || n < minIncrement) return null;
     return n;
   })();
 
@@ -219,7 +243,7 @@ export default function AuctionDetail() {
   const submitBid = () => {
     setBidError(null);
     if (parsedInc === null) {
-      setBidError(`Please enter a whole number ≥ ${MIN_INCREMENT}`);
+      setBidError(`Please enter a whole number ≥ ${minIncrement}`);
       return;
     }
     if (!localStorage.getItem(BIDDING_RULES_KEY)) {
@@ -585,10 +609,20 @@ export default function AuctionDetail() {
                     ) : null}
                   </p>
                 </div>
-                <div className="flex items-center gap-1.5 bg-primary/12 border border-primary/25 rounded-full px-3 py-1.5">
+                {/* Quick-action chip: tap to pre-fill the input with the
+                    per-auction minimum increment from the backend. */}
+                <button
+                  type="button"
+                  onClick={() => { setIncInput(String(minIncrement)); setBidError(null); }}
+                  disabled={isBidding}
+                  className="flex items-center gap-1.5 bg-primary/12 hover:bg-primary/20 active:bg-primary/25 border border-primary/25 rounded-full px-3 py-1.5 transition-colors disabled:opacity-50"
+                  aria-label={`Set increment to minimum ${minIncrement} ${auction.currencyCode ?? ""}`}
+                >
                   <TrendingUp size={11} className="text-primary" />
-                  <span className="text-xs font-bold text-primary">min +{MIN_INCREMENT}</span>
-                </div>
+                  <span className="text-xs font-bold text-primary">
+                    +{minIncrement} {auction.currencyCode ?? ""}
+                  </span>
+                </button>
               </div>
 
               {/* Numeric increment input */}
@@ -604,8 +638,8 @@ export default function AuctionDetail() {
                       type="number"
                       inputMode="numeric"
                       pattern="[0-9]*"
-                      min={MIN_INCREMENT}
-                      step={1}
+                      min={minIncrement}
+                      step={minIncrement}
                       value={incInput}
                       onChange={(e) => {
                         // Allow only digits; empty string is allowed for clearing.
@@ -617,7 +651,7 @@ export default function AuctionDetail() {
                       onKeyDown={(e) => {
                         if (e.key === "Enter") submitBid();
                       }}
-                      placeholder={String(MIN_INCREMENT)}
+                      placeholder={String(minIncrement)}
                       disabled={isBidding}
                       className="flex-1 bg-transparent py-3.5 px-2 text-white text-lg font-bold outline-none placeholder:text-white/25 disabled:opacity-50"
                       aria-label="Bid increment"
@@ -634,7 +668,7 @@ export default function AuctionDetail() {
                       New price → <span className="text-primary font-bold">{fmtPrice(previewAmount)}</span>
                     </span>
                   ) : incInput.trim() ? (
-                    <span className="text-red-400/80">Enter a whole number ≥ {MIN_INCREMENT}</span>
+                    <span className="text-red-400/80">Enter a whole number ≥ {minIncrement}</span>
                   ) : (
                     <span className="text-white/30">Type how much to add to the current price</span>
                   )}

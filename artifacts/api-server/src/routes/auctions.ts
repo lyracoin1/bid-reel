@@ -1629,8 +1629,52 @@ router.delete("/auctions/:id/signal", requireAuth, async (req, res) => {
 // ─── Gumroad checkout config ─────────────────────────────────────────────────
 // The single $1 product link. The token query-param is appended per checkout
 // so we can later reconcile the Gumroad receipt back to the (auction,user)
-// pair that created it (see /unlock/start).
-const GUMROAD_PRODUCT_URL = "https://lyracoin.gumroad.com/l/frgfn";
+// pair that created it (see /unlock/start). Overridable via env so we never
+// have to redeploy if the seller account or product slug changes.
+//
+// The env override is VALIDATED at module load: it must parse as an absolute
+// https:// URL on a *.gumroad.com host; any malformed / non-HTTPS / wrong-host
+// value silently falls back to the default and emits a warning. This prevents
+// a stray env value from sending buyers to an attacker-controlled domain.
+const GUMROAD_DEFAULT_URL = "https://bidreel.gumroad.com/l/frgfn";
+
+function resolveGumroadUrl(): string {
+  const raw = process.env["GUMROAD_PRODUCT_URL"];
+  if (!raw) return GUMROAD_DEFAULT_URL;
+  try {
+    const u = new URL(raw);
+    const okScheme = u.protocol === "https:";
+    const okHost   = u.hostname === "gumroad.com" || u.hostname.endsWith(".gumroad.com");
+    if (!okScheme || !okHost) {
+      logger.warn(
+        { raw, reason: !okScheme ? "non-https" : "non-gumroad-host" },
+        "GUMROAD_PRODUCT_URL rejected — falling back to default",
+      );
+      return GUMROAD_DEFAULT_URL;
+    }
+    return u.toString();
+  } catch (err) {
+    logger.warn(
+      { raw, err: (err as Error).message },
+      "GUMROAD_PRODUCT_URL is not a valid URL — falling back to default",
+    );
+    return GUMROAD_DEFAULT_URL;
+  }
+}
+
+const GUMROAD_PRODUCT_URL = resolveGumroadUrl();
+
+/**
+ * Append/replace the per-checkout `token` param on the configured Gumroad URL.
+ * Uses `URL.searchParams.set` so existing query params on the configured base
+ * URL (e.g. UTM tags) are preserved instead of being clobbered by string
+ * concatenation, and the token is properly URL-encoded by the WHATWG URL API.
+ */
+function buildCheckoutUrl(unlockToken: string): string {
+  const u = new URL(GUMROAD_PRODUCT_URL);
+  u.searchParams.set("token", unlockToken);
+  return u.toString();
+}
 
 // ─── POST /api/auctions/:id/unlock/start ─────────────────────────────────────
 //
@@ -1746,10 +1790,19 @@ router.post("/auctions/:id/unlock/start", requireAuth, async (req, res) => {
     }
   }
 
-  const checkoutUrl = `${GUMROAD_PRODUCT_URL}?token=${encodeURIComponent(unlockToken)}`;
+  const checkoutUrl = buildCheckoutUrl(unlockToken);
 
+  // Log the FULL final checkout URL (token included) so we can verify in
+  // production logs that the buyer is being sent to the correct Gumroad
+  // domain and that the token round-trips back via the webhook.
   logger.info(
-    { auctionId, userId, reused: !!existing?.unlock_token },
+    {
+      auctionId,
+      userId,
+      reused: !!existing?.unlock_token,
+      checkoutUrl,
+      productUrl: GUMROAD_PRODUCT_URL,
+    },
     "Unlock checkout session started",
   );
 

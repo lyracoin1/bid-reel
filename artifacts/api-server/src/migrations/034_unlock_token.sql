@@ -2,7 +2,7 @@
 --
 -- Adds a server-generated unique token to each pending unlock so we can:
 --   1. Build a Gumroad checkout URL the buyer is redirected to:
---        https://lyracoin.gumroad.com/l/frgfn?token=<unlock_token>
+--        https://bidreel.gumroad.com/l/frgfn?token=<unlock_token>
 --   2. Later (webhook hardening) match the Gumroad receipt back to the
 --      exact (auction_id, user_id) pair via this token.
 --

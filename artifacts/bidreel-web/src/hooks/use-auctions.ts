@@ -562,27 +562,35 @@ export function useUnlockAuction(auctionId: string) {
   const [lastError, setLastError] = useState<{ code: string; message: string } | null>(null);
 
   const mutate = async (
-    options: { onSuccess?: (alreadyUnlocked: boolean) => void; onError?: (code: string, message: string) => void } = {},
+    options: {
+      onUnlocked?: () => void;
+      onPending?: (status: "pending" | "none") => void;
+      onError?: (code: string, message: string) => void;
+    } = {},
   ): Promise<void> => {
     setIsPending(true);
     setLastError(null);
-    console.log(`[useUnlockAuction] Unlocking — auctionId=${auctionId}`);
+    console.log(`[useUnlockAuction] Checking unlock status — auctionId=${auctionId}`);
 
     try {
-      const { alreadyUnlocked } = await unlockAuctionApi(auctionId);
+      const { unlocked, status } = await unlockAuctionApi(auctionId);
 
-      // Optimistically flip viewerUnlocked in cache so the UI panel disappears
-      // without waiting for the network. The seller.phone field still needs a
-      // server round-trip — fire a single targeted detail refetch for that.
+      if (!unlocked) {
+        // Webhook hasn't finalised payment yet. We do NOT touch the cache —
+        // the server is the source of truth and viewerUnlocked stays false.
+        console.log(`[useUnlockAuction] ⌛ Not yet unlocked — status=${status}`);
+        options.onPending?.(status === "pending" ? "pending" : "none");
+        return;
+      }
+
+      // Server confirmed unlocked. Patch cache so the UI panel disappears
+      // immediately, then refetch detail to pull the now-visible seller.phone
+      // into the cache for the WhatsApp CTA.
       const idx = globalAuctions.findIndex((a) => a.id === auctionId);
       if (idx >= 0) {
         globalAuctions[idx] = { ...globalAuctions[idx], viewerUnlocked: true };
         notify();
       }
-
-      // Refetch detail to pull the now-visible seller.phone into the cache
-      // so the WhatsApp CTA renders. Best-effort; failure leaves the UI in
-      // its optimistic-unlocked state which is still correct for bidding.
       try {
         const { auction: rawDetail, bids: rawBids } = await _getAuctionApiForUnlockRefetch(auctionId);
         if (idx >= 0) {
@@ -593,12 +601,12 @@ export function useUnlockAuction(auctionId: string) {
         console.warn(`[useUnlockAuction] post-unlock detail refetch failed (continuing):`, refetchErr);
       }
 
-      console.log(`[useUnlockAuction] ✅ Unlocked — id=${auctionId} alreadyUnlocked=${alreadyUnlocked}`);
-      options.onSuccess?.(alreadyUnlocked);
+      console.log(`[useUnlockAuction] ✅ Unlocked (verified by webhook) — id=${auctionId}`);
+      options.onUnlocked?.();
     } catch (err: unknown) {
       const e = err as { code?: string; message?: string };
       const code = e.code ?? "UNLOCK_FAILED";
-      const message = e.message ?? "Unlock failed";
+      const message = e.message ?? "Status check failed";
       console.error(`[useUnlockAuction] ❌ ${code}: ${message}`);
       setLastError({ code, message });
       options.onError?.(code, message);

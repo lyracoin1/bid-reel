@@ -1764,26 +1764,31 @@ router.post("/auctions/:id/unlock/start", requireAuth, async (req, res) => {
 
 // ─── POST /api/auctions/:id/unlock ───────────────────────────────────────────
 //
-// Per-user, per-auction buyer unlock ("I have paid" confirmation step).
+// STATUS CHECK ONLY (since the Gumroad webhook hardening). This endpoint can
+// no longer grant unlock by itself — only the verified Gumroad webhook
+// (`/api/webhooks/gumroad/:secret`) can flip a row from 'pending' → 'paid'.
 //
-// Real payment flow:
-//   1. Buyer opens an auction detail; if not yet unlocked, sees the panel.
-//   2. Tap "Pay $1 to Unlock" → POST /unlock/start → redirected to Gumroad
-//      checkout URL (which carries our unlock_token).
-//   3. After paying on Gumroad, buyer returns and taps "I have paid".
-//   4. Frontend POSTs here. If a pending row exists for this (auction,user)
-//      it is flipped to 'paid'; otherwise a fresh paid row is created.
-//      The (auction_id, user_id) UNIQUE constraint guarantees idempotency.
+// Frontend flow now:
+//   1. Buyer opens auction; if locked, sees the panel.
+//   2. Tap "Pay $1 to Unlock" → POST /unlock/start → opens Gumroad with
+//      ?token=<unlock_token>.
+//   3. Buyer pays. Gumroad calls our webhook → row becomes 'paid'.
+//   4. Buyer returns, taps "I have paid (refresh)" → this endpoint reports
+//      the current server-side payment_status. If 'paid' → UI unlocks; if
+//      still 'pending' → UI shows "Payment not received yet, try again".
 //
-// Trust model (MVP): this endpoint trusts the buyer's "I have paid" claim.
-// A production webhook will set payment_status='paid' only after Gumroad
-// confirms the receipt for the matching unlock_token.
+// Returns:
+//   • { ok:true, unlocked:true,  unlockedAt }   — webhook has finalised payment
+//   • { ok:true, unlocked:false, status:'pending' } (HTTP 402) — no verified
+//     payment yet; bid + contact gates remain in place
+//   • { ok:true, unlocked:false, status:'none' }    (HTTP 402) — buyer never
+//     even initiated checkout; tell them to tap Pay $1 to Unlock first
 //
-// Authorization rules:
+// Authorization rules (unchanged):
 //   • Caller must be authenticated.
-//   • The auction's seller may NOT unlock their own auction (400).
-//   • Fixed-price listings are exempt from the gate entirely (400).
-//   • Soft-deleted ('removed') rows return 404.
+//   • Seller may not "unlock" their own auction (400).
+//   • Fixed-price listings are free, gate doesn't exist (400).
+//   • Soft-deleted auctions return 404.
 router.post("/auctions/:id/unlock", requireAuth, async (req, res) => {
   const auctionId = req.params["id"];
   const userId = req.user!.id;
@@ -1823,10 +1828,9 @@ router.post("/auctions/:id/unlock", requireAuth, async (req, res) => {
     return;
   }
 
-  // Look up an existing row first so we know whether this is:
-  //   • a fresh paid insert       (no row, or no token-row from /start),
-  //   • a pending→paid transition (the /start row gets flipped to 'paid'),
-  //   • or a re-click no-op       (already paid).
+  // STATUS CHECK ONLY. We never write to auction_unlocks here. The only
+  // path that can flip 'pending' → 'paid' is the Gumroad webhook (which
+  // verifies the URL-path secret + product_permalink + sale_id + token).
   const { data: existing, error: existErr } = await supabaseAdmin
     .from("auction_unlocks")
     .select("payment_status, created_at")
@@ -1841,45 +1845,29 @@ router.post("/auctions/:id/unlock", requireAuth, async (req, res) => {
   }
 
   if (existing && existing.payment_status === "paid") {
-    logger.info({ auctionId, userId }, "POST /unlock: already paid — no-op");
     res.json({
       ok: true,
+      unlocked: true,
+      status: "paid",
       unlockedAt: existing.created_at,
+      // Kept for backwards-compatibility with the existing useUnlockAuction
+      // hook which surfaces this flag to the UI.
       alreadyUnlocked: true,
     });
     return;
   }
 
-  // UPSERT to 'paid'. When a pending row exists (created by /unlock/start),
-  // this flips it; otherwise it inserts fresh. The unlock_token (if any)
-  // is intentionally preserved so a future Gumroad webhook can still match.
-  const { data: upserted, error: upErr } = await supabaseAdmin
-    .from("auction_unlocks")
-    .upsert(
-      {
-        auction_id: auctionId,
-        user_id: userId,
-        payment_status: "paid",
-        can_bid: true,
-        can_view_contact: true,
-        payment_provider: "gumroad",
-      },
-      { onConflict: "auction_id,user_id" },
-    )
-    .select("created_at")
-    .maybeSingle();
-
-  if (upErr || !upserted) {
-    logger.error({ err: upErr?.message, auctionId, userId }, "POST /unlock: upsert failed");
-    res.status(500).json({ error: "UNLOCK_FAILED", message: "Could not unlock auction." });
-    return;
-  }
-
-  logger.info(
-    { auctionId, userId, transitioned: existing?.payment_status === "pending" },
-    "Auction unlocked for buyer (MVP — trust-on-claim)",
-  );
-  res.json({ ok: true, unlockedAt: upserted.created_at, alreadyUnlocked: false });
+  // No verified Gumroad payment yet — fail-closed with a structured 402 so
+  // the frontend can show "Payment not received yet" rather than an unlock.
+  res.status(402).json({
+    ok: true,
+    unlocked: false,
+    status: existing ? existing.payment_status : "none",
+    error: "PAYMENT_NOT_VERIFIED",
+    message: existing
+      ? "Payment is still pending verification from Gumroad. Try again in a moment."
+      : "No checkout has been started for this auction yet.",
+  });
 });
 
 export default router;

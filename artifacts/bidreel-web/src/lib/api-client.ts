@@ -631,9 +631,24 @@ export async function startUnlockApi(
   };
 }
 
+// ─── Check unlock status ("I have paid (refresh)" — step 3) ──────────────────
+//
+// Real payment flow step 3: STATUS CHECK ONLY. The server never grants an
+// unlock here — only the verified Gumroad webhook can. We poll this endpoint
+// after the buyer claims they've paid so the UI can either:
+//   • flip to unlocked      (server returns 200 unlocked=true), or
+//   • show "still pending"  (server returns 402 with status='pending'|'none').
+//
+// Both 200 and 402 are STRUCTURED PAYMENT-STATUS responses and resolve
+// without throwing. We throw only on real errors (5xx, 401, validation).
 export async function unlockAuctionApi(
   auctionId: string,
-): Promise<{ ok: true; unlockedAt: string; alreadyUnlocked: boolean }> {
+): Promise<{
+  ok: true;
+  unlocked: boolean;
+  status: "paid" | "pending" | "none";
+  unlockedAt: string | null;
+}> {
   const token = await getToken();
   if (!token) { redirectToLogin(); throw new Error("Not authenticated"); }
 
@@ -644,15 +659,24 @@ export async function unlockAuctionApi(
 
   if (res.status === 401) { redirectToLogin(); throw new Error("Session expired"); }
 
-  const data = await res.json();
-  if (!res.ok) {
-    const err = data as ApiError;
-    throw Object.assign(new Error(err.message ?? "Unlock failed"), {
-      code: err.error,
-      statusCode: res.status,
-    });
+  const data = await res.json().catch(() => ({}));
+
+  // Treat the 402 PAYMENT_NOT_VERIFIED branch as a normal status response.
+  if (res.status === 200 || res.status === 402) {
+    const d = data as { unlocked?: boolean; status?: "paid" | "pending" | "none"; unlockedAt?: string };
+    return {
+      ok: true,
+      unlocked: d.unlocked === true,
+      status: d.status ?? (d.unlocked ? "paid" : "none"),
+      unlockedAt: d.unlockedAt ?? null,
+    };
   }
-  return data as { ok: true; unlockedAt: string; alreadyUnlocked: boolean };
+
+  const err = data as ApiError;
+  throw Object.assign(new Error(err.message ?? "Unlock check failed"), {
+    code: err.error,
+    statusCode: res.status,
+  });
 }
 
 export async function buyNowApi(auctionId: string): Promise<{ auction: ApiAuctionRaw }> {

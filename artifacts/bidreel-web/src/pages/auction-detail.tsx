@@ -299,9 +299,13 @@ export default function AuctionDetail() {
     startUnlock({
       onSuccess: ({ checkout_url, alreadyUnlocked }) => {
         if (alreadyUnlocked) {
-          // Server already considers this buyer paid — refetch to surface
-          // viewerUnlocked=true without making them click "I have paid".
-          unlockAuction({});
+          // Server already considers this buyer paid (verified by webhook) —
+          // refresh the cache so the locked panel disappears.
+          unlockAuction({
+            onUnlocked: () => {
+              toast({ title: lang === "ar" ? "تم فتح المزاد." : "Auction unlocked." });
+            },
+          });
           return;
         }
         if (!checkout_url) {
@@ -320,14 +324,29 @@ export default function AuctionDetail() {
     });
   }, [startUnlock, unlockAuction, lang]);
 
+  // "I have paid (refresh)" — STATUS CHECK only. The Gumroad webhook is the
+  // only path that can flip the row to 'paid'. This button asks the server
+  // for the latest verified state. If the webhook has already finalised
+  // payment, the cache flips and the panel disappears. If not, we tell the
+  // buyer their payment hasn't arrived yet (Gumroad delivery can lag a few
+  // seconds) and they can tap again.
   const handleConfirmPaid = useCallback(() => {
     unlockAuction({
-      onSuccess: () => {
-        // The hook flips viewerUnlocked in cache and refetches the detail
-        // so the seller's phone is now populated for the WhatsApp CTA. The
-        // locked panel disappears and the bid UI appears with no extra
-        // user action.
+      onUnlocked: () => {
         toast({ title: lang === "ar" ? "تم فتح المزاد." : "Auction unlocked." });
+      },
+      onPending: (status) => {
+        toast({
+          title:
+            lang === "ar"
+              ? status === "none"
+                ? "لم يتم بدء الدفع بعد. اضغط على \"ادفع 1$ لفتح المزاد\" أولاً."
+                : "لم نستلم تأكيد الدفع بعد. حاول مرة أخرى بعد لحظات."
+              : status === "none"
+                ? "Checkout hasn't been started yet. Tap \"Pay $1 to Unlock\" first."
+                : "Payment hasn't been confirmed by Gumroad yet. Try again in a moment.",
+          variant: "destructive",
+        });
       },
       onError: (_code, message) => {
         toast({ title: message, variant: "destructive" });
@@ -950,7 +969,7 @@ export default function AuctionDetail() {
                   {isUnlocking ? (
                     <><RefreshCw size={15} className="animate-spin" /> …</>
                   ) : (
-                    <><CheckCircle2 size={15} /> {lang === "ar" ? "لقد دفعت" : "I have paid"}</>
+                    <><CheckCircle2 size={15} /> {lang === "ar" ? "لقد دفعت — تحقق" : "I have paid — refresh"}</>
                   )}
                 </motion.button>
                 <button

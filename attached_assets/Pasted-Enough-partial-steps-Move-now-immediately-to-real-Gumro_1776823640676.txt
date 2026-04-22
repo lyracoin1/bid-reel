@@ -1,0 +1,55 @@
+Enough partial steps.
+
+Move now, immediately, to real Gumroad payment verification and finish the flow properly.
+
+Current status is not enough:
+- SQL is applied
+- unlock/start exists
+- checkout URL exists
+- token exists
+
+But this is still not real payment security until Gumroad itself confirms payment to the backend.
+
+Implement this now in one pass, directly and without detours.
+
+Requirements:
+1. Add a real Gumroad webhook endpoint now.
+2. Use the unlock_token to match the payment to the exact pending unlock row.
+3. Only verified Gumroad payment may set payment_status='paid'.
+4. Remove the current trust-on-claim behavior completely.
+5. POST /api/auctions/:id/unlock must no longer grant unlock by itself.
+6. "I have paid" must become refresh/check status only.
+7. Keep the current per-user/per-auction unlock model exactly as is.
+8. Keep seller-exempt behavior unchanged.
+9. Keep fixed-price flow unchanged and free.
+10. Make webhook processing idempotent.
+11. Store real Gumroad payment reference on the unlock row.
+12. Fail closed if verification is missing, invalid, duplicated, or unmatched.
+
+Implementation expectations:
+- create the webhook route
+- verify the Gumroad callback properly server-side
+- resolve the pending unlock row by unlock_token
+- mark only that exact row as paid
+- enable can_bid and can_view_contact only after verification
+- ensure duplicate webhook delivery does not duplicate state changes
+- ensure direct manual API calls cannot bypass payment anymore
+
+After implementation, run full end-to-end verification and confirm with evidence:
+1. unpaid buyer cannot see seller contact
+2. unpaid buyer cannot bid
+3. paid buyer can see seller contact
+4. paid buyer can bid
+5. paying for auction A does not unlock auction B
+6. buyer X paying does not unlock for buyer Y
+7. seller never pays for own auction
+8. fixed-price stays free and unchanged
+9. direct POST calls cannot bypass payment
+10. duplicate webhook delivery is handled safely
+
+Then give me:
+- exact files changed
+- exact SQL applied
+- exact webhook flow
+- exact final behavior
+- any remaining gaps or risks

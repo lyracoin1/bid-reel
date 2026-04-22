@@ -585,24 +585,52 @@ export async function createAuctionApi(input: CreateAuctionInput): Promise<{ auc
 // auction row (status='sold', buyer_id=current user) on success, or an error
 // like ALREADY_SOLD if another buyer won the race.
 
-// ─── Unlock auction ($1 Gumroad gate — buyer-side, per user, per auction) ────
+// ─── Start unlock (creates pending row + Gumroad checkout URL) ───────────────
 //
-// MVP "I have paid" flow: after the buyer pays via the Gumroad link in a
-// new tab, they return and click the confirm button. This POST inserts a
-// row in `auction_unlocks` for (auctionId, currentUser) so the API stops
-// redacting the seller's contact for this user on this auction and the
-// bid endpoint stops returning 402 AUCTION_NOT_UNLOCKED for them. The
-// unlock applies ONLY to (this auction, this user) — paying once does
-// not unlock other auctions, and another user remains locked.
+// Real payment flow step 1: the frontend calls this BEFORE the buyer goes
+// to Gumroad. The server creates (or reuses) a pending auction_unlocks row
+// with a unique unlock_token and returns the Gumroad checkout URL with the
+// token appended. The frontend then redirects the buyer to checkout_url.
 //
-// Possible error codes from the server:
-//   • SELLER_CANNOT_UNLOCK_OWN — caller is the auction's seller (400)
-//   • FIXED_PRICE_NO_UNLOCK    — listing is fixed-price, no gate exists (400)
-//   • NOT_FOUND                — auction id is invalid or soft-deleted (404)
-//   • LOOKUP_FAILED / UNLOCK_FAILED — server-side DB errors (500)
-//
-// Idempotent: a second call returns 200 with `alreadyUnlocked: true` and
-// the original `unlockedAt` timestamp.
+// Idempotent: re-clicking returns the same token. If the buyer has already
+// paid for this auction, server returns alreadyUnlocked=true with a null
+// checkout_url and the frontend should skip the redirect.
+export async function startUnlockApi(
+  auctionId: string,
+): Promise<{
+  ok: true;
+  status: "pending" | "paid";
+  alreadyUnlocked: boolean;
+  checkout_url: string | null;
+  unlock_token: string | null;
+}> {
+  const token = await getToken();
+  if (!token) { redirectToLogin(); throw new Error("Not authenticated"); }
+
+  const res = await fetch(`${API_BASE}/auctions/${encodeURIComponent(auctionId)}/unlock/start`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (res.status === 401) { redirectToLogin(); throw new Error("Session expired"); }
+
+  const data = await res.json();
+  if (!res.ok) {
+    const err = data as ApiError;
+    throw Object.assign(new Error(err.message ?? "Could not start unlock"), {
+      code: err.error,
+      statusCode: res.status,
+    });
+  }
+  return data as {
+    ok: true;
+    status: "pending" | "paid";
+    alreadyUnlocked: boolean;
+    checkout_url: string | null;
+    unlock_token: string | null;
+  };
+}
+
 export async function unlockAuctionApi(
   auctionId: string,
 ): Promise<{ ok: true; unlockedAt: string; alreadyUnlocked: boolean }> {

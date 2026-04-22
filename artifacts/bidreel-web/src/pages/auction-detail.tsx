@@ -10,7 +10,7 @@ import { MobileLayout } from "@/components/layout/MobileLayout";
 import { ImageSlider } from "@/components/feed/ImageSlider";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { AuctionMenu } from "@/components/AuctionMenu";
-import { useAuction, usePlaceBid, useBuyAuction, useUnlockAuction } from "@/hooks/use-auctions";
+import { useAuction, usePlaceBid, useBuyAuction, useUnlockAuction, useStartUnlock } from "@/hooks/use-auctions";
 import { useFollow } from "@/hooks/use-follow";
 import { useWatchAuction } from "@/hooks/use-watch";
 import { useBidPolling, getUserBidStatus } from "@/hooks/use-bid-polling";
@@ -283,19 +283,43 @@ export default function AuctionDetail() {
   // ── Buy Now (fixed-price) hook ────────────────────────────────────────────
   const { mutate: buyNow, isPending: isBuying } = useBuyAuction(auction.id);
 
-  // ── $1 Gumroad buyer unlock hook (per-user, per-auction) ──────────────────
-  // The Gumroad link is opened in a new tab; on return, the buyer clicks
-  // "I have paid" to flip viewerUnlocked for THIS auction (and only this
-  // one — paying once does NOT unlock other auctions). We track whether
-  // they've opened Gumroad this session so the "I have paid" confirmation
-  // only appears after they've had a chance to actually pay.
+  // ── $1 Gumroad buyer unlock — REAL checkout flow (per-user, per-auction) ──
+  // Step 1 ("Pay $1 to Unlock"): call POST /unlock/start. Server creates a
+  // pending auction_unlocks row with a unique unlock_token and returns a
+  // Gumroad checkout URL like .../l/frgfn?token=<unlock_token>. We open
+  // that URL in a new tab so the buyer can complete payment.
+  // Step 2 ("I have paid"): after the buyer returns, call POST /unlock to
+  // flip the row to 'paid' and reveal seller contact + bid UI. (Future
+  // hardening: a Gumroad webhook will do step 2 server-side via the token.)
+  const { mutate: startUnlock, isPending: isStartingCheckout } = useStartUnlock(auction.id);
   const { mutate: unlockAuction, isPending: isUnlocking } = useUnlockAuction(auction.id);
   const [hasOpenedGumroad, setHasOpenedGumroad] = useState(false);
-  const GUMROAD_URL = "https://lyracoin.gumroad.com/l/frgfn";
-  const handleOpenGumroad = useCallback(() => {
-    window.open(GUMROAD_URL, "_blank", "noopener,noreferrer");
-    setHasOpenedGumroad(true);
-  }, []);
+
+  const handleStartUnlock = useCallback(() => {
+    startUnlock({
+      onSuccess: ({ checkout_url, alreadyUnlocked }) => {
+        if (alreadyUnlocked) {
+          // Server already considers this buyer paid — refetch to surface
+          // viewerUnlocked=true without making them click "I have paid".
+          unlockAuction({});
+          return;
+        }
+        if (!checkout_url) {
+          toast({
+            title: lang === "ar" ? "تعذر بدء الدفع" : "Could not start checkout",
+            variant: "destructive",
+          });
+          return;
+        }
+        window.open(checkout_url, "_blank", "noopener,noreferrer");
+        setHasOpenedGumroad(true);
+      },
+      onError: (_code, message) => {
+        toast({ title: message, variant: "destructive" });
+      },
+    });
+  }, [startUnlock, unlockAuction, lang]);
+
   const handleConfirmPaid = useCallback(() => {
     unlockAuction({
       onSuccess: () => {
@@ -902,11 +926,18 @@ export default function AuctionDetail() {
             {!hasOpenedGumroad ? (
               <motion.button
                 whileTap={{ scale: 0.97 }}
-                onClick={handleOpenGumroad}
-                className="w-full py-3.5 rounded-xl bg-amber-500 text-black font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25"
+                onClick={handleStartUnlock}
+                disabled={isStartingCheckout}
+                className="w-full py-3.5 rounded-xl bg-amber-500 text-black font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 disabled:opacity-60"
               >
-                {lang === "ar" ? "ادفع 1$ لفتح المزاد" : "Pay $1 to Unlock"}
-                <ExternalLink size={15} />
+                {isStartingCheckout ? (
+                  <><RefreshCw size={15} className="animate-spin" /> …</>
+                ) : (
+                  <>
+                    {lang === "ar" ? "ادفع 1$ لفتح المزاد" : "Pay $1 to Unlock"}
+                    <ExternalLink size={15} />
+                  </>
+                )}
               </motion.button>
             ) : (
               <div className="space-y-2">
@@ -924,8 +955,9 @@ export default function AuctionDetail() {
                 </motion.button>
                 <button
                   type="button"
-                  onClick={handleOpenGumroad}
-                  className="w-full text-[11px] text-amber-100/70 underline underline-offset-2"
+                  onClick={handleStartUnlock}
+                  disabled={isStartingCheckout}
+                  className="w-full text-[11px] text-amber-100/70 underline underline-offset-2 disabled:opacity-60"
                 >
                   {lang === "ar" ? "إعادة فتح صفحة الدفع" : "Re-open payment page"}
                 </button>

@@ -7,6 +7,7 @@
  */
 
 import { Router } from "express";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -1625,31 +1626,162 @@ router.delete("/auctions/:id/signal", requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── Gumroad checkout config ─────────────────────────────────────────────────
+// The single $1 product link. The token query-param is appended per checkout
+// so we can later reconcile the Gumroad receipt back to the (auction,user)
+// pair that created it (see /unlock/start).
+const GUMROAD_PRODUCT_URL = "https://lyracoin.gumroad.com/l/frgfn";
+
+// ─── POST /api/auctions/:id/unlock/start ─────────────────────────────────────
+//
+// Step 1 of the real payment flow. The frontend calls this BEFORE redirecting
+// the buyer to Gumroad. We:
+//   1. Validate caller may unlock (auth, not seller, not fixed-price, exists).
+//   2. Look up any existing auction_unlocks row for (auctionId, userId).
+//      • If already 'paid'   → return alreadyUnlocked=true, no checkout.
+//      • If already 'pending'→ reuse the existing unlock_token (idempotent).
+//      • Otherwise           → INSERT a new pending row with a fresh token.
+//   3. Build the Gumroad checkout URL by appending ?token=<unlock_token> to
+//      the product URL. The token is what the future webhook will use to
+//      flip this row from 'pending' to 'paid' against the right pair.
+//
+// Returns:
+//   { ok, status: 'pending' | 'paid', alreadyUnlocked, checkout_url, unlock_token }
+//
+// The token is a server-generated UUIDv4 stored in auction_unlocks.unlock_token
+// (UNIQUE WHERE NOT NULL). It is opaque to the client — used only as a
+// receipt-matching identifier. Pending rows are kept indefinitely so that a
+// buyer who closes the tab mid-checkout can resume with the same token.
+router.post("/auctions/:id/unlock/start", requireAuth, async (req, res) => {
+  const auctionId = req.params["id"];
+  const userId = req.user!.id;
+
+  if (!auctionId) {
+    res.status(400).json({ error: "MISSING_ID", message: "Auction ID is required" });
+    return;
+  }
+
+  const { data: auction, error: fetchErr } = await supabaseAdmin
+    .from("auctions")
+    .select("id, seller_id, sale_type, status")
+    .eq("id", auctionId)
+    .maybeSingle();
+
+  if (fetchErr) {
+    logger.error({ err: fetchErr.message, auctionId }, "POST /unlock/start: lookup failed");
+    res.status(500).json({ error: "LOOKUP_FAILED", message: "Could not load auction." });
+    return;
+  }
+  if (!auction || auction.status === "removed") {
+    res.status(404).json({ error: "NOT_FOUND", message: "Auction not found" });
+    return;
+  }
+  if (auction.sale_type === "fixed") {
+    res.status(400).json({
+      error: "FIXED_PRICE_NO_UNLOCK",
+      message: "Fixed-price listings are free — no unlock needed.",
+    });
+    return;
+  }
+  if (auction.seller_id === userId) {
+    res.status(400).json({
+      error: "SELLER_CANNOT_UNLOCK_OWN",
+      message: "You don't need to unlock your own auction.",
+    });
+    return;
+  }
+
+  // Reuse an existing row when present so the same token is returned on
+  // re-clicks (idempotent). If no row exists, create one with a fresh token.
+  const { data: existing, error: existErr } = await supabaseAdmin
+    .from("auction_unlocks")
+    .select("payment_status, unlock_token")
+    .eq("auction_id", auctionId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (existErr) {
+    logger.error({ err: existErr.message, auctionId, userId }, "POST /unlock/start: existing lookup failed");
+    res.status(500).json({ error: "LOOKUP_FAILED", message: "Could not check unlock state." });
+    return;
+  }
+
+  if (existing && existing.payment_status === "paid") {
+    res.json({
+      ok: true,
+      status: "paid",
+      alreadyUnlocked: true,
+      checkout_url: null,
+      unlock_token: null,
+    });
+    return;
+  }
+
+  let unlockToken = existing?.unlock_token ?? null;
+
+  if (!unlockToken) {
+    unlockToken = randomUUID();
+    const { error: upsertErr } = await supabaseAdmin
+      .from("auction_unlocks")
+      .upsert(
+        {
+          auction_id: auctionId,
+          user_id: userId,
+          payment_status: "pending",
+          can_bid: false,
+          can_view_contact: false,
+          payment_provider: "gumroad",
+          unlock_token: unlockToken,
+        },
+        { onConflict: "auction_id,user_id" },
+      );
+
+    if (upsertErr) {
+      logger.error(
+        { err: upsertErr.message, auctionId, userId },
+        "POST /unlock/start: pending upsert failed",
+      );
+      res.status(500).json({ error: "START_FAILED", message: "Could not start unlock." });
+      return;
+    }
+  }
+
+  const checkoutUrl = `${GUMROAD_PRODUCT_URL}?token=${encodeURIComponent(unlockToken)}`;
+
+  logger.info(
+    { auctionId, userId, reused: !!existing?.unlock_token },
+    "Unlock checkout session started",
+  );
+
+  res.json({
+    ok: true,
+    status: "pending",
+    alreadyUnlocked: false,
+    checkout_url: checkoutUrl,
+    unlock_token: unlockToken,
+  });
+});
+
 // ─── POST /api/auctions/:id/unlock ───────────────────────────────────────────
 //
-// Per-user, per-auction buyer unlock ("Pay $1 to unlock bidding and seller
-// contact details for this auction.")
+// Per-user, per-auction buyer unlock ("I have paid" confirmation step).
 //
-// MVP flow:
+// Real payment flow:
 //   1. Buyer opens an auction detail; if not yet unlocked, sees the panel.
-//   2. Tap "Pay $1 to Unlock" → opens Gumroad in a new tab.
-//   3. After paying, buyer returns and taps "I have paid".
-//   4. Frontend POSTs here. We INSERT a row in `auction_unlocks` for
-//      (auctionId, currentUser) with payment_status='paid'. The row is
-//      keyed (auction_id, user_id) UNIQUE, so a second click is a no-op
-//      idempotent return. Unlock state never leaks to other users or to
-//      other auctions of the same user.
+//   2. Tap "Pay $1 to Unlock" → POST /unlock/start → redirected to Gumroad
+//      checkout URL (which carries our unlock_token).
+//   3. After paying on Gumroad, buyer returns and taps "I have paid".
+//   4. Frontend POSTs here. If a pending row exists for this (auction,user)
+//      it is flipped to 'paid'; otherwise a fresh paid row is created.
+//      The (auction_id, user_id) UNIQUE constraint guarantees idempotency.
 //
 // Trust model (MVP): this endpoint trusts the buyer's "I have paid" claim.
-// A production implementation would set payment_status to 'paid' only on a
-// verified Gumroad webhook callback that includes a receipt id we then
-// store in payment_reference.
+// A production webhook will set payment_status='paid' only after Gumroad
+// confirms the receipt for the matching unlock_token.
 //
 // Authorization rules:
 //   • Caller must be authenticated.
-//   • The auction's seller may NOT unlock their own auction (400) — they
-//     never need to (the seller is always treated as unlocked on their own
-//     listings in the redaction layer).
+//   • The auction's seller may NOT unlock their own auction (400).
 //   • Fixed-price listings are exempt from the gate entirely (400).
 //   • Soft-deleted ('removed') rows return 404.
 router.post("/auctions/:id/unlock", requireAuth, async (req, res) => {
@@ -1691,10 +1823,37 @@ router.post("/auctions/:id/unlock", requireAuth, async (req, res) => {
     return;
   }
 
-  // INSERT — UNIQUE(auction_id, user_id) guarantees idempotency. We use
-  // upsert with ignoreDuplicates so re-clicks succeed silently and the
-  // returned row count tells us if it was a fresh insert or a no-op.
-  const { data: inserted, error: insErr } = await supabaseAdmin
+  // Look up an existing row first so we know whether this is:
+  //   • a fresh paid insert       (no row, or no token-row from /start),
+  //   • a pending→paid transition (the /start row gets flipped to 'paid'),
+  //   • or a re-click no-op       (already paid).
+  const { data: existing, error: existErr } = await supabaseAdmin
+    .from("auction_unlocks")
+    .select("payment_status, created_at")
+    .eq("auction_id", auctionId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (existErr) {
+    logger.error({ err: existErr.message, auctionId, userId }, "POST /unlock: existing lookup failed");
+    res.status(500).json({ error: "LOOKUP_FAILED", message: "Could not check unlock state." });
+    return;
+  }
+
+  if (existing && existing.payment_status === "paid") {
+    logger.info({ auctionId, userId }, "POST /unlock: already paid — no-op");
+    res.json({
+      ok: true,
+      unlockedAt: existing.created_at,
+      alreadyUnlocked: true,
+    });
+    return;
+  }
+
+  // UPSERT to 'paid'. When a pending row exists (created by /unlock/start),
+  // this flips it; otherwise it inserts fresh. The unlock_token (if any)
+  // is intentionally preserved so a future Gumroad webhook can still match.
+  const { data: upserted, error: upErr } = await supabaseAdmin
     .from("auction_unlocks")
     .upsert(
       {
@@ -1705,38 +1864,22 @@ router.post("/auctions/:id/unlock", requireAuth, async (req, res) => {
         can_view_contact: true,
         payment_provider: "gumroad",
       },
-      { onConflict: "auction_id,user_id", ignoreDuplicates: true },
+      { onConflict: "auction_id,user_id" },
     )
     .select("created_at")
     .maybeSingle();
 
-  if (insErr) {
-    logger.error({ err: insErr.message, auctionId, userId }, "POST /auctions/:id/unlock: insert failed");
+  if (upErr || !upserted) {
+    logger.error({ err: upErr?.message, auctionId, userId }, "POST /unlock: upsert failed");
     res.status(500).json({ error: "UNLOCK_FAILED", message: "Could not unlock auction." });
     return;
   }
 
-  // Read back the row's created_at — when ignoreDuplicates suppressed an
-  // insert, `inserted` is null and we need to fetch the existing timestamp.
-  if (inserted) {
-    logger.info({ auctionId, userId, unlockedAt: inserted.created_at }, "Auction unlocked for buyer (MVP — trust-on-claim)");
-    res.json({ ok: true, unlockedAt: inserted.created_at, alreadyUnlocked: false });
-    return;
-  }
-
-  const { data: existing } = await supabaseAdmin
-    .from("auction_unlocks")
-    .select("created_at")
-    .eq("auction_id", auctionId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  logger.info({ auctionId, userId }, "POST /auctions/:id/unlock: already unlocked — no-op");
-  res.json({
-    ok: true,
-    unlockedAt: existing?.created_at ?? new Date().toISOString(),
-    alreadyUnlocked: true,
-  });
+  logger.info(
+    { auctionId, userId, transitioned: existing?.payment_status === "pending" },
+    "Auction unlocked for buyer (MVP — trust-on-claim)",
+  );
+  res.json({ ok: true, unlockedAt: upserted.created_at, alreadyUnlocked: false });
 });
 
 export default router;

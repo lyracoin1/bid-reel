@@ -9,6 +9,7 @@ import {
   buyNowApi,
   likeAuctionApi,
   unlikeAuctionApi,
+  startUnlockApi,
   unlockAuctionApi,
   getAuctionApi as _getAuctionApiForUnlockRefetch,
   type ApiAuctionRaw,
@@ -484,6 +485,59 @@ export function useBuyAuction(auctionId: string) {
       const code = e.code ?? 'BUY_FAILED';
       const message = e.message ?? 'Purchase failed';
       console.error(`[useBuyAuction] ❌ ${code}: ${message}`);
+      setLastError({ code, message });
+      options.onError?.(code, message);
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return { mutate, isPending, lastError };
+}
+
+// ─── useStartUnlock (real Gumroad checkout flow — step 1) ────────────────────
+//
+// Calls POST /auctions/:id/unlock/start. On success the server returns a
+// Gumroad checkout URL carrying a server-generated unlock_token. The caller
+// is expected to redirect the buyer to that URL. If the buyer has already
+// paid for this auction, alreadyUnlocked=true and checkout_url=null —
+// the caller should skip the redirect and treat the auction as unlocked.
+//
+// Idempotent: re-clicking returns the same token / checkout URL for any
+// existing pending row, so closing and reopening the panel is safe.
+export function useStartUnlock(auctionId: string) {
+  const [isPending, setIsPending] = useState(false);
+  const [lastError, setLastError] = useState<{ code: string; message: string } | null>(null);
+
+  const mutate = async (
+    options: {
+      onSuccess?: (result: {
+        checkout_url: string | null;
+        unlock_token: string | null;
+        alreadyUnlocked: boolean;
+      }) => void;
+      onError?: (code: string, message: string) => void;
+    } = {},
+  ): Promise<void> => {
+    setIsPending(true);
+    setLastError(null);
+    console.log(`[useStartUnlock] Starting checkout — auctionId=${auctionId}`);
+    try {
+      const result = await startUnlockApi(auctionId);
+      console.log(
+        `[useStartUnlock] ✅ status=${result.status} alreadyUnlocked=${result.alreadyUnlocked} ` +
+        `token=${result.unlock_token?.slice(0, 8) ?? "—"}`,
+      );
+      options.onSuccess?.({
+        checkout_url: result.checkout_url,
+        unlock_token: result.unlock_token,
+        alreadyUnlocked: result.alreadyUnlocked,
+      });
+    } catch (err: unknown) {
+      const e = err as { code?: string; message?: string };
+      const code = e.code ?? "START_FAILED";
+      const message = e.message ?? "Could not start checkout";
+      console.error(`[useStartUnlock] ❌ ${code}: ${message}`);
       setLastError({ code, message });
       options.onError?.(code, message);
     } finally {

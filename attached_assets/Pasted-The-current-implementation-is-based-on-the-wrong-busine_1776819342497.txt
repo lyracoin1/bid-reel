@@ -1,0 +1,72 @@
+The current implementation is based on the wrong business rule.
+
+You implemented seller-paid auction activation.
+That is NOT what I want.
+
+Correct business rule:
+
+1. The seller does NOT pay to activate an auction.
+2. Auction listings must be published normally and visible publicly.
+3. Buyers/users can view the auction content normally.
+4. But a user who has NOT paid must:
+   - NOT see seller contact details
+   - NOT be allowed to place bids
+5. A user who HAS paid $1 for that specific auction may:
+   - see seller contact details
+   - place bids
+6. This is buyer-side unlocking, not seller-side activation.
+7. Payment is per user per auction.
+8. Paying for one auction must NOT unlock another auction.
+9. Paying for one user must NOT unlock the same auction for all users.
+10. Fixed-price listings remain completely free:
+   - contact visible
+   - no payment gate
+
+You must redesign the implementation accordingly.
+
+Required changes:
+
+A) Remove the seller activation flow from the auction detail page.
+- Remove seller-only Gumroad activation panel
+- Remove seller-side "I have paid" activation logic
+- Remove per-auction global activation behavior
+
+B) Introduce per-user per-auction access control.
+Add a new table design for something like auction_access / auction_unlocks:
+- id
+- auction_id
+- user_id
+- payment_status
+- can_bid
+- can_view_contact
+- created_at
+- updated_at
+- optional payment reference/provider fields
+
+C) Runtime behavior:
+- Auction detail is public
+- If current user is NOT seller and has not unlocked:
+  - hide seller contact
+  - block bid action
+  - show a buyer-side payment panel:
+    "Pay $1 to unlock bidding and seller contact details for this auction."
+    "This payment applies only to this auction."
+- If current user has unlocked:
+  - show contact
+  - allow bidding
+
+D) API changes:
+- contact redaction must become viewer-specific, not globally auction-specific
+- bidding permission must become viewer-specific, not globally auction-specific
+
+E) Temporary MVP payment behavior:
+- Open Gumroad link in new tab
+- Show buyer-side "I have paid" button
+- That button must unlock access ONLY for the current user and ONLY for the current auction
+- It must NOT activate the whole auction globally
+
+F) Keep fixed-price listings unchanged and free.
+
+Do not partially patch this.
+I need a proper redesign based on the correct rule: buyer pays, not seller.
+First give me the exact implementation plan and affected files before coding.

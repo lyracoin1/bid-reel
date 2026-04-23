@@ -1,0 +1,116 @@
+You are a senior full-stack engineer working on the BidReel project.
+
+Your task is to COMPLETELY REMOVE all payment-related functionality from BOTH frontend and backend, specifically anything related to Gumroad or any external payment flow.
+
+IMPORTANT RULES:
+
+* Do NOT break auctions, bidding, or user flows
+* Do NOT remove core auction logic
+* Only remove payment-related logic and UI
+* App must still allow browsing, bidding, and creating auctions (without payment restriction)
+
+========================
+FRONTEND TASKS (React + Vite)
+=============================
+
+1. Remove ALL UI elements related to payments:
+
+* Buttons like "Pay", "Unlock", "Activate after payment"
+* Any Gumroad links or redirects
+* Any modal mentioning payment
+* Any "I have paid" confirmation UI
+
+2. Update auction creation flow:
+
+* Remove any "payment required" gating
+* Allow auction creation directly (no payment check)
+
+3. Remove any references to:
+
+* gumroad
+* payment
+* checkout
+* pricing
+* paid activation
+
+4. Clean up environment usage:
+
+* Remove any usage of Gumroad URLs or payment configs
+
+5. Ensure:
+
+* App runs without errors
+* No broken imports
+* No unused variables related to payments
+
+========================
+BACKEND TASKS (Express API)
+===========================
+
+1. Remove ALL payment-related routes:
+
+* /api/payment/*
+* /api/gumroad/*
+* /api/activate-after-payment
+* /api/admin/payment*
+
+2. Remove logic that:
+
+* Checks if auction is "paid"
+* Blocks auction creation until payment
+* Handles payment verification
+
+3. Update auction logic:
+
+* Auction should be created immediately without payment validation
+
+4. Remove:
+
+* Gumroad webhook handlers
+* Payment verification logic
+* Payment-related DB fields if they are not required
+
+(If DB fields exist like "is_paid", "payment_status":
+→ keep them but IGNORE them in logic, do NOT break schema)
+
+========================
+GENERAL CLEANUP
+===============
+
+1. Search globally and remove:
+
+* "gumroad"
+* "payment"
+* "checkout"
+* "activate after payment"
+* "unlock after payment"
+
+2. Fix any TypeScript errors caused by removals
+
+3. Ensure app still:
+
+* Loads auctions
+* Allows bidding
+* Allows creating auctions
+* Sends WhatsApp contact normally
+
+========================
+FINAL STEP
+==========
+
+After completing:
+
+* Run build
+* Fix any errors
+* Confirm app works without payment system
+
+Then provide:
+
+1. List of files changed
+2. Summary of what was removed
+3. Confirmation that no payment logic remains
+
+DO NOT ADD any new payment system.
+DO NOT modify unrelated logic.
+
+Focus ONLY on removing payment completely and safely.

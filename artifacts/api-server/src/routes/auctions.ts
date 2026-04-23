@@ -23,7 +23,6 @@ import { assertOwnedMediaUrl } from "../lib/r2";
 import { buildUserFeedContext, scoreAuction } from "../lib/feed-ranking";
 import { recordEngagement } from "./views";
 import {
-  unlockStartLimiter,
   buyNowLimiter,
   markSoldLimiter,
 } from "../middleware/rate-limit";
@@ -114,84 +113,6 @@ function normalizeAuction(a: any): any {
   };
 }
 
-/**
- * Buyer-side $2 unlock model (migration 032 — auction_unlocks table).
- *
- * For each (auction, viewer) pair the API decides whether the viewer is
- * "unlocked". Unlocked viewers see the seller's phone and may place bids;
- * locked viewers get a redacted seller (phone=null) and 402 from the bid
- * endpoint. The seller of an auction is always treated as unlocked on
- * their own listing (they never pay to access their own auction). Fixed-
- * price listings (sale_type='fixed') are exempt from the gate entirely.
- *
- * The {@link loadUnlockedAuctionIdsForUser} helper does ONE query for
- * a batch of auction ids so the public feed pays a single round-trip
- * regardless of page size.
- */
-async function loadUnlockedAuctionIdsForUser(
-  userId: string | null,
-  auctionIds: string[],
-): Promise<Set<string>> {
-  if (!userId || auctionIds.length === 0) return new Set();
-  const { data, error } = await supabaseAdmin
-    .from("auction_unlocks")
-    .select("auction_id")
-    .eq("user_id", userId)
-    .eq("payment_status", "paid")
-    .eq("can_view_contact", true)
-    .in("auction_id", auctionIds);
-  if (error) {
-    // Log + fail closed (treat user as locked). Schema-cache hiccups should
-    // not silently un-redact phone numbers.
-    logger.warn(
-      { err: error.message, userId, count: auctionIds.length },
-      "loadUnlockedAuctionIdsForUser: query failed — treating as locked",
-    );
-    return new Set();
-  }
-  return new Set((data ?? []).map((r) => r.auction_id as string));
-}
-
-/**
- * Decide whether the calling viewer can see contact / bid on this auction.
- * Returns true for fixed-price listings, for the auction's own seller, or
- * when the viewer has a paid unlock row. False otherwise (including when
- * viewer is anonymous).
- */
-function isUnlockedForViewer(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  auction: any,
-  viewerId: string | null,
-  unlockedAuctionIds: Set<string>,
-): boolean {
-  if (!auction) return false;
-  if (auction.sale_type === "fixed") return true;
-  if (viewerId && auction.seller_id === viewerId) return true;
-  return unlockedAuctionIds.has(auction.id as string);
-}
-
-/**
- * Strip the seller's phone number from a seller profile if the calling
- * viewer is not unlocked for this specific auction. Other profile fields
- * (name, avatar, username) stay so the UI can still show "Listed by
- * @username" — only the contact channel is gated.
- *
- * Always returns a NEW object when redacting; never mutates input.
- */
-function redactSellerForViewer(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  auction: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  seller: any,
-  viewerId: string | null,
-  unlockedAuctionIds: Set<string>,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): any {
-  if (!seller) return seller;
-  if (isUnlockedForViewer(auction, viewerId, unlockedAuctionIds)) return seller;
-  return { ...seller, phone: null };
-}
-
 /** Best-effort viewer id from the Authorization header. Returns null on any failure. */
 async function getViewerIdFromAuthHeader(authHeader: string | undefined): Promise<string | null> {
   if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
@@ -278,7 +199,6 @@ router.get("/auctions", async (req, res) => {
     seller: (typeof profileMap extends Map<string, infer V> ? V : null) | null;
     user_signal: "interested" | "not_interested" | null;
     views_count: number;
-    viewer_unlocked: boolean;
   };
 
   // ── Cursor for next page ──────────────────────────────────────────────────
@@ -290,21 +210,12 @@ router.get("/auctions", async (req, res) => {
     ? (rawItems[rawItems.length - 1].created_at as string)
     : null;
 
-  // ── Per-viewer unlock resolution (migration 032 — buyer-side $2 gate) ────
-  // ONE batch query against auction_unlocks for the visible page. For
-  // anonymous viewers viewerId is null and the helper returns an empty set
-  // (everything stays locked).
-  const viewerId = await getViewerIdFromAuthHeader(req.headers["authorization"] as string | undefined);
-  const unlockedAuctionIds = await loadUnlockedAuctionIdsForUser(viewerId, auctionIds);
-
+  // Seller contact is always visible — no buyer-side payment gate.
   let feed: AuctionWithMeta[] = rawItems.map((a) => ({
     ...normalizeAuction(a),
-    // Redact seller phone unless this viewer is unlocked for this auction.
-    // Fixed-price listings and the seller's own listings are never redacted.
-    seller: redactSellerForViewer(a, profileMap.get(a.seller_id) ?? null, viewerId, unlockedAuctionIds),
+    seller: profileMap.get(a.seller_id) ?? null,
     user_signal: null as "interested" | "not_interested" | null,
     views_count: viewMap.get(a.id as string) ?? 0,
-    viewer_unlocked: isUnlockedForViewer(a, viewerId, unlockedAuctionIds),
   }));
 
   // ── Feed intelligence ranking (optional — skipped for unauthenticated) ──────
@@ -410,15 +321,10 @@ router.get("/auctions/mine", requireAuth, async (req, res) => {
     .eq("id", userId)
     .maybeSingle();
 
-  // NOTE: This is the seller's OWN auctions endpoint. The seller is always
-  // "unlocked" on their own listings (they never pay to access their own
-  // contact info), so we never redact here. viewer_unlocked is also set to
-  // true for every row so the response shape matches the public feed.
   const feed = (auctions ?? []).map((a) => ({
     ...normalizeAuction(a),
     seller: profile ?? null,
     user_signal: null,
-    viewer_unlocked: true,
   }));
 
   logger.info({ userId, count: feed.length }, "GET /auctions/mine → returning seller auctions");
@@ -653,21 +559,10 @@ router.get("/auctions/:id", async (req, res) => {
 
   const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
 
-  // ── Per-viewer unlock resolution (migration 032 — buyer-side $2 gate) ──
-  // Single (auction, viewer) lookup. callerId is set above from the optional
-  // Bearer token — anonymous viewers stay locked.
-  const unlockedAuctionIds = await loadUnlockedAuctionIdsForUser(callerId, [id]);
-  const viewerUnlocked = isUnlockedForViewer(auctionData, callerId, unlockedAuctionIds);
-
+  // Seller contact is always visible — no buyer-side payment gate.
   const auctionWithSeller = {
     ...normalizeAuction(auctionData),
-    seller: redactSellerForViewer(
-      auctionData,
-      profileMap.get(auctionData.seller_id) ?? null,
-      callerId,
-      unlockedAuctionIds,
-    ),
-    viewer_unlocked: viewerUnlocked,
+    seller: profileMap.get(auctionData.seller_id) ?? null,
   };
 
   const bidsWithBidders = bids.map((b) => ({
@@ -1131,25 +1026,6 @@ async function executePlaceBid(
   // 3a. Fixed-price listings do not accept bids — they use POST /:id/buy.
   if (auction.sale_type === "fixed") {
     return { ok: false, status: 409, body: { error: "FIXED_PRICE_LISTING", message: "This is a fixed-price listing — use Buy Now instead." } };
-  }
-
-  // 3a-bis. Buyer-side unlock gate (migration 032). Auction listings
-  // (sale_type='auction') require the BIDDER to have paid $2 for THIS
-  // specific auction before they can bid. Fixed-price is exempt (handled
-  // above). The seller of an auction never needs to pay (handled at step
-  // 4 below — own-auction → 403 SELLER_CANNOT_BID). For everyone else,
-  // we look up the unlock row and reject with 402 if missing. Failing
-  // closed: a query error here also returns 402, never silently allows.
-  const unlockSet = await loadUnlockedAuctionIdsForUser(userId, [auctionId]);
-  if (auction.seller_id !== userId && !unlockSet.has(auctionId)) {
-    return {
-      ok: false,
-      status: 402,
-      body: {
-        error: "AUCTION_NOT_UNLOCKED",
-        message: "Pay $2 to unlock bidding for this auction.",
-      },
-    };
   }
 
   // 3b. A 'sold' or 'reserved' listing cannot receive bids either.
@@ -1726,298 +1602,6 @@ router.delete("/auctions/:id/signal", requireAuth, async (req, res) => {
     .eq("auction_id", req.params.id);
 
   res.json({ ok: true });
-});
-
-// ─── Gumroad checkout config ─────────────────────────────────────────────────
-// The single $2 product link. The token query-param is appended per checkout
-// so we can later reconcile the Gumroad receipt back to the (auction,user)
-// pair that created it (see /unlock/start). Overridable via env so we never
-// have to redeploy if the seller account or product slug changes.
-//
-// The env override is VALIDATED at module load: it must parse as an absolute
-// https:// URL on a *.gumroad.com host; any malformed / non-HTTPS / wrong-host
-// value silently falls back to the default and emits a warning. This prevents
-// a stray env value from sending buyers to an attacker-controlled domain.
-const GUMROAD_DEFAULT_URL = "https://bidreel.gumroad.com/l/frgfn";
-
-function resolveGumroadUrl(): string {
-  const raw = process.env["GUMROAD_PRODUCT_URL"];
-  if (!raw) return GUMROAD_DEFAULT_URL;
-  try {
-    const u = new URL(raw);
-    const okScheme = u.protocol === "https:";
-    const okHost   = u.hostname === "gumroad.com" || u.hostname.endsWith(".gumroad.com");
-    if (!okScheme || !okHost) {
-      logger.warn(
-        { raw, reason: !okScheme ? "non-https" : "non-gumroad-host" },
-        "GUMROAD_PRODUCT_URL rejected — falling back to default",
-      );
-      return GUMROAD_DEFAULT_URL;
-    }
-    return u.toString();
-  } catch (err) {
-    logger.warn(
-      { raw, err: (err as Error).message },
-      "GUMROAD_PRODUCT_URL is not a valid URL — falling back to default",
-    );
-    return GUMROAD_DEFAULT_URL;
-  }
-}
-
-const GUMROAD_PRODUCT_URL = resolveGumroadUrl();
-
-/**
- * Append/replace the per-checkout `token` param on the configured Gumroad URL.
- * Uses `URL.searchParams.set` so existing query params on the configured base
- * URL (e.g. UTM tags) are preserved instead of being clobbered by string
- * concatenation, and the token is properly URL-encoded by the WHATWG URL API.
- */
-function buildCheckoutUrl(unlockToken: string): string {
-  const u = new URL(GUMROAD_PRODUCT_URL);
-  u.searchParams.set("token", unlockToken);
-  return u.toString();
-}
-
-// ─── POST /api/auctions/:id/unlock/start ─────────────────────────────────────
-//
-// Step 1 of the real payment flow. The frontend calls this BEFORE redirecting
-// the buyer to Gumroad. We:
-//   1. Validate caller may unlock (auth, not seller, not fixed-price, exists).
-//   2. Look up any existing auction_unlocks row for (auctionId, userId).
-//      • If already 'paid'   → return alreadyUnlocked=true, no checkout.
-//      • If already 'pending'→ reuse the existing unlock_token (idempotent).
-//      • Otherwise           → INSERT a new pending row with a fresh token.
-//   3. Build the Gumroad checkout URL by appending ?token=<unlock_token> to
-//      the product URL. The token is what the future webhook will use to
-//      flip this row from 'pending' to 'paid' against the right pair.
-//
-// Returns:
-//   { ok, status: 'pending' | 'paid', alreadyUnlocked, checkout_url, unlock_token }
-//
-// The token is a server-generated UUIDv4 stored in auction_unlocks.unlock_token
-// (UNIQUE WHERE NOT NULL). It is opaque to the client — used only as a
-// receipt-matching identifier. Pending rows are kept indefinitely so that a
-// buyer who closes the tab mid-checkout can resume with the same token.
-router.post("/auctions/:id/unlock/start", requireAuth, unlockStartLimiter, async (req, res) => {
-  const auctionId = req.params["id"];
-  const userId = req.user!.id;
-
-  if (!auctionId) {
-    res.status(400).json({ error: "MISSING_ID", message: "Auction ID is required" });
-    return;
-  }
-
-  const { data: auction, error: fetchErr } = await supabaseAdmin
-    .from("auctions")
-    .select("id, seller_id, sale_type, status")
-    .eq("id", auctionId)
-    .maybeSingle();
-
-  if (fetchErr) {
-    logger.error({ err: fetchErr.message, auctionId }, "POST /unlock/start: lookup failed");
-    res.status(500).json({ error: "LOOKUP_FAILED", message: "Could not load auction." });
-    return;
-  }
-  if (!auction || auction.status === "removed") {
-    res.status(404).json({ error: "NOT_FOUND", message: "Auction not found" });
-    return;
-  }
-  if (auction.sale_type === "fixed") {
-    res.status(400).json({
-      error: "FIXED_PRICE_NO_UNLOCK",
-      message: "Fixed-price listings are free — no unlock needed.",
-    });
-    return;
-  }
-  if (auction.seller_id === userId) {
-    res.status(400).json({
-      error: "SELLER_CANNOT_UNLOCK_OWN",
-      message: "You don't need to unlock your own auction.",
-    });
-    return;
-  }
-
-  // Reuse an existing row when present so the same token is returned on
-  // re-clicks (idempotent). If no row exists, create one with a fresh token.
-  const { data: existing, error: existErr } = await supabaseAdmin
-    .from("auction_unlocks")
-    .select("payment_status, unlock_token")
-    .eq("auction_id", auctionId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (existErr) {
-    logger.error({ err: existErr.message, auctionId, userId }, "POST /unlock/start: existing lookup failed");
-    res.status(500).json({ error: "LOOKUP_FAILED", message: "Could not check unlock state." });
-    return;
-  }
-
-  if (existing && existing.payment_status === "paid") {
-    res.json({
-      ok: true,
-      status: "paid",
-      alreadyUnlocked: true,
-      checkout_url: null,
-      unlock_token: null,
-    });
-    return;
-  }
-
-  let unlockToken = existing?.unlock_token ?? null;
-
-  if (!unlockToken) {
-    unlockToken = randomUUID();
-    const { error: upsertErr } = await supabaseAdmin
-      .from("auction_unlocks")
-      .upsert(
-        {
-          auction_id: auctionId,
-          user_id: userId,
-          payment_status: "pending",
-          can_bid: false,
-          can_view_contact: false,
-          payment_provider: "gumroad",
-          unlock_token: unlockToken,
-        },
-        { onConflict: "auction_id,user_id" },
-      );
-
-    if (upsertErr) {
-      logger.error(
-        { err: upsertErr.message, auctionId, userId },
-        "POST /unlock/start: pending upsert failed",
-      );
-      res.status(500).json({ error: "START_FAILED", message: "Could not start unlock." });
-      return;
-    }
-  }
-
-  const checkoutUrl = buildCheckoutUrl(unlockToken);
-
-  // Production log: do NOT include the full checkoutUrl or unlock_token —
-  // they are bearer-equivalent receipts that map back to a specific
-  // (auction,user) pair. Log only the (auction,user) tuple plus whether
-  // we reused a pending row, which is enough to debug ops issues.
-  logger.info(
-    { auctionId, userId, reused: !!existing?.unlock_token },
-    "Unlock checkout session started",
-  );
-
-  res.json({
-    ok: true,
-    status: "pending",
-    alreadyUnlocked: false,
-    checkout_url: checkoutUrl,
-    unlock_token: unlockToken,
-  });
-});
-
-// ─── POST /api/auctions/:id/unlock ───────────────────────────────────────────
-//
-// STATUS CHECK ONLY (since the Gumroad webhook hardening). This endpoint can
-// no longer grant unlock by itself — only the verified Gumroad webhook
-// (`/api/webhooks/gumroad/:secret`) can flip a row from 'pending' → 'paid'.
-//
-// Frontend flow now:
-//   1. Buyer opens auction; if locked, sees the panel.
-//   2. Tap "Pay $2 to Unlock" → POST /unlock/start → opens Gumroad with
-//      ?token=<unlock_token>.
-//   3. Buyer pays. Gumroad calls our webhook → row becomes 'paid'.
-//   4. Buyer returns, taps "I have paid (refresh)" → this endpoint reports
-//      the current server-side payment_status. If 'paid' → UI unlocks; if
-//      still 'pending' → UI shows "Payment not received yet, try again".
-//
-// Returns:
-//   • { ok:true, unlocked:true,  unlockedAt }   — webhook has finalised payment
-//   • { ok:true, unlocked:false, status:'pending' } (HTTP 402) — no verified
-//     payment yet; bid + contact gates remain in place
-//   • { ok:true, unlocked:false, status:'none' }    (HTTP 402) — buyer never
-//     even initiated checkout; tell them to tap Pay $2 to Unlock first
-//
-// Authorization rules (unchanged):
-//   • Caller must be authenticated.
-//   • Seller may not "unlock" their own auction (400).
-//   • Fixed-price listings are free, gate doesn't exist (400).
-//   • Soft-deleted auctions return 404.
-router.post("/auctions/:id/unlock", requireAuth, async (req, res) => {
-  const auctionId = req.params["id"];
-  const userId = req.user!.id;
-
-  if (!auctionId) {
-    res.status(400).json({ error: "MISSING_ID", message: "Auction ID is required" });
-    return;
-  }
-
-  const { data: auction, error: fetchErr } = await supabaseAdmin
-    .from("auctions")
-    .select("id, seller_id, sale_type, status")
-    .eq("id", auctionId)
-    .maybeSingle();
-
-  if (fetchErr) {
-    logger.error({ err: fetchErr.message, auctionId }, "POST /auctions/:id/unlock: lookup failed");
-    res.status(500).json({ error: "LOOKUP_FAILED", message: "Could not load auction." });
-    return;
-  }
-  if (!auction || auction.status === "removed") {
-    res.status(404).json({ error: "NOT_FOUND", message: "Auction not found" });
-    return;
-  }
-  if (auction.sale_type === "fixed") {
-    res.status(400).json({
-      error: "FIXED_PRICE_NO_UNLOCK",
-      message: "Fixed-price listings are free — no unlock needed.",
-    });
-    return;
-  }
-  if (auction.seller_id === userId) {
-    res.status(400).json({
-      error: "SELLER_CANNOT_UNLOCK_OWN",
-      message: "You don't need to unlock your own auction.",
-    });
-    return;
-  }
-
-  // STATUS CHECK ONLY. We never write to auction_unlocks here. The only
-  // path that can flip 'pending' → 'paid' is the Gumroad webhook (which
-  // verifies the URL-path secret + product_permalink + sale_id + token).
-  const { data: existing, error: existErr } = await supabaseAdmin
-    .from("auction_unlocks")
-    .select("payment_status, created_at")
-    .eq("auction_id", auctionId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (existErr) {
-    logger.error({ err: existErr.message, auctionId, userId }, "POST /unlock: existing lookup failed");
-    res.status(500).json({ error: "LOOKUP_FAILED", message: "Could not check unlock state." });
-    return;
-  }
-
-  if (existing && existing.payment_status === "paid") {
-    res.json({
-      ok: true,
-      unlocked: true,
-      status: "paid",
-      unlockedAt: existing.created_at,
-      // Kept for backwards-compatibility with the existing useUnlockAuction
-      // hook which surfaces this flag to the UI.
-      alreadyUnlocked: true,
-    });
-    return;
-  }
-
-  // No verified Gumroad payment yet — fail-closed with a structured 402 so
-  // the frontend can show "Payment not received yet" rather than an unlock.
-  res.status(402).json({
-    ok: true,
-    unlocked: false,
-    status: existing ? existing.payment_status : "none",
-    error: "PAYMENT_NOT_VERIFIED",
-    message: existing
-      ? "Payment is still pending verification from Gumroad. Try again in a moment."
-      : "No checkout has been started for this auction yet.",
-  });
 });
 
 export default router;

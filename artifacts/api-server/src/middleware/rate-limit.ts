@@ -2,9 +2,8 @@
  * In-process rate limiters used to protect a few high-blast-radius endpoints.
  *
  * These are intentionally small and conservative — they exist to absorb
- * casual abuse (one buyer hammering "Pay $2 to Unlock" 200 times, an attacker
- * brute-forcing the webhook secret URL) rather than to be a full DDoS shield.
- * For the latter, rely on the platform/CDN edge.
+ * casual abuse (e.g. retry storms on Buy Now / Mark Sold) rather than to be
+ * a full DDoS shield. For the latter, rely on the platform/CDN edge.
  *
  * Limits chosen to be comfortably above any human-driven flow but well below
  * what a script could do unattended.
@@ -34,18 +33,6 @@ const baseOptions: Partial<Options> = {
 };
 
 /**
- * Buyer-driven "start a Gumroad checkout" endpoint. Each call writes a
- * pending row + issues a fresh unlock_token, so we cap to 10/min/buyer to
- * make scripted token-mining noisy. Real users tap once.
- */
-export const unlockStartLimiter = rateLimit({
-  ...baseOptions,
-  windowMs: 60_000,
-  limit: 10,
-  keyGenerator: keyByUserOrIp,
-});
-
-/**
  * Buy-now (fixed-price) endpoint. The endpoint is already idempotent via the
  * status-CAS UPDATE, but we cap to 30/min/buyer as a defence against retry
  * storms or a runaway client-side loop.
@@ -55,19 +42,6 @@ export const buyNowLimiter = rateLimit({
   windowMs: 60_000,
   limit: 30,
   keyGenerator: keyByUserOrIp,
-});
-
-/**
- * Gumroad webhook endpoint. The URL is unauthenticated (the path-secret is
- * the auth) so we cap by IP to make secret-brute-forcing infeasible. Real
- * Gumroad delivery volume is far below this.
- */
-export const webhookLimiter = rateLimit({
-  ...baseOptions,
-  windowMs: 60_000,
-  limit: 60,
-  // Always key by IP for the webhook — there's no authenticated user.
-  keyGenerator: (req: Request) => `ip:${ipKeyGenerator(req.ip ?? "unknown")}`,
 });
 
 /**

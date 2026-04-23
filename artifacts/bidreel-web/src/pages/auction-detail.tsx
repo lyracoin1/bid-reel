@@ -3,14 +3,14 @@ import { useParams, useLocation } from "wouter";
 import {
   ArrowLeft, ArrowDown, Clock, TrendingUp, Gavel,
   Bell, Trophy, RefreshCw, ChevronDown, MapPin, Volume2, VolumeX, Eye,
-  ShieldAlert, CheckCircle2, Lock, ExternalLink,
+  ShieldAlert, CheckCircle2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { ImageSlider } from "@/components/feed/ImageSlider";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { AuctionMenu } from "@/components/AuctionMenu";
-import { useAuction, usePlaceBid, useBuyAuction, useMarkSold, useUnlockAuction, useStartUnlock } from "@/hooks/use-auctions";
+import { useAuction, usePlaceBid, useBuyAuction, useMarkSold } from "@/hooks/use-auctions";
 import { useFollow } from "@/hooks/use-follow";
 import { useWatchAuction } from "@/hooks/use-watch";
 import { useBidPolling, getUserBidStatus } from "@/hooks/use-bid-polling";
@@ -290,19 +290,9 @@ export default function AuctionDetail() {
   const isSold = auction.status === "sold";
   const isReserved = auction.status === "reserved";
 
-  // ── $2 per-viewer-per-auction unlock gate (MVP — buyer side) ──────────────
-  // Only applies to auction-type listings. Fixed-price is always free with
-  // visible seller contact. The seller of an auction is also always treated
-  // as unlocked on their own listing — they never pay to access their own
-  // auction. Server is the source of truth via `viewer_unlocked`; the UI
-  // fails closed (locked) when the field is missing.
-  const isLocked = !isFixedPrice && !isSeller && auction.viewerUnlocked !== true;
-
   // ── Can the current user bid? ─────────────────────────────────────────────
   // Bidding only applies to live auctions; fixed-price uses Buy Now instead.
-  // Locked viewers (haven't paid $2 for this auction) cannot bid until they
-  // unlock — server enforces with 402 AUCTION_NOT_UNLOCKED.
-  const canBid = state === "active" && !isSeller && !isFixedPrice && !isSold && !isReserved && !isLocked;
+  const canBid = state === "active" && !isSeller && !isFixedPrice && !isSold && !isReserved;
 
   // ── Buy Now (fixed-price) hook ────────────────────────────────────────────
   const { mutate: buyNow, isPending: isBuying } = useBuyAuction(auction.id);
@@ -328,76 +318,6 @@ export default function AuctionDetail() {
     });
   }, [markSold, lang]);
 
-  // ── $2 Gumroad buyer unlock — REAL checkout flow (per-user, per-auction) ──
-  // Step 1 ("Pay $2 to Unlock"): call POST /unlock/start. Server creates a
-  // pending auction_unlocks row with a unique unlock_token and returns a
-  // Gumroad checkout URL like .../l/frgfn?token=<unlock_token>. We open
-  // that URL in a new tab so the buyer can complete payment.
-  // Step 2 ("I have paid"): after the buyer returns, call POST /unlock to
-  // flip the row to 'paid' and reveal seller contact + bid UI. (Future
-  // hardening: a Gumroad webhook will do step 2 server-side via the token.)
-  const { mutate: startUnlock, isPending: isStartingCheckout } = useStartUnlock(auction.id);
-  const { mutate: unlockAuction, isPending: isUnlocking } = useUnlockAuction(auction.id);
-  const [hasOpenedGumroad, setHasOpenedGumroad] = useState(false);
-
-  const handleStartUnlock = useCallback(() => {
-    startUnlock({
-      onSuccess: ({ checkout_url, alreadyUnlocked }) => {
-        if (alreadyUnlocked) {
-          // Server already considers this buyer paid (verified by webhook) —
-          // refresh the cache so the locked panel disappears.
-          unlockAuction({
-            onUnlocked: () => {
-              toast({ title: lang === "ar" ? "تم فتح المزاد." : "Auction unlocked." });
-            },
-          });
-          return;
-        }
-        if (!checkout_url) {
-          toast({
-            title: lang === "ar" ? "تعذر بدء الدفع" : "Could not start checkout",
-            variant: "destructive",
-          });
-          return;
-        }
-        window.open(checkout_url, "_blank", "noopener,noreferrer");
-        setHasOpenedGumroad(true);
-      },
-      onError: (_code, message) => {
-        toast({ title: message, variant: "destructive" });
-      },
-    });
-  }, [startUnlock, unlockAuction, lang]);
-
-  // "I have paid (refresh)" — STATUS CHECK only. The Gumroad webhook is the
-  // only path that can flip the row to 'paid'. This button asks the server
-  // for the latest verified state. If the webhook has already finalised
-  // payment, the cache flips and the panel disappears. If not, we tell the
-  // buyer their payment hasn't arrived yet (Gumroad delivery can lag a few
-  // seconds) and they can tap again.
-  const handleConfirmPaid = useCallback(() => {
-    unlockAuction({
-      onUnlocked: () => {
-        toast({ title: lang === "ar" ? "تم فتح المزاد." : "Auction unlocked." });
-      },
-      onPending: (status) => {
-        toast({
-          title:
-            lang === "ar"
-              ? status === "none"
-                ? "لم يتم بدء الدفع بعد. اضغط على \"ادفع 2$ لفتح المزاد\" أولاً."
-                : "لم نستلم تأكيد الدفع بعد. حاول مرة أخرى بعد لحظات."
-              : status === "none"
-                ? "Checkout hasn't been started yet. Tap \"Pay $2 to Unlock\" first."
-                : "Payment hasn't been confirmed by Gumroad yet. Try again in a moment.",
-          variant: "destructive",
-        });
-      },
-      onError: (_code, message) => {
-        toast({ title: message, variant: "destructive" });
-      },
-    });
-  }, [unlockAuction, lang]);
   const handleBuyNow = useCallback(() => {
     if (!window.confirm(t("buy_now_confirm"))) return;
     buyNow({
@@ -987,75 +907,6 @@ export default function AuctionDetail() {
           <div className="w-full py-4 rounded-2xl bg-white/6 border border-white/10 flex items-center justify-center text-white/40 font-bold text-base gap-2">
             <Gavel size={20} />
             {t("auction_closed")}
-          </div>
-        ) : isLocked ? (
-          /* ── $2 Gumroad BUYER unlock panel ───────────────────────────────
-             Per-user, per-auction unlock (migration 032). Two-step MVP
-             "I have paid" flow:
-             (a) Tap "Pay $2 to Unlock" → opens Gumroad in new tab
-             (b) On return, tap "I have paid" → inserts auction_unlocks row
-                 for (this auction, current buyer) and flips viewerUnlocked
-                 in cache, revealing seller contact + bid UI.
-             The button label switches once the user has opened Gumroad in
-             this session (`hasOpenedGumroad`). Copy is spec-locked verbatim
-             in EN + AR. The seller branch never reaches this code path —
-             isLocked excludes isSeller above. */
-          <div className="w-full rounded-2xl bg-amber-500/10 border border-amber-500/35 p-4 space-y-3">
-            <div className="flex items-start gap-2.5">
-              <Lock size={18} className="text-amber-300 shrink-0 mt-0.5" />
-              <div className="space-y-1 text-start">
-                <p className="text-sm font-bold text-amber-200 leading-snug">
-                  {lang === "ar"
-                    ? "ادفع 2$ لفتح المزايدة وتفاصيل التواصل مع البائع لهذا المزاد."
-                    : "Pay $2 to unlock bidding and seller contact details for this auction."}
-                </p>
-                <p className="text-[11px] text-amber-100/70 leading-snug">
-                  {lang === "ar"
-                    ? "هذا الدفع يخص هذا المزاد فقط."
-                    : "This payment applies only to this auction."}
-                </p>
-              </div>
-            </div>
-            {!hasOpenedGumroad ? (
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={handleStartUnlock}
-                disabled={isStartingCheckout}
-                className="w-full py-3.5 rounded-xl bg-amber-500 text-black font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 disabled:opacity-60"
-              >
-                {isStartingCheckout ? (
-                  <><RefreshCw size={15} className="animate-spin" /> …</>
-                ) : (
-                  <>
-                    {lang === "ar" ? "ادفع 2$ لفتح المزاد" : "Pay $2 to Unlock"}
-                    <ExternalLink size={15} />
-                  </>
-                )}
-              </motion.button>
-            ) : (
-              <div className="space-y-2">
-                <motion.button
-                  whileTap={{ scale: 0.97 }}
-                  onClick={handleConfirmPaid}
-                  disabled={isUnlocking}
-                  className="w-full py-3.5 rounded-xl bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 disabled:opacity-60"
-                >
-                  {isUnlocking ? (
-                    <><RefreshCw size={15} className="animate-spin" /> …</>
-                  ) : (
-                    <><CheckCircle2 size={15} /> {lang === "ar" ? "لقد دفعت — تحقق" : "I have paid — refresh"}</>
-                  )}
-                </motion.button>
-                <button
-                  type="button"
-                  onClick={handleStartUnlock}
-                  disabled={isStartingCheckout}
-                  className="w-full text-[11px] text-amber-100/70 underline underline-offset-2 disabled:opacity-60"
-                >
-                  {lang === "ar" ? "إعادة فتح صفحة الدفع" : "Re-open payment page"}
-                </button>
-              </div>
-            )}
           </div>
         ) : isSeller ? (
           /* Seller view of their own listing. For active fixed-price

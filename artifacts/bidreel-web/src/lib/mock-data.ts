@@ -53,16 +53,4 @@ export interface Auction {
   /** Server-side lifecycle status. UI uses this for Sold/Reserved badges
    *  on top of the orthogonal time-window state (upcoming/active/ended). */
   status?: "active" | "ended" | "removed" | "archived" | "sold" | "reserved";
-  /**
-   * Per-viewer unlock state for the $2 buyer-side gate (migration 032). The API computes
-   * this server-side based on the calling user:
-   *   • true  → fixed-price listing, OR caller is the seller, OR caller has
-   *             paid $2 to unlock THIS auction (auction_unlocks row exists)
-   *   • false → caller has not unlocked → seller phone is hidden in the
-   *             response and bid attempts return 402 AUCTION_NOT_UNLOCKED
-   *
-   * Defaults to false on the client when the field is missing, so the UI
-   * fails closed (locked) rather than open.
-   */
-  viewerUnlocked?: boolean;
 }

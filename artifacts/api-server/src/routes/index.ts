@@ -14,18 +14,12 @@ import reportsRouter from "./reports";
 import viewsRouter from "./views";
 import dealsRouter from "./deals";
 import whatsappRouter from "./whatsapp";
-import gumroadWebhookRouter from "./webhooks-gumroad";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
 router.use(passwordResetRouter);
-// Webhook routes must be registered BEFORE any router-level requireAuth
-// (notificationRouter applies one) so unauthenticated POSTs from Gumroad's
-// servers can reach the handler. Webhook auth is enforced inside the
-// handler itself via a URL-path shared secret + body provenance checks.
-router.use(gumroadWebhookRouter);
 // whatsappRouter must be registered BEFORE notificationRouter, because
 // notificationRouter applies a router-level requireAuth that would
 // otherwise intercept every subsequent /api/* request.

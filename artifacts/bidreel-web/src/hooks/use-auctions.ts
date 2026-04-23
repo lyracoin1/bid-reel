@@ -10,9 +10,6 @@ import {
   markSoldApi,
   likeAuctionApi,
   unlikeAuctionApi,
-  startUnlockApi,
-  unlockAuctionApi,
-  getAuctionApi as _getAuctionApiForUnlockRefetch,
   type ApiAuctionRaw,
   type ApiAuctionBid,
   type CreateAuctionInput,
@@ -143,11 +140,6 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
     saleType: (r.sale_type as "auction" | "fixed" | null | undefined) ?? "auction",
     fixedPrice: r.fixed_price != null ? Number(r.fixed_price) : null,
     buyerId: r.buyer_id ?? null,
-    // Per-viewer unlock flag (migration 032 — buyer-side $2 gate).
-    // The server computes this for the calling user: true when fixed-price,
-    // when caller is seller, or when (auctionId, callerId) has a paid row in
-    // auction_unlocks. Defaults to false (fail-closed = locked) when missing.
-    viewerUnlocked: r.viewer_unlocked === true,
     status: (r.status as "active" | "ended" | "removed" | "archived" | "sold" | "reserved" | undefined) ?? "active",
   };
 }
@@ -539,125 +531,9 @@ export function useMarkSold(auctionId: string) {
   return { mutate, isPending, lastError };
 }
 
-// ─── useStartUnlock (real Gumroad checkout flow — step 1) ────────────────────
-//
-// Calls POST /auctions/:id/unlock/start. On success the server returns a
-// Gumroad checkout URL carrying a server-generated unlock_token. The caller
-// is expected to redirect the buyer to that URL. If the buyer has already
-// paid for this auction, alreadyUnlocked=true and checkout_url=null —
-// the caller should skip the redirect and treat the auction as unlocked.
-//
-// Idempotent: re-clicking returns the same token / checkout URL for any
-// existing pending row, so closing and reopening the panel is safe.
-export function useStartUnlock(auctionId: string) {
-  const [isPending, setIsPending] = useState(false);
-  const [lastError, setLastError] = useState<{ code: string; message: string } | null>(null);
-
-  const mutate = async (
-    options: {
-      onSuccess?: (result: {
-        checkout_url: string | null;
-        unlock_token: string | null;
-        alreadyUnlocked: boolean;
-      }) => void;
-      onError?: (code: string, message: string) => void;
-    } = {},
-  ): Promise<void> => {
-    setIsPending(true);
-    setLastError(null);
-    try {
-      const result = await startUnlockApi(auctionId);
-      options.onSuccess?.({
-        checkout_url: result.checkout_url,
-        unlock_token: result.unlock_token,
-        alreadyUnlocked: result.alreadyUnlocked,
-      });
-    } catch (err: unknown) {
-      const e = err as { code?: string; message?: string };
-      const code = e.code ?? "START_FAILED";
-      const message = e.message ?? "Could not start checkout";
-      console.error(`[useStartUnlock] ❌ ${code}: ${message}`);
-      setLastError({ code, message });
-      options.onError?.(code, message);
-    } finally {
-      setIsPending(false);
-    }
-  };
-
-  return { mutate, isPending, lastError };
-}
-
-// ─── useUnlockAuction ($2 Gumroad gate — buyer-side, per user, per auction) ──
-//
-// Wraps unlockAuctionApi and patches the cached auction row in place so the
-// UI flips from locked → unlocked without waiting for a feed refresh. We
-// also kick off a single targeted detail refetch so the seller's phone (a
-// field only the API knows) is populated in cache for the WhatsApp CTA.
-// Failures surface a code + message via onError; idempotent re-unlock
-// succeeds silently (alreadyUnlocked=true).
-
-export function useUnlockAuction(auctionId: string) {
-  const [isPending, setIsPending] = useState(false);
-  const [lastError, setLastError] = useState<{ code: string; message: string } | null>(null);
-
-  const mutate = async (
-    options: {
-      onUnlocked?: () => void;
-      onPending?: (status: "pending" | "none") => void;
-      onError?: (code: string, message: string) => void;
-    } = {},
-  ): Promise<void> => {
-    setIsPending(true);
-    setLastError(null);
-    console.log(`[useUnlockAuction] Checking unlock status — auctionId=${auctionId}`);
-
-    try {
-      const { unlocked, status } = await unlockAuctionApi(auctionId);
-
-      if (!unlocked) {
-        // Webhook hasn't finalised payment yet. We do NOT touch the cache —
-        // the server is the source of truth and viewerUnlocked stays false.
-        console.log(`[useUnlockAuction] ⌛ Not yet unlocked — status=${status}`);
-        options.onPending?.(status === "pending" ? "pending" : "none");
-        return;
-      }
-
-      // Server confirmed unlocked. Patch cache so the UI panel disappears
-      // immediately, then refetch detail to pull the now-visible seller.phone
-      // into the cache for the WhatsApp CTA.
-      const idx = globalAuctions.findIndex((a) => a.id === auctionId);
-      if (idx >= 0) {
-        globalAuctions[idx] = { ...globalAuctions[idx], viewerUnlocked: true };
-        notify();
-      }
-      try {
-        const { auction: rawDetail, bids: rawBids } = await _getAuctionApiForUnlockRefetch(auctionId);
-        if (idx >= 0) {
-          globalAuctions[idx] = backendToAuction(rawDetail, rawBids);
-          notify();
-        }
-      } catch (refetchErr) {
-        console.warn(`[useUnlockAuction] post-unlock detail refetch failed (continuing):`, refetchErr);
-      }
-
-      console.log(`[useUnlockAuction] ✅ Unlocked (verified by webhook) — id=${auctionId}`);
-      options.onUnlocked?.();
-    } catch (err: unknown) {
-      const e = err as { code?: string; message?: string };
-      const code = e.code ?? "UNLOCK_FAILED";
-      const message = e.message ?? "Status check failed";
-      console.error(`[useUnlockAuction] ❌ ${code}: ${message}`);
-      setLastError({ code, message });
-      options.onError?.(code, message);
-    } finally {
-      setIsPending(false);
-    }
-  };
-
-  return { mutate, isPending, lastError };
-}
-
 // ─── useToggleLike ────────────────────────────────────────────────────────────
+// (Buyer-side unlock / payment hooks removed — auctions no longer require any
+// unlock fee. Bidding and viewing seller contact are free.)
 
 // Per-auction monotonic version counter for like toggles. Each tap bumps
 // the version BEFORE firing the network request; only the latest version's

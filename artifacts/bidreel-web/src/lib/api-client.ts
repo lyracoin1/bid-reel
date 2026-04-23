@@ -62,6 +62,11 @@ export function clearToken(): void {
 export function redirectToLogin(): void {
   const loginPath = `${import.meta.env.BASE_URL?.replace(/\/$/, "") ?? ""}/login`;
   if (window.location.pathname === loginPath || window.location.pathname.endsWith("/login")) return;
+  // Public pages must remain reachable without auth (Google Play / App Store
+  // reviewers and unauthenticated visitors need to view them).
+  const path = window.location.pathname;
+  const PUBLIC_SUFFIXES = ["/privacy", "/safety-rules"];
+  if (PUBLIC_SUFFIXES.some((p) => path === p || path.endsWith(p))) return;
   clearToken();
   window.location.replace(loginPath);
 }

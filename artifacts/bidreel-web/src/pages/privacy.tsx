@@ -12,6 +12,7 @@ export default function PrivacyPolicy() {
           <button
             onClick={() => setLocation(-1 as any)}
             className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/8 text-white/70 hover:text-white hover:bg-white/12 transition"
+            aria-label="Back"
           >
             <ArrowLeft size={18} />
           </button>
@@ -21,92 +22,95 @@ export default function PrivacyPolicy() {
           </div>
         </div>
 
-        <div className="px-5 py-6 space-y-6 text-sm text-white/70 leading-relaxed">
-          <p className="text-white/40 text-xs">Last updated: April 2025</p>
+        <article className="px-5 py-6 space-y-6 text-sm text-white/75 leading-relaxed max-w-2xl mx-auto">
+          <p className="text-white/40 text-xs">Last updated: April 2026</p>
 
           <section className="space-y-2">
-            <h2 className="text-white font-semibold text-base">Overview</h2>
+            <h2 className="text-white font-semibold text-base">Who we are</h2>
             <p>
-              BidReel ("we", "our", "the app") is a short-video auction platform. This policy explains
-              what data we collect, why we collect it, and how you can request its deletion.
+              BidReel is a short-video auction app. This page explains, in plain
+              language, what information we collect and how we use it.
             </p>
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-white font-semibold text-base">Data We Collect</h2>
-            <ul className="list-disc pl-5 space-y-1">
-              <li><strong className="text-white/90">Email address</strong> — used to create and authenticate your account via email and password. Never shared publicly.</li>
-              <li><strong className="text-white/90">Phone number</strong> — used as a WhatsApp contact field so buyers and sellers can communicate. Never used as a login identity or shared beyond the transaction context.</li>
-              <li><strong className="text-white/90">Display name &amp; avatar</strong> — shown on your public profile and auction listings.</li>
-              <li><strong className="text-white/90">Username</strong> — your unique handle on the platform, shown publicly.</li>
-              <li><strong className="text-white/90">Videos and photos</strong> — media you upload for auction listings, stored securely in cloud storage.</li>
-              <li><strong className="text-white/90">Bids</strong> — amounts you bid on auctions, linked to your account.</li>
-              <li><strong className="text-white/90">Location</strong> — city or region, stored in your profile. Used to help buyers find nearby items and to suggest the appropriate local currency. Required to publish auctions. You can update or remove it at any time from your profile settings.</li>
-              <li><strong className="text-white/90">Device push token</strong> — used to send you auction notifications (only when permission is granted).</li>
-              <li><strong className="text-white/90">Follows and saves</strong> — who you follow and auctions you bookmark, private to your account.</li>
-            </ul>
-          </section>
-
-          <section className="space-y-2">
-            <h2 className="text-white font-semibold text-base">How We Use Your Data</h2>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>To authenticate your account and maintain session security.</li>
-              <li>To operate the auction system (listing items, placing bids, showing results).</li>
-              <li>To send you relevant push notifications about auctions you watch or bid on.</li>
-              <li>To display your public profile to other users.</li>
-              <li>We do <strong className="text-white/90">not</strong> sell your data to third parties.</li>
-              <li>We do <strong className="text-white/90">not</strong> use your data for advertising profiling.</li>
-            </ul>
-          </section>
-
-          <section className="space-y-2">
-            <h2 className="text-white font-semibold text-base">Third-Party Services</h2>
-            <ul className="list-disc pl-5 space-y-1">
-              <li><strong className="text-white/90">Supabase</strong> — database and authentication provider. Your data is stored in Supabase's cloud infrastructure. <a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline">Supabase Privacy Policy</a>.</li>
-              <li><strong className="text-white/90">Firebase Cloud Messaging</strong> — used for push notifications (only if you grant permission). <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline">Firebase Privacy Policy</a>.</li>
-            </ul>
-          </section>
-
-          <section className="space-y-2">
-            <h2 className="text-white font-semibold text-base">Data Retention</h2>
+            <h2 className="text-white font-semibold text-base">Content you upload</h2>
             <p>
-              Your data is retained while your account is active. When you delete your account,
-              all personal data (email address, phone number, display name, avatar, username, location, bids, follows,
-              saves, and device tokens) is permanently deleted within 30 days. Auction listings you created will be
-              anonymised rather than deleted to preserve auction integrity.
+              You can upload <strong>videos and images</strong> to create
+              listings on BidReel. Anything you upload is shown to other users
+              of the app and stored on our servers so it can be displayed in the
+              feed and on the auction detail page.
             </p>
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-white font-semibold text-base">Account Deletion</h2>
+            <h2 className="text-white font-semibold text-base">Camera and storage</h2>
             <p>
-              You can permanently delete your account at any time from your Profile page. Tap the menu,
-              then choose "Delete Account". Deletion is immediate and irreversible.
-            </p>
-            <p>
-              You can also request deletion by emailing us at the address below.
+              BidReel asks for permission to use your <strong>camera</strong> so
+              you can record a video or take a photo for a listing, and for
+              access to your device <strong>storage / photo library</strong> so
+              you can pick an existing video or image to upload. We only access
+              the camera or photos when you actively choose to upload something.
+              We do not browse your device in the background.
             </p>
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-white font-semibold text-base">Your Rights</h2>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>Request a copy of all data we hold about you.</li>
-              <li>Request correction of inaccurate data.</li>
-              <li>Request deletion of your account and all associated data.</li>
-            </ul>
+            <h2 className="text-white font-semibold text-base">Account and profile information</h2>
+            <p>
+              When you create an account we may store your{" "}
+              <strong>phone number</strong>, your <strong>display name</strong>,{" "}
+              <strong>username</strong>, and an optional{" "}
+              <strong>profile photo</strong>. Your phone number is used so
+              buyers and sellers can contact each other after an auction is
+              unlocked, and to help secure your account.
+            </p>
+          </section>
+
+          <section className="space-y-2">
+            <h2 className="text-white font-semibold text-base">How your data is stored</h2>
+            <p>
+              We use <strong>Supabase</strong> to handle authentication and to
+              store your account data, your listings, your bids, and the media
+              files you upload. Supabase keeps this data on secure cloud
+              servers on our behalf.
+            </p>
+          </section>
+
+          <section className="space-y-2">
+            <h2 className="text-white font-semibold text-base">Sharing</h2>
+            <p>
+              We do not sell your personal information. Other users of the app
+              can see the public parts of your profile (display name, username,
+              avatar) and the listings you publish. Your phone number is only
+              shared with another user once an auction has been unlocked
+              between the two of you.
+            </p>
+          </section>
+
+          <section className="space-y-2">
+            <h2 className="text-white font-semibold text-base">Deleting your data</h2>
+            <p>
+              You can delete a listing at any time from the app. If you want to
+              delete your whole account and the data attached to it, contact us
+              and we will remove it.
+            </p>
           </section>
 
           <section className="space-y-2">
             <h2 className="text-white font-semibold text-base">Contact</h2>
             <p>
-              For privacy questions or data requests, contact us at:{" "}
-              <span className="text-primary">privacy@bidreel.app</span>
+              For any privacy question, write to us at{" "}
+              <a
+                href="mailto:support@bid-reel.com"
+                className="text-primary underline underline-offset-2"
+              >
+                support@bid-reel.com
+              </a>
+              .
             </p>
           </section>
-
-          <div className="h-8" />
-        </div>
+        </article>
       </div>
     </MobileLayout>
   );

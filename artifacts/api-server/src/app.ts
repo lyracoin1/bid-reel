@@ -72,6 +72,7 @@ const ALLOWED_ORIGINS: Array<string | RegExp> = [
   // Local development
   "http://localhost:5173",
   "http://localhost:3000",
+    "https://localhost",
   // Replit preview environments
   /^https?:\/\/localhost(:\d+)?$/,
   /\.replit\.dev$/,

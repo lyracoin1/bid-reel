@@ -1,13 +1,13 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: "com.bidreel.app",
+  appId: "com.bidreel.android",
   appName: "BidReel",
   webDir: "dist/public",
 
   server: {
-    url: "https://www.bid-reel.com",
-    cleartext: true
+    androidScheme: "https",
+    allowNavigation: ["*.supabase.co"]
   },
 
   plugins: {

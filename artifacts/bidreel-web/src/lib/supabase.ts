@@ -1,18 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const supabaseUrl =
+  import.meta.env.VITE_SUPABASE_URL ||
+  "https://zhbfbjwagehwetyqljjr.supabase.co";
+
+const supabaseAnonKey =
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpoYmZiandhZ2Vod2V0eXFsampyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NDQxNDUsImV4cCI6MjA5MDEyMDE0NX0.A6RyEYtO8Fhdt0Gi5rRLnGUZshUYK6ltF6BaMrOkO1g";
 
 /**
  * Supabase client for the web app.
- *
- * persistSession: true  — stores the session in localStorage so the user stays
- *                         logged in across page reloads.
- * autoRefreshToken: true — automatically refreshes the access token before it
- *                          expires (Supabase default: 1-hour access tokens,
- *                          60-day refresh tokens).
- * detectSessionInUrl: true — processes magic-link / OAuth callback tokens that
- *                            Supabase appends to the URL after email verification.
  */
 export const supabase = supabaseUrl && supabaseAnonKey
   ? createClient(supabaseUrl, supabaseAnonKey, {

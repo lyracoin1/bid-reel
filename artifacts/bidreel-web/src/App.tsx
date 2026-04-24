@@ -400,7 +400,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <NotificationBannerProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <WouterRouter base={(import.meta.env.BASE_URL ?? "").replace(/\/$/, "")}>
               <AuthSync />
               <FcmInit />
               <AndroidBackPolicy />

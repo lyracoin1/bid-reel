@@ -1,10 +1,12 @@
 {
-	"appId": "com.bidreel.app",
+	"appId": "com.bidreel.android",
 	"appName": "BidReel",
 	"webDir": "dist/public",
 	"server": {
-		"url": "https://www.bid-reel.com",
-		"cleartext": true
+		"androidScheme": "https",
+		"allowNavigation": [
+			"*.supabase.co"
+		]
 	},
 	"plugins": {
 		"SplashScreen": {

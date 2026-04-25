@@ -40,30 +40,6 @@ jobs:
           cd artifacts/bidreel-web
           npx cap sync android
 
-      - name: Patch Android Gradle config after Capacitor sync
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          p = Path("artifacts/bidreel-web/android/app/build.gradle")
-          s = p.read_text()
-
-          s = s.replace("compileSdk = rootProject.ext.compileSdkVersion", "compileSdkVersion 35")
-          s = s.replace("compileSdk rootProject.ext.compileSdkVersion", "compileSdkVersion 35")
-          s = s.replace("compileSdkVersion rootProject.ext.compileSdkVersion", "compileSdkVersion 35")
-
-          s = s.replace("minSdkVersion rootProject.ext.minSdkVersion", "minSdkVersion 24")
-          s = s.replace("targetSdkVersion rootProject.ext.targetSdkVersion", "targetSdkVersion 35")
-
-          if "compileSdk" not in s and "compileSdkVersion" not in s:
-              s = s.replace("android {", "android {\n    compileSdkVersion 35", 1)
-
-          p.write_text(s)
-
-          print("===== FINAL app/build.gradle =====")
-          print(p.read_text())
-          PY
-
       - name: Auto bump Android version
         run: |
           VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))

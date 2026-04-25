@@ -80,4 +80,4 @@ jobs:
           packageName: ${{ secrets.PACKAGE_NAME }}
           releaseFiles: artifacts/bidreel-web/android/app/build/outputs/bundle/release/*.aab
           tracks: internal
-          status: completed
+          status: draft

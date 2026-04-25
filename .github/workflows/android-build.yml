@@ -55,9 +55,17 @@ jobs:
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > artifacts/bidreel-web/android/app/release.jks
 
-      - name: Ensure Android compileSdk
+      - name: Force Android compileSdk
         run: |
-          grep -q "compileSdk" artifacts/bidreel-web/android/app/build.gradle || sed -i "/android {/a\    compileSdk 35" artifacts/bidreel-web/android/app/build.gradle
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("artifacts/bidreel-web/android/app/build.gradle")
+          s = p.read_text()
+          if "compileSdk" not in s and "compileSdkVersion" not in s:
+              s = s.replace("android {", "android {\n    compileSdk 35", 1)
+          p.write_text(s)
+          print("compileSdk ensured")
+          PY
 
       - name: Build signed AAB
         run: |

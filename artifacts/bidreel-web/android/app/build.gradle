@@ -17,12 +17,12 @@ if (!keystoreFile.exists()) {
 
 android {
     namespace = "com.bidreel.android"
-    compileSdk = rootProject.ext.compileSdkVersion
+    compileSdk 35
 
     defaultConfig {
         applicationId "com.bidreel.android"
-        minSdkVersion rootProject.ext.minSdkVersion
-        targetSdkVersion rootProject.ext.targetSdkVersion
+        minSdkVersion 24
+        targetSdkVersion 35
         versionCode 10
         versionName "1.3.10"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

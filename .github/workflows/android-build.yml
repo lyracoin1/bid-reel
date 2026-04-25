@@ -13,11 +13,11 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -29,6 +29,17 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install
+
+      - name: Auto bump Android version
+        run: |
+          VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))
+          VERSION_NAME="1.0.${GITHUB_RUN_NUMBER}"
+
+          sed -i "s/versionCode [0-9]\+/versionCode ${VERSION_CODE}/" artifacts/bidreel-web/android/app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"${VERSION_NAME}\"/" artifacts/bidreel-web/android/app/build.gradle
+
+          echo "Using versionCode=${VERSION_CODE}"
+          echo "Using versionName=${VERSION_NAME}"
 
       - name: Build web
         run: |

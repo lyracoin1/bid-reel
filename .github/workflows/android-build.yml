@@ -81,4 +81,3 @@ jobs:
           releaseFiles: artifacts/bidreel-web/android/app/build/outputs/bundle/release/*.aab
           tracks: internal
           status: completed
-          changesNotSentForReview: true

@@ -69,6 +69,7 @@ export default function ProfileEdit() {
   const [phone, setPhone] = useState("");
   const [location, setLocation2] = useState("");
   const [username, setUsername] = useState("");
+  const [isDetecting, setIsDetecting] = useState(false);
   const [originalUsername, setOriginalUsername] = useState("");
 
   const [usernameState, setUsernameState] = useState<UsernameState>("idle");
@@ -247,6 +248,44 @@ export default function ProfileEdit() {
     return null;
   };
 
+  const onDetectLocation = useCallback(async () => {
+    if (!navigator.geolocation) {
+      setSubmitError("Geolocation not supported by this browser.");
+      return;
+    }
+    setIsDetecting(true);
+    setSubmitError(null);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          // Reverse geocode via serverless function (proxy to Nominatim or similar)
+          // For now, use a direct fetch to a free API for minimal logic change
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=en`);
+          const data = await res.json();
+          const city = data.address.city || data.address.town || data.address.village || data.address.suburb || "";
+          const country = data.address.country || "";
+          const locStr = [city, country].filter(Boolean).join(", ");
+          if (locStr) setLocation2(locStr);
+        } catch (err) {
+          console.error("Geocoding failed:", err);
+          setSubmitError("Could not determine city name. Please enter manually.");
+        } finally {
+          setIsDetecting(false);
+        }
+      },
+      (err) => {
+        setIsDetecting(false);
+        if (err.code === 1) {
+          setSubmitError("Location permission denied. Please allow access or type manually.");
+        } else {
+          setSubmitError("Could not detect location. Please type manually.");
+        }
+      },
+      { timeout: 10000 }
+    );
+  }, []);
+
   const canSave =
     !isLoading &&
     !isSubmitting &&
@@ -333,6 +372,21 @@ export default function ProfileEdit() {
             <Field
               icon={<MapPin size={16} className="text-white/40" />}
               label={t("location_label")}
+              right={
+                <button
+                  type="button"
+                  onClick={onDetectLocation}
+                  disabled={isDetecting}
+                  className="p-1 -mr-1 text-primary hover:text-primary/80 transition-colors disabled:opacity-40"
+                  aria-label="Detect location"
+                >
+                  {isDetecting ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <MapPin size={16} />
+                  )}
+                </button>
+              }
             >
               <input
                 type="text"

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCw, ArrowDown, Gavel, Loader2 } from "lucide-react";
 import { MobileLayout } from "@/components/layout/MobileLayout";
-import { FeedCard } from "@/components/feed/FeedCard";
+import FeedCard from "@/components/feed/FeedCard";
 import { useAuctions } from "@/hooks/use-auctions";
 import { useBidPolling } from "@/hooks/use-bid-polling";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";

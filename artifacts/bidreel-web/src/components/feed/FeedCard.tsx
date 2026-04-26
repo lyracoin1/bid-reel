@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { useLocation } from "wouter";
 import { Gavel, Bell, MapPin, Volume2, VolumeX, Bookmark, ThumbsUp, ThumbsDown, Eye, ShoppingBag, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -92,7 +92,7 @@ interface FeedCardProps {
 // Global mute is owned by `@/lib/global-mute` (persisted to localStorage,
 // shared with auction-detail). Each FeedCard subscribes via `useGlobalMute()`.
 
-export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
+function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   const [, setLocation] = useLocation();
   const { mutate: toggleLike } = useToggleLike();
   const { isFollowing, toggle: toggleFollow } = useFollow();
@@ -110,8 +110,10 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
     return formatDistance(metres, lang);
   }, [viewerLoc, auction.lat, auction.lng, lang]);
 
-  const fmtPrice = (amount: number) =>
-    formatAuctionPrice(amount, auction.currencyCode ?? "USD");
+  const fmtPrice = useMemo(
+    () => (amount: number) => formatAuctionPrice(amount, auction.currencyCode ?? "USD"),
+    [auction.currencyCode],
+  );
 
   const onStateChange = useCallback((newState: AuctionState) => {
     if (newState === "active") {
@@ -201,7 +203,7 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
     }
   }, [isNear, isVideo]);
 
-  const handleShare = async (e: React.MouseEvent) => {
+  const handleShare = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
     const shareUrl = `${getPublicBaseUrl()}/auction/${auction.id}`;
     const shareTitle = auction.title;
@@ -234,21 +236,21 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
     } catch {
       toast({ title: "Could not share", description: shareUrl, variant: "destructive" });
     }
-  };
+  }, [auction.id, auction.title, lang]);
 
-  const handleOpenProfile = (e: React.MouseEvent) => {
+  const handleOpenProfile = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     setLocation(`/users/${auction.seller.id}`);
-  };
+  }, [setLocation, auction.seller.id]);
 
-  const handleWhatsApp = (e: React.MouseEvent) => {
+  const handleWhatsApp = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     if (!auction.seller.phone) return;
     const digits = auction.seller.phone.replace(/\D/g, "");
     if (!digits) return;
     const text = `Hi, I'm interested in your BidReel auction: "${auction.title}"`;
     window.open(`https://wa.me/${digits}?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
-  };
+  }, [auction.seller.phone, auction.title]);
 
   const timerPill = (() => {
     if (state === "upcoming") {
@@ -289,6 +291,8 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
         <div className="absolute inset-0 cursor-pointer" onClick={() => setLocation(`/auction/${auction.id}`)}>
           <img
             src={auction.mediaUrl} alt={auction.title}
+            loading="lazy"
+            decoding="async"
             className={cn("w-full h-full object-cover transition-transform duration-700", isActive ? "scale-100" : "scale-105")}
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent via-35% to-black/90 pointer-events-none" />
@@ -698,3 +702,5 @@ export function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
     </div>
   );
 }
+
+export default memo(FeedCard);

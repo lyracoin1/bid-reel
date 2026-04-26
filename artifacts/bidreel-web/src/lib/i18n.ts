@@ -565,9 +565,9 @@ const ar: Translations = {
   // الشراء بسعر ثابت
   sale_type_label: "نوع البيع",
   sale_type_auction: "مزاد",
-  sale_type_fixed: "اشتر الآن",
+  sale_type_fixed: "سعر ثابت",
   fixed_price_label: "السعر الثابت",
-  buy_now: "اشتر الآن",
+  buy_now: "سعر ثابت",
   buy_now_confirm: "هل تريد شراء هذا العنصر بالسعر المعروض؟",
   buy_now_success: "تم الشراء — سيتم إعلام البائع",
   sold: "مُباع",
@@ -590,7 +590,7 @@ const ar: Translations = {
   aria_save_auction: "حفظ المزاد", aria_unsave_auction: "إلغاء الحفظ",
   aria_share_auction: "مشاركة المزاد",
   aria_remind_me: "ذكّرني عند البدء", aria_remove_reminder: "إلغاء التذكير",
-  aria_buy_now: "اشترِ الآن",
+  aria_buy_now: "سعر ثابت",
 };
 
 const ru: Translations = {

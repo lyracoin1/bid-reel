@@ -23,6 +23,8 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
         <img
           src={images[0]}
           alt={alt}
+          loading="lazy"
+          decoding="async"
           className="max-w-full max-h-full w-auto h-auto object-contain"
         />
       </div>
@@ -57,6 +59,8 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
             <img
               src={src}
               alt={`${alt} ${i + 1}`}
+              loading="lazy"
+              decoding="async"
               className="max-w-full max-h-full w-auto h-auto object-contain"
             />
           </div>

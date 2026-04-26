@@ -31,7 +31,16 @@ import PrivacyPolicy from "@/pages/privacy";
 import MyDealsPage from "@/pages/my-deals";
 import DealDetailPage from "@/pages/deal-detail";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,          // 30 s — data is fresh; skip background refetch
+      refetchOnWindowFocus: false, // don't refetch when the tab regains focus
+      refetchOnMount: false,       // don't refetch when a component re-mounts with cached data
+      retry: 1,                    // one retry on failure is enough
+    },
+  },
+});
 
 /**
  * Detected at module-load time (before Supabase can clear the URL) so we know

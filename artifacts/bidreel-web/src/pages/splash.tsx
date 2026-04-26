@@ -9,8 +9,6 @@ export default function Splash() {
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      await new Promise(r => setTimeout(r, 2000));
-      if (cancelled) return;
       const token = await getToken();
       if (cancelled) return;
       if (!token) {

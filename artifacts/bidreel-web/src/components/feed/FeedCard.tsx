@@ -188,6 +188,26 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
     }
   }, [isActive, isVideo]);
 
+  // IntersectionObserver to pause/play based on visibility
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!isVideo || !el || !isActive) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          el.play().catch(() => {});
+        } else {
+          el.pause();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isActive, isVideo]);
+
   // Resource release: when this card is no longer near the viewport (more than
   // one card away), call el.load() to tell the browser to abort any in-flight
   // network request and release the decoded video buffer from memory.

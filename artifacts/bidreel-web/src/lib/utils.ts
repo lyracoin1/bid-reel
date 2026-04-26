@@ -68,7 +68,7 @@ export function getWhatsAppUrl(phone: string, itemTitle?: string): string {
 export function getPublicBaseUrl(): string {
   const configured =
     (import.meta.env["VITE_PUBLIC_BASE_URL"] as string | undefined)?.replace(/\/$/, "") ||
-    "https://bid-reel.com";
+    "https://www.bid-reel.com";
 
   if (configured && Capacitor.isNativePlatform()) return configured;
 

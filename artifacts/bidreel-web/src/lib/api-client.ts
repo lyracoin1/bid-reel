@@ -34,7 +34,7 @@ const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
 export const API_BASE: string = (() => {
  const configured =
   (import.meta.env["VITE_API_URL"] as string | undefined)?.replace(/\/$/, "") ||
-  "https://bid-reel.com/api";
+  "https://www.bid-reel.com/api";
   // Only honour VITE_API_URL when running inside a native Capacitor app (APK/IPA).
   // On web, the API is always co-hosted on the same domain via the Replit proxy, so a
   // relative path is correct and will never break due to a misconfigured env var.

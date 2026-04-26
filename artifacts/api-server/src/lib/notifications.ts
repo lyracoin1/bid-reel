@@ -278,6 +278,12 @@ export async function createNotification(input: CreateNotificationInput): Promis
 // ── HELPERS — one per spec event ─────────────────────────────────────────────
 // =============================================================================
 
+/** Simple AR/EN localization helper. */
+function t(lang: string | null | undefined, ar: string, en: string): string {
+  const isAr = (lang || "").toLowerCase().startsWith("ar");
+  return isAr ? ar : en;
+}
+
 /**
  * Currency-aware money formatter for notifications.
  *
@@ -314,12 +320,17 @@ export async function notifyFollowedYou(
   followerName: string,
 ): Promise<void> {
   if (followedUserId === followerUserId) return;
+  // Fetch recipient language
+  let lang = "en";
+  const { data: userRow } = await supabaseAdmin.from("profiles").select("language").eq("id", followedUserId).maybeSingle();
+  if (userRow?.language) lang = userRow.language;
+
   logger.info({ followedUserId, followerUserId }, "notifications: followed_you");
   await createNotification({
     userId: followedUserId,
     type: "followed_you",
-    title: "New follower 🎉",
-    body: `${followerName} started following you`,
+    title: t(lang, "متابع جديد 🎉", "New follower 🎉"),
+    body: t(lang, `بدأ ${followerName} بمتابعتك`, `${followerName} started following you`),
     actorId: followerUserId,
     metadata: { actorId: followerUserId },
   });
@@ -338,12 +349,17 @@ export async function notifyLikedYourAuction(
   auctionTitle: string,
 ): Promise<void> {
   if (sellerId === likerId) return;
+  // Fetch recipient language
+  let lang = "en";
+  const { data: userRow } = await supabaseAdmin.from("profiles").select("language").eq("id", sellerId).maybeSingle();
+  if (userRow?.language) lang = userRow.language;
+
   logger.info({ sellerId, likerId, auctionId }, "notifications: liked_your_auction");
   await createNotification({
     userId: sellerId,
     type: "liked_your_auction",
-    title: "New like ❤️",
-    body: `${likerName} liked your auction "${auctionTitle}"`,
+    title: t(lang, "إعجاب جديد ❤️", "New like ❤️"),
+    body: t(lang, `أعجب ${likerName} بمزادك "${auctionTitle}"`, `${likerName} liked your auction "${auctionTitle}"`),
     auctionId,
     actorId: likerId,
     metadata: { auctionId, actorId: likerId },
@@ -360,12 +376,17 @@ export async function notifySavedYourAuction(
   auctionTitle: string,
 ): Promise<void> {
   if (sellerId === saverId) return;
+  // Fetch recipient language
+  let lang = "en";
+  const { data: userRow } = await supabaseAdmin.from("profiles").select("language").eq("id", sellerId).maybeSingle();
+  if (userRow?.language) lang = userRow.language;
+
   logger.info({ sellerId, saverId, auctionId }, "notifications: saved_your_auction");
   await createNotification({
     userId: sellerId,
     type: "saved_your_auction",
-    title: "Saved 🔖",
-    body: `${saverName} saved your auction "${auctionTitle}"`,
+    title: t(lang, "تم الحفظ 🔖", "Saved 🔖"),
+    body: t(lang, `قام ${saverName} بحفظ مزادك "${auctionTitle}"`, `${saverName} saved your auction "${auctionTitle}"`),
     auctionId,
     actorId: saverId,
     metadata: { auctionId, actorId: saverId },
@@ -385,11 +406,16 @@ export async function notifyCommentedOnYourAuction(
   excerpt: string,
 ): Promise<void> {
   if (sellerId === commenterId) return;
+  // Fetch recipient language
+  let lang = "en";
+  const { data: userRow } = await supabaseAdmin.from("profiles").select("language").eq("id", sellerId).maybeSingle();
+  if (userRow?.language) lang = userRow.language;
+
   await createNotification({
     userId: sellerId,
     type: "commented_on_your_auction",
-    title: `${commenterName} commented`,
-    body: `On "${auctionTitle}": ${excerpt}`,
+    title: t(lang, `علق ${commenterName}`, `${commenterName} commented`),
+    body: t(lang, `على "${auctionTitle}": ${excerpt}`, `On "${auctionTitle}": ${excerpt}`),
     auctionId,
     actorId: commenterId,
     metadata: { auctionId, actorId: commenterId, commentId },
@@ -406,10 +432,15 @@ export async function notifyRepliedToYourComment(
   excerpt: string,
 ): Promise<void> {
   if (parentAuthorId === replierId) return;
+  // Fetch recipient language
+  let lang = "en";
+  const { data: userRow } = await supabaseAdmin.from("profiles").select("language").eq("id", parentAuthorId).maybeSingle();
+  if (userRow?.language) lang = userRow.language;
+
   await createNotification({
     userId: parentAuthorId,
     type: "replied_to_your_comment",
-    title: `${replierName} replied`,
+    title: t(lang, `رد ${replierName}`, `${replierName} replied`),
     body: excerpt,
     auctionId,
     actorId: replierId,
@@ -426,10 +457,15 @@ export async function notifyMentionedYou(
   excerpt: string,
 ): Promise<void> {
   if (mentionedUserId === mentionerId) return;
+  // Fetch recipient language
+  let lang = "en";
+  const { data: userRow } = await supabaseAdmin.from("profiles").select("language").eq("id", mentionedUserId).maybeSingle();
+  if (userRow?.language) lang = userRow.language;
+
   await createNotification({
     userId: mentionedUserId,
     type: "mentioned_you",
-    title: `${mentionerName} mentioned you`,
+    title: t(lang, `ذكرك ${mentionerName}`, `${mentionerName} mentioned you`),
     body: excerpt,
     auctionId,
     actorId: mentionerId,
@@ -467,11 +503,16 @@ export async function notifyBidReceived(
       { sellerId, auctionId, type: "bid_received" },
       "push-chain[2.B]: notifyBidReceived → about to call createNotification",
     );
+    // Fetch recipient language
+    let lang = "en";
+    const { data: userRow } = await supabaseAdmin.from("profiles").select("language").eq("id", sellerId).maybeSingle();
+    if (userRow?.language) lang = userRow.language;
+
     await createNotification({
       userId: sellerId,
       type: "bid_received",
-      title: "New bid on your auction 💰",
-      body: `${who} placed a bid of ${dollars} on "${auctionTitle}"`,
+      title: t(lang, "مزايدة جديدة على مزادك 💰", "New bid on your auction 💰"),
+      body: t(lang, `قام ${who} بوضع مزايدة بقيمة ${dollars} على "${auctionTitle}"`, `${who} placed a bid of ${dollars} on "${auctionTitle}"`),
       auctionId,
       actorId: bidderId,
       metadata: { auctionId, actorId: bidderId, bidAmountCents: newAmount },
@@ -510,12 +551,17 @@ export async function notifyOutbid(
 ): Promise<void> {
   if (newBidderId && prevBidderId === newBidderId) return;
   const dollars = fmtMoney(newAmount, currencyCode);
+  // Fetch recipient language
+  let lang = "en";
+  const { data: userRow } = await supabaseAdmin.from("profiles").select("language").eq("id", prevBidderId).maybeSingle();
+  if (userRow?.language) lang = userRow.language;
+
   logger.info({ prevBidderId, auctionId }, "notifications: outbid");
   await createNotification({
     userId: prevBidderId,
     type: "outbid",
-    title: "You've been outbid 🔴",
-    body: `New high bid is ${dollars} on "${auctionTitle}" — bid again now!`,
+    title: t(lang, "لقد تم المزايدة عليك 🔴", "You've been outbid 🔴"),
+    body: t(lang, `المزايدة الجديدة هي ${dollars} على "${auctionTitle}" — زايد الآن!`, `New high bid is ${dollars} on "${auctionTitle}" — bid again now!`),
     auctionId,
     actorId: newBidderId ?? undefined,
     metadata: { auctionId, bidAmountCents: newAmount },
@@ -605,8 +651,12 @@ export async function notifyAuctionWon(
   }
 
   const lang = normalizeWonLang(winnerLang);
+  const isAr = lang === "ar";
   const title = buildAuctionWonTitle(lang);
   const body = buildAuctionWonMessage(lang, sellerPhone);
+
+  // Apply minimal localization to the auctionTitle if needed
+  const localizedAuctionTitle = isAr ? `"${auctionTitle}"` : `"${auctionTitle}"`;
 
   // 3. Stamp the 48-hour purchase deadline on the auction (idempotent — only
   //    sets it the first time so re-running expireAuctions is safe). This is
@@ -666,13 +716,18 @@ export async function notifyAuctionEnded(
   finalAmount: number,
   currencyCode?: string | null,
 ): Promise<void> {
+  // Fetch recipient language
+  let lang = "en";
+  const { data: userRow } = await supabaseAdmin.from("profiles").select("language").eq("id", sellerId).maybeSingle();
+  if (userRow?.language) lang = userRow.language;
+
   const dollars = fmtMoney(finalAmount, currencyCode);
   logger.info({ sellerId, auctionId }, "notifications: auction_ended");
   await createNotification({
     userId: sellerId,
     type: "auction_ended",
-    title: "Auction ended ✅",
-    body: `"${auctionTitle}" sold for ${dollars}. The winner has been notified.`,
+    title: t(lang, "انتهى المزاد ✅", "Auction ended ✅"),
+    body: t(lang, `تم بيع "${auctionTitle}" مقابل ${dollars}. تم إخطار الفائز.`, `"${auctionTitle}" sold for ${dollars}. The winner has been notified.`),
     auctionId,
     metadata: { auctionId, finalAmountCents: finalAmount },
   });
@@ -684,12 +739,17 @@ export async function notifyAuctionUnsold(
   auctionId: string,
   auctionTitle: string,
 ): Promise<void> {
+  // Fetch recipient language
+  let lang = "en";
+  const { data: userRow } = await supabaseAdmin.from("profiles").select("language").eq("id", sellerId).maybeSingle();
+  if (userRow?.language) lang = userRow.language;
+
   logger.info({ sellerId, auctionId }, "notifications: auction_unsold");
   await createNotification({
     userId: sellerId,
     type: "auction_unsold",
-    title: "Auction ended — no bids",
-    body: `"${auctionTitle}" ended without any bids. You can relist it from your profile.`,
+    title: t(lang, "انتهى المزاد — لا توجد مزايدات", "Auction ended — no bids"),
+    body: t(lang, `انتهى "${auctionTitle}" دون أي مزايدات. يمكنك إعادة إدراجه من ملفك الشخصي.`, `"${auctionTitle}" ended without any bids. You can relist it from your profile.`),
     auctionId,
     metadata: { auctionId },
   });
@@ -702,14 +762,21 @@ export async function notifyAuctionEndingSoon(
   auctionTitle: string,
   minutesLeft: number,
 ): Promise<void> {
+  // Fetch recipient language
+  let lang = "en";
+  const { data: userRow } = await supabaseAdmin.from("profiles").select("language").eq("id", userId).maybeSingle();
+  if (userRow?.language) lang = userRow.language;
+
+  const isAr = (lang || "").toLowerCase().startsWith("ar");
   const timeLabel = minutesLeft >= 60
-    ? `${Math.round(minutesLeft / 60)} hour${minutesLeft >= 120 ? "s" : ""}`
-    : `${minutesLeft} minute${minutesLeft !== 1 ? "s" : ""}`;
+    ? (isAr ? `${Math.round(minutesLeft / 60)} ساعة` : `${Math.round(minutesLeft / 60)} hour${minutesLeft >= 120 ? "s" : ""}`)
+    : (isAr ? `${minutesLeft} دقيقة` : `${minutesLeft} minute${minutesLeft !== 1 ? "s" : ""}`);
+
   await createNotification({
     userId,
     type: "auction_ending_soon",
-    title: "⏳ Auction ending soon",
-    body: `"${auctionTitle}" ends in ${timeLabel}`,
+    title: t(lang, "⏳ ينتهي المزاد قريبًا", "⏳ Auction ending soon"),
+    body: t(lang, `ينتهي "${auctionTitle}" خلال ${timeLabel}`, `"${auctionTitle}" ends in ${timeLabel}`),
     auctionId,
     metadata: { auctionId, minutesLeft },
   });
@@ -762,15 +829,20 @@ export async function notifyAuctionStarted(
   if (watcherUserIds.length === 0) return;
   logger.info({ auctionId, watcherCount: watcherUserIds.length }, "notifications: auction_started");
   await Promise.all(
-    watcherUserIds.map(userId =>
-      createNotification({
+    watcherUserIds.map(async userId => {
+      // Fetch recipient language
+      let lang = "en";
+      const { data: userRow } = await supabaseAdmin.from("profiles").select("language").eq("id", userId).maybeSingle();
+      if (userRow?.language) lang = userRow.language;
+
+      return createNotification({
         userId,
         type: "auction_started",
-        title: "🟢 Auction is live!",
-        body: `${auctionTitle} just started — place your bid now!`,
+        title: t(lang, "🟢 المزاد مباشر الآن!", "🟢 Auction is live!"),
+        body: t(lang, `بدأ "${auctionTitle}" للتو — ضع مزايدتك الآن!`, `${auctionTitle} just started — place your bid now!`),
         auctionId,
         metadata: { auctionId },
-      }),
-    ),
+      });
+    }),
   );
 }

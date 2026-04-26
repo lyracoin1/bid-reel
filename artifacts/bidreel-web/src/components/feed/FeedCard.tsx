@@ -180,11 +180,9 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
     const el = videoRef.current;
     if (!isVideo || !el) return;
     if (isActive) {
-      el.muted = getGlobalMuted();
       el.play().catch(() => {});
     } else {
       el.pause();
-      el.currentTime = 0;
     }
   }, [isActive, isVideo]);
 

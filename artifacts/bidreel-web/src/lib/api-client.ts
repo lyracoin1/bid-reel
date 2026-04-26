@@ -212,10 +212,6 @@ export async function getAuctionsApi(opts?: { before?: string }): Promise<GetAuc
     throw new Error(err.message ?? "Failed to fetch auctions");
   }
   const data = await res.json() as { auctions: ApiAuctionRaw[]; nextCursor: string | null };
-    `[api-client] ✅ GET /auctions → ${data.auctions.length} auctions` +
-    (opts?.before ? " (load-more)" : " (initial)") +
-    (data.nextCursor ? ` nextCursor=${data.nextCursor}` : " [last page]"),
-  );
   return { auctions: data.auctions, nextCursor: data.nextCursor ?? null };
 }
 

@@ -298,7 +298,7 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
             poster={auction.thumbnailUrl ?? undefined}
             className={cn("w-full h-full object-cover transition-transform duration-700", isActive ? "scale-100" : "scale-105")}
             playsInline
-            preload={isActive ? "auto" : "metadata"}
+            preload="metadata"
             loop
             muted
           />

@@ -52,6 +52,21 @@ function getMinIncrement(a: any): number {
   return a.min_increment ?? 10;
 }
 
+/** Maps user country/location string to a default ISO currency code */
+function getDefaultCurrencyForLocation(location: string | null | undefined): { code: string; label: string } {
+  const loc = (location || "").toLowerCase().trim();
+  if (loc.includes("egypt") || loc.includes("eg") || loc.includes("مصر")) {
+    return { code: "EGP", label: "Egyptian Pound" };
+  }
+  if (loc.includes("saudi") || loc.includes("sa") || loc.includes("السعودية")) {
+    return { code: "SAR", label: "Saudi Riyal" };
+  }
+  if (loc.includes("japan") || loc.includes("jp") || loc.includes("اليابان")) {
+    return { code: "JPY", label: "Japanese Yen" };
+  }
+  return { code: "USD", label: "US Dollar" };
+}
+
 async function insertAuction(payload: {
   seller_id: string;
   title: string;
@@ -737,14 +752,17 @@ router.post("/auctions", requireAuth, async (req, res) => {
   // PATCH /users/me path is partial-update and accepts other-field-only edits.
   // Existing accounts (signed up before phone became required) hit this gate
   // and are forced to set a phone before publishing.
+  let finalCurrencyCode = currencyCode;
+  let finalCurrencyLabel = currencyLabel;
+
   {
     const { data: sellerRow, error: sellerErr } = await supabaseAdmin
       .from("profiles")
-      .select("phone")
+      .select("phone, country, location")
       .eq("id", sellerId)
       .maybeSingle();
     if (sellerErr) {
-      logger.error({ err: sellerErr, sellerId }, "POST /auctions: phone gate lookup failed");
+      logger.error({ err: sellerErr, sellerId }, "POST /auctions: profile lookup failed");
       res.status(500).json({ error: "PROFILE_LOOKUP_FAILED", message: "Could not verify seller profile." });
       return;
     }
@@ -756,6 +774,14 @@ router.post("/auctions", requireAuth, async (req, res) => {
         message: "Phone required before creating auction",
       });
       return;
+    }
+
+    // Default currency by location if missing from request
+    if (!finalCurrencyCode) {
+      const locationStr = (sellerRow as { country?: string; location?: string }).country || (sellerRow as { country?: string; location?: string }).location;
+      const defaults = getDefaultCurrencyForLocation(locationStr);
+      finalCurrencyCode = defaults.code;
+      finalCurrencyLabel = defaults.label;
     }
   }
 
@@ -835,8 +861,8 @@ router.post("/auctions", requireAuth, async (req, res) => {
     fixed_price: effectiveFixedPrice,
     lat,
     lng,
-    currency_code: currencyCode,
-    currency_label: currencyLabel,
+    currency_code: finalCurrencyCode,
+    currency_label: finalCurrencyLabel,
   });
 
   if (error || !auction) {

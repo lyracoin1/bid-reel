@@ -73,7 +73,7 @@ export async function expireAuctions(): Promise<void> {
   //    title is fetched here so notifyAuctionWon can include it in the message.
   const { data: expired, error: fetchErr } = await supabaseAdmin
     .from("auctions")
-    .select("id, title, seller_id")
+    .select("id, title, seller_id, currency_code")
     .eq("status", "active")
     .lt("ends_at", now)
     .limit(50);
@@ -90,7 +90,7 @@ export async function expireAuctions(): Promise<void> {
   const bCol = await getBidderCol();
   const wbidColExists = await hasWinnerBidIdCol();
 
-  for (const { id, title, seller_id: sellerId } of expired as Array<{ id: string; title: string | null; seller_id: string | null }>) {
+  for (const { id, title, seller_id: sellerId, currency_code: currencyCode } of expired as Array<{ id: string; title: string | null; seller_id: string | null; currency_code: string | null }>) {
     // 2. Find the highest bid for this auction (winner determination).
     //    Ordering by amount desc, then by created_at desc as tiebreaker
     //    ensures we always pick a deterministic winner.
@@ -176,7 +176,7 @@ export async function expireAuctions(): Promise<void> {
         if (sellerId) {
           void (async () => {
             try {
-              await notifyAuctionEnded(sellerId, id, auctionTitle, winnerBidAmount!);
+              await notifyAuctionEnded(sellerId, id, auctionTitle, winnerBidAmount!, currencyCode);
             } catch (err) {
               logger.warn({ err: String(err), auctionId: id }, "expireAuctions: notifyAuctionEnded failed");
             }

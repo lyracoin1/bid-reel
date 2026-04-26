@@ -1175,8 +1175,14 @@ async function executePlaceBid(
       "push-chain[2.outbid]: calling notifyOutbid",
     );
     notifyTasks.push(
-      notifyOutbid(prevLeaderUserId, userId, auctionId, auction.title ?? "this auction", newPrice)
-        .catch(err => logger.error({ err: String(err), auctionId, recipient: prevLeaderUserId }, "push-chain[2.outbid]: notifyOutbid threw")),
+      notifyOutbid(
+        prevLeaderUserId,
+        userId,
+        auctionId,
+        auction.title ?? "this auction",
+        newPrice,
+        (auction as { currency_code?: string | null }).currency_code ?? null,
+      ).catch(err => logger.error({ err: String(err), auctionId, recipient: prevLeaderUserId }, "push-chain[2.outbid]: notifyOutbid threw")),
     );
 
     // WhatsApp side-channel for the outbid event. Truly fire-and-forget
@@ -1249,6 +1255,7 @@ async function executePlaceBid(
           auctionId,
           auction.title ?? "this auction",
           newPrice,
+          (auction as { currency_code?: string | null }).currency_code ?? null,
         );
       })().catch(err =>
         logger.warn({ err: String(err), auctionId }, `${logTag}: notifyBidReceived failed`),

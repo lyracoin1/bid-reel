@@ -278,8 +278,32 @@ export async function createNotification(input: CreateNotificationInput): Promis
 // ── HELPERS — one per spec event ─────────────────────────────────────────────
 // =============================================================================
 
-const fmtMoney = (cents: number) =>
-  (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
+/**
+ * Currency-aware money formatter for notifications.
+ *
+ * - `amount`: bid amount as stored in the DB (whole units of the auction
+ *   currency — *not* cents/minor units). Bids in this codebase are stored as
+ *   whole numbers of the auction currency, matching `auctions.start_price`.
+ * - `currencyCode`: ISO 4217 code from `auctions.currency_code` (e.g. "EGP",
+ *   "USD"). Falls back to USD only if truly missing/invalid — preserves prior
+ *   behavior for legacy rows where the column was never populated.
+ *
+ * Uses `Intl.NumberFormat` so the currency symbol matches the ISO code
+ * (£, €, EGP, etc.) and never hardcodes a localized word like "دولار".
+ */
+function formatNotificationAmount(amount: number, currencyCode?: string | null): string {
+  const code = (currencyCode ?? "").trim().toUpperCase() || "USD";
+  try {
+    return amount.toLocaleString("en-US", { style: "currency", currency: code });
+  } catch {
+    // Invalid ISO code — fall back to a safe "AMOUNT CODE" form.
+    return `${amount.toLocaleString("en-US")} ${code}`;
+  }
+}
+
+// Legacy alias — kept so any not-yet-migrated callers default to USD.
+const fmtMoney = (amount: number, currencyCode?: string | null) =>
+  formatNotificationAmount(amount, currencyCode);
 
 // ── Follow ────────────────────────────────────────────────────────────────────
 
@@ -423,6 +447,7 @@ export async function notifyBidReceived(
   auctionId: string,
   auctionTitle: string,
   newAmount: number,
+  currencyCode?: string | null,
 ): Promise<void> {
   logger.info(
     { sellerId, bidderId, auctionId, newAmount, hasBidderName: bidderName != null },
@@ -437,7 +462,7 @@ export async function notifyBidReceived(
   }
   try {
     const who = bidderName?.trim() || "Someone";
-    const dollars = fmtMoney(newAmount);
+    const dollars = fmtMoney(newAmount, currencyCode);
     logger.info(
       { sellerId, auctionId, type: "bid_received" },
       "push-chain[2.B]: notifyBidReceived → about to call createNotification",
@@ -471,7 +496,8 @@ export const notifyNewBidReceived = (
   auctionTitle: string,
   newAmount: number,
   bidderName?: string | null,
-) => notifyBidReceived(sellerId, "00000000-0000-0000-0000-000000000000", bidderName ?? null, auctionId, auctionTitle, newAmount);
+  currencyCode?: string | null,
+) => notifyBidReceived(sellerId, "00000000-0000-0000-0000-000000000000", bidderName ?? null, auctionId, auctionTitle, newAmount, currencyCode);
 
 /** Previous high-bidder got beaten → notify them. PUSH. */
 export async function notifyOutbid(
@@ -480,9 +506,10 @@ export async function notifyOutbid(
   auctionId: string,
   auctionTitle: string,
   newAmount: number,
+  currencyCode?: string | null,
 ): Promise<void> {
   if (newBidderId && prevBidderId === newBidderId) return;
-  const dollars = fmtMoney(newAmount);
+  const dollars = fmtMoney(newAmount, currencyCode);
   logger.info({ prevBidderId, auctionId }, "notifications: outbid");
   await createNotification({
     userId: prevBidderId,
@@ -637,8 +664,9 @@ export async function notifyAuctionEnded(
   auctionId: string,
   auctionTitle: string,
   finalAmount: number,
+  currencyCode?: string | null,
 ): Promise<void> {
-  const dollars = fmtMoney(finalAmount);
+  const dollars = fmtMoney(finalAmount, currencyCode);
   logger.info({ sellerId, auctionId }, "notifications: auction_ended");
   await createNotification({
     userId: sellerId,

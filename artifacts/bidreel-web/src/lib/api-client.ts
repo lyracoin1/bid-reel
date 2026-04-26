@@ -33,8 +33,6 @@ const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
  */
 export const API_BASE: string = "https://www.bid-reel.com/api";
 
-// TEMPORARY debug log
-console.log("API URL:", API_BASE);
 
 // ─── Token management ─────────────────────────────────────────────────────────
 
@@ -44,14 +42,12 @@ let cachedToken: string | null = null;
 export function setToken(token: string): void {
   cachedToken = token;
   setSessionToken(token);
-  console.log("[auth] token stored — user is now authenticated");
 }
 
 /** Clears the in-memory and persisted token (called on logout / 401). */
 export function clearToken(): void {
   cachedToken = null;
   clearSessionToken();
-  console.log("[auth] token cleared — user is logged out");
 }
 
 /** Redirects to the login page and clears the stale session. */
@@ -216,7 +212,6 @@ export async function getAuctionsApi(opts?: { before?: string }): Promise<GetAuc
     throw new Error(err.message ?? "Failed to fetch auctions");
   }
   const data = await res.json() as { auctions: ApiAuctionRaw[]; nextCursor: string | null };
-  console.log(
     `[api-client] ✅ GET /auctions → ${data.auctions.length} auctions` +
     (opts?.before ? " (load-more)" : " (initial)") +
     (data.nextCursor ? ` nextCursor=${data.nextCursor}` : " [last page]"),
@@ -265,7 +260,6 @@ export async function uploadMediaApi(
     xhr.addEventListener("load", () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         const data = JSON.parse(xhr.responseText) as { publicUrl: string };
-        console.log(`[api-client] ✅ POST /media/upload → publicUrl=${data.publicUrl}`);
         resolve(data.publicUrl);
       } else {
         // Vercel returns HTML ("Request Entity Too Large") for 413; JSON.parse
@@ -404,7 +398,6 @@ export async function uploadMediaPresignedApi(
   }
   const { uploadUrl, publicUrl } = signed;
   const signedHost = safeHost(uploadUrl);
-  console.log(`[api-client] Presign OK → PUT ${signedHost}, expected publicUrl=${publicUrl}`);
 
   // 2. PUT file directly to R2
   return new Promise<string>((resolve, reject) => {
@@ -418,7 +411,6 @@ export async function uploadMediaPresignedApi(
 
     xhr.addEventListener("load", () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        console.log(`[api-client] ✅ PUT R2 → publicUrl=${publicUrl}`);
         resolve(publicUrl);
         return;
       }
@@ -476,7 +468,6 @@ export async function getMyAuctionsApi(): Promise<ApiAuctionRaw[]> {
     throw new Error(err.message ?? "Failed to fetch my auctions");
   }
   const data = await res.json() as { auctions: ApiAuctionRaw[] };
-  console.log(`[api-client] ✅ GET /auctions/mine → ${data.auctions.length} auctions`);
   return data.auctions;
 }
 
@@ -490,7 +481,6 @@ export async function getAuctionApi(id: string): Promise<{ auction: ApiAuctionRa
     throw new Error(err.message ?? "Auction not found");
   }
   const data = await res.json() as { auction: ApiAuctionRaw; bids: ApiAuctionBid[] };
-  console.log(`[api-client] ✅ GET /auctions/${id} → ${data.bids.length} bids`);
   return data;
 }
 

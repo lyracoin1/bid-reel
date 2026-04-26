@@ -3,8 +3,6 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// TEMPORARY debug log
-console.log("SUPABASE URL:", supabaseUrl);
 
 /**
  * Supabase client for the web app.

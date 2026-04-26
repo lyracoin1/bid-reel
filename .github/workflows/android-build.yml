@@ -31,6 +31,10 @@ jobs:
         run: pnpm install
 
       - name: Build web
+        env:
+          VITE_API_URL: https://www.bid-reel.com/api
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: |
           cd artifacts/bidreel-web
           pnpm run build

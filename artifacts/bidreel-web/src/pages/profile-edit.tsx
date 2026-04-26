@@ -31,11 +31,18 @@ import { useLang } from "@/contexts/LanguageContext";
 const E164_REGEX = /^\+[1-9]\d{7,14}$/;
 const USERNAME_REGEX = /^[a-z0-9][a-z0-9_]{1,28}[a-z0-9]$|^[a-z0-9]{3}$/;
 
-function normalizePhone(raw: string): string {
+function normalizePhone(raw: string, location?: string): string {
   const cleaned = raw.replace(/[\s\-\(\)\.]/g, "");
   if (cleaned.startsWith("+")) return cleaned;
   if (cleaned.startsWith("00")) return "+" + cleaned.slice(2);
-  return cleaned;
+
+  // Prepend prefix based on location if "+" is missing
+  const loc = (location || "").toLowerCase();
+  if (loc.includes("egypt") || loc.includes("eg") || loc.includes("مصر")) return "+20" + cleaned;
+  if (loc.includes("saudi") || loc.includes("sa") || loc.includes("السعودية")) return "+966" + cleaned;
+  if (loc.includes("japan") || loc.includes("jp") || loc.includes("اليابان")) return "+81" + cleaned;
+
+  return "+1" + cleaned;
 }
 
 function maskPhone(p: string): string {
@@ -167,7 +174,7 @@ export default function ProfileEdit() {
       setSubmitError(STR.usernameChecking);
       return;
     }
-    const normalizedPhone = normalizePhone(phone.trim());
+    const normalizedPhone = normalizePhone(phone.trim(), location.trim());
     if (!E164_REGEX.test(normalizedPhone)) {
       setSubmitError(STR.phoneInvalid);
       return;

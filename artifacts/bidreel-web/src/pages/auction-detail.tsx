@@ -678,6 +678,17 @@ export default function AuctionDetail() {
                     </motion.p>
                   )}
                 </AnimatePresence>
+                {/* Subscribe button — shown only for PREMIUM_REQUIRED errors */}
+                {bidError && (bidError.startsWith("Subscribe") || bidError === "اشترك لتتمكن من المزايدة") && (
+                  <div className="flex justify-center pt-1">
+                    <button
+                      onClick={() => { window.location.href = "/settings?tab=subscription"; }}
+                      className="text-xs font-semibold text-blue-400 border border-blue-400/40 rounded-full px-3 py-1 hover:bg-blue-400/10 transition-colors"
+                    >
+                      {lang === "ar" ? "اشترك الآن" : "Subscribe now"}
+                    </button>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

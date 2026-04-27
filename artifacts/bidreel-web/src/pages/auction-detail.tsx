@@ -57,6 +57,7 @@ export default function AuctionDetail() {
   // Server computes new_price = current_price + increment.
   const [incInput, setIncInput] = useState<string>("");
   const [bidError, setBidError] = useState<string | null>(null);
+  const [premiumRequired, setPremiumRequired] = useState(false);
   const [bidSuccess, setBidSuccess] = useState(false);
   const [showBiddingRulesModal, setShowBiddingRulesModal] = useState(false);
   const bidPanelRef = useRef<HTMLDivElement>(null);
@@ -68,6 +69,7 @@ export default function AuctionDetail() {
     onSuccess: () => {
       setBidSuccess(true);
       setBidError(null);
+      setPremiumRequired(false);
       // Reset after 2.5 s so panel is ready for the next bid. Re-seed the
       // input with the per-auction minimum so the default value always
       // equals min_increment (requirement: input default = min_increment).
@@ -78,9 +80,11 @@ export default function AuctionDetail() {
     },
     onError: (code, message) => {
       if (code === "PREMIUM_REQUIRED") {
+        setPremiumRequired(true);
         setBidError(lang === "ar" ? "اشترك لتتمكن من المزايدة" : "Subscribe to place bids");
         return;
       }
+      setPremiumRequired(false);
       setBidError(message);
       // BID_CONFLICT = someone else bid between the time we fetched the page
       // and the time we clicked Submit. The server rolled back our bid row;
@@ -246,6 +250,7 @@ export default function AuctionDetail() {
   // the modal next time so the user is given another chance).
   const submitBid = () => {
     setBidError(null);
+    setPremiumRequired(false);
     if (parsedInc === null) {
       setBidError(`Please enter a whole number ≥ ${minIncrement}`);
       return;
@@ -556,7 +561,7 @@ export default function AuctionDetail() {
                     per-auction minimum increment from the backend. */}
                 <button
                   type="button"
-                  onClick={() => { setIncInput(String(minIncrement)); setBidError(null); }}
+                  onClick={() => { setIncInput(String(minIncrement)); setBidError(null); setPremiumRequired(false); }}
                   disabled={isBidding}
                   className="flex items-center gap-1.5 bg-primary/12 hover:bg-primary/20 active:bg-primary/25 border border-primary/25 rounded-full px-3 py-1.5 transition-colors disabled:opacity-50"
                   aria-label={`Set increment to minimum ${minIncrement} ${auction.currencyCode ?? ""}`}
@@ -589,6 +594,7 @@ export default function AuctionDetail() {
                         const v = e.target.value.replace(/[^\d]/g, "");
                         setIncInput(v);
                         setBidError(null);
+                        setPremiumRequired(false);
                         setBidSuccess(false);
                       }}
                       onKeyDown={(e) => {
@@ -679,7 +685,7 @@ export default function AuctionDetail() {
                   )}
                 </AnimatePresence>
                 {/* Subscribe button — shown only for PREMIUM_REQUIRED errors */}
-                {bidError && (bidError.startsWith("Subscribe") || bidError === "اشترك لتتمكن من المزايدة") && (
+                {premiumRequired && bidError && (
                   <div className="flex justify-center pt-1">
                     <button
                       onClick={() => { window.location.href = "/settings?tab=subscription"; }}

@@ -27,13 +27,37 @@ import { formatDistanceToNow } from "date-fns";
 import { useViewerLocation } from "@/hooks/use-viewer-location";
 import { haversineDistance, formatDistance, formatAuctionPrice } from "@/lib/geo";
 import { useGlobalMute, getGlobalMuted } from "@/lib/global-mute";
+import { BillingPlugin } from "capacitor-billing";
 
-// ─── Google Play subscription entry point ────────────────────────────────────
-// Called when the user taps "Subscribe now" after hitting the premium bid gate.
-// Replace this stub with a real Capacitor billing plugin call once the plugin
-// is installed (e.g. @capgo/capacitor-purchases or a custom plugin).
-async function startSubscription(): Promise<void> {
-  console.log("TODO: trigger billing purchase");
+// ─── Google Play subscription purchase flow ───────────────────────────────────
+// Triggered when the user taps "Subscribe now" after hitting the premium gate.
+// Flow: querySkuDetails → launchBillingFlow → sendAck → backend verify.
+async function startSubscription(userId: string): Promise<void> {
+  try {
+    // 1. Confirm the product is available in the Play Store.
+    await BillingPlugin.querySkuDetails({ product: "bidreel_plus", type: "subs" });
+
+    // 2. Launch the native Google Play purchase dialog.
+    const result = await BillingPlugin.launchBillingFlow({ product: "bidreel_plus", type: "subs" });
+
+    const purchaseToken = result.value;
+    if (!purchaseToken) {
+      console.error("Billing: no purchase token returned");
+      return;
+    }
+
+    // 3. Acknowledge the purchase on the device.
+    await BillingPlugin.sendAck({ purchaseToken });
+
+    // 4. Verify with backend and grant premium.
+    await fetch("https://www.bid-reel.com/api/billing/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, productId: "bidreel_plus", purchaseToken }),
+    });
+  } catch (err) {
+    console.error("Billing error", err);
+  }
 }
 
 // Minimum bid increment is read per-auction from `auction.minIncrement`,
@@ -696,7 +720,7 @@ export default function AuctionDetail() {
                 {premiumRequired && bidError && (
                   <div className="flex justify-center pt-1">
                     <button
-                      onClick={() => { void startSubscription(); }}
+                      onClick={() => { void startSubscription(currentUser?.id ?? ""); }}
                       className="text-xs font-semibold text-blue-400 border border-blue-400/40 rounded-full px-3 py-1 hover:bg-blue-400/10 transition-colors"
                     >
                       {lang === "ar" ? "اشترك الآن" : "Subscribe now"}

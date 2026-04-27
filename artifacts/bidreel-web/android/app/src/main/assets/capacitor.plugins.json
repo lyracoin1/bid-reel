@@ -14,5 +14,9 @@
 	{
 		"pkg": "@capacitor/splash-screen",
 		"classpath": "com.capacitorjs.plugins.splashscreen.SplashScreenPlugin"
+	},
+	{
+		"pkg": "capacitor-billing",
+		"classpath": "de.carstenklaffke.billing.BillingPlugin"
 	}
 ]

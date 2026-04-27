@@ -92,6 +92,21 @@ function describeSubmitError(
     ? { pick_video: "اختيار الفيديو", compress: "ضغط الفيديو", upload_video: "رفع الفيديو", upload_image: "رفع الصورة", create_db: "نشر المزاد" }[step]
     : { pick_video: "Video selection", compress: "Video compression", upload_video: "Video upload", upload_image: "Image upload", create_db: "Publishing auction" }[step];
 
+  // ── create_db: map backend error codes → localized messages ─────────────────
+  // Never concatenate a raw English backend message with an Arabic step label.
+  if (step === "create_db") {
+    const code = (err as { code?: string }).code;
+    if (code === "SELLER_PROFILE_INCOMPLETE" || code === "PHONE_REQUIRED") {
+      return isAr
+        ? "أكمل بيانات ملفك الشخصي أولاً لتتمكن من نشر مزاد."
+        : "Complete your profile first to create an auction.";
+    }
+    // All other create_db errors: generic localized message — never raw English in Arabic UI.
+    return isAr
+      ? "تعذر نشر المزاد. حاول مرة أخرى."
+      : "Could not create auction. Please try again.";
+  }
+
   // Friendly message for native compression failures — does NOT fall back to
   // raw-video upload (product rule).
   if (err instanceof NativeVideoError) {

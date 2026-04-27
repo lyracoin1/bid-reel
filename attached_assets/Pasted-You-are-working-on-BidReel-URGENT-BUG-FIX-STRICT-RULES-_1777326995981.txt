@@ -1,0 +1,113 @@
+You are working on BidReel.
+
+URGENT BUG FIX.
+
+STRICT RULES:
+- Do NOT refactor
+- Do NOT change architecture
+- Do NOT work on billing purchase flow
+- Do NOT work on follow system
+- Do NOT install packages
+- Do NOT commit
+- Do NOT push
+- Minimal targeted fix only
+
+BUG:
+Create Auction fails with mixed-language error:
+"نشر المزاد: Could not verify seller profile"
+
+PRODUCT RULE:
+Only RED / incomplete profiles are blocked from creating auctions.
+
+Account status rules:
+- Blue / Plus / paid user: can create auctions
+- Orange / free but completed profile: can create auctions
+- Red / incomplete profile: cannot create auctions
+
+Important:
+Payment / Plus is NOT required to create auctions.
+Only profile completeness is required.
+
+MAIN REQUIREMENT:
+All errors, alerts, warnings, and submit failure messages on Create Auction must appear in the current app language.
+No mixed Arabic/English messages.
+Do NOT display raw backend English errors directly in Arabic UI.
+
+TASK:
+Fix create-auction seller profile verification and localized error handling.
+
+Steps:
+1. Locate create auction frontend submit logic.
+2. Locate backend create-auction route that verifies seller profile.
+3. Find exact profile fields used to determine profile completeness.
+4. Check whether current logic incorrectly requires:
+   - is_premium
+   - paid status
+   - old unlock/payment logic
+   - wrong profile fields
+   - wrong user/profile id
+
+Required backend behavior:
+- If seller profile is complete, allow auction creation regardless of is_premium.
+- If seller profile is incomplete, block with stable JSON:
+  {
+    "error": "SELLER_PROFILE_INCOMPLETE",
+    "message": "Seller profile is incomplete"
+  }
+- Backend may keep English message internally, but frontend must rely on error code for localization.
+
+Required frontend behavior:
+- Do NOT show raw backend message directly.
+- Map SELLER_PROFILE_INCOMPLETE to localized UI text.
+
+Arabic:
+"أكمل بيانات ملفك الشخصي أولاً لتتمكن من نشر مزاد."
+
+English:
+"Complete your profile first to create an auction."
+
+- If there are other create-auction errors, map known error codes to localized messages too when easy.
+- Unknown errors should show a generic localized message, not raw English.
+
+Arabic generic:
+"تعذر نشر المزاد. حاول مرة أخرى."
+
+English generic:
+"Could not create auction. Please try again."
+
+Important UI rule:
+If app language is Arabic, the whole error must be Arabic.
+If app language is English, the whole error must be English.
+No message like:
+"نشر المزاد: Could not verify seller profile"
+
+Do NOT:
+- require is_premium for creating auctions
+- require Plus/payment for creating auctions
+- weaken profile completeness checks blindly
+- remove the safety check entirely
+- change unrelated auction creation logic
+- touch Feed, Billing, Notifications, Follow system, or My Deals
+
+Verification:
+- Red/incomplete profile cannot create auction and sees localized message.
+- Orange/free completed profile can create auction.
+- Blue/Plus profile can create auction.
+- Arabic UI shows Arabic-only errors.
+- English UI shows English-only errors.
+- No mixed Arabic/English error.
+- Build succeeds.
+
+Final report:
+1. Files found
+2. Root cause
+3. Which profile fields define incomplete/red
+4. Exact files changed
+5. Backend error code added/fixed
+6. Frontend localized mapping
+7. How unknown errors are handled
+8. Build/test result
+9. git status
+
+Do NOT commit.
+Do NOT push.

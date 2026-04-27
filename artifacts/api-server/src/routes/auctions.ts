@@ -758,7 +758,7 @@ router.post("/auctions", requireAuth, async (req, res) => {
   {
     const { data: sellerRow, error: sellerErr } = await supabaseAdmin
       .from("profiles")
-      .select("phone, country, location")
+      .select("phone, country, location, username, display_name, avatar_url")
       .eq("id", sellerId)
       .maybeSingle();
     if (sellerErr) {
@@ -766,12 +766,18 @@ router.post("/auctions", requireAuth, async (req, res) => {
       res.status(500).json({ error: "PROFILE_LOOKUP_FAILED", message: "Could not verify seller profile." });
       return;
     }
-    const phone = (sellerRow?.phone ?? "").trim();
-    if (phone.length === 0) {
-      logger.warn({ sellerId }, "POST /auctions blocked: seller has no phone on file");
+    // Profile completeness gate — same fields as the frontend gate.
+    // is_premium / payment is NOT required; only a completed profile is.
+    const phone       = (sellerRow?.phone        ?? "").trim();
+    const username    = (sellerRow?.username      ?? "").trim();
+    const displayName = ((sellerRow as { display_name?: string })?.display_name ?? "").trim();
+    const avatarUrl   = (sellerRow?.avatar_url    ?? "").trim();
+    const location    = (sellerRow?.location      ?? "").trim();
+    if (!phone || !username || !displayName || !avatarUrl || !location) {
+      logger.warn({ sellerId }, "POST /auctions blocked: seller profile incomplete");
       res.status(400).json({
-        error: "PHONE_REQUIRED",
-        message: "Phone required before creating auction",
+        error: "SELLER_PROFILE_INCOMPLETE",
+        message: "Seller profile is incomplete",
       });
       return;
     }

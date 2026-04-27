@@ -1,0 +1,104 @@
+You are working on the BidReel project.
+
+CRITICAL RULES:
+- Do NOT refactor
+- Do NOT change architecture
+- Do NOT change API or data
+- Do NOT change UI layout
+- Only fix number/date formatting
+- Do NOT commit
+- Do NOT push
+
+====================================
+TASK: FIX MY DEALS NUMBER + DATE LOCALE
+====================================
+
+Problem:
+In My Deals / صفقاتي, when the app language is English, numbers and dates still appear in Arabic digits, like:
+٢٨٠
+٢٠٢٦/٤/٢٧
+
+Goal:
+When lang === "ar":
+- Arabic labels
+- Arabic-friendly numerals/dates are OK
+
+When lang !== "ar":
+- Use en-US
+- Show Latin digits:
+  280
+  2026/4/27
+
+====================================
+FILES TO CHECK
+====================================
+
+Focus ONLY on:
+- artifacts/bidreel-web/src/pages/my-deals.tsx
+- artifacts/bidreel-web/src/pages/deal-detail.tsx
+
+If deal-detail.tsx does not contain number/date formatting, do not modify it.
+
+====================================
+STEPS
+====================================
+
+1. Locate all formatting calls in these files:
+- toLocaleString
+- toLocaleDateString
+- Intl.NumberFormat
+- Intl.DateTimeFormat
+- any custom date/price formatter
+
+2. Find the current app language variable.
+Use the existing language hook/context already used in the file.
+Do NOT introduce a new i18n system.
+
+3. Create or update local locale selection:
+
+const locale = lang === "ar" ? "ar-EG" : "en-US"
+
+4. Apply this locale explicitly to:
+- prices
+- counts
+- dates
+- times if present
+
+Examples:
+number.toLocaleString(locale)
+
+new Intl.NumberFormat(locale, {
+  maximumFractionDigits: 0
+}).format(value)
+
+date.toLocaleDateString(locale, {
+  year: "numeric",
+  month: "numeric",
+  day: "numeric"
+})
+
+5. Do NOT rely on device/browser default locale.
+
+====================================
+VERIFICATION
+====================================
+
+- Arabic UI still works
+- English UI shows Latin digits
+- Dates in English show Latin digits
+- No API/data changes
+- Build succeeds
+
+====================================
+FINAL REPORT
+====================================
+
+Return:
+- files changed
+- exact formatters fixed
+- before/after examples
+- build result
+- git status
+
+DO NOT commit.
+DO NOT push.

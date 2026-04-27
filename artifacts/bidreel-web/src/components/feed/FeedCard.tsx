@@ -312,6 +312,7 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
             loading="lazy"
             decoding="async"
             className={cn("w-full h-full object-cover transition-transform duration-700", isActive ? "scale-100" : "scale-105")}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent via-35% to-black/90 pointer-events-none" />
           {state !== "active" && <div className="absolute inset-0 bg-black/25 pointer-events-none" />}

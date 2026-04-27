@@ -26,6 +26,7 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
           loading="lazy"
           decoding="async"
           className="max-w-full max-h-full w-auto h-auto object-contain"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
         />
       </div>
     );
@@ -62,6 +63,7 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
               loading="lazy"
               decoding="async"
               className="max-w-full max-h-full w-auto h-auto object-contain"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
             />
           </div>
         ))}

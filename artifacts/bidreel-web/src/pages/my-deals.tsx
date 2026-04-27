@@ -61,7 +61,7 @@ export default function MyDealsPage() {
     setError(null);
     getMyDealsApi()
       .then(setDeals)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : t("deal_load_failed")))
+      .catch(() => setError(t("deal_load_failed")))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

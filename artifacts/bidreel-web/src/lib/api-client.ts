@@ -31,7 +31,7 @@ const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
  *     /api/* to the Express server on the same domain.  This survives any domain
  *     change automatically, so it is always preferred on web.
  */
-export const API_BASE: string = "https://www.bid-reel.com/api";
+export const API_BASE: string = (import.meta.env.VITE_API_URL as string | undefined) ?? `${BASE}/api`;
 
 
 // ─── Token management ─────────────────────────────────────────────────────────

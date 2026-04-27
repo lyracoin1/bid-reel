@@ -228,7 +228,7 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
     // Try native share first
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       try {
-        await navigator.share({ title: shareTitle, url: shareUrl });
+        await navigator.share({ title: shareTitle, text: auction.description ?? undefined, url: shareUrl });
         return;
       } catch (err) {
         // User cancelled — silently bail. Any other error → fall through to copy.

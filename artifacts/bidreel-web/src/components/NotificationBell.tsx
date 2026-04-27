@@ -16,34 +16,35 @@ import {
   Heart, Bookmark, MessageCircle, AtSign, ShieldAlert, Megaphone, XCircle,
 } from "lucide-react";
 import { useNotifications, type AppNotification, type NotificationType } from "@/hooks/use-notifications";
+import { useLang } from "@/contexts/LanguageContext";
 
 // ─── Icon + colour per notification type ──────────────────────────────────────
 
 const TYPE_CONFIG: Record<
   NotificationType,
-  { icon: typeof Bell; colour: string; label: string }
+  { icon: typeof Bell; colour: string; label: string; labelAr: string }
 > = {
   // ── Canonical (spec) types ──────────────────────────────────────────────────
-  followed_you:              { icon: UserPlus,    colour: "text-blue-400",    label: "Follower" },
-  liked_your_auction:        { icon: Heart,       colour: "text-pink-400",    label: "Like" },
-  saved_your_auction:        { icon: Bookmark,    colour: "text-purple-400",  label: "Saved" },
-  commented_on_your_auction: { icon: MessageCircle, colour: "text-cyan-400",  label: "Comment" },
-  replied_to_your_comment:   { icon: MessageCircle, colour: "text-cyan-400",  label: "Reply" },
-  mentioned_you:             { icon: AtSign,      colour: "text-indigo-400",  label: "Mention" },
-  bid_received:              { icon: ShoppingBag, colour: "text-emerald-400", label: "New Bid" },
-  outbid:                    { icon: Gavel,       colour: "text-red-400",     label: "Outbid" },
-  auction_won:               { icon: Trophy,      colour: "text-amber-400",   label: "Won" },
-  auction_ended:             { icon: Trophy,      colour: "text-amber-400",   label: "Sold" },
-  auction_unsold:            { icon: XCircle,     colour: "text-white/50",    label: "Unsold" },
-  auction_ending_soon:       { icon: Gavel,       colour: "text-orange-400",  label: "Ending Soon" },
-  admin_message:             { icon: Megaphone,   colour: "text-yellow-300",  label: "Announcement" },
-  account_warning:           { icon: ShieldAlert, colour: "text-red-500",     label: "Warning" },
+  followed_you:              { icon: UserPlus,      colour: "text-blue-400",    label: "Follower",     labelAr: "متابع" },
+  liked_your_auction:        { icon: Heart,         colour: "text-pink-400",    label: "Like",         labelAr: "إعجاب" },
+  saved_your_auction:        { icon: Bookmark,      colour: "text-purple-400",  label: "Saved",        labelAr: "حفظ" },
+  commented_on_your_auction: { icon: MessageCircle, colour: "text-cyan-400",    label: "Comment",      labelAr: "تعليق" },
+  replied_to_your_comment:   { icon: MessageCircle, colour: "text-cyan-400",    label: "Reply",        labelAr: "رد" },
+  mentioned_you:             { icon: AtSign,        colour: "text-indigo-400",  label: "Mention",      labelAr: "إشارة" },
+  bid_received:              { icon: ShoppingBag,   colour: "text-emerald-400", label: "New Bid",      labelAr: "مزايدة" },
+  outbid:                    { icon: Gavel,         colour: "text-red-400",     label: "Outbid",       labelAr: "تجاوزك أحد" },
+  auction_won:               { icon: Trophy,        colour: "text-amber-400",   label: "Won",          labelAr: "فزت" },
+  auction_ended:             { icon: Trophy,        colour: "text-amber-400",   label: "Sold",         labelAr: "انتهى" },
+  auction_unsold:            { icon: XCircle,       colour: "text-white/50",    label: "Unsold",       labelAr: "غير مباع" },
+  auction_ending_soon:       { icon: Gavel,         colour: "text-orange-400",  label: "Ending Soon",  labelAr: "ينتهي قريباً" },
+  admin_message:             { icon: Megaphone,     colour: "text-yellow-300",  label: "Announcement", labelAr: "إعلان" },
+  account_warning:           { icon: ShieldAlert,   colour: "text-red-500",     label: "Warning",      labelAr: "تحذير" },
   // ── Legacy aliases (still emitted by old rows) ──────────────────────────────
-  new_follower:     { icon: UserPlus,    colour: "text-blue-400",    label: "Follower" },
-  new_bid:          { icon: ShoppingBag, colour: "text-emerald-400", label: "New Bid" },
-  new_bid_received: { icon: ShoppingBag, colour: "text-emerald-400", label: "New Bid" },
-  auction_started:  { icon: Tag,         colour: "text-primary",     label: "Live" },
-  auction_removed:  { icon: Tag,         colour: "text-white/40",    label: "Removed" },
+  new_follower:     { icon: UserPlus,    colour: "text-blue-400",    label: "Follower", labelAr: "متابع" },
+  new_bid:          { icon: ShoppingBag, colour: "text-emerald-400", label: "New Bid",  labelAr: "مزايدة" },
+  new_bid_received: { icon: ShoppingBag, colour: "text-emerald-400", label: "New Bid",  labelAr: "مزايدة" },
+  auction_started:  { icon: Tag,         colour: "text-primary",     label: "Live",     labelAr: "مباشر" },
+  auction_removed:  { icon: Tag,         colour: "text-white/40",    label: "Removed",  labelAr: "محذوف" },
 };
 
 // ─── Deep-link target per notification type ──────────────────────────────────
@@ -53,8 +54,12 @@ const TYPE_CONFIG: Record<
 function getDeepLink(n: AppNotification): string | null {
   switch (n.type) {
     case "followed_you":
-    case "new_follower":
-      return n.actorId ? `/profile/${n.actorId}` : null;
+    case "new_follower": {
+      const actorId = n.actorId
+        ?? (n.metadata?.["actorId"] as string | undefined)
+        ?? (n.metadata?.["userId"] as string | undefined);
+      return actorId ? `/profile/${actorId}` : null;
+    }
 
     case "liked_your_auction":
     case "saved_your_auction":
@@ -94,9 +99,16 @@ function getDeepLink(n: AppNotification): string | null {
 
 // ─── Time formatter ───────────────────────────────────────────────────────────
 
-function timeAgo(iso: string): string {
+function timeAgo(iso: string, lang: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diffMs / 60_000);
+  if (lang === "ar") {
+    if (mins < 1) return "الآن";
+    if (mins < 60) return `منذ ${mins} د`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `منذ ${hrs} س`;
+    return `منذ ${Math.floor(hrs / 24)} ي`;
+  }
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
@@ -106,7 +118,7 @@ function timeAgo(iso: string): string {
 
 // ─── Single notification row ──────────────────────────────────────────────────
 
-function NotificationRow({ n, onNavigate }: { n: AppNotification; onNavigate: (path: string) => void }) {
+function NotificationRow({ n, onNavigate, lang }: { n: AppNotification; onNavigate: (path: string) => void; lang: string }) {
   const cfg = TYPE_CONFIG[n.type] ?? TYPE_CONFIG.outbid;
   const Icon = cfg.icon;
   const target = getDeepLink(n);
@@ -148,10 +160,10 @@ function NotificationRow({ n, onNavigate }: { n: AppNotification; onNavigate: (p
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2 mb-0.5">
           <span className={`text-xs font-semibold uppercase tracking-wide ${cfg.colour}`}>
-            {cfg.label}
+            {lang === "ar" ? cfg.labelAr : cfg.label}
           </span>
           <span className="text-xs text-muted-foreground flex-shrink-0">
-            {timeAgo(n.createdAt)}
+            {timeAgo(n.createdAt, lang)}
           </span>
         </div>
         <p className="text-sm text-white/90 leading-snug line-clamp-2">{n.message}</p>
@@ -171,6 +183,7 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const { notifications, markAllRead } = useNotifications();
   const [, setLocation] = useLocation();
+  const { lang } = useLang();
 
   const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
   const visibleNotifications = notifications
@@ -267,7 +280,7 @@ export function NotificationBell() {
               <div className="flex items-center justify-between px-5 py-3">
                 <div className="flex items-center gap-2">
                   <Bell size={18} className="text-white" />
-                  <h2 className="text-base font-bold text-white">Notifications</h2>
+                  <h2 className="text-base font-bold text-white">{lang === "ar" ? "الإشعارات" : "Notifications"}</h2>
                   {visibleNotifications.length > 0 && (
                     <span className="text-xs text-muted-foreground">
                       ({visibleNotifications.length})
@@ -288,10 +301,10 @@ export function NotificationBell() {
                 {visibleNotifications.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
                     <Bell size={32} className="opacity-30" />
-                    <p className="text-sm">No notifications yet</p>
+                    <p className="text-sm">{lang === "ar" ? "لا إشعارات بعد" : "No notifications yet"}</p>
                   </div>
                 ) : (
-                  visibleNotifications.map(n => <NotificationRow key={n.id} n={n} onNavigate={handleNavigate} />)
+                  visibleNotifications.map(n => <NotificationRow key={n.id} n={n} onNavigate={handleNavigate} lang={lang} />)
                 )}
               </div>
 

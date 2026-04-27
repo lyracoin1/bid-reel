@@ -1,0 +1,81 @@
+You are working on BidReel.
+
+STRICT RULES:
+- Do NOT refactor.
+- Do NOT change architecture.
+- Do NOT install packages.
+- Do NOT commit.
+- Do NOT push.
+- Make minimal changes only.
+
+TASK:
+Add a small neon account status badge/dot near user identity.
+
+Product logic:
+1. Premium/Paid user:
+   - show small neon blue badge/dot
+   - meaning: verified / premium
+
+2. Free user with complete profile data:
+   - phone/number exists
+   - location exists
+   - basic profile data exists
+   - show small neon orange badge/dot
+
+3. Free user with incomplete data:
+   - no payment and missing required profile data
+   - show small neon red badge/dot
+
+Steps:
+1. Locate user/profile display components:
+   - profile header
+   - seller/user identity blocks
+   - auction card seller info if applicable
+
+2. Locate existing profile fields:
+   - phone
+   - location/country/city
+   - name/username
+   - any premium/subscription field if it exists
+
+3. If no premium/subscription field exists:
+   - do NOT invent fake paid status
+   - use existing field only if present
+   - otherwise mark premium detection as "not implemented yet" in report
+
+4. Add a tiny reusable helper if easy:
+   getAccountStatus(profile) returns:
+   - "premium"
+   - "complete_free"
+   - "incomplete_free"
+
+5. UI:
+   - premium = neon blue dot
+   - complete_free = neon orange dot
+   - incomplete_free = neon red dot
+   - small size only
+   - do not change layout heavily
+   - add title/aria-label if possible
+
+6. Do NOT:
+   - change DB schema
+   - add verification system
+   - add payment logic
+   - hide any content
+
+Verification:
+- premium user shows blue dot if premium field exists
+- complete free profile shows orange dot
+- incomplete free profile shows red dot
+- layout remains clean
+
+Final report:
+1. Files found
+2. Files changed
+3. Which fields were used for status
+4. Whether premium field exists or not
+5. Exact UI change
+6. git status
+
+Do NOT commit.
+Do NOT push.

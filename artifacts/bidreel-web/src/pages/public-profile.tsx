@@ -21,7 +21,7 @@ import { useFollow } from "@/hooks/use-follow";
 import { useAuctions } from "@/hooks/use-auctions";
 import { getUserPublicProfileApi, type ApiPublicProfile } from "@/lib/api-client";
 import { formatAuctionPrice } from "@/lib/geo";
-import { getTimeRemaining } from "@/lib/utils";
+import { getTimeRemaining, getAccountStatus } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { FollowListModal } from "@/components/FollowListModal";
 import { AnimatePresence } from "framer-motion";
@@ -112,16 +112,34 @@ export default function PublicProfilePage() {
             <div className="px-5 pb-5">
               <div className="flex items-center gap-4 mb-5">
                 {/* Avatar */}
-                {profileLoading ? (
-                  <div className="w-20 h-20 rounded-2xl bg-white/10 animate-pulse shrink-0" />
-                ) : (
-                  <UserAvatar
-                    src={profile?.avatarUrl ?? null}
-                    name={profile?.displayName ?? userId.slice(0, 8)}
-                    size={80}
-                    className="rounded-2xl ring-2 ring-white/10 shrink-0"
-                  />
-                )}
+                <div className="relative shrink-0">
+                  {profileLoading ? (
+                    <div className="w-20 h-20 rounded-2xl bg-white/10 animate-pulse" />
+                  ) : (
+                    <UserAvatar
+                      src={profile?.avatarUrl ?? null}
+                      name={profile?.displayName ?? userId.slice(0, 8)}
+                      size={80}
+                      className="rounded-2xl ring-2 ring-white/10"
+                    />
+                  )}
+                  {!profileLoading && profile && (() => {
+                    const st = getAccountStatus({ isCompleted: profile.isCompleted });
+                    return (
+                      <div
+                        aria-label={st === "complete_free" ? "Profile complete" : "Profile incomplete"}
+                        title={st === "complete_free" ? "Profile complete" : "Profile incomplete"}
+                        className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 rounded-full border-2 border-background"
+                        style={{
+                          backgroundColor: st === "complete_free" ? "#fb923c" : "#f87171",
+                          boxShadow: st === "complete_free"
+                            ? "0 0 7px 3px rgba(251,146,60,0.75)"
+                            : "0 0 7px 3px rgba(248,113,113,0.75)",
+                        }}
+                      />
+                    );
+                  })()}
+                </div>
 
                 {/* Name + bio */}
                 <div className="flex-1 min-w-0">

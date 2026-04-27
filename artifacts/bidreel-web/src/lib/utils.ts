@@ -65,6 +65,40 @@ export function getWhatsAppUrl(phone: string, itemTitle?: string): string {
   return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 }
 
+// ── Account status ────────────────────────────────────────────────────────────
+// Premium detection is not implemented — no subscription/plan field exists
+// in the current schema. Status is driven purely by profile completeness.
+
+export type AccountStatus = "complete_free" | "incomplete_free";
+
+/**
+ * Derive account status from available profile fields.
+ *
+ * Own profile: pass all 5 completeness fields (avatarUrl, username,
+ * displayName, location, phone). If `phone` is provided (even as null),
+ * all 5 fields are required for "complete_free".
+ *
+ * Public profile: pass only { isCompleted } — phone is private and not
+ * returned by the public endpoint.
+ *
+ * Premium ("neon blue") is not implemented — no paid/subscription field exists.
+ */
+export function getAccountStatus(fields: {
+  avatarUrl?: string | null;
+  username?: string | null;
+  displayName?: string | null;
+  location?: string | null;
+  phone?: string | null;
+  isCompleted?: boolean;
+}): AccountStatus {
+  if ("phone" in fields) {
+    return !!(fields.avatarUrl && fields.username && fields.displayName && fields.location && fields.phone)
+      ? "complete_free"
+      : "incomplete_free";
+  }
+  return fields.isCompleted ? "complete_free" : "incomplete_free";
+}
+
 export function getPublicBaseUrl(): string {
   const configured =
     (import.meta.env["VITE_PUBLIC_BASE_URL"] as string | undefined)?.replace(/\/$/, "") ||

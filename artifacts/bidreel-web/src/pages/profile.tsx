@@ -14,7 +14,7 @@ import { useMyAuctions } from "@/hooks/use-auctions";
 import { getSavedAuctionsApi, clearToken, deleteAccountApi, getBiddedAuctionsApi, type ApiBiddedAuction, type ApiSavedAuction } from "@/lib/api-client";
 import { clearAdminSession } from "@/pages/admin/admin-session";
 import { deleteNativeFcmToken } from "@/lib/native-fcm";
-import { getTimeRemaining } from "@/lib/utils";
+import { getTimeRemaining, getAccountStatus } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { FollowListModal } from "@/components/FollowListModal";
@@ -136,6 +136,10 @@ export default function Profile() {
   // on the field count is the only source of truth the user can act on.
   const completePct    = !user ? 0 : Math.round((completedCount / completenessFields.length) * 100);
   const missingFields  = completenessFields.filter(f => !f.done);
+  const accountStatus  = !user ? null : getAccountStatus({
+    avatarUrl: user.avatarUrl, username: user.username, displayName: user.displayName,
+    location: user.location, phone: user.phone,
+  });
 
   return (
     <MobileLayout>
@@ -159,7 +163,19 @@ export default function Profile() {
                     className="rounded-2xl ring-2 ring-white/10"
                   />
                 )}
-                <div className="absolute -bottom-1.5 -right-1.5 w-5 h-5 rounded-full bg-emerald-400 border-2 border-background" />
+                {accountStatus && (
+                  <div
+                    aria-label={accountStatus === "complete_free" ? "Profile complete" : "Profile incomplete"}
+                    title={accountStatus === "complete_free" ? "Profile complete" : "Profile incomplete"}
+                    className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 rounded-full border-2 border-background"
+                    style={{
+                      backgroundColor: accountStatus === "complete_free" ? "#fb923c" : "#f87171",
+                      boxShadow: accountStatus === "complete_free"
+                        ? "0 0 7px 3px rgba(251,146,60,0.75)"
+                        : "0 0 7px 3px rgba(248,113,113,0.75)",
+                    }}
+                  />
+                )}
               </div>
 
               <div>

@@ -3,6 +3,9 @@
 
     <!-- ─── Permissions ──────────────────────────────────────────────── -->
 
+    <!-- Google Play Billing (subscriptions / in-app purchases) -->
+    <uses-permission android:name="com.android.vending.BILLING" />
+
     <!-- Network (required for all API calls and media streaming) -->
     <uses-permission android:name="android.permission.INTERNET" />
 

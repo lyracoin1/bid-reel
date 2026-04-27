@@ -67,17 +67,24 @@ router.post("/billing/verify", async (req, res) => {
       token: purchaseToken,
     });
 
-    // purchaseState 0 = purchased/active.
-    // expiryTimeMillis is a string of epoch-milliseconds from Google's API.
-    const purchaseState = (data as { purchaseState?: number }).purchaseState;
+    // Primary validation: expiryTimeMillis must be present and in the future.
+    // purchaseState is not reliably present on subscription resources from the
+    // Android Publisher API, so it is not used as a hard gate.
     const expiryMs = Number(data.expiryTimeMillis ?? 0);
-    const isPurchased = purchaseState === 0;
-    const notExpired = expiryMs > Date.now();
+    const notExpired = expiryMs > 0 && expiryMs > Date.now();
 
-    if (!isPurchased || !notExpired) {
+    // Secondary: if cancelReason is set the user has cancelled, but the
+    // subscription may still be within its paid period (notExpired = true).
+    // We honour that remaining time — rejection only applies when the
+    // subscription is also past its expiry.
+    const cancelReason = (data as { cancelReason?: number }).cancelReason;
+    const cancelledAndExpired =
+      cancelReason !== undefined && cancelReason !== null && !notExpired;
+
+    if (!notExpired || cancelledAndExpired) {
       logger.info(
-        { userId, productId, purchaseState, expiryMs },
-        "billing/verify: purchase invalid or expired",
+        { userId, productId, expiryMs, cancelReason: cancelReason ?? null },
+        "billing/verify: subscription inactive or expired",
       );
       return res.status(402).json({
         success: false,

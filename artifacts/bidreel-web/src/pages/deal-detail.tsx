@@ -14,6 +14,7 @@ import {
   ShieldCheck, ShieldAlert,
 } from "lucide-react";
 import { MobileLayout } from "@/components/layout/MobileLayout";
+import { SellerRatingDialog } from "@/components/SellerRatingDialog";
 import {
   getDealApi, confirmDealApi, rateDealApi,
   type ApiDealDetail, type ApiDealRating, type DealConfirmation,
@@ -73,7 +74,8 @@ const OUTCOME_LABEL_KEY: Record<DealConfirmation, TKey> = {
 };
 
 export default function DealDetailPage() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const locale = lang === "ar" ? "ar-EG" : "en-US";
   const [, params] = useRoute("/deals/:dealId");
   const [, setLocation] = useLocation();
   const dealId = params?.dealId ?? "";
@@ -96,6 +98,9 @@ export default function DealDetailPage() {
   const [f3, setF3] = useState<boolean | null>(null); // authenticity OR seriousness
   const [f4, setF4] = useState<boolean | null>(null); // accuracy OR timeliness
   const [f5, setF5] = useState<boolean | null>(null); // experience
+
+  const [showSellerRating, setShowSellerRating] = useState(false);
+  const [sellerRatedLocally, setSellerRatedLocally] = useState(false);
 
   function load() {
     if (!dealId) return;
@@ -237,12 +242,12 @@ export default function DealDetailPage() {
               }`}>
                 {isSeller ? t("deal_role_seller") : t("deal_role_buyer")}
               </span>
-              <span className="text-xs text-white/40">{new Date(deal.created_at).toLocaleDateString()}</span>
+              <span className="text-xs text-white/40">{new Date(deal.created_at).toLocaleDateString(locale)}</span>
             </div>
 
             <div className="flex items-baseline gap-2 mb-3">
               <span className="text-3xl font-bold text-white tabular-nums">
-                {Number(deal.winning_amount).toLocaleString()}
+                {Number(deal.winning_amount).toLocaleString(locale)}
               </span>
               <span className="text-xs font-semibold text-white/45 uppercase tracking-wider">{t("deal_winning_bid")}</span>
             </div>
@@ -388,17 +393,34 @@ export default function DealDetailPage() {
           )}
 
           {/* Already rated */}
-          {callerRating && (
+          {(callerRating || sellerRatedLocally) && (
             <div className="bg-white/4 border border-white/8 rounded-2xl p-4 flex items-start gap-3">
               <ShieldCheck size={18} className="text-emerald-400 shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm font-bold text-white">{t("deal_rated_title")}</p>
-                <p className="text-xs text-white/55 mt-0.5">
-                  {t("deal_rated_score_label")} <span className="font-bold text-white tabular-nums">{Math.round(Number(callerRating.score))}%</span>
-                  <span className="text-white/30"> · </span>
-                  {new Date(callerRating.created_at).toLocaleDateString()}
+                <p className="text-sm font-bold text-white">
+                  {lang === "ar" ? "تم التقييم" : "Rated"}
                 </p>
+                {callerRating && (
+                  <p className="text-xs text-white/55 mt-0.5">
+                    {t("deal_rated_score_label")} <span className="font-bold text-white tabular-nums">{Math.round(Number(callerRating.score))}%</span>
+                    <span className="text-white/30"> · </span>
+                    {new Date(callerRating.created_at).toLocaleDateString(locale)}
+                  </p>
+                )}
               </div>
+            </div>
+          )}
+
+          {/* Detailed Seller Rating Button */}
+          {deal.status === "completed" && isBuyer && !callerRating && !sellerRatedLocally && (
+            <div className="px-5">
+              <button
+                onClick={() => setShowSellerRating(true)}
+                className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-bold hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
+              >
+                <Star size={18} className="text-amber-400" />
+                {lang === "ar" ? "قيّم البائع" : "Rate seller"}
+              </button>
             </div>
           )}
 
@@ -411,6 +433,14 @@ export default function DealDetailPage() {
           )}
         </div>
       </div>
+
+      <SellerRatingDialog
+        isOpen={showSellerRating}
+        onClose={() => setShowSellerRating(false)}
+        dealId={deal.id}
+        ratedUserId={deal.seller_id}
+        onSubmitted={() => setSellerRatedLocally(true)}
+      />
     </MobileLayout>
   );
 }

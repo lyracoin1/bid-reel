@@ -1369,6 +1369,59 @@ export async function rateDealApi(dealId: string, payload: RatePayload): Promise
   return data.rating;
 }
 
+export interface SellerRatingInput {
+  dealId: string;
+  ratedUserId: string;
+  ratingType: "positive" | "negative";
+  tags: string[];
+  comment?: string;
+  isAnonymous: boolean;
+}
+
+export async function submitSellerRatingApi(input: SellerRatingInput): Promise<{ success: true; ratingId: string }> {
+  const res = await fetch(`${API_BASE}/ratings`, {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.error || err.message || "Failed to submit seller rating");
+  }
+  return await res.json() as { success: true; ratingId: string };
+}
+
+export interface ApiSellerRating {
+  id: string;
+  rating_type: "positive" | "negative";
+  tags: string[];
+  comment: string | null;
+  is_anonymous: boolean;
+  created_at: string;
+  rater?: {
+    display_name: string | null;
+    avatar_url: string | null;
+  };
+}
+
+export interface SellerRatingsSummary {
+  ratings: ApiSellerRating[];
+  stats: {
+    total: number;
+    positive_percentage: number;
+    common_tags: string[];
+  };
+}
+
+export async function getSellerRatingsApi(userId: string): Promise<SellerRatingsSummary> {
+  const res = await fetch(`${API_BASE}/users/${userId}/ratings`, { headers: await authHeaders() });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message || "Failed to load seller ratings");
+  }
+  return await res.json() as SellerRatingsSummary;
+}
+
 export async function getMyTrustApi(): Promise<ApiTrust> {
   const res = await fetch(`${API_BASE}/users/me/trust`, { headers: await authHeaders() });
   if (!res.ok) {

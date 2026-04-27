@@ -13,6 +13,7 @@ import notificationRouter from "./notifications";
 import reportsRouter from "./reports";
 import viewsRouter from "./views";
 import dealsRouter from "./deals";
+import ratingsRouter from "./ratings";
 import whatsappRouter from "./whatsapp";
 import billingRouter from "./billing";
 
@@ -37,5 +38,6 @@ router.use(notificationRouter);
 router.use(reportsRouter);
 router.use(viewsRouter);
 router.use(dealsRouter);
+router.use(ratingsRouter);
 
 export default router;

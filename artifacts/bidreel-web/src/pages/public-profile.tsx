@@ -27,6 +27,7 @@ import { FollowListModal } from "@/components/FollowListModal";
 import { AnimatePresence } from "framer-motion";
 import { TrustStatCard } from "@/components/trust/TrustBadge";
 import { useUserTrust } from "@/hooks/use-user-trust";
+import { SellerRatingsSection } from "@/components/profile/SellerRatingsSection";
 
 type FollowModal = "followers" | "following" | null;
 
@@ -228,6 +229,13 @@ export default function PublicProfilePage() {
                     total={trust.total_buy_deals}
                     reviewsCount={trust.buyer_reviews_count}
                   />
+                </div>
+              )}
+
+              {/* Detailed Seller Ratings */}
+              {!profileLoading && profile && (
+                <div className="mb-6">
+                  <SellerRatingsSection userId={userId} />
                 </div>
               )}
 

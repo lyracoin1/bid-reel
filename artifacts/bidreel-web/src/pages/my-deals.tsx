@@ -52,7 +52,8 @@ function statusMetaFor(deal: Pick<ApiDeal, "status" | "role">): { labelKey: TKey
 }
 
 export default function MyDealsPage() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const locale = lang === "ar" ? "ar-EG" : "en-US";
   const [, setLocation] = useLocation();
   const [deals, setDeals] = useState<ApiDeal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -169,13 +170,13 @@ export default function MyDealsPage() {
                         </span>
                       </div>
                       <span className="text-xs text-white/40 tabular-nums shrink-0">
-                        {new Date(deal.created_at).toLocaleDateString()}
+                        {new Date(deal.created_at).toLocaleDateString(locale)}
                       </span>
                     </div>
 
                     <div className="flex items-baseline gap-1.5 mb-2">
                       <span className="text-xl font-bold text-white tabular-nums">
-                        {Number(deal.winning_amount).toLocaleString()}
+                        {Number(deal.winning_amount).toLocaleString(locale)}
                       </span>
                       <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">{t("deal_winning_bid")}</span>
                     </div>

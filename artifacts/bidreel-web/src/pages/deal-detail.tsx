@@ -60,6 +60,9 @@ function statusMetaFor(deal: Pick<ApiDealDetail, "status" | "role">): { labelKey
       return { labelKey: "deal_detail_status_failed", cls: "text-red-300", subKey: "deal_status_sub_failed" };
     case "disputed":
       return { labelKey: "deal_detail_status_disputed", cls: "text-orange-300", subKey: "deal_status_sub_disputed" };
+    default:
+      console.warn("Unknown deal status", deal.status);
+      return { labelKey: "deal_status_failed" as TKey, cls: "text-white/40", subKey: "deal_status_sub_failed" as TKey };
   }
 }
 
@@ -261,7 +264,9 @@ export default function DealDetailPage() {
             <div className="grid grid-cols-2 gap-3 mt-4">
               {(["seller", "buyer"] as const).map(side => {
                 const conf: DealConfirmation = side === "seller" ? deal.seller_confirmation : deal.buyer_confirmation;
-                const meta = CONFIRMATION_META[conf];
+                const rawMeta = (CONFIRMATION_META as Record<string, typeof CONFIRMATION_META.pending | undefined>)[conf];
+                if (!rawMeta) console.warn("Unknown deal confirmation", conf);
+                const meta = rawMeta ?? CONFIRMATION_META.pending;
                 const Icon = meta.icon;
                 const isMe = (side === "seller" && isSeller) || (side === "buyer" && isBuyer);
                 return (

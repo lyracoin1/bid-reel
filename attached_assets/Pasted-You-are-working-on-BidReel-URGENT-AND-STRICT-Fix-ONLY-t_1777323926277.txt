@@ -1,0 +1,74 @@
+You are working on BidReel.
+
+URGENT AND STRICT:
+- Fix ONLY the My Deals crash.
+- Do NOT work on billing.
+- Do NOT work on notifications.
+- Do NOT refactor.
+- Do NOT install packages.
+- Do NOT commit.
+- Do NOT push.
+- Minimal targeted fix only.
+
+BUG:
+Android crashes on Profile/Settings → My Deals / "صفقاتي" with:
+Cannot read properties of undefined (reading 'icon')
+https://localhost/assets/index-*.js:81
+
+IMPORTANT:
+A previous fallback in my-deals.tsx did NOT fix the Android production bundle, so you must verify all possible status/icon mappings used by the actual My Deals screen.
+
+TASK:
+Find the exact code path rendering "صفقاتي" and fix any undefined `.icon` access.
+
+Steps:
+1. Locate all files that render:
+   - "صفقاتي"
+   - My Deals
+   - deal status tabs: الكل / نشطة / مكتملة / فاشلة
+   - any object containing `.icon` for deal/status metadata
+
+2. Search specifically for:
+   - ".icon"
+   - "statusMeta"
+   - "deal_status"
+   - "deals"
+   - "صفقاتي"
+
+3. Fix every unsafe pattern like:
+   const Icon = meta.icon
+   STATUS_MAP[status].icon
+   CONFIG[type].icon
+
+Required fix:
+- Always provide a safe fallback object before reading `.icon`.
+- Unknown/null/undefined statuses must never crash.
+- Use a fallback icon like AlertCircle if available.
+- Use a fallback label:
+  Arabic: "غير معروف"
+  English: "Unknown"
+
+4. Also guard status string usage:
+- Replace unsafe status.startsWith(...) with safe checks:
+  typeof status === "string" && status.startsWith(...)
+
+5. Add a small temporary debug log ONLY in My Deals:
+console.warn("Unknown deal status", status)
+Only when status is unknown.
+Do NOT log user data.
+
+6. Build verification:
+- Run frontend build.
+- Confirm no TypeScript/build errors.
+- Confirm no remaining unsafe `.icon` access in My Deals/status config.
+
+Final report:
+1. Exact files found for My Deals
+2. Exact root cause
+3. Exact files changed
+4. Exact fallback added
+5. Build result
+6. git status
+
+Do NOT commit.
+Do NOT push.

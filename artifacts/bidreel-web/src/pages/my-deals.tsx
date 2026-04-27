@@ -46,6 +46,7 @@ function statusMetaFor(deal: Pick<ApiDeal, "status" | "role">): { labelKey: TKey
     case "disputed":
       return { labelKey: "deal_status_disputed", icon: AlertCircle, cls: "text-orange-300" };
     default:
+      console.warn("Unknown deal status", deal.status);
       return { labelKey: "deal_status_failed", icon: AlertCircle, cls: "text-white/40" };
   }
 }
@@ -70,7 +71,7 @@ export default function MyDealsPage() {
 
   const filtered = deals.filter(d => {
     if (filter === "all") return true;
-    if (filter === "active") return d.status?.startsWith("pending") ?? false;
+    if (filter === "active") return typeof d.status === "string" && d.status.startsWith("pending");
     if (filter === "completed") return d.status === "completed";
     if (filter === "failed") return d.status === "failed" || d.status === "disputed";
     return true;
@@ -78,7 +79,7 @@ export default function MyDealsPage() {
 
   const tabs: { id: Filter; label: string; count: number }[] = [
     { id: "all",       label: t("deal_filter_all"),       count: deals.length },
-    { id: "active",    label: t("deal_filter_active"),    count: deals.filter(d => d.status?.startsWith("pending") ?? false).length },
+    { id: "active",    label: t("deal_filter_active"),    count: deals.filter(d => typeof d.status === "string" && d.status.startsWith("pending")).length },
     { id: "completed", label: t("deal_filter_completed"), count: deals.filter(d => d.status === "completed").length },
     { id: "failed",    label: t("deal_filter_failed"),    count: deals.filter(d => d.status === "failed" || d.status === "disputed").length },
   ];

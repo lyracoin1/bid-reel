@@ -1041,7 +1041,21 @@ async function executePlaceBid(
     .maybeSingle();
 
   if (!bidder?.is_premium) {
-    return { ok: false, status: 403, body: { error: "PREMIUM_REQUIRED", message: "Subscription required to place bids" } };
+    // Free users: allow up to 2 bids per calendar month.
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+    const freeCol = await getBidderCol();
+    const { count: monthlyBidCount } = await supabaseAdmin
+      .from("bids")
+      .select("id", { count: "exact", head: true })
+      .eq(freeCol, userId)
+      .gte("created_at", monthStart)
+      .lt("created_at", monthEnd);
+
+    if ((monthlyBidCount ?? 0) >= 2) {
+      return { ok: false, status: 403, body: { error: "PREMIUM_REQUIRED", message: "Subscribe to place more bids" } };
+    }
   }
 
   // 2. Fetch auction.

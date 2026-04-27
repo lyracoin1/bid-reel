@@ -14,6 +14,7 @@ import reportsRouter from "./reports";
 import viewsRouter from "./views";
 import dealsRouter from "./deals";
 import whatsappRouter from "./whatsapp";
+import billingRouter from "./billing";
 
 const router: IRouter = Router();
 
@@ -31,6 +32,7 @@ router.use(likesRouter);
 router.use(mediaRouter);
 router.use("/admin", adminRouter);
 router.use(auctionRouter);
+router.use(billingRouter);
 router.use(notificationRouter);
 router.use(reportsRouter);
 router.use(viewsRouter);

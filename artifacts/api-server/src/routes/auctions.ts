@@ -1043,8 +1043,8 @@ async function executePlaceBid(
   if (!bidder?.is_premium) {
     // Free users: allow up to 2 bids per calendar month.
     const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+    const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
     const freeCol = await getBidderCol();
     const { count: monthlyBidCount } = await supabaseAdmin
       .from("bids")

@@ -77,6 +77,10 @@ export default function AuctionDetail() {
       }, 2500);
     },
     onError: (code, message) => {
+      if (code === "PREMIUM_REQUIRED") {
+        setBidError(lang === "ar" ? "اشترك لتتمكن من المزايدة" : "Subscribe to place bids");
+        return;
+      }
       setBidError(message);
       // BID_CONFLICT = someone else bid between the time we fetched the page
       // and the time we clicked Submit. The server rolled back our bid row;

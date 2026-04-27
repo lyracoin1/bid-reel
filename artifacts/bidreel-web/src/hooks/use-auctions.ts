@@ -323,6 +323,7 @@ export type BidError =
   | 'BID_CONFLICT'
   | 'AUCTION_NOT_ACTIVE'
   | 'SELLER_CANNOT_BID'
+  | 'PREMIUM_REQUIRED'
   | 'NO_TOKEN'
   | 'UNKNOWN';
 

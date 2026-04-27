@@ -1,0 +1,111 @@
+You are working on the BidReel project.
+
+CRITICAL RULES:
+- Do NOT refactor entire files
+- Do NOT change architecture
+- Make minimal safe edits only
+- Do NOT break existing logic
+- Do NOT commit
+- Do NOT push
+
+====================================
+TASK: FIX SHARE SYSTEM (ANDROID + WEB)
+====================================
+
+Goal:
+Make Share work correctly on:
+- Android (Capacitor) → MUST open native share sheet
+- Web → use navigator.share
+- Fallback → copy link
+
+====================================
+STEP 1: Install Capacitor Share
+====================================
+
+Install:
+npm install @capacitor/share
+
+Then run:
+npx cap sync android
+
+====================================
+STEP 2: Update Share Logic
+====================================
+
+Files:
+- artifacts/bidreel-web/src/components/feed/FeedCard.tsx
+- artifacts/bidreel-web/src/components/AuctionMenu.tsx
+
+In BOTH files:
+
+1. Import:
+import { Capacitor } from '@capacitor/core'
+import { Share } from '@capacitor/share'
+
+2. Replace handleShare logic with:
+
+const url = `${getPublicBaseUrl()}/auction/${auction.id}`
+
+try {
+  if (Capacitor.isNativePlatform()) {
+    await Share.share({
+      title: auction.title,
+      text: auction.title,
+      url,
+      dialogTitle: 'Share auction'
+    })
+    return
+  }
+
+  if (typeof navigator.share === 'function') {
+    await navigator.share({
+      title: auction.title,
+      text: auction.title,
+      url
+    })
+    return
+  }
+
+  await navigator.clipboard.writeText(url)
+
+  toast({
+    title: lang === 'ar' ? 'تم نسخ الرابط' : 'Link copied'
+  })
+
+} catch (err) {
+  toast({
+    title: lang === 'ar' ? 'تعذّر المشاركة' : 'Could not share'
+  })
+}
+
+====================================
+STEP 3: Fix Toast Language
+====================================
+
+Ensure BOTH files:
+- respect current lang
+- do NOT hardcode Arabic or English
+
+====================================
+VERIFICATION
+====================================
+
+- Android → share button opens native share sheet
+- Web mobile → navigator.share works
+- Desktop → copies link
+- No crash
+- Build succeeds
+
+====================================
+FINAL REPORT
+====================================
+
+Return:
+- files changed
+- confirmation @capacitor/share installed
+- cap sync result
+- build result
+- git status
+
+DO NOT commit
+DO NOT push

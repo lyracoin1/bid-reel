@@ -11,6 +11,8 @@ import { useSaveAuction } from "@/hooks/use-save-auction";
 import { useLang } from "@/contexts/LanguageContext";
 import { useLiveAuctionStatus } from "@/hooks/use-countdown";
 import { toast } from "@/hooks/use-toast";
+import { Capacitor } from "@capacitor/core";
+import { Share } from "@capacitor/share";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { AuctionMenu } from "@/components/AuctionMenu";
@@ -224,23 +226,20 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   const handleShare = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
     const shareUrl = `${getPublicBaseUrl()}/auction/${auction.id}`;
-    const shareTitle = auction.title;
-    // Try native share first
-    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-      try {
-        await navigator.share({ title: shareTitle, text: auction.description ?? undefined, url: shareUrl });
-        return;
-      } catch (err) {
-        // User cancelled — silently bail. Any other error → fall through to copy.
-        if (err instanceof Error && err.name === "AbortError") return;
-      }
-    }
-    // Fallback: copy link to clipboard
+    const isAr = lang === "ar";
     try {
+      if (Capacitor.isNativePlatform()) {
+        await Share.share({ title: auction.title, text: auction.title, url: shareUrl, dialogTitle: isAr ? "مشاركة المزاد" : "Share auction" });
+        return;
+      }
+      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+        await navigator.share({ title: auction.title, text: auction.title, url: shareUrl });
+        return;
+      }
+      // Desktop fallback: copy link
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(shareUrl);
       } else {
-        // Legacy fallback for very old browsers
         const ta = document.createElement("textarea");
         ta.value = shareUrl;
         ta.style.position = "fixed";
@@ -250,9 +249,10 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
         document.execCommand("copy");
         document.body.removeChild(ta);
       }
-      toast({ title: lang === "ar" ? "تم نسخ الرابط" : "Link copied", description: shareUrl });
-    } catch {
-      toast({ title: "Could not share", description: shareUrl, variant: "destructive" });
+      toast({ title: isAr ? "تم نسخ الرابط" : "Link copied" });
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      toast({ title: isAr ? "تعذّر المشاركة" : "Could not share", variant: "destructive" });
     }
   }, [auction.id, auction.title, lang]);
 

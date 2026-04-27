@@ -29,6 +29,9 @@ import { removeAuctionFromCache } from "@/hooks/use-auctions";
 import { useOverlayBack } from "@/hooks/use-overlay-back";
 import { toast } from "@/hooks/use-toast";
 import { getPublicBaseUrl } from "@/lib/utils";
+import { useLang } from "@/contexts/LanguageContext";
+import { Capacitor } from "@capacitor/core";
+import { Share } from "@capacitor/share";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -93,6 +96,7 @@ export function AuctionMenu({
   onSignal,
   onDeleted,
 }: AuctionMenuProps) {
+  const { lang } = useLang();
   const [sheet, setSheet] = useState<Sheet>("closed");
 
   // Delete state
@@ -204,17 +208,19 @@ export function AuctionMenu({
 
   const handleShare = useCallback(async () => {
     const shareUrl = `${getPublicBaseUrl()}/auction/${auctionId}`;
-    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-      try {
-        await navigator.share({ title: auctionTitle, url: shareUrl });
+    const isAr = lang === "ar";
+    try {
+      if (Capacitor.isNativePlatform()) {
+        await Share.share({ title: auctionTitle, text: auctionTitle, url: shareUrl, dialogTitle: isAr ? "مشاركة المزاد" : "Share auction" });
         close();
         return;
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") { close(); return; }
-        // Other errors fall through to clipboard copy
       }
-    }
-    try {
+      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+        await navigator.share({ title: auctionTitle, text: auctionTitle, url: shareUrl });
+        close();
+        return;
+      }
+      // Desktop fallback: copy link
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(shareUrl);
       } else {
@@ -228,11 +234,12 @@ export function AuctionMenu({
         document.body.removeChild(ta);
       }
       close();
-      toast({ title: "تم نسخ الرابط", description: shareUrl });
-    } catch {
-      toast({ title: "تعذّر المشاركة", variant: "destructive" });
+      toast({ title: isAr ? "تم نسخ الرابط" : "Link copied" });
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") { close(); return; }
+      toast({ title: isAr ? "تعذّر المشاركة" : "Could not share", variant: "destructive" });
     }
-  }, [auctionId, auctionTitle, close]);
+  }, [auctionId, auctionTitle, lang, close]);
 
   const handleMention = async (user: ApiMutualFollow) => {
     const handle = user.username ? `@${user.username}` : (user.display_name ?? "مستخدم");

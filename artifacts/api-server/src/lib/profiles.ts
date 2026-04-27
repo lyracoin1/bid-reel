@@ -21,6 +21,7 @@ export interface OwnProfile {
   followersCount: number;
   followingCount: number;
   isAdmin: boolean;
+  isPremium: boolean;
   isCompleted: boolean;
   createdAt: string;
 }
@@ -41,6 +42,7 @@ export interface PublicProfile {
   followersCount: number;
   followingCount: number;
   isBanned: boolean;
+  isPremium: boolean;
   isCompleted: boolean;
   createdAt: string;
 }
@@ -55,12 +57,13 @@ interface ProfileRow {
   location: string | null;
   is_admin: boolean;
   is_banned: boolean;
+  is_premium: boolean;
   created_at: string;
 }
 
 // ─── Column selects ──────────────────────────────────────────────────────────
 
-const PROFILE_COLS = "id, username, display_name, phone, avatar_url, bio, location, is_admin, is_banned, created_at";
+const PROFILE_COLS = "id, username, display_name, phone, avatar_url, bio, location, is_admin, is_banned, is_premium, created_at";
 
 // ─── Stats helpers ────────────────────────────────────────────────────────────
 
@@ -165,6 +168,7 @@ function toOwnProfile(row: ProfileRow, stats: Awaited<ReturnType<typeof fetchPro
     location: row.location ?? null,
     phone: row.phone ?? null,
     isAdmin: row.is_admin ?? false,
+    isPremium: row.is_premium ?? false,
     isCompleted: isProfileComplete(row),
     createdAt: row.created_at,
     ...stats,
@@ -180,6 +184,7 @@ function toPublicProfile(row: ProfileRow, stats: Awaited<ReturnType<typeof fetch
     bio: row.bio,
     location: row.location ?? null,
     isBanned: row.is_banned ?? false,
+    isPremium: row.is_premium ?? false,
     isCompleted: isProfileComplete(row),
     createdAt: row.created_at,
     ...stats,

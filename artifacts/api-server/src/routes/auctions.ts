@@ -1033,6 +1033,17 @@ async function executePlaceBid(
     logger.warn({ err: String(err) }, `${logTag}: runAuctionLifecycle pre-check failed`),
   );
 
+  // 1a. Require a premium subscription to place bids.
+  const { data: bidder } = await supabaseAdmin
+    .from("profiles")
+    .select("is_premium")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!bidder?.is_premium) {
+    return { ok: false, status: 403, body: { error: "PREMIUM_REQUIRED", message: "Subscription required to place bids" } };
+  }
+
   // 2. Fetch auction.
   const { data: auction, error: auctionErr } = await supabaseAdmin
     .from("auctions")

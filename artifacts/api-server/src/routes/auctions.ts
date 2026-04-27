@@ -12,7 +12,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase";
 import { requireAuth } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
-import { notifyOutbid, notifyAuctionStarted, notifyBidReceived } from "../lib/notifications";
+import { notifyOutbid, notifyAuctionStarted, notifyBidReceived, createNotification } from "../lib/notifications";
 import { sendWhatsAppMessage } from "../lib/whatsapp";
 import { buildOutbidMessage } from "../lib/whatsappTemplates";
 import { getBidderCol, getBidderUserId, hasWinnerBidIdCol } from "../lib/dbSchema";
@@ -1666,6 +1666,71 @@ router.delete("/auctions/:id/signal", requireAuth, async (req, res) => {
     .eq("auction_id", req.params.id);
 
   res.json({ ok: true });
+});
+
+// ─── POST /api/auctions/:id/share-to-followers ────────────────────────────────
+// Sends an in-app "auction_shared" notification to every follower of the caller.
+// Non-blocking per follower — a single failed notification never aborts the rest.
+// Returns { success: true } immediately; notification delivery is fire-and-forget.
+
+router.post("/auctions/:id/share-to-followers", requireAuth, async (req, res) => {
+  const sharerId = req.user!.id;
+  const auctionId = req.params.id;
+
+  // 1. Verify the auction exists and is not deleted/removed.
+  const { data: auction, error: auctionErr } = await supabaseAdmin
+    .from("auctions")
+    .select("id, title, status, seller_id")
+    .eq("id", auctionId)
+    .maybeSingle();
+
+  if (auctionErr) {
+    logger.error({ err: auctionErr, auctionId, sharerId }, "POST share-to-followers: auction lookup failed");
+    res.status(500).json({ error: "FETCH_FAILED", message: "Could not verify auction." });
+    return;
+  }
+
+  if (!auction || auction.status === "removed") {
+    res.status(404).json({ error: "NOT_FOUND", message: "Auction not found." });
+    return;
+  }
+
+  // 2. Fetch all followers of the caller.
+  const { data: followRows, error: followErr } = await supabaseAdmin
+    .from("user_follows")
+    .select("follower_id")
+    .eq("following_id", sharerId);
+
+  if (followErr) {
+    logger.error({ err: followErr, sharerId }, "POST share-to-followers: followers lookup failed");
+    res.status(500).json({ error: "FETCH_FAILED", message: "Could not fetch followers." });
+    return;
+  }
+
+  const followerIds = (followRows ?? []).map((r: { follower_id: string }) => r.follower_id);
+
+  // 3. Reply immediately — notification delivery is fire-and-forget.
+  res.json({ success: true, notified: followerIds.length });
+
+  // 4. Send notifications in parallel (non-blocking, never crashes the response).
+  if (followerIds.length > 0) {
+    void Promise.allSettled(
+      followerIds.map(followerId =>
+        createNotification({
+          userId: followerId,
+          type: "auction_shared",
+          actorId: sharerId,
+          auctionId,
+          title: auction.title,
+          body: auction.title,
+          metadata: { auctionId, actorId: sharerId },
+        }).catch(err =>
+          logger.warn({ err: String(err), followerId, auctionId }, "share-to-followers: notification failed for one follower"),
+        ),
+      ),
+    );
+    logger.info({ sharerId, auctionId, followerCount: followerIds.length }, "POST share-to-followers → notifications queued");
+  }
 });
 
 export default router;

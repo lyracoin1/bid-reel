@@ -1,0 +1,108 @@
+You are working on the BidReel project.
+
+CRITICAL RULES:
+- Do NOT refactor existing code
+- Do NOT change architecture
+- Do NOT break existing routes
+- Make minimal safe edits only
+- Do NOT commit
+- Do NOT push
+
+====================================
+TASK: ADD SHARE TO FOLLOWERS (BACKEND ONLY)
+====================================
+
+Goal:
+Create a backend endpoint to share an auction with followers.
+
+====================================
+STEP 1: Locate files
+====================================
+
+Find:
+- artifacts/api-server/src/routes/auctions.ts
+- artifacts/api-server/src/lib/notifications.ts
+- any helper used for sending notifications
+
+====================================
+STEP 2: Add new route
+====================================
+
+Add a new endpoint:
+
+POST /api/auctions/:id/share-to-followers
+
+====================================
+STEP 3: Logic
+====================================
+
+Inside the handler:
+
+1. Get current user from auth (DO NOT trust frontend)
+2. Extract:
+   - auctionId from params
+
+3. Validate:
+   - auction exists
+   - auction is not deleted
+   - user is authenticated
+
+4. Fetch followers:
+
+SELECT follower_id
+FROM user_follows
+WHERE following_id = currentUserId
+
+5. For each follower:
+   send notification using existing helper
+
+Notification payload:
+
+{
+  type: "auction_shared",
+  actorId: currentUserId,
+  auctionId: auctionId
+}
+
+IMPORTANT:
+- Use existing notification helper (same as followed_you)
+- DO NOT block request if one notification fails
+- Run in parallel (Promise.all or loop safe)
+
+====================================
+STEP 4: Response
+====================================
+
+Return:
+
+{ success: true }
+
+====================================
+STEP 5: Safety
+====================================
+
+- Do NOT allow sharing non-existing auction
+- Do NOT expose private data
+- Do NOT crash if user has 0 followers
+
+====================================
+VERIFICATION
+====================================
+
+- No TypeScript errors
+- Build passes
+- Route is reachable
+
+====================================
+FINAL REPORT
+====================================
+
+Return:
+- files changed
+- exact code location of route
+- confirmation notifications are sent
+- build result
+- git status
+
+DO NOT commit
+DO NOT push

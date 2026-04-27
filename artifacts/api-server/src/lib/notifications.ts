@@ -50,6 +50,7 @@ export type NotificationType =
   | "auction_ending_soon"
   | "admin_message"
   | "account_warning"
+  | "auction_shared"
   // legacy aliases (kept so older inserts and existing rows still parse)
   | "new_follower"
   | "new_bid"

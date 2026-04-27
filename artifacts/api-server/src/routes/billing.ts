@@ -10,9 +10,16 @@ router.post("/billing/verify", (req, res) => {
     productId: string;
   };
 
-  logger.info({ userId, purchaseToken, productId }, "billing/verify received");
+  logger.info(
+    { userId, productId, hasPurchaseToken: Boolean(purchaseToken) },
+    "billing/verify called — verification not implemented",
+  );
 
-  res.json({ success: true });
+  res.status(501).json({
+    success: false,
+    error: "BILLING_VERIFICATION_NOT_IMPLEMENTED",
+    message: "Google Play billing verification is not implemented yet",
+  });
 });
 
 export default router;

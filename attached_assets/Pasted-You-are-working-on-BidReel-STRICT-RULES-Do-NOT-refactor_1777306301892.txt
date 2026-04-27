@@ -1,0 +1,112 @@
+You are working on BidReel.
+
+STRICT RULES:
+- Do NOT refactor.
+- Do NOT change architecture.
+- Do NOT install packages.
+- Do NOT commit.
+- Do NOT push.
+- Make minimal, safe changes only.
+
+TASK:
+Handle deleted auctions so they never appear broken and remain visible as historical records.
+
+IMPORTANT PRODUCT DECISION:
+Deleted auctions must NOT be removed from user views.
+They must remain visible with their data, but marked as deleted/unavailable.
+
+Steps:
+
+1. Locate:
+   - auction delete logic (backend)
+   - auction card / display components (frontend)
+   - My Bids page
+   - Saved/Favorites page
+
+2. Determine current behavior:
+   - Is deletion hard delete or soft delete?
+
+3. If hard delete:
+   - DO NOT immediately rewrite
+   - FIRST report:
+     - where deletion happens
+     - what gets removed
+   - then propose minimal safe soft-delete approach
+
+4. If soft delete already exists:
+   - use existing field (is_deleted / status / archived)
+
+Frontend Requirements:
+
+1. Deleted auction must:
+   - remain visible in:
+     - My Bids
+     - Saved/Favorites
+     - History
+   - NOT appear broken (no missing image / null crash)
+
+2. Display state:
+   Arabic: "تم حذف المزاد"
+   English: "Auction deleted"
+
+3. Preserve data display:
+   - title
+   - last price (if exists)
+   - basic info
+   - image (if exists) OR fallback image
+
+4. Disable ALL interactions:
+   - bidding
+   - unlock
+   - seller contact
+   - like
+   - save
+
+5. Add safe guards:
+   - if media missing → show fallback image
+   - if fields missing → do not crash
+
+6. DO NOT:
+   - remove auctions from My Bids
+   - break existing UI
+   - create new pages
+
+Backend Requirements:
+
+- Prefer soft delete:
+   example:
+   is_deleted = true
+   OR status = "deleted"
+
+- Ensure APIs still return the auction object
+  but with deletion flag
+
+- DO NOT modify DB schema unless absolutely necessary
+- If schema change is required:
+   STOP and report before applying
+
+Verification:
+
+- Deleted auction:
+   appears normally but marked "deleted"
+   does not crash
+   no broken images
+   no actions allowed
+
+- Active auctions:
+   unchanged
+
+Final report:
+
+1. Files found
+2. Files changed
+3. Is deletion hard or soft
+4. Exact changes made
+5. How deleted auctions appear now
+6. What protections were added
+7. Any schema change needed or not
+8. Test performed
+9. git status
+
+Do NOT commit.
+Do NOT push.

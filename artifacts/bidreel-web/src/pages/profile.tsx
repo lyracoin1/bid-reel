@@ -37,7 +37,7 @@ export default function Profile() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [, setLocation] = useLocation();
-  const { t } = useLang();
+  const { t, lang } = useLang();
 
   // Android hardware back closes overlays in priority order:
   //  - delete-confirm modal (highest priority — destructive action)
@@ -372,10 +372,11 @@ export default function Profile() {
                       className="rounded-2xl bg-white/5 border border-white/8 overflow-hidden cursor-pointer">
                       <div className="aspect-[3/4] relative bg-black overflow-hidden">
                         <img
-                          src={auction.thumbnailUrl ?? auction.mediaUrl}
+                          src={auction.thumbnailUrl ?? auction.mediaUrl ?? undefined}
                           alt={auction.title}
                           loading="lazy"
                           className="absolute inset-0 w-full h-full object-cover"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
                         <div className="absolute bottom-0 left-0 right-0 p-3">
@@ -422,14 +423,15 @@ export default function Profile() {
                   const timeInfo = getTimeRemaining(b.ends_at);
                   const ended = b.status === "ended" || b.status === "settled" || timeInfo.text === "Ended";
                   const leading = b.is_highest_bidder;
+                  const isRemoved = b.status === "removed";
                   return (
                     <motion.button
                       key={b.id}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => setLocation(`/auction/${b.id}`)}
+                      whileTap={isRemoved ? {} : { scale: 0.98 }}
+                      onClick={isRemoved ? undefined : () => setLocation(`/auction/${b.id}`)}
                       className={`flex items-stretch gap-3 p-2 pr-3.5 rounded-2xl bg-white/5 border ${
-                        leading ? "border-emerald-500/30" : "border-red-500/25"
-                      } text-left active:bg-white/8 transition-colors`}
+                        isRemoved ? "border-white/10 opacity-60 cursor-default" : leading ? "border-emerald-500/30 active:bg-white/8" : "border-red-500/25 active:bg-white/8"
+                      } text-left transition-colors`}
                     >
                       {/* Thumbnail — prefer poster image; never put an .mp4 URL inside <img> */}
                       <div className="relative w-20 h-24 rounded-xl overflow-hidden shrink-0 bg-white/5">
@@ -439,16 +441,25 @@ export default function Profile() {
                             alt={b.title}
                             className="absolute inset-0 w-full h-full object-cover"
                             loading="lazy"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center"><Gavel size={20} className="text-white/20" /></div>
                         )}
                         {/* Rank badge */}
-                        <div className={`absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[10px] font-bold ${
-                          b.rank === 1 ? "bg-emerald-500/90 text-white" : "bg-black/60 text-white"
-                        }`}>
-                          {b.rank === 1 && <Trophy size={9} />}#{b.rank}
-                        </div>
+                        {!isRemoved && (
+                          <div className={`absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[10px] font-bold ${
+                            b.rank === 1 ? "bg-emerald-500/90 text-white" : "bg-black/60 text-white"
+                          }`}>
+                            {b.rank === 1 && <Trophy size={9} />}#{b.rank}
+                          </div>
+                        )}
+                        {/* Deleted overlay */}
+                        {isRemoved && (
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                            <Trash2 size={18} className="text-white/50" />
+                          </div>
+                        )}
                       </div>
 
                       {/* Body */}
@@ -469,16 +480,24 @@ export default function Profile() {
                           </div>
                         </div>
                         <div className="flex items-center justify-between mt-1.5">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            leading
-                              ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                              : "bg-red-500/15 text-red-300 border border-red-500/25"
-                          }`}>
-                            {leading ? t("leading") : t("outbid")}
-                          </span>
-                          <span className={`text-[10px] font-semibold ${ended ? "text-white/40" : (timeInfo.isUrgent ? "text-red-400" : "text-white/60")}`}>
-                            {ended ? t("ended") : timeInfo.text}
-                          </span>
+                          {isRemoved ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-white/50 border border-white/15">
+                              {lang === "ar" ? "تم حذف المزاد" : "Auction deleted"}
+                            </span>
+                          ) : (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              leading
+                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                : "bg-red-500/15 text-red-300 border border-red-500/25"
+                            }`}>
+                              {leading ? t("leading") : t("outbid")}
+                            </span>
+                          )}
+                          {!isRemoved && (
+                            <span className={`text-[10px] font-semibold ${ended ? "text-white/40" : (timeInfo.isUrgent ? "text-red-400" : "text-white/60")}`}>
+                              {ended ? t("ended") : timeInfo.text}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </motion.button>
@@ -522,10 +541,11 @@ export default function Profile() {
                       className="rounded-2xl bg-white/5 border border-white/8 overflow-hidden cursor-pointer">
                       <div className="aspect-[3/4] relative bg-black overflow-hidden">
                         <img
-                          src={auction.thumbnailUrl ?? auction.mediaUrl}
+                          src={auction.thumbnailUrl ?? auction.mediaUrl ?? undefined}
                           alt={auction.title}
                           loading="lazy"
                           className="absolute inset-0 w-full h-full object-cover"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
                         <div className="absolute bottom-0 left-0 right-0 p-3">

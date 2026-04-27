@@ -33,6 +33,12 @@ import { BillingPlugin } from "capacitor-billing";
 // Triggered when the user taps "Subscribe now" after hitting the premium gate.
 // Flow: querySkuDetails → launchBillingFlow → sendAck → backend verify.
 async function startSubscription(userId: string): Promise<void> {
+  // Guard: user must be authenticated before any billing call.
+  if (!userId) {
+    console.error("Billing: cannot start purchase — user is not authenticated");
+    return;
+  }
+
   try {
     // 1. Confirm the product is available in the Play Store.
     await BillingPlugin.querySkuDetails({ product: "bidreel_plus", type: "subs" });
@@ -46,17 +52,27 @@ async function startSubscription(userId: string): Promise<void> {
       return;
     }
 
-    // 3. Acknowledge the purchase on the device.
-    await BillingPlugin.sendAck({ purchaseToken });
-
-    // 4. Verify with backend and grant premium.
-    await fetch("https://www.bid-reel.com/api/billing/verify", {
+    // 3. Verify with backend FIRST — never acknowledge before server confirms.
+    const response = await fetch("https://www.bid-reel.com/api/billing/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, productId: "bidreel_plus", purchaseToken }),
     });
+
+    let json: { success?: boolean } = {};
+    try { json = await response.json() as { success?: boolean }; } catch { /* non-JSON body */ }
+
+    if (!response.ok || !json.success) {
+      // Do NOT acknowledge — token remains pending and can be retried.
+      console.error("Billing: backend verification failed", response.status);
+      return;
+    }
+
+    // 4. Only acknowledge after backend has confirmed and granted premium.
+    await BillingPlugin.sendAck({ purchaseToken });
   } catch (err) {
-    console.error("Billing error", err);
+    // Never log purchaseToken in the error — it is bearer-equivalent.
+    console.error("Billing error", (err as Error).message);
   }
 }
 

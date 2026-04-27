@@ -1,0 +1,124 @@
+You are working on the BidReel project.
+
+CRITICAL RULES:
+- DO NOT modify any files
+- DO NOT refactor anything
+- DO NOT change architecture
+- DO NOT install new dependencies
+- DO NOT commit
+- DO NOT push
+- THIS IS AUDIT ONLY
+
+====================================
+TASK: FOLLOW SYSTEM AUDIT (READ-ONLY)
+====================================
+
+Your goal is to inspect the existing codebase and determine if a Follow system already exists (fully or partially).
+
+Search ONLY for the following keywords across the project:
+- follows
+- followers
+- following
+- notifyNewFollower
+- followed_you
+- new_follower
+- auction_shared
+- routes/follows
+- useFollow
+- FollowButton
+- public-profile
+- profile
+- FeedCard
+- auction-detail
+- notifications
+
+====================================
+STEPS
+====================================
+
+1. Search the backend:
+   - Check if there is any route related to follow/unfollow
+   - Look inside:
+     /api
+     /routes
+     /lib
+
+2. Search the database layer:
+   - Check if there is a "follows" table or migration
+   - Look for SQL or Supabase migrations
+
+3. Search the frontend:
+   - Look for any Follow button or hook (useFollow, FollowButton)
+   - Check:
+     public-profile.tsx
+     profile pages
+     FeedCard.tsx
+     auction-detail.tsx
+
+4. Search notifications system:
+   - Check if "followed_you" or "new_follower" exists
+   - Check how notifications are triggered
+
+5. Search feed logic:
+   - Check if feed uses follows to filter or rank content
+
+6. Search internal share system:
+   - Check if "auction_shared" or share-to-followers already exists
+
+====================================
+OUTPUT FORMAT (STRICT)
+====================================
+
+Return a structured report:
+
+1. FILES FOUND
+- List all relevant files with paths
+
+2. EXISTING IMPLEMENTATION
+- What already exists (routes, UI, DB, notifications, etc.)
+
+3. MISSING PIECES
+- What is NOT implemented
+
+4. DATABASE STATUS
+- Is there a follows table? yes/no
+- If yes, describe structure
+
+5. BACKEND STATUS
+- Are there follow/unfollow endpoints? yes/no
+- List them if exist
+
+6. FRONTEND STATUS
+- Is there a Follow button? yes/no
+- Where is it used?
+
+7. NOTIFICATIONS STATUS
+- Is there a follow notification? yes/no
+
+8. FEED STATUS
+- Does feed depend on follows? yes/no
+
+9. INTERNAL SHARE STATUS
+- Is share-to-followers implemented? yes/no
+
+10. RECOMMENDED NEXT STEP
+- Based ONLY on current codebase (DO NOT assume anything)
+
+====================================
+VERIFICATION
+====================================
+
+- Do NOT modify any file
+- Do NOT run destructive commands
+- You may run safe search commands (grep, search, etc.)
+
+====================================
+FINAL
+====================================
+
+- Provide the full report
+- Include git status
+- Confirm no files were changed
+
+DO NOT commit.
+DO NOT push.

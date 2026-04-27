@@ -169,19 +169,20 @@ function NotificationRow({ n, onNavigate }: { n: AppNotification; onNavigate: (p
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
-  const { notifications, unreadCount, markAllRead } = useNotifications();
+  const { notifications, markAllRead } = useNotifications();
   const [, setLocation] = useLocation();
 
   const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
   const visibleNotifications = notifications
     .filter(n => Date.now() - new Date(n.createdAt).getTime() <= THIRTY_DAYS_MS)
     .slice(0, 50);
+  const visibleUnreadCount = visibleNotifications.filter(n => !n.read).length;
 
   const handleOpen = useCallback(() => {
     setOpen(true);
     // Mark all read when panel opens
-    if (unreadCount > 0) markAllRead();
-  }, [unreadCount, markAllRead]);
+    if (visibleUnreadCount > 0) markAllRead();
+  }, [visibleUnreadCount, markAllRead]);
 
   const handleClose = useCallback(() => setOpen(false), []);
 
@@ -200,7 +201,7 @@ export function NotificationBell() {
       <motion.button
         whileTap={{ scale: 0.88 }}
         onClick={handleOpen}
-        aria-label={`Notifications${unreadCount > 0 ? ` — ${unreadCount} unread` : ""}`}
+        aria-label={`Notifications${visibleUnreadCount > 0 ? ` — ${visibleUnreadCount} unread` : ""}`}
         className={[
           "relative w-10 h-10 rounded-full bg-black/50 backdrop-blur-md",
           "border border-white/12 flex items-center justify-center text-white",
@@ -210,7 +211,7 @@ export function NotificationBell() {
 
         {/* Red neon badge */}
         <AnimatePresence>
-          {unreadCount > 0 && (
+          {visibleUnreadCount > 0 && (
             <motion.span
               key="badge"
               initial={{ scale: 0, opacity: 0 }}
@@ -224,7 +225,7 @@ export function NotificationBell() {
                 "shadow-[0_0_8px_2px_rgba(239,68,68,0.7)]",
               ].join(" ")}
             >
-              {unreadCount > 99 ? "99+" : unreadCount}
+              {visibleUnreadCount > 99 ? "99+" : visibleUnreadCount}
             </motion.span>
           )}
         </AnimatePresence>

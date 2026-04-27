@@ -278,10 +278,23 @@ export async function createNotification(input: CreateNotificationInput): Promis
 // ── HELPERS — one per spec event ─────────────────────────────────────────────
 // =============================================================================
 
-/** Simple AR/EN localization helper. */
-function t(lang: string | null | undefined, ar: string, en: string): string {
-  const isAr = (lang || "").toLowerCase().startsWith("ar");
-  return isAr ? ar : en;
+/** Localization helper — supports en, ar, ru, es, fr, tr. Falls back to en. */
+type LangExtra = { ru?: string; es?: string; fr?: string; tr?: string };
+function t(
+  lang: string | null | undefined,
+  ar: string,
+  en: string,
+  extra?: LangExtra,
+): string {
+  const l = (lang ?? "en").toLowerCase().split(/[-_]/)[0] ?? "en";
+  if (l === "ar") return ar;
+  if (extra) {
+    if (l === "ru" && extra.ru) return extra.ru;
+    if (l === "es" && extra.es) return extra.es;
+    if (l === "fr" && extra.fr) return extra.fr;
+    if (l === "tr" && extra.tr) return extra.tr;
+  }
+  return en;
 }
 
 /**
@@ -329,8 +342,18 @@ export async function notifyFollowedYou(
   await createNotification({
     userId: followedUserId,
     type: "followed_you",
-    title: t(lang, "متابع جديد 🎉", "New follower 🎉"),
-    body: t(lang, `بدأ ${followerName} بمتابعتك`, `${followerName} started following you`),
+    title: t(lang, "متابع جديد 🎉", "New follower 🎉", {
+      ru: "Новый подписчик 🎉",
+      es: "Nuevo seguidor 🎉",
+      fr: "Nouvel abonné 🎉",
+      tr: "Yeni takipçi 🎉",
+    }),
+    body: t(lang, `بدأ ${followerName} بمتابعتك`, `${followerName} started following you`, {
+      ru: `${followerName} подписался на вас`,
+      es: `${followerName} empezó a seguirte`,
+      fr: `${followerName} a commencé à vous suivre`,
+      tr: `${followerName} sizi takip etmeye başladı`,
+    }),
     actorId: followerUserId,
     metadata: { actorId: followerUserId },
   });
@@ -560,8 +583,18 @@ export async function notifyOutbid(
   await createNotification({
     userId: prevBidderId,
     type: "outbid",
-    title: t(lang, "لقد تم المزايدة عليك 🔴", "You've been outbid 🔴"),
-    body: t(lang, `المزايدة الجديدة هي ${dollars} على "${auctionTitle}" — زايد الآن!`, `New high bid is ${dollars} on "${auctionTitle}" — bid again now!`),
+    title: t(lang, "لقد تم المزايدة عليك 🔴", "You've been outbid 🔴", {
+      ru: "Вас перебили 🔴",
+      es: "Te han superado 🔴",
+      fr: "Vous avez été surenchéri 🔴",
+      tr: "Teklifiniz geçildi 🔴",
+    }),
+    body: t(lang, `المزايدة الجديدة هي ${dollars} على "${auctionTitle}" — زايد الآن!`, `New high bid is ${dollars} on "${auctionTitle}" — bid again now!`, {
+      ru: `Новая высшая ставка — ${dollars} на «${auctionTitle}» — сделайте ставку!`,
+      es: `Nueva puja más alta: ${dollars} en "${auctionTitle}" — ¡puja ahora!`,
+      fr: `Nouvelle enchère la plus haute : ${dollars} sur "${auctionTitle}" — enchérissez maintenant !`,
+      tr: `"${auctionTitle}" için yeni en yüksek teklif ${dollars} — hemen teklif verin!`,
+    }),
     auctionId,
     actorId: newBidderId ?? undefined,
     metadata: { auctionId, bidAmountCents: newAmount },
@@ -838,8 +871,18 @@ export async function notifyAuctionStarted(
       return createNotification({
         userId,
         type: "auction_started",
-        title: t(lang, "🟢 المزاد مباشر الآن!", "🟢 Auction is live!"),
-        body: t(lang, `بدأ "${auctionTitle}" للتو — ضع مزايدتك الآن!`, `${auctionTitle} just started — place your bid now!`),
+        title: t(lang, "🟢 المزاد مباشر الآن!", "🟢 Auction is live!", {
+          ru: "🟢 Аукцион начался!",
+          es: "🟢 ¡La subasta está en vivo!",
+          fr: "🟢 L'enchère est en direct !",
+          tr: "🟢 Açık artırma başladı!",
+        }),
+        body: t(lang, `بدأ "${auctionTitle}" للتو — ضع مزايدتك الآن!`, `${auctionTitle} just started — place your bid now!`, {
+          ru: `"${auctionTitle}" только что началось — сделайте ставку!`,
+          es: `"${auctionTitle}" acaba de comenzar — ¡haz tu puja ahora!`,
+          fr: `"${auctionTitle}" vient de commencer — enchérissez maintenant !`,
+          tr: `"${auctionTitle}" yeni başladı — hemen teklif verin!`,
+        }),
         auctionId,
         metadata: { auctionId },
       });

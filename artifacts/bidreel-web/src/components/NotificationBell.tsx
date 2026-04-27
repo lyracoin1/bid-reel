@@ -172,6 +172,11 @@ export function NotificationBell() {
   const { notifications, unreadCount, markAllRead } = useNotifications();
   const [, setLocation] = useLocation();
 
+  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+  const visibleNotifications = notifications
+    .filter(n => Date.now() - new Date(n.createdAt).getTime() <= THIRTY_DAYS_MS)
+    .slice(0, 50);
+
   const handleOpen = useCallback(() => {
     setOpen(true);
     // Mark all read when panel opens
@@ -262,9 +267,9 @@ export function NotificationBell() {
                 <div className="flex items-center gap-2">
                   <Bell size={18} className="text-white" />
                   <h2 className="text-base font-bold text-white">Notifications</h2>
-                  {notifications.length > 0 && (
+                  {visibleNotifications.length > 0 && (
                     <span className="text-xs text-muted-foreground">
-                      ({notifications.length})
+                      ({visibleNotifications.length})
                     </span>
                   )}
                 </div>
@@ -279,13 +284,13 @@ export function NotificationBell() {
 
               {/* List */}
               <div className="flex-1 overflow-y-auto overscroll-contain">
-                {notifications.length === 0 ? (
+                {visibleNotifications.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
                     <Bell size={32} className="opacity-30" />
                     <p className="text-sm">No notifications yet</p>
                   </div>
                 ) : (
-                  notifications.map(n => <NotificationRow key={n.id} n={n} onNavigate={handleNavigate} />)
+                  visibleNotifications.map(n => <NotificationRow key={n.id} n={n} onNavigate={handleNavigate} />)
                 )}
               </div>
 

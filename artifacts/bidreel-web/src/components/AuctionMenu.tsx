@@ -18,11 +18,11 @@ import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   MoreVertical, Trash2, Loader2, X, Flag, AtSign,
-  ThumbsUp, ThumbsDown, CheckCircle2, Search, ChevronRight, Share2,
+  ThumbsUp, ThumbsDown, CheckCircle2, Search, ChevronRight, Share2, Users,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  deleteAuctionApi, submitReportApi, getMutualFollowsApi,
+  deleteAuctionApi, submitReportApi, getMutualFollowsApi, shareToFollowersApi,
   type ApiMutualFollow, type ContentSignal,
 } from "@/lib/api-client";
 import { removeAuctionFromCache } from "@/hooks/use-auctions";
@@ -112,6 +112,7 @@ export function AuctionMenu({
   const [mutuals, setMutuals] = useState<ApiMutualFollow[]>([]);
   const [mutualsLoading, setMutualsLoading] = useState(false);
   const [mentionSearch, setMentionSearch] = useState("");
+  const [sharingToFollowers, setSharingToFollowers] = useState(false);
 
   // ── Reset and close ─────────────────────────────────────────────────────────
 
@@ -241,6 +242,21 @@ export function AuctionMenu({
     }
   }, [auctionId, auctionTitle, lang, close]);
 
+  const handleShareToFollowers = useCallback(async () => {
+    if (sharingToFollowers) return;
+    const isAr = lang === "ar";
+    setSharingToFollowers(true);
+    try {
+      await shareToFollowersApi(auctionId);
+      close();
+      toast({ title: isAr ? "تمت المشاركة مع متابعيك" : "Shared with your followers" });
+    } catch {
+      toast({ title: isAr ? "تعذّر المشاركة" : "Could not share", variant: "destructive" });
+    } finally {
+      setSharingToFollowers(false);
+    }
+  }, [sharingToFollowers, auctionId, lang, close]);
+
   const handleMention = async (user: ApiMutualFollow) => {
     const handle = user.username ? `@${user.username}` : (user.display_name ?? "مستخدم");
     const url = `${getPublicBaseUrl()}/auction/${auctionId}`;
@@ -303,6 +319,15 @@ export function AuctionMenu({
                         iconBg="bg-blue-500/15 border-blue-500/25"
                         label="مشاركة المزاد"
                         onClick={() => { void handleShare(); }}
+                      />
+                      <ActionRow
+                        icon={sharingToFollowers
+                          ? <div className="w-4 h-4 border-2 border-green-400/40 border-t-green-400 rounded-full animate-spin" />
+                          : <Users size={17} className="text-green-400" />
+                        }
+                        iconBg="bg-green-500/15 border-green-500/25"
+                        label={lang === "ar" ? "مشاركة مع متابعيني" : "Share with followers"}
+                        onClick={() => { void handleShareToFollowers(); }}
                       />
                       <ActionRow
                         icon={<Trash2 size={17} className="text-red-400" />}

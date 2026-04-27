@@ -1,0 +1,112 @@
+You are working on the BidReel project.
+
+CRITICAL RULES:
+- Do NOT refactor entire files
+- Do NOT change architecture
+- Make minimal safe edits only
+- Reuse existing UI patterns if possible
+- Do NOT break current Share logic
+- Do NOT commit
+- Do NOT push
+
+====================================
+TASK: ADD "SHARE WITH FOLLOWERS" TO SHARE MENU
+====================================
+
+Goal:
+Add a new option "Share with followers" to the Share UI.
+
+====================================
+STEP 1: Locate files
+====================================
+
+Find:
+- artifacts/bidreel-web/src/components/feed/FeedCard.tsx
+- artifacts/bidreel-web/src/components/AuctionMenu.tsx
+
+====================================
+STEP 2: Add UI option
+====================================
+
+In the Share UI (menu or button action):
+
+Add a new option:
+
+Arabic:
+"مشاركة مع متابعيني"
+
+English:
+"Share with followers"
+
+====================================
+STEP 3: Handle action
+====================================
+
+When clicked:
+
+1. Call backend:
+
+POST /api/auctions/:id/share-to-followers
+
+2. Use existing API client (do NOT create new fetch logic if one exists)
+
+3. Handle result:
+
+On success:
+toast({
+  title: lang === 'ar'
+    ? 'تمت المشاركة مع متابعيك'
+    : 'Shared with your followers'
+})
+
+On error:
+toast({
+  title: lang === 'ar'
+    ? 'تعذّر المشاركة'
+    : 'Could not share'
+})
+
+====================================
+STEP 4: Do NOT break existing share
+====================================
+
+Keep existing behavior:
+
+- Android → native share
+- Web → navigator.share
+- fallback → copy link
+
+New option should be SEPARATE from external share.
+
+====================================
+STEP 5: UX rules
+====================================
+
+- Do NOT block UI
+- Add loading state if easy
+- Do NOT crash if request fails
+- Do NOT show raw errors
+
+====================================
+VERIFICATION
+====================================
+
+- Clicking "Share with followers" sends request
+- Followers receive notification
+- Toast shows correctly
+- External share still works
+- Build succeeds
+
+====================================
+FINAL REPORT
+====================================
+
+Return:
+- files changed
+- where UI option was added
+- API call location
+- build result
+- git status
+
+DO NOT commit
+DO NOT push

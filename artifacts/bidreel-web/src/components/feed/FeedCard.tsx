@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { useLocation } from "wouter";
-import { Gavel, Bell, MapPin, Volume2, VolumeX, Bookmark, ThumbsUp, ThumbsDown, Eye, ShoppingBag, CheckCircle2 } from "lucide-react";
+import { Gavel, Bell, MapPin, Volume2, VolumeX, Bookmark, ThumbsUp, ThumbsDown, Eye, ShoppingBag, CheckCircle2, Users } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type Auction } from "@/lib/mock-data";
 import { cn, getPublicBaseUrl } from "@/lib/utils";
@@ -19,7 +19,7 @@ import { AuctionMenu } from "@/components/AuctionMenu";
 import type { AuctionState } from "@/lib/utils";
 import { useViewerLocation } from "@/hooks/use-viewer-location";
 import { haversineDistance, formatDistance, formatAuctionPrice } from "@/lib/geo";
-import { sendSignalApi, removeSignalApi, type ContentSignal } from "@/lib/api-client";
+import { sendSignalApi, removeSignalApi, shareToFollowersApi, type ContentSignal } from "@/lib/api-client";
 import { useViewTracker } from "@/hooks/use-view-tracker";
 import { useGlobalMute, getGlobalMuted } from "@/lib/global-mute";
 import { TrustBadge } from "@/components/trust/TrustBadge";
@@ -255,6 +255,23 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
       toast({ title: isAr ? "تعذّر المشاركة" : "Could not share", variant: "destructive" });
     }
   }, [auction.id, auction.title, lang]);
+
+  const [sharingToFollowers, setSharingToFollowers] = useState(false);
+
+  const handleShareToFollowers = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (sharingToFollowers) return;
+    const isAr = lang === "ar";
+    setSharingToFollowers(true);
+    try {
+      await shareToFollowersApi(auction.id);
+      toast({ title: isAr ? "تمت المشاركة مع متابعيك" : "Shared with your followers" });
+    } catch {
+      toast({ title: isAr ? "تعذّر المشاركة" : "Could not share", variant: "destructive" });
+    } finally {
+      setSharingToFollowers(false);
+    }
+  }, [sharingToFollowers, auction.id, lang]);
 
   const handleOpenProfile = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -493,6 +510,26 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
             <TikTokShareIcon />
           </div>
           <span className="text-[11px] font-semibold text-white/80">{t("share")}</span>
+        </motion.button>
+
+        {/* 5b. Share with followers */}
+        <motion.button
+          whileTap={{ scale: 0.8 }}
+          className="flex flex-col items-center gap-1"
+          style={{ minWidth: 44, minHeight: 44 }}
+          aria-label={lang === "ar" ? "مشاركة مع متابعيني" : "Share with followers"}
+          onClick={handleShareToFollowers}
+          disabled={sharingToFollowers}
+        >
+          <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white">
+            {sharingToFollowers
+              ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              : <Users size={20} />
+            }
+          </div>
+          <span className="text-[11px] font-semibold text-white/80 text-center leading-tight">
+            {lang === "ar" ? "متابعيني" : "Followers"}
+          </span>
         </motion.button>
 
         {/* 6. Primary CTA — Bell (upcoming) · Bid (active) · Ended indicator */}

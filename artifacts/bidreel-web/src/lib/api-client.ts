@@ -595,6 +595,34 @@ export async function buyNowApi(auctionId: string): Promise<{ auction: ApiAuctio
   return data as { auction: ApiAuctionRaw };
 }
 
+// ─── Share auction with followers ────────────────────────────────────────────
+//
+// Calls POST /api/auctions/:id/share-to-followers.
+// Returns { success: true, notified: number } — delivery is fire-and-forget on
+// the server, so the response arrives before notifications are dispatched.
+export async function shareToFollowersApi(auctionId: string): Promise<{ success: true; notified: number }> {
+  const token = await getToken();
+  if (!token) { redirectToLogin(); throw new Error("Not authenticated"); }
+
+  const res = await fetch(`${API_BASE}/auctions/${encodeURIComponent(auctionId)}/share-to-followers`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (res.status === 401) { redirectToLogin(); throw new Error("Session expired"); }
+
+  const data = await res.json();
+  if (!res.ok) {
+    const err = data as ApiError;
+    throw Object.assign(new Error(err.message ?? "Share failed"), {
+      code: err.error,
+      statusCode: res.status,
+    });
+  }
+
+  return data as { success: true; notified: number };
+}
+
 // ─── Seller-only "Mark as Sold" (fixed-price) ────────────────────────────────
 //
 // Calls POST /auctions/:id/mark-sold. The server is the source of truth on

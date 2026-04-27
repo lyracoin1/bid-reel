@@ -982,6 +982,32 @@ export async function getSavedIdsApi(): Promise<string[]> {
   return data.savedIds ?? [];
 }
 
+/** Minimal auction shape returned by GET /api/users/me/saved.
+ *  Includes removed auctions so the Saved tab can show deleted records. */
+export interface ApiSavedAuction {
+  id: string;
+  title: string;
+  status: string;
+  current_bid: number | null;
+  start_price: number | null;
+  bid_count: number | null;
+  ends_at: string;
+  starts_at: string | null;
+  video_url: string | null;
+  thumbnail_url: string | null;
+  currency_code: string | null;
+  seller: { id: string; display_name: string | null; avatar_url: string | null } | null;
+}
+
+/** Fetch the full list of saved auctions including removed ones. */
+export async function getSavedAuctionsApi(): Promise<ApiSavedAuction[]> {
+  const headers = await authHeaders();
+  const res = await fetch(`${API_BASE}/users/me/saved`, { headers });
+  if (!res.ok) return [];
+  const data = await res.json() as { auctions: ApiSavedAuction[] };
+  return data.auctions ?? [];
+}
+
 /** Save (bookmark) an auction. */
 export async function saveAuctionApi(auctionId: string): Promise<ApiSaveResult> {
   const token = await getToken();

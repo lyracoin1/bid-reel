@@ -10,8 +10,8 @@ import { formatAuctionPrice } from "@/lib/geo";
 import { HamburgerMenu } from "@/components/HamburgerMenu";
 import { useCurrentUser, clearCurrentUserCache } from "@/hooks/use-current-user";
 import { useOverlayBack } from "@/hooks/use-overlay-back";
-import { useAuctions, useMyAuctions } from "@/hooks/use-auctions";
-import { getSavedIdsApi, clearToken, deleteAccountApi, getBiddedAuctionsApi, type ApiBiddedAuction } from "@/lib/api-client";
+import { useMyAuctions } from "@/hooks/use-auctions";
+import { getSavedAuctionsApi, clearToken, deleteAccountApi, getBiddedAuctionsApi, type ApiBiddedAuction, type ApiSavedAuction } from "@/lib/api-client";
 import { clearAdminSession } from "@/pages/admin/admin-session";
 import { deleteNativeFcmToken } from "@/lib/native-fcm";
 import { getTimeRemaining } from "@/lib/utils";
@@ -26,7 +26,7 @@ type FollowModal = "followers" | "following" | null;
 
 export default function Profile() {
   const [activeTab, setActiveTab] = useState<Tab>("my_auctions");
-  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [savedAuctions, setSavedAuctions] = useState<ApiSavedAuction[]>([]);
   const [savedLoading, setSavedLoading] = useState(false);
   const [biddedAuctions, setBiddedAuctions] = useState<ApiBiddedAuction[]>([]);
   const [biddedLoading, setBiddedLoading] = useState(false);
@@ -71,15 +71,14 @@ export default function Profile() {
   // Consistent with the auctionCount stat in the profile header (same filter).
   const { data: myListings, isLoading: myAuctionsLoading } = useMyAuctions();
 
-  // Saved tab — still fetched from the global feed for now.
-  const { data: allAuctions, isLoading: auctionsLoading } = useAuctions();
-
-  // Load saved IDs lazily when the saved tab is first activated
+  // Load saved auctions lazily when the saved tab is first activated.
+  // Uses GET /api/users/me/saved which returns full auction data including
+  // removed auctions — so deleted bookmarks remain visible as historical records.
   useEffect(() => {
     if (activeTab !== "saved") return;
     setSavedLoading(true);
-    getSavedIdsApi()
-      .then(ids => setSavedIds(new Set(ids)))
+    getSavedAuctionsApi()
+      .then(rows => setSavedAuctions(rows))
       .catch(() => {})
       .finally(() => setSavedLoading(false));
   }, [activeTab]);
@@ -97,15 +96,13 @@ export default function Profile() {
       .finally(() => setBiddedLoading(false));
   }, [activeTab]);
 
-  const savedAuctions = allAuctions.filter(a => savedIds.has(a.id));
-
   const tabs: { id: Tab; labelKey: "my_auctions" | "my_bids" | "saved_tab"; icon: typeof Grid; count: number }[] = [
     { id: "my_auctions", labelKey: "my_auctions", icon: Grid,     count: myListings.length },
     { id: "my_bids",     labelKey: "my_bids",     icon: Gavel,    count: biddedAuctions.length },
-    { id: "saved",       labelKey: "saved_tab",   icon: Bookmark, count: savedIds.size },
+    { id: "saved",       labelKey: "saved_tab",   icon: Bookmark, count: savedAuctions.length },
   ];
 
-  const isLoading = userLoading || auctionsLoading || myAuctionsLoading;
+  const isLoading = userLoading || myAuctionsLoading;
 
   function handleLogout() {
     void deleteNativeFcmToken();
@@ -354,7 +351,7 @@ export default function Profile() {
         {/* ── Tab content ── */}
         <div className="px-5 pt-3 pb-6">
           {activeTab === "my_auctions" && (
-            auctionsLoading ? (
+            myAuctionsLoading ? (
               <div className="grid grid-cols-2 gap-3">
                 {[0, 1, 2, 3].map(i => (
                   <div key={i} className="rounded-2xl bg-white/5 border border-white/8 overflow-hidden">
@@ -534,24 +531,39 @@ export default function Profile() {
             ) : savedAuctions.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
                 {savedAuctions.map(auction => {
-                  const timeInfo = getTimeRemaining(auction.endsAt);
+                  const isRemoved = auction.status === "removed";
+                  const timeInfo = getTimeRemaining(auction.ends_at);
                   return (
-                    <motion.div key={auction.id} whileTap={{ scale: 0.97 }}
-                      onClick={() => setLocation(`/auction/${auction.id}`)}
-                      className="rounded-2xl bg-white/5 border border-white/8 overflow-hidden cursor-pointer">
+                    <motion.div key={auction.id}
+                      whileTap={isRemoved ? {} : { scale: 0.97 }}
+                      onClick={isRemoved ? undefined : () => setLocation(`/auction/${auction.id}`)}
+                      className={`rounded-2xl bg-white/5 border overflow-hidden ${isRemoved ? "border-white/10 opacity-60 cursor-default" : "border-white/8 cursor-pointer"}`}>
                       <div className="aspect-[3/4] relative bg-black overflow-hidden">
                         <img
-                          src={auction.thumbnailUrl ?? auction.mediaUrl ?? undefined}
+                          src={auction.thumbnail_url ?? auction.video_url ?? undefined}
                           alt={auction.title}
                           loading="lazy"
                           className="absolute inset-0 w-full h-full object-cover"
                           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
+                        {isRemoved && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Trash2 size={22} className="text-white/40" />
+                          </div>
+                        )}
                         <div className="absolute bottom-0 left-0 right-0 p-3">
                           <p className="text-xs font-bold text-white line-clamp-1">{auction.title}</p>
-                          <p className="text-sm font-bold text-white mt-0.5">{formatAuctionPrice(auction.currentBid, auction.currencyCode ?? "USD")}</p>
-                          <p className={`text-[10px] font-bold mt-1 ${timeInfo.isUrgent ? "text-red-400" : "text-emerald-400"}`}>{timeInfo.text}</p>
+                          {isRemoved ? (
+                            <p className="text-[10px] font-bold text-white/50 mt-1">
+                              {lang === "ar" ? "تم حذف المزاد" : "Auction deleted"}
+                            </p>
+                          ) : (
+                            <>
+                              <p className="text-sm font-bold text-white mt-0.5">{formatAuctionPrice(auction.current_bid ?? auction.start_price, auction.currency_code ?? "USD")}</p>
+                              <p className={`text-[10px] font-bold mt-1 ${timeInfo.isUrgent ? "text-red-400" : "text-emerald-400"}`}>{timeInfo.text}</p>
+                            </>
+                          )}
                         </div>
                       </div>
                     </motion.div>

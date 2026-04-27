@@ -19,14 +19,20 @@ const LanguageContext = createContext<LangCtx>({
 });
 
 const LANG_KEY = "bidreel_lang";
+const SUPPORTED: Language[] = ["en", "ar", "ru", "es", "fr", "tr"];
+
+function detectLanguage(): Language {
+  const primary = (navigator.language ?? "").split("-")[0].toLowerCase() as Language;
+  return SUPPORTED.includes(primary) ? primary : "en";
+}
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Language>(() => {
     const urlLang = new URLSearchParams(window.location.search).get("lang");
-    if (urlLang && ["en", "ar", "ru", "es", "fr", "tr"].includes(urlLang)) {
+    if (urlLang && SUPPORTED.includes(urlLang as Language)) {
       return urlLang as Language;
     }
-    return (localStorage.getItem(LANG_KEY) as Language) || "en";
+    return (localStorage.getItem(LANG_KEY) as Language) || detectLanguage();
   });
 
   const dir = LANGUAGE_DIR[lang];

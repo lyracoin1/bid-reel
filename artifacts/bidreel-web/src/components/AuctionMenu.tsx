@@ -18,7 +18,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   MoreVertical, Trash2, Loader2, X, Flag, AtSign,
-  ThumbsUp, ThumbsDown, CheckCircle2, Search, ChevronRight,
+  ThumbsUp, ThumbsDown, CheckCircle2, Search, ChevronRight, Share2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -202,6 +202,38 @@ export function AuctionMenu({
     }
   };
 
+  const handleShare = useCallback(async () => {
+    const shareUrl = `${getPublicBaseUrl()}/auction/${auctionId}`;
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: auctionTitle, url: shareUrl });
+        close();
+        return;
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") { close(); return; }
+        // Other errors fall through to clipboard copy
+      }
+    }
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = shareUrl;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      close();
+      toast({ title: "تم نسخ الرابط", description: shareUrl });
+    } catch {
+      toast({ title: "تعذّر المشاركة", variant: "destructive" });
+    }
+  }, [auctionId, auctionTitle, close]);
+
   const handleMention = async (user: ApiMutualFollow) => {
     const handle = user.username ? `@${user.username}` : (user.display_name ?? "مستخدم");
     const url = `${getPublicBaseUrl()}/auction/${auctionId}`;
@@ -257,15 +289,23 @@ export function AuctionMenu({
 
                 <div className="px-3 py-2 space-y-1">
                   {isOwner ? (
-                    /* ── OWNER: Delete only ── */
-                    <ActionRow
-                      icon={<Trash2 size={17} className="text-red-400" />}
-                      iconBg="bg-red-500/15 border-red-500/25"
-                      label="حذف المزاد"
-                      labelClass="text-red-400"
-                      rowClass="hover:bg-red-500/8 active:bg-red-500/15"
-                      onClick={() => setSheet("confirm_delete")}
-                    />
+                    /* ── OWNER: Share · Delete ── */
+                    <>
+                      <ActionRow
+                        icon={<Share2 size={17} className="text-blue-400" />}
+                        iconBg="bg-blue-500/15 border-blue-500/25"
+                        label="مشاركة المزاد"
+                        onClick={() => { void handleShare(); }}
+                      />
+                      <ActionRow
+                        icon={<Trash2 size={17} className="text-red-400" />}
+                        iconBg="bg-red-500/15 border-red-500/25"
+                        label="حذف المزاد"
+                        labelClass="text-red-400"
+                        rowClass="hover:bg-red-500/8 active:bg-red-500/15"
+                        onClick={() => setSheet("confirm_delete")}
+                      />
+                    </>
                   ) : (
                     /* ── VIEWER: Report · Interested · Not Interested · Mention ── */
                     <>

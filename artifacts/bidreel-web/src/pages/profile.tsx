@@ -20,6 +20,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { FollowListModal } from "@/components/FollowListModal";
 import { TrustStatCard } from "@/components/trust/TrustBadge";
 import { useUserTrust } from "@/hooks/use-user-trust";
+import { AuctionMenu } from "@/components/AuctionMenu";
 
 type Tab = "my_auctions" | "my_bids" | "saved";
 type FollowModal = "followers" | "following" | null;
@@ -36,6 +37,7 @@ export default function Profile() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
   const [, setLocation] = useLocation();
   const { t, lang } = useLang();
 
@@ -70,6 +72,7 @@ export default function Profile() {
   // My Auctions — dedicated seller-scoped endpoint (excludes only 'removed').
   // Consistent with the auctionCount stat in the profile header (same filter).
   const { data: myListings, isLoading: myAuctionsLoading } = useMyAuctions();
+  const visibleListings = myListings.filter(a => !deletedIds.has(a.id));
 
   // Load saved auctions lazily when the saved tab is first activated.
   // Uses GET /api/users/me/saved which returns full auction data including
@@ -97,7 +100,7 @@ export default function Profile() {
   }, [activeTab]);
 
   const tabs: { id: Tab; labelKey: "my_auctions" | "my_bids" | "saved_tab"; icon: typeof Grid; count: number }[] = [
-    { id: "my_auctions", labelKey: "my_auctions", icon: Grid,     count: myListings.length },
+    { id: "my_auctions", labelKey: "my_auctions", icon: Grid,     count: visibleListings.length },
     { id: "my_bids",     labelKey: "my_bids",     icon: Gavel,    count: biddedAuctions.length },
     { id: "saved",       labelKey: "saved_tab",   icon: Bookmark, count: savedAuctions.length },
   ];
@@ -359,9 +362,9 @@ export default function Profile() {
                   </div>
                 ))}
               </div>
-            ) : myListings.length > 0 ? (
+            ) : visibleListings.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
-                {myListings.map(auction => {
+                {visibleListings.map(auction => {
                   const timeInfo = getTimeRemaining(auction.endsAt);
                   return (
                     <motion.div key={auction.id} whileTap={{ scale: 0.97 }}
@@ -376,6 +379,14 @@ export default function Profile() {
                           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
+                        <div className="absolute top-2 right-2 z-10">
+                          <AuctionMenu
+                            auctionId={auction.id}
+                            auctionTitle={auction.title}
+                            isOwner={true}
+                            onDeleted={() => setDeletedIds(prev => new Set(prev).add(auction.id))}
+                          />
+                        </div>
                         <div className="absolute bottom-0 left-0 right-0 p-3">
                           <p className="text-xs font-bold text-white line-clamp-1">{auction.title}</p>
                           <p className="text-sm font-bold text-white mt-0.5">{formatAuctionPrice(auction.currentBid, auction.currencyCode ?? "USD")}</p>

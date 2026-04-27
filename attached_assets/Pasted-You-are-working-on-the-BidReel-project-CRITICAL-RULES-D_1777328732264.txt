@@ -1,0 +1,105 @@
+You are working on the BidReel project.
+
+CRITICAL RULES:
+- DO NOT modify any files
+- DO NOT refactor anything
+- DO NOT change architecture
+- DO NOT install dependencies
+- DO NOT commit
+- DO NOT push
+- THIS IS READ-ONLY AUDIT
+
+====================================
+TASK: SHARE SYSTEM AUDIT
+====================================
+
+Your goal is to inspect how the current Share functionality is implemented.
+
+Search ONLY for:
+- share
+- Share
+- navigator.share
+- copy link
+- clipboard
+- FeedCard
+- auction-detail
+- share button
+- share handler
+- copyToClipboard
+
+====================================
+STEPS
+====================================
+
+1. Locate Share button in frontend:
+   - Check:
+     artifacts/bidreel-web/src/components/feed/FeedCard.tsx
+     artifacts/bidreel-web/src/pages/auction-detail.tsx
+
+2. Identify current behavior:
+   - Does it use copy link only?
+   - Does it use navigator.share?
+   - Does it use any Capacitor plugin?
+
+3. Search for:
+   - navigator.share
+   - @capacitor/share
+   - Clipboard API usage
+
+4. Check how URL is generated:
+   - Is it correct?
+   - Is it dynamic per auction?
+
+5. Check fallback logic:
+   - Is there toast?
+   - Is there error handling?
+
+====================================
+OUTPUT FORMAT (STRICT)
+====================================
+
+1. FILES FOUND
+- list all files related to share
+
+2. CURRENT IMPLEMENTATION
+- explain exactly what happens when clicking Share
+
+3. PLATFORM BEHAVIOR
+- Android: what happens?
+- Web: what happens?
+
+4. SHARE METHOD USED
+- navigator.share? yes/no
+- capacitor share? yes/no
+- clipboard? yes/no
+
+5. URL LOGIC
+- how is the share URL built?
+
+6. MISSING FEATURES
+- what is missing for real native share?
+
+7. RECOMMENDED FIX (HIGH LEVEL ONLY)
+- DO NOT implement yet
+- describe the correct approach:
+  Android → Capacitor Share
+  Web → navigator.share
+  fallback → copy link
+
+====================================
+VERIFICATION
+====================================
+
+- No file changes
+- Only search and read
+
+====================================
+FINAL
+====================================
+
+- full report
+- git status
+- confirm no files modified
+
+DO NOT commit.
+DO NOT push.

@@ -28,6 +28,14 @@ import { useViewerLocation } from "@/hooks/use-viewer-location";
 import { haversineDistance, formatDistance, formatAuctionPrice } from "@/lib/geo";
 import { useGlobalMute, getGlobalMuted } from "@/lib/global-mute";
 
+// ─── Google Play subscription entry point ────────────────────────────────────
+// Called when the user taps "Subscribe now" after hitting the premium bid gate.
+// Replace this stub with a real Capacitor billing plugin call once the plugin
+// is installed (e.g. @capgo/capacitor-purchases or a custom plugin).
+async function startSubscription(): Promise<void> {
+  console.log("TODO: trigger billing purchase");
+}
+
 // Minimum bid increment is read per-auction from `auction.minIncrement`,
 // which is mapped from the server's `min_increment` column in
 // `backendToAuction`. The server validates again (routes/auctions.ts
@@ -688,7 +696,7 @@ export default function AuctionDetail() {
                 {premiumRequired && bidError && (
                   <div className="flex justify-center pt-1">
                     <button
-                      onClick={() => { window.location.href = "/settings?tab=subscription"; }}
+                      onClick={() => { void startSubscription(); }}
                       className="text-xs font-semibold text-blue-400 border border-blue-400/40 rounded-full px-3 py-1 hover:bg-blue-400/10 transition-colors"
                     >
                       {lang === "ar" ? "اشترك الآن" : "Subscribe now"}

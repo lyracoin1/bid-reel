@@ -763,7 +763,7 @@ router.post("/auctions", requireAuth, async (req, res) => {
       .maybeSingle();
     if (sellerErr) {
       logger.error({ err: sellerErr, sellerId }, "POST /auctions: profile lookup failed");
-      res.status(500).json({ error: "PROFILE_LOOKUP_FAILED", message: "Could not verify seller profile." });
+      res.status(500).json({ error: "PROFILE_LOOKUP_FAILED", message: "Could not verify seller profile.", debug: sellerErr.message });
       return;
     }
     // Profile completeness gate — same fields as the frontend gate.

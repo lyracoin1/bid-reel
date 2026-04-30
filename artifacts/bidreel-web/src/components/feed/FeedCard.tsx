@@ -106,6 +106,21 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   const isOwner = !!currentUser && auction.seller.id === currentUser.id;
   const viewerLoc = useViewerLocation();
 
+  // ── WhatsApp visibility logic ─────────────────────────────────────────────
+  // Free users are limited to 5 bids per month. Hide the WhatsApp contact
+  // button once they hit that limit to encourage upgrading to Premium.
+  // Logic:
+  //   - If Premium → show
+  //   - If Free AND remaining bids > 0 → show
+  //   - Else → hide
+  const canSeeWhatsApp = useMemo(() => {
+    if (!currentUser) return true; // Show for guest (they'll be prompted to login/premium anyway)
+    if (currentUser.isPremium) return true;
+    const usedBids = currentUser.bidsPlacedCount ?? 0;
+    const remainingFreeBids = Math.max(0, 5 - usedBids);
+    return remainingFreeBids > 0;
+  }, [currentUser]);
+
   const distanceText = useMemo(() => {
     if (!viewerLoc || !auction.lat || !auction.lng) return null;
     const metres = haversineDistance(viewerLoc.lat, viewerLoc.lng, auction.lat, auction.lng);
@@ -460,7 +475,7 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
         </motion.button>
 
         {/* 3. WhatsApp / Contact — visible whenever seller has a phone number */}
-        {auction.seller.phone && (
+        {auction.seller.phone && canSeeWhatsApp && (
           <motion.button
             whileTap={{ scale: 0.8 }}
             className="flex flex-col items-center gap-1"

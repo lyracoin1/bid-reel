@@ -269,6 +269,15 @@ export default function AuctionDetail() {
   const topBidUserId = highestBid?.user.id;
   const bidStatus = getUserBidStatus(auction.id, topBidUserId);
 
+  // ── WhatsApp visibility logic ─────────────────────────────────────────────
+  const canSeeWhatsApp = useMemo(() => {
+    if (!currentUser) return true;
+    if (currentUser.isPremium) return true;
+    const usedBids = currentUser.bidsPlacedCount ?? 0;
+    const remainingFreeBids = Math.max(0, 5 - usedBids);
+    return remainingFreeBids > 0;
+  }, [currentUser]);
+
   // Reconcile realtime override with the latest server state.
   // Using `Math.max` guarantees that *whichever source is fresher* wins —
   // critical after a BID_CONFLICT refetch, because `realtimeCurrentBid` is
@@ -846,7 +855,7 @@ export default function AuctionDetail() {
               </motion.button>
             </div>
             {/* WhatsApp contact — active or ended only, not upcoming */}
-            {(state === "active" || state === "ended") && auction.seller.phone && (
+            {(state === "active" || state === "ended") && auction.seller.phone && canSeeWhatsApp && (
               <a
                 href={whatsappUrl} target="_self"
                 className="flex flex-col items-center gap-0.5 w-full py-3.5 border-t border-white/8 bg-[#25D366]/12 hover:bg-[#25D366]/20 transition-colors active:scale-[0.98]"

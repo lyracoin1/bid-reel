@@ -41,10 +41,10 @@ async function startSubscription(userId: string): Promise<void> {
 
   try {
     // 1. Confirm the product is available in the Play Store.
-    await BillingPlugin.querySkuDetails({ product: "bidreel_plus", type: "subs" });
+    await BillingPlugin.querySkuDetails({ product: "bidreel_plus", type: "SUBS" });
 
     // 2. Launch the native Google Play purchase dialog.
-    const result = await BillingPlugin.launchBillingFlow({ product: "bidreel_plus", type: "subs" });
+    const result = await BillingPlugin.launchBillingFlow({ product: "bidreel_plus", type: "SUBS" });
 
     const purchaseToken = result.value;
     if (!purchaseToken) {

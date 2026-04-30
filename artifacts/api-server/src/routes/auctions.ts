@@ -1047,20 +1047,48 @@ async function executePlaceBid(
     .maybeSingle();
 
   if (!bidder?.is_premium) {
-    // Free users: allow up to 2 bids per calendar month.
+    // Free users: allow up to 5 bids per calendar month.
+    const FREE_MONTHLY_BID_LIMIT = 5;
     const now = new Date();
     const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-    const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
+    const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
     const freeCol = await getBidderCol();
-    const { count: monthlyBidCount } = await supabaseAdmin
+
+    const { count: monthlyBidCount, error: monthlyBidErr } = await supabaseAdmin
       .from("bids")
       .select("id", { count: "exact", head: true })
       .eq(freeCol, userId)
       .gte("created_at", monthStart)
       .lt("created_at", monthEnd);
 
-    if ((monthlyBidCount ?? 0) >= 2) {
-      return { ok: false, status: 403, body: { error: "PREMIUM_REQUIRED", message: "Subscribe to place more bids" } };
+    if (monthlyBidErr) {
+      logger.error({ err: monthlyBidErr, userId, freeCol, monthStart, monthEnd }, `${logTag}: monthly bid count failed`);
+      return {
+        ok: false,
+        status: 500,
+        body: {
+          error: "BID_LIMIT_CHECK_FAILED",
+          message: "Could not verify monthly bid quota",
+        },
+      };
+    }
+
+    const usedFreeBids = monthlyBidCount ?? 0;
+    const remainingFreeBids = Math.max(0, FREE_MONTHLY_BID_LIMIT - usedFreeBids);
+
+    if (usedFreeBids >= FREE_MONTHLY_BID_LIMIT) {
+      return {
+        ok: false,
+        status: 403,
+        body: {
+          error: "PREMIUM_REQUIRED",
+          message: "Subscribe to place more bids",
+          freeBidLimit: FREE_MONTHLY_BID_LIMIT,
+          usedFreeBids,
+          remainingFreeBids,
+          monthlyResetDate: monthEnd,
+        },
+      };
     }
   }
 

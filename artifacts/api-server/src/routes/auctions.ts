@@ -49,7 +49,7 @@ function getCurrentBid(a: any): number {
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getMinIncrement(a: any): number {
-  return a.min_increment ?? 10;
+  return a.min_increment ?? 1;
 }
 
 /** Maps user country/location string to a default ISO currency code */
@@ -674,7 +674,7 @@ const createAuctionSchema = z.object({
     .number()
     .positive("Minimum increment must be greater than 0")
     .optional()
-    .default(10),
+    .default(1),
   videoUrl: z.string().url("videoUrl must be a valid URL"),
   thumbnailUrl: z.string().url("thumbnailUrl must be a valid URL"),
   imageUrls: z

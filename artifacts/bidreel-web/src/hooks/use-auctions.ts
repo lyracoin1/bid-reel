@@ -133,10 +133,10 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
     likes: r.like_count ?? 0,
     views: r.views_count ?? 0,
     bidCount: r.bid_count ?? 0,
-    // Server is source of truth; fall back to 10 (the server's own default in
+    // Server is source of truth; fall back to 1 (the server's own default in
     // routes/auctions.ts → getMinIncrement) so the UI floor matches the
     // backend floor exactly when the column is null on legacy rows.
-    minIncrement: Math.max(1, Number(r.min_increment ?? 10)),
+    minIncrement: Math.max(1, Number(r.min_increment ?? 1)),
     bids: bids.map(apiBidToFrontend),
     isLikedByMe: r.is_liked_by_me === true,
     lat: r.lat ?? null,

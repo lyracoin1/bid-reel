@@ -1,0 +1,54 @@
+You are working on BidReel.
+
+CRITICAL RULES:
+- Do NOT scan the whole repository
+- Do NOT refactor unrelated code
+- Do NOT change architecture
+- Work ONLY on the auction detail / bidding page media display and mobile scrolling behavior
+- Keep changes minimal and safe
+
+TASK:
+Fix two issues on the auction detail / bidding page.
+
+Issue 1 — Main auction media is zoomed/cropped:
+When opening the auction detail / bidding page, the main uploaded image or video appears too zoomed-in or cropped.
+Required fix:
+- Main image/video must keep its correct aspect ratio
+- Do NOT stretch, squash, or over-zoom the media
+- Prefer object-fit: contain for the detail page main media
+- Keep a clean dark/black background behind the media
+- Preserve existing video play/mute behavior
+
+Issue 2 — Mobile scrolling gets stuck:
+When entering the auction detail page as a bidder from the bid icon, the page can scroll down, but then the user cannot scroll back up by swiping.
+Required fix:
+- Mobile/Capacitor vertical scroll must work normally both down and up
+- Check only for local causes in the auction detail page:
+  - nested scroll containers
+  - fixed overlays
+  - overflow-hidden
+  - touch handlers
+  - preventDefault
+  - gesture/swipe listeners blocking vertical scroll
+- Do NOT break media carousel swipe
+- Do NOT break video controls
+- Avoid global CSS changes unless absolutely necessary
+
+Likely files to inspect ONLY:
+- artifacts/bidreel-web/src/pages/auction-detail.tsx
+- any local ImageSlider / media carousel component used by auction detail
+- any local CSS/Tailwind classes used by auction detail media container
+
+VERIFY:
+1. Main auction image/video is no longer over-zoomed or badly cropped
+2. Media keeps correct aspect ratio
+3. Auction detail page scrolls down and back up normally on mobile
+4. Carousel/media swipe still works
+5. Video play/mute still works
+6. Build passes
+
+FINAL:
+- Explain root cause
+- List files changed
+- Run build verification
+- git push origin main

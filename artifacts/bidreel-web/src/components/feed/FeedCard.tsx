@@ -324,11 +324,22 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
       {/* ── Full-bleed media ─────────────────────────────────────────────── */}
       {isVideo ? (
         <div className="absolute inset-0">
+          {/* Thumbnail rendered as a separate img so CSS object-cover applies
+              correctly while the video is loading. The browser's native
+              <video poster> does not honour object-fit in most engines, which
+              causes the poster to appear letterboxed or stretched instead of
+              filling the card. This img is hidden once the video has data. */}
+          {auction.thumbnailUrl && (
+            <img
+              src={auction.thumbnailUrl}
+              aria-hidden
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          )}
           <video
             ref={videoRef}
             src={isNear ? auction.mediaUrl : undefined}
-            poster={auction.thumbnailUrl ?? undefined}
-            className={cn("w-full h-full object-cover transition-transform duration-700", isActive ? "scale-100" : "scale-105")}
+            className={cn("absolute inset-0 w-full h-full object-cover transition-transform duration-700", isActive ? "scale-100" : "scale-105")}
             playsInline
             preload="metadata"
             loop

@@ -480,10 +480,13 @@ export default function AuctionDetail() {
               <video
                 ref={videoRef}
                 src={auction.mediaUrl}
-                // max-w/h + object-contain = native aspect ratio, centered,
-                // letterboxed on the black background. No forced stretch.
+                // w-full h-full + object-contain = fills the stage and
+                // letterboxes the video on the black background without
+                // cropping or stretching. Using w-full h-full (instead of
+                // w-auto h-auto) ensures the element has a defined size
+                // before metadata loads so there is no layout jump.
                 className={cn(
-                  "max-w-full max-h-full w-auto h-auto object-contain",
+                  "w-full h-full object-contain",
                   state !== "active" && "opacity-80",
                 )}
                 playsInline
@@ -504,7 +507,7 @@ export default function AuctionDetail() {
             <img
               src={auction.mediaUrl} alt={auction.title}
               className={cn(
-                "max-w-full max-h-full w-auto h-auto object-contain",
+                "w-full h-full object-contain",
                 state !== "active" && "opacity-80",
               )}
             />

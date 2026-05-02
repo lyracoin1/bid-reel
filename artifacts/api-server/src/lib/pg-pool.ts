@@ -11,6 +11,13 @@
  *
  * This module also runs a one-time idempotent table-creation on first use
  * so the table is always present without manual migration steps.
+ *
+ * RESILIENCE: When DATABASE_URL is not set (e.g. Vercel without the env var),
+ * this module does NOT throw at import time. Instead, pool.query() and
+ * pool.connect() reject with a clear error message. This allows all
+ * Supabase-backed routes (auctions, bids, users, etc.) to load and serve
+ * normally. Only the Secure Deals routes (which actually use this pool)
+ * will fail — all other mobile app functionality is unaffected.
  */
 
 import pg from "pg";
@@ -18,24 +25,51 @@ import { logger } from "./logger";
 
 const { Pool } = pg;
 
-const DATABASE_URL = process.env["DATABASE_URL"];
-if (!DATABASE_URL) {
-  throw new Error("DATABASE_URL environment variable is required for transactions");
+const DATABASE_URL = process.env["DATABASE_URL"] ?? null;
+
+const _missingDbError = DATABASE_URL
+  ? null
+  : new Error(
+      "DATABASE_URL is not configured in this deployment — " +
+        "Secure Deals (transactions) are unavailable. " +
+        "Set DATABASE_URL in Vercel → Settings → Environment Variables " +
+        "pointing to an externally-accessible PostgreSQL database, then redeploy.",
+    );
+
+if (_missingDbError) {
+  logger.warn(
+    "pg-pool: DATABASE_URL is not set — Secure Deals will be unavailable. " +
+      "All other API routes (auctions, bids, users) are unaffected.",
+  );
 }
 
-export const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: DATABASE_URL.includes("sslmode=disable")
-    ? false
-    : { rejectUnauthorized: false },
-  max: 5,
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 5_000,
-});
-
-pool.on("error", (err) => {
-  logger.error({ err: err.message }, "pg-pool: unexpected idle client error");
-});
+export const pool: pg.Pool = DATABASE_URL
+  ? (() => {
+      const p = new Pool({
+        connectionString: DATABASE_URL,
+        ssl: DATABASE_URL.includes("sslmode=disable")
+          ? false
+          : { rejectUnauthorized: false },
+        max: 5,
+        idleTimeoutMillis: 30_000,
+        connectionTimeoutMillis: 5_000,
+      });
+      p.on("error", (err) => {
+        logger.error({ err: err.message }, "pg-pool: unexpected idle client error");
+      });
+      return p;
+    })()
+  : (new Proxy({} as pg.Pool, {
+      get(_target, prop) {
+        if (prop === "query" || prop === "connect") {
+          return () => Promise.reject(_missingDbError);
+        }
+        if (prop === "on" || prop === "end" || prop === "removeListener") {
+          return () => {};
+        }
+        return undefined;
+      },
+    }) as pg.Pool);
 
 // ── One-time table bootstrap ──────────────────────────────────────────────────
 
@@ -43,6 +77,10 @@ let _bootstrapped = false;
 
 export async function bootstrapTransactionsTable(): Promise<void> {
   if (_bootstrapped) return;
+  if (_missingDbError) {
+    logger.warn("pg-pool: skipping bootstrapTransactionsTable — DATABASE_URL not set");
+    return;
+  }
 
   const client = await pool.connect();
   try {

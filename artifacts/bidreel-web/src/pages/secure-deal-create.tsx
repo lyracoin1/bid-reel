@@ -4,10 +4,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, ShieldCheck, Package, FileText, DollarSign,
   Truck, StickyNote, ImagePlus, Video, Link2, Copy, Check,
-  ChevronDown, AlertCircle,
+  ChevronDown, AlertCircle, Loader2, UserX, UserCheck,
 } from "lucide-react";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { useLang } from "@/contexts/LanguageContext";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import {
+  generateDealId, buildPaymentLink, createTransaction,
+} from "@/lib/transactions";
+
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const DELIVERY_OPTIONS_EN = [
   "In-person handover",
@@ -26,19 +32,35 @@ const DELIVERY_OPTIONS_AR = [
   "أخرى",
 ];
 
-function generateDealId(): string {
-  return "BD-" + Math.random().toString(36).slice(2, 8).toUpperCase();
+const INPUT_CLS =
+  "w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-primary/50 focus:bg-white/7 transition";
+
+// ── Profile completeness check ────────────────────────────────────────────────
+
+interface ProfileGate {
+  ready: boolean;
+  missingEn: string[];
+  missingAr: string[];
 }
 
-interface FieldProps {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-  hint?: string;
-  error?: string;
+function checkProfileComplete(user: { username: string | null; displayName: string | null; phone: string | null } | null): ProfileGate {
+  if (!user) return { ready: false, missingEn: [], missingAr: [] };
+  const missing: { en: string; ar: string }[] = [];
+  if (!user.username)    missing.push({ en: "Username",     ar: "اسم المستخدم" });
+  if (!user.displayName) missing.push({ en: "Display name", ar: "الاسم الظاهر"  });
+  if (!user.phone)       missing.push({ en: "Phone number", ar: "رقم الهاتف"   });
+  return {
+    ready:     missing.length === 0,
+    missingEn: missing.map(m => m.en),
+    missingAr: missing.map(m => m.ar),
+  };
 }
 
-function Field({ label, required, children, hint, error }: FieldProps) {
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function Field({ label, required, children, hint, error }: {
+  label: string; required?: boolean; children: React.ReactNode; hint?: string; error?: string;
+}) {
   return (
     <div className="space-y-1.5">
       <label className="flex items-center gap-1 text-[11px] font-bold text-white/40 uppercase tracking-widest">
@@ -57,32 +79,38 @@ function Field({ label, required, children, hint, error }: FieldProps) {
   );
 }
 
-const INPUT_CLS =
-  "w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-primary/50 focus:bg-white/7 transition";
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function SecureDealCreatePage() {
   const [, setLocation] = useLocation();
   const { lang } = useLang();
   const ar = lang === "ar";
 
-  const [itemName, setItemName]       = useState("");
-  const [description, setDescription] = useState("");
-  const [price, setPrice]             = useState("");
-  const [currency, setCurrency]       = useState("USD");
-  const [delivery, setDelivery]       = useState("");
-  const [deliveryOpen, setDeliveryOpen] = useState(false);
-  const [terms, setTerms]             = useState("");
-  const [mediaFile, setMediaFile]     = useState<File | null>(null);
-  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
-  const [mediaType, setMediaType]     = useState<"image" | "video" | null>(null);
+  const { user, isLoading: authLoading } = useCurrentUser();
+  const gate = checkProfileComplete(user);
+
+  // Form state
+  const [itemName, setItemName]           = useState("");
+  const [description, setDescription]     = useState("");
+  const [price, setPrice]                 = useState("");
+  const [currency, setCurrency]           = useState("USD");
+  const [delivery, setDelivery]           = useState("");
+  const [deliveryOpen, setDeliveryOpen]   = useState(false);
+  const [terms, setTerms]                 = useState("");
+  const [mediaFile, setMediaFile]         = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview]   = useState<string | null>(null);
+  const [mediaType, setMediaType]         = useState<"image" | "video" | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [errors, setErrors]           = useState<Record<string, string>>({});
+  // Submit state
+  const [errors, setErrors]               = useState<Record<string, string>>({});
+  const [submitting, setSubmitting]       = useState(false);
+  const [submitError, setSubmitError]     = useState<string | null>(null);
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
-  const [dealId, setDealId]           = useState<string | null>(null);
-  const [copied, setCopied]           = useState(false);
+  const [dealId, setDealId]               = useState<string | null>(null);
+  const [copied, setCopied]               = useState(false);
 
-  const deliveryOptions = ar ? DELIVERY_OPTIONS_AR : DELIVERY_OPTIONS_EN;
+  const deliveryOptions   = ar ? DELIVERY_OPTIONS_AR : DELIVERY_OPTIONS_EN;
   const deliveryOptionsEn = DELIVERY_OPTIONS_EN;
 
   function validate() {
@@ -96,32 +124,60 @@ export default function SecureDealCreatePage() {
     return e;
   }
 
-  function handleGenerate() {
+  async function handleGenerate() {
+    if (!user || !gate.ready || submitting) return;
+
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     setErrors({});
-    const id = generateDealId();
-    const link = `https://bidreel.com/deal/${id}`;
-    setDealId(id);
-    setGeneratedLink(link);
-    console.log("[SecureDeal] Generated deal:", {
-      id,
-      itemName,
-      description,
-      price: `${price} ${currency}`,
-      delivery,
-      terms,
-      hasMedia: !!mediaFile,
-      link,
-    });
+    setSubmitError(null);
+    setSubmitting(true);
+
+    try {
+      const id   = generateDealId();
+      const link = buildPaymentLink(id);
+
+      await createTransaction({
+        deal_id:         id,
+        seller_id:       user.id,
+        product_name:    itemName.trim(),
+        price:           Number(price),
+        currency,
+        description:     description.trim() || undefined,
+        delivery_method: delivery,
+        media_urls:      [],           // media upload (R2) wired in next milestone
+        terms:           terms.trim() || undefined,
+        payment_link:    link,
+      });
+
+      console.log("[SecureDeal] Deal saved to Supabase:", { id, link, sellerId: user.id });
+      setDealId(id);
+      setGeneratedLink(link);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      console.error("[SecureDeal] Failed to save deal:", msg);
+      setSubmitError(ar
+        ? `فشل حفظ الصفقة: ${msg}`
+        : `Failed to save deal: ${msg}`);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function handleCopy() {
     if (!generatedLink) return;
-    navigator.clipboard?.writeText(generatedLink).catch(() => {});
+    navigator.clipboard?.writeText(generatedLink).catch(() => {
+      // Fallback for browsers without clipboard API
+      const el = document.createElement("textarea");
+      el.value = generatedLink;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    });
     setCopied(true);
     console.log("[SecureDeal] Copied link:", generatedLink);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), 2500);
   }
 
   function handleMediaPick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -134,6 +190,83 @@ export default function SecureDealCreatePage() {
     setMediaType(file.type.startsWith("video") ? "video" : "image");
   }
 
+  // ── Auth loading state ──
+  if (authLoading) {
+    return (
+      <MobileLayout>
+        <div className="min-h-full bg-background flex items-center justify-center">
+          <Loader2 size={28} className="text-primary animate-spin" />
+        </div>
+      </MobileLayout>
+    );
+  }
+
+  // ── Not logged in ──
+  if (!user) {
+    return (
+      <MobileLayout>
+        <div className="min-h-full bg-background flex flex-col items-center justify-center gap-4 px-6 text-center" dir={ar ? "rtl" : "ltr"}>
+          <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+            <UserX size={24} className="text-red-400" />
+          </div>
+          <div>
+            <p className="text-base font-bold text-white">
+              {ar ? "يجب تسجيل الدخول أولاً" : "Sign in required"}
+            </p>
+            <p className="text-sm text-white/40 mt-1">
+              {ar ? "إنشاء الصفقات الآمنة متاح للمستخدمين المسجّلين فقط." : "Secure Deals are only available to registered users."}
+            </p>
+          </div>
+          <button
+            onClick={() => setLocation("/login")}
+            className="mt-2 px-6 py-3 rounded-2xl bg-primary text-white font-bold text-sm hover:brightness-110 transition"
+          >
+            {ar ? "تسجيل الدخول" : "Sign In"}
+          </button>
+        </div>
+      </MobileLayout>
+    );
+  }
+
+  // ── Profile incomplete ──
+  if (!gate.ready) {
+    const missing = ar ? gate.missingAr : gate.missingEn;
+    return (
+      <MobileLayout>
+        <div className="min-h-full bg-background flex flex-col items-center justify-center gap-4 px-6 text-center" dir={ar ? "rtl" : "ltr"}>
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+            <UserCheck size={24} className="text-amber-400" />
+          </div>
+          <div>
+            <p className="text-base font-bold text-white">
+              {ar ? "الملف الشخصي غير مكتمل" : "Complete your profile first"}
+            </p>
+            <p className="text-sm text-white/40 mt-1 leading-relaxed">
+              {ar
+                ? "يجب إكمال ملفك الشخصي قبل إنشاء صفقات آمنة."
+                : "You need a complete profile to create Secure Deals."}
+            </p>
+            <div className="mt-3 space-y-1.5">
+              {missing.map(field => (
+                <div key={field} className="flex items-center justify-center gap-2 text-sm text-amber-400">
+                  <AlertCircle size={13} />
+                  <span>{ar ? `مطلوب: ${field}` : `Required: ${field}`}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={() => setLocation("/profile")}
+            className="mt-2 px-6 py-3 rounded-2xl bg-amber-500/80 text-white font-bold text-sm hover:brightness-110 transition"
+          >
+            {ar ? "إكمال الملف الشخصي" : "Complete Profile"}
+          </button>
+        </div>
+      </MobileLayout>
+    );
+  }
+
+  // ── Main form ──
   return (
     <MobileLayout>
       <div className="min-h-full bg-background" dir={ar ? "rtl" : "ltr"}>
@@ -147,11 +280,18 @@ export default function SecureDealCreatePage() {
           >
             <ArrowLeft size={18} className={ar ? "rotate-180" : ""} />
           </button>
-          <div className="flex items-center gap-2">
-            <ShieldCheck size={16} className="text-emerald-400" />
-            <h1 className="text-base font-bold text-white">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <ShieldCheck size={16} className="text-emerald-400 shrink-0" />
+            <h1 className="text-base font-bold text-white truncate">
               {ar ? "إنشاء صفقة آمنة" : "Create Secure Deal"}
             </h1>
+          </div>
+          {/* Seller badge */}
+          <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2.5 py-1 shrink-0">
+            <UserCheck size={11} className="text-emerald-400" />
+            <span className="text-[10px] font-bold text-emerald-400 truncate max-w-[80px]">
+              {user.displayName ?? user.username ?? "Seller"}
+            </span>
           </div>
         </div>
 
@@ -193,11 +333,7 @@ export default function SecureDealCreatePage() {
             <div className="px-5 py-5 space-y-5">
 
               {/* Item name */}
-              <Field
-                label={ar ? "اسم المنتج / السلعة" : "Product / Item Name"}
-                required
-                error={errors.itemName}
-              >
+              <Field label={ar ? "اسم المنتج / السلعة" : "Product / Item Name"} required error={errors.itemName}>
                 <div className="relative">
                   <Package size={14} className={`absolute top-1/2 -translate-y-1/2 text-white/25 pointer-events-none ${ar ? "right-4" : "left-4"}`} />
                   <input
@@ -253,7 +389,7 @@ export default function SecureDealCreatePage() {
                     onChange={e => setCurrency(e.target.value)}
                     className="bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-sm text-white focus:outline-none focus:border-primary/50 transition appearance-none cursor-pointer min-w-[80px] text-center"
                   >
-                    {["USD","SAR","AED","EUR","GBP","TRY","RUB"].map(c => (
+                    {["USD", "SAR", "AED", "EUR", "GBP", "TRY", "RUB"].map(c => (
                       <option key={c} value={c} className="bg-[#0c0c14]">{c}</option>
                     ))}
                   </select>
@@ -274,11 +410,10 @@ export default function SecureDealCreatePage() {
                 />
                 {mediaPreview ? (
                   <div className="relative rounded-xl overflow-hidden border border-white/10">
-                    {mediaType === "video" ? (
-                      <video src={mediaPreview} className="w-full max-h-48 object-cover" controls />
-                    ) : (
-                      <img src={mediaPreview} alt="Preview" className="w-full max-h-48 object-cover" />
-                    )}
+                    {mediaType === "video"
+                      ? <video src={mediaPreview} className="w-full max-h-48 object-cover" controls />
+                      : <img src={mediaPreview} alt="Preview" className="w-full max-h-48 object-cover" />
+                    }
                     <button
                       type="button"
                       onClick={() => { setMediaFile(null); setMediaPreview(null); setMediaType(null); }}
@@ -304,11 +439,7 @@ export default function SecureDealCreatePage() {
               </Field>
 
               {/* Delivery method */}
-              <Field
-                label={ar ? "طريقة التسليم" : "Delivery Method"}
-                required
-                error={errors.delivery}
-              >
+              <Field label={ar ? "طريقة التسليم" : "Delivery Method"} required error={errors.delivery}>
                 <div className="relative">
                   <Truck size={14} className={`absolute top-1/2 -translate-y-1/2 text-white/25 pointer-events-none ${ar ? "right-4" : "left-4"}`} />
                   <button
@@ -339,7 +470,7 @@ export default function SecureDealCreatePage() {
                               setDeliveryOpen(false);
                               setErrors(prev => ({ ...prev, delivery: "" }));
                             }}
-                            className={`w-full px-4 py-3 text-sm text-left hover:bg-white/5 transition ${ar ? "text-right" : "text-left"} ${delivery === opt ? "text-emerald-400 font-semibold" : "text-white/70"}`}
+                            className={`w-full px-4 py-3 text-sm hover:bg-white/5 transition ${ar ? "text-right" : "text-left"} ${delivery === opt ? "text-emerald-400 font-semibold" : "text-white/70"}`}
                           >
                             {opt}
                           </button>
@@ -350,7 +481,7 @@ export default function SecureDealCreatePage() {
                 </div>
               </Field>
 
-              {/* Terms / notes */}
+              {/* Terms */}
               <Field
                 label={ar ? "شروط إضافية / ملاحظات" : "Additional Terms / Notes"}
                 hint={ar ? "أي شروط خاصة بهذه الصفقة (اختياري)" : "Any special conditions for this deal (optional)"}
@@ -370,18 +501,44 @@ export default function SecureDealCreatePage() {
             </div>
           </motion.div>
 
+          {/* Submit error */}
+          <AnimatePresence>
+            {submitError && (
+              <motion.div
+                key="submit-err"
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 flex items-start gap-2.5"
+              >
+                <AlertCircle size={14} className="text-red-400 shrink-0 mt-0.5" />
+                <p className="text-sm text-red-300 leading-snug">{submitError}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Generate button */}
           <motion.button
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.12 }}
-            whileTap={{ scale: 0.97 }}
+            whileTap={{ scale: submitting ? 1 : 0.97 }}
             type="button"
             onClick={handleGenerate}
-            className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-700/30 hover:brightness-110 transition"
+            disabled={submitting || !!generatedLink}
+            className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-700/30 hover:brightness-110 transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <Link2 size={17} />
-            {ar ? "إنشاء رابط الدفع" : "Generate Payment Link"}
+            {submitting ? (
+              <>
+                <Loader2 size={17} className="animate-spin" />
+                {ar ? "جارٍ الحفظ..." : "Saving..."}
+              </>
+            ) : (
+              <>
+                <Link2 size={17} />
+                {ar ? "إنشاء رابط الدفع" : "Generate Payment Link"}
+              </>
+            )}
           </motion.button>
 
           {/* Generated link result */}
@@ -404,6 +561,9 @@ export default function SecureDealCreatePage() {
                   </div>
                   <p className="text-[10px] text-white/35 mt-1">
                     {ar ? `رقم الصفقة: ${dealId}` : `Deal ID: ${dealId}`}
+                  </p>
+                  <p className="text-[10px] text-emerald-400/60 mt-0.5">
+                    {ar ? "✓ تم حفظ الصفقة في قاعدة البيانات" : "✓ Deal saved to database"}
                   </p>
                 </div>
                 <div className="px-5 py-4 space-y-3">

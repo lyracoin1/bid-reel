@@ -197,6 +197,7 @@ export default function CreateAuction() {
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordedBlobUrl, setRecordedBlobUrl] = useState<string | null>(null);
   const [micError, setMicError] = useState<string | null>(null);
+  const [micPermission, setMicPermission] = useState<"unknown" | "granted" | "denied">("unknown");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<BlobPart[]>([]);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -275,6 +276,39 @@ export default function CreateAuction() {
   useEffect(() => {
     requestLocation();
   }, [requestLocation]);
+
+  // ── Proactive microphone permission check on mount ───────────────────────────
+  useEffect(() => {
+    let permStatus: PermissionStatus | null = null;
+
+    const requestMicEarly = () =>
+      navigator.mediaDevices
+        .getUserMedia({ audio: true, video: false })
+        .then((stream) => { stream.getTracks().forEach(t => t.stop()); setMicPermission("granted"); })
+        .catch(() => setMicPermission("denied"));
+
+    if (navigator.permissions) {
+      navigator.permissions
+        .query({ name: "microphone" as PermissionName })
+        .then((status) => {
+          permStatus = status;
+          if (status.state === "granted") setMicPermission("granted");
+          else if (status.state === "denied") setMicPermission("denied");
+          else requestMicEarly(); // "prompt" → trigger native dialog now
+          status.onchange = () => {
+            setMicPermission(
+              status.state === "granted" ? "granted" :
+              status.state === "denied"  ? "denied"  : "unknown",
+            );
+          };
+        })
+        .catch(() => { if (navigator.mediaDevices) requestMicEarly(); });
+    } else if (navigator.mediaDevices) {
+      requestMicEarly();
+    }
+
+    return () => { if (permStatus) permStatus.onchange = null; };
+  }, []);
 
   // ── Recording cleanup on unmount ─────────────────────────────────────────────
   useEffect(() => {
@@ -449,6 +483,7 @@ export default function CreateAuction() {
     setMicError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      setMicPermission("granted");
       streamRef.current = stream;
       recordingChunksRef.current = [];
       const mimeType = getSupportedMimeType();
@@ -485,10 +520,9 @@ export default function CreateAuction() {
     } catch (err) {
       const isDenied = err instanceof DOMException &&
         (err.name === "NotAllowedError" || err.name === "PermissionDeniedError" || err.name === "NotFoundError");
+      if (isDenied) setMicPermission("denied");
       setMicError(isDenied
-        ? (lang === "ar"
-          ? "لم يُسمح باستخدام الميكروفون. يرجى تفعيله من الإعدادات."
-          : "Microphone access denied. Enable it in device settings.")
+        ? null // denied state is shown by the persistent banner, not a transient error
         : (lang === "ar"
           ? "تعذّر الوصول إلى الميكروفون."
           : "Could not access the microphone."));
@@ -963,6 +997,13 @@ export default function CreateAuction() {
                         onClick={() => {
                           if (src !== "record" && isRecording) stopRecording();
                           setAudioSource(src);
+                          // Proactively prompt if permission still unknown when user picks Record
+                          if (src === "record" && micPermission === "unknown" && navigator.mediaDevices) {
+                            navigator.mediaDevices
+                              .getUserMedia({ audio: true, video: false })
+                              .then((s) => { s.getTracks().forEach(t => t.stop()); setMicPermission("granted"); })
+                              .catch(() => setMicPermission("denied"));
+                          }
                         }}
                         className="relative flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold transition-colors"
                       >

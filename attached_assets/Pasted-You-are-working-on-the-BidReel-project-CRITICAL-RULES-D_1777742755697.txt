@@ -1,0 +1,91 @@
+You are working on the BidReel project.
+
+CRITICAL RULES:
+- Do NOT scan the entire repository.
+- Do NOT modify backend code.
+- Do NOT implement payment systems yet.
+- Do NOT modify database or Supabase.
+- Focus ONLY on frontend UI.
+- Work ONLY on:
+  - Settings page
+  - New Payment & Protection page
+  - Required frontend routes
+- Keep all changes minimal and precise.
+- Preserve existing architecture and styling.
+- Verify frontend build after completion.
+
+GOAL:
+Create a professional new frontend-only section inside Settings called:
+
+Payment & Protection
+
+TASKS:
+
+1) In the Settings page:
+- Add a permanent new section/button:
+  Payment & Protection
+- Visible for all users
+- Clicking it should navigate to a new dedicated page
+
+2) Create a new full UI page:
+- Mobile-friendly
+- Matches current BidReel design
+- Professional card-based layout
+- Contains TWO primary cards:
+
+CARD 1: BidReel Pro
+- Clear premium title
+- Short subscription description
+- Pricing display:
+  $10 USD / month
+  + approximate local currency equivalent
+- Include features:
+  - Extended or unlimited bidding
+  - Permanent WhatsApp access
+  - Secure Deals access
+  - Lower marketplace fees
+  - Priority support
+- CTA Button:
+  Upgrade Now
+
+CARD 2: Secure Deal
+- Clear title
+- Description:
+  Protected selling/buying inside or outside auctions
+- Include features:
+  - Protected payments
+  - Manual escrow
+  - Buyer/Seller safety
+  - Dispute support
+- CTA Button:
+  Create Secure Deal
+
+3) Buttons:
+- Placeholder functionality only
+- Route targets:
+  /subscription
+  /secure-deals/create
+
+4) Currency:
+- Show BOTH:
+  USD price
+  Local currency estimate
+- UI example:
+  $10 USD/month
+  ≈ Local Currency
+
+5) Styling:
+- Modern
+- Trustworthy financial feel
+- Premium look
+- Clear hierarchy
+- Responsive
+- Arabic + English friendly
+
+6) Validation:
+- Ensure routes load correctly
+- Build frontend successfully
+
+7) Finalize:
+- Commit changes
+- git push origin main

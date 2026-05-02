@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
-import { X, Globe, Check, Menu, ShieldAlert, Lock, Handshake } from "lucide-react";
+import { X, Globe, Check, Menu, ShieldAlert, Lock, Handshake, CreditCard } from "lucide-react";
 import { useLocation } from "wouter";
 import { useLang } from "@/contexts/LanguageContext";
 import { useOverlayBack } from "@/hooks/use-overlay-back";
@@ -141,6 +141,16 @@ export function HamburgerMenu({ className = "", open: controlledOpen, onOpenChan
                   >
                     <ShieldAlert size={16} className="text-amber-400 shrink-0" />
                     <span className="text-sm font-semibold text-white/70">{t("safety_rules")}</span>
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => navigateTo("/payment-protection")}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-white/5"
+                  >
+                    <CreditCard size={16} className="text-primary shrink-0" />
+                    <span className="text-sm font-semibold text-white/70">
+                      {lang === "ar" ? "الدفع والحماية" : "Payment & Protection"}
+                    </span>
                   </motion.button>
                   <motion.button
                     whileTap={{ scale: 0.98 }}

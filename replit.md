@@ -61,11 +61,24 @@ Supports in-app notifications and push notifications (via Firebase) for events l
 ### Admin Panel
 A separate React admin panel provides tools for managing the application, including a live preview of the main web app with locale switching.
 
+### Secure Deals (Transactions)
+
+A peer-to-peer escrow-style "Secure Deal" feature for off-auction sales:
+- **Seller** creates a deal via `/secure-deals/create` → a payment link is generated.
+- **Buyer** opens the link at `/secure-deals/pay/:dealId` → auth-gated, sees deal details, and confirms payment.
+- **Data flow:** all transaction data is stored in the Replit PostgreSQL `transactions` table (not Supabase cloud) via the api-server at `POST/GET /api/secure-deals/*`.
+- **Auth:** GET is public (buyer can read deal without auth); POST/pay/ship require a valid Supabase JWT (`requireAuth` middleware).
+- **Payment gateway:** placeholder block in `artifacts/api-server/src/routes/secure-deals.ts` (POST /:dealId/pay). Replace with Google Play Billing / Stripe before going live.
+- **Notifications:** placeholder in the same route. Wire real FCM or Email there.
+- Table bootstraps automatically on api-server startup via `bootstrapTransactionsTable()` (idempotent).
+- Route registration: `secureDealsRouter` must be mounted **before** `notificationRouter` in `routes/index.ts` because that router applies a global `requireAuth` to all subsequent handlers.
+
 ## System Design Choices
 
 -   **API Server:** Express 5 handles all API requests.
 -   **Frontend:** React with Vite and Tailwind CSS v4 for the main user application and the admin panel.
--   **Database:** PostgreSQL, accessed via Supabase, with Drizzle ORM for type-safe schema definitions and interactions.
+-   **Database (primary):** PostgreSQL via Supabase cloud, with Drizzle ORM for type-safe schema definitions and interactions.
+-   **Database (transactions):** Replit-managed PostgreSQL (`DATABASE_URL`) for the `transactions` table, accessed via `pg` Pool in `api-server/src/lib/pg-pool.ts`.
 -   **Validation:** Zod is used for data validation.
 -   **Media Storage:** Cloudflare R2 for storing auction media (videos, thumbnails).
 -   **Scheduled Jobs:** Background jobs manage media lifecycle (deleting expired media) and incomplete profile cleanup.

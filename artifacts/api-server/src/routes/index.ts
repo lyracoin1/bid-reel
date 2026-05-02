@@ -16,6 +16,7 @@ import dealsRouter from "./deals";
 import ratingsRouter from "./ratings";
 import whatsappRouter from "./whatsapp";
 import billingRouter from "./billing";
+import secureDealsRouter from "./secure-deals";
 
 const router: IRouter = Router();
 
@@ -34,6 +35,10 @@ router.use(mediaRouter);
 router.use("/admin", adminRouter);
 router.use(auctionRouter);
 router.use(billingRouter);
+// secureDealsRouter must be registered BEFORE notificationRouter, because
+// notificationRouter applies a router-level requireAuth that intercepts
+// every subsequent /api/* request — and GET /api/secure-deals/:id is public.
+router.use(secureDealsRouter);
 router.use(notificationRouter);
 router.use(reportsRouter);
 router.use(viewsRouter);

@@ -4,6 +4,7 @@ import { startMediaCleanupScheduler } from "./lib/media-lifecycle";
 import { startProfileCleanupScheduler } from "./lib/profile-cleanup";
 import { startPurchaseDeadlineScheduler } from "./lib/purchase-deadline";
 import { supabaseAdmin } from "./lib/supabase";
+import { bootstrapTransactionsTable } from "./lib/pg-pool";
 
 /**
  * One-time data fix (migration 040): reset every auction whose min_increment
@@ -50,6 +51,9 @@ app.listen(port, (err) => {
   logger.info({ port }, "Server listening");
   resetOldMinIncrements().catch(err =>
     logger.error({ err: String(err) }, "resetOldMinIncrements: unexpected error"),
+  );
+  bootstrapTransactionsTable().catch(err =>
+    logger.error({ err: String(err) }, "bootstrapTransactionsTable: unexpected error"),
   );
   startMediaCleanupScheduler();
   startProfileCleanupScheduler();

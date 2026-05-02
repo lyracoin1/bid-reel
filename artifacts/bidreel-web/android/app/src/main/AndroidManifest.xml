@@ -27,6 +27,9 @@
     <!-- Vibrate on notification receipt -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Microphone (Audio Reel voice recording) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <!-- Location (for auction geo-filtering) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />

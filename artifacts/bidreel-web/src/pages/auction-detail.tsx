@@ -319,7 +319,7 @@ export default function AuctionDetail() {
     formatAuctionPrice(amount, auction.currencyCode ?? "USD");
 
   // Per-auction floor sourced from the backend (`min_increment` column,
-  // default 10 server-side). Never hardcode a number here.
+  // default 1 server-side). Never hardcode a number here.
   const minIncrement = auction.minIncrement;
 
   // Parse the user's increment input. Returns null when invalid.

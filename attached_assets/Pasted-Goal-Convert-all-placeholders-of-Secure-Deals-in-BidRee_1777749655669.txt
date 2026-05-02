@@ -1,0 +1,46 @@
+Goal: Convert all placeholders of Secure Deals in BidReel to real operations with Supabase, R2, and Payment Gateway, ensuring no deal_id or data is lost.
+
+Instructions:
+1. Section 1 - Secure Deal Create:
+   - Create 'transactions' table in Supabase with all fields (deal_id, seller_id, product_name, price, currency, description, delivery_method, media_urls, terms, payment_status, shipment_status, funds_released)
+   - Link the Create Deal form to Supabase to save new deals
+   - Generate a unique Payment Link per buyer and save in DB
+   - Update UI: Copy Link works and sends link to buyer
+
+2. Section 2 - Buyer Payment:
+   - Connect Pay Now button to Google Play Billing or any real payment gateway
+   - On success: update payment_status, save date, amount, currency, deal_id
+   - Send notification to buyer (FCM / Email)
+   - Update Progress Stepper UI to "Payment Secured"
+
+3. Section 3 - Shipment Verification:
+   - Replace placeholder table with Supabase transactions data
+   - Enable uploading documents / entering Tracking Link
+   - Store documents on R2, update shipment_status in Supabase
+   - Notify buyer on updates
+   - UI: expanded row + Release Funds panel linked to Supabase
+
+4. Section 4 - Seller Dashboard / Admin View:
+   - Read all deals from Supabase by seller_id
+   - Map table columns to real DB fields
+   - Enable uploading documents / updating shipment → save to R2 and Supabase
+   - Add Release Funds button linked to deal_id
+
+5. Section 5 - Release Funds / Payout:
+   - Enable Release Funds button after payment and shipment verified
+   - Deduct 5% commission
+   - Update funds_released = true and release_date in Supabase
+   - Notify seller (FCM / Email)
+
+6. Section 6 - Notifications:
+   - Create service to listen to DB updates (Supabase triggers / Webhooks)
+   - Send real notifications (FCM / Email) per event (payment secured, shipment verified, delivered, funds released)
+   - Ensure notifications are linked to deal_id and correct user
+
+Execution:
+- Test all UI locally first
+- Commit all modified files in one commit
+- Push to GitHub → trigger Actions → build + deploy
+- Wire Supabase tables and fields
+- Connect notifications and real payment gateways
+- Ensure each deal_id is preserved and all operations are functional

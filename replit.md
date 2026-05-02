@@ -1,238 +1,87 @@
-# Workspace
+# Overview
 
-## Overview
+BidReel is a pnpm workspace monorepo using TypeScript, designed for a short-video Arabic auction mobile application. The core idea is to enable users to upload video and image content for items, host them as auctions, and allow other users to browse a TikTok-style vertical feed to place bids. A key feature is direct WhatsApp contact for auction winners via server-generated deep-links, ensuring user privacy by never exposing phone numbers in API responses. The application features a dark theme with a neon purple accent and prioritizes a RTL/Arabic-first UI with support for English/Arabic language switching.
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+The project's vision is to capture a significant share of the online auction market in Arabic-speaking regions by offering a novel, engaging, and secure bidding experience centered around video content. It aims to create a dynamic marketplace that is intuitive, visually appealing, and fosters community engagement through interactive auctions.
 
-## Product
+# User Preferences
 
-**BidReel** — short-video Arabic auction app MVP.
-Users upload a video + image for an item, publish it as an auction, and other users browse a vertical TikTok-style feed to place bids. WhatsApp contact via server-generated deep-links (phone numbers never exposed in API responses). Dark theme, neon purple accent. RTL/Arabic first UI, with EN/AR switching.
+I prefer concise and direct communication.
+When suggesting code changes, provide clear reasoning and highlight potential impacts.
+For new features, I prefer an iterative development approach with frequent, small commits.
+Please ask for confirmation before making any significant architectural changes or adding new external dependencies.
+I prefer detailed explanations for complex technical decisions.
+Do not make changes to the `artifacts/bidreel-web/android/app/src/main/java/com/bidreel/app/VideoCompressorPlugin.java` file.
+Do not make changes to the `artifacts/bidreel-web/src/lib/native-video-compressor.ts` file.
 
-## Rules / Safety-Notice Flow
+# System Architecture
 
-There are **three** rule surfaces, by design — they serve different jobs.
+## UI/UX Decisions
 
-| Surface | Where | When it appears | Gate |
-|---|---|---|---|
-| Onboarding rules step | `src/pages/interests.tsx` (step `"rules"`) | Once, after first-run profile + interests | `localStorage["bidreel_rules_seen"]` |
-| **Listing rules modal** | `src/pages/create-auction.tsx` (`LISTING_RULES`) | Bottom-sheet on Publish, **first publish only** | `localStorage["bidreel_listing_rules_accepted"]` |
-| **Bidding rules modal** | `src/pages/auction-detail.tsx` (`BIDDING_RULES`) | Bottom-sheet on Submit-bid, **first bid only** | `localStorage["bidreel_bidding_rules_accepted"]` |
-| Always-available rules page | `src/pages/safety-rules.tsx` | Hamburger menu → "Safety & Auction Rules" | none |
+The application adopts a dark theme with a neon purple accent, providing a modern and visually distinct interface. The UI is designed to be RTL/Arabic-first, supporting full Arabic localization with English as an alternative. The primary user interaction model is a vertical, TikTok-style video feed for browsing auctions.
 
-**Modal interaction contract (both listing + bidding):**
-- **Confirm** button (`*_rules_confirm` i18n key) — sets the localStorage flag and immediately performs the queued action (publish or place-bid).
-- **Skip** button (`rules_skip`) — closes the modal **without** setting the flag, so the rules re-appear next time. Skip does NOT proceed with the action.
-- **"Read the full safety rules"** link — closes the modal and routes to `/safety-rules`.
-- Backdrop tap behaves like Skip (close without flag, no action taken).
+## Technical Implementations
 
-**Language handling:** All rule keys (`rule_1..5_title/body`, `listing_rules_*`, `bidding_rules_*`, `rules_skip`, `rules_view_full`) have translations in `en/ar/ru/es/fr` in `src/lib/i18n.ts`. Modals use `dir={dir}` from `useLang()` so they render RTL when Arabic is selected.
+### Monorepo Structure
+The project is organized as a pnpm workspace monorepo, facilitating shared dependencies and consistent tooling across multiple services.
 
-## Video Upload Architecture (NATIVE-ONLY, no raw fallback)
+### Video Upload and Compression
+A critical architectural decision is that all videos *must* be compressed client-side before upload. Raw video files are never directly uploaded to storage.
+- **Android:** Utilizes a native Capacitor plugin (`VideoCompressorPlugin.java`) with Media3 Transformer for H.264 (2 Mbps) / AAC / MP4 / 720p re-encoding.
+- **iOS:** UI indicates that video posting is not yet enabled, awaiting native plugin implementation.
+- **Web:** Video posting is disabled.
 
-**Product rule:** Videos must be compressed BEFORE upload. Raw video must NEVER reach R2. If compression fails, the upload fails.
+### Authentication
+The system uses an email-first authentication strategy powered by Supabase email and password, with Google Sign-In as an OAuth option. Phone numbers are for contact only, not authentication. New users are directed to an onboarding flow (`/interests`), while existing users directly access the main feed (`/feed`).
 
-- **Android (production path):** Native Capacitor plugin `VideoCompressor` at `artifacts/bidreel-web/android/app/src/main/java/com/bidreel/app/VideoCompressorPlugin.java`. Uses **Media3 Transformer** (`androidx.media3:media3-transformer:1.4.1`) to re-encode to **H.264 (2 Mbps) / AAC / MP4 / 720p**. Exposes `pickVideo()` (system picker → cache file + JPEG poster + size/duration/dimensions) and `compressVideo({ inputPath, maxHeight, videoBitrateBps })`. Plugin registered in `MainActivity.onCreate`. Output is read back into JS via `Capacitor.convertFileSrc()` → `fetch()` → Blob → existing R2 presigned-PUT pipeline.
-- **iOS:** Architecture in place (TS bridge + capability detection); native plugin not yet implemented. UI shows "Posting videos on iOS is not yet enabled" instead of silently falling back.
-- **Web:** Video posting disabled. UI shows "Posting videos is currently only supported on the BidReel Android app." `ffmpeg.wasm` has been **removed** (deps `@ffmpeg/{core,ffmpeg,util}`, `public/ffmpeg/*`, `copy:ffmpeg` script all deleted).
+### Rule/Safety Notice Flow
+There are three distinct rule surfaces:
+1.  **Onboarding rules step:** Presented once after initial profile setup.
+2.  **Listing rules modal:** Appears on the first auction publish.
+3.  **Bidding rules modal:** Appears on the first bid submission.
+All modals include "Confirm" (proceeds with action), "Skip" (closes without action), and a link to a full safety rules page. Language handling supports `en/ar/ru/es/fr` with RTL rendering for Arabic.
 
-JS API: `artifacts/bidreel-web/src/lib/native-video-compressor.ts` — `pickVideoNative()`, `compressVideoNative()`, `readCompressedFile()`, `isVideoCompressionSupported()`, `getUnsupportedPlatformMessage()`. All failures throw `NativeVideoError({ step: "unsupported"|"pick"|"compress"|"validate" })`.
+### Media Processing
+After an auction is created with a video, a server-side fire-and-forget process transcodes the video to 720p H.264/AAC, extracts a JPEG thumbnail, updates the auction record, and deletes the original uncompressed file.
 
-Validation rules after compress: file exists, `size > 0`, `size ≤ 20 MB` (server cap). Any failure → `setSubmitError(...)` and abort. Strict end-to-end pipeline implemented in `src/pages/create-auction.tsx` `handleSubmit`: `pickVideo → compressVideo → readCompressedFile → uploadMedia(video) → upload extracted thumbnail → createAuction`.
+### Feed Intelligence Ranking
+The API server dynamically ranks auctions for authenticated users based on a weighted additive scoring model incorporating explicit user signals (interested/not interested), bidding history, saved auctions, followed sellers, and category preferences. Anonymous users see auctions by recency.
 
-## Running Services
+## Feature Specifications
 
-Three services launched by the **"Start application"** workflow:
-- **API server** — Express on `PORT=8080`, at `/api`
-- **bidreel-web** — Vite React app on `PORT=24694`, at `/`
-- **bidreel-admin** — Vite React admin panel on `PORT=22020`, at `/bidreel-admin/`
+### Core Auction Functionality
+Users can upload videos/images to create auctions. Other users can browse, bid, and interact with auctions.
 
-Workflow command:
-```
-PORT=8080 pnpm --filter @workspace/api-server run dev & PORT=24694 BASE_PATH=/ pnpm --filter @workspace/bidreel-web run dev & PORT=22020 BASE_PATH=/bidreel-admin/ pnpm --filter @workspace/bidreel-admin run dev & wait
-```
+### User Profiles
+Includes `username`, `display_name`, `avatar_url`, `bio`, `phone`, `email`, `is_admin`, and `is_completed` status. `is_completed` is set once the username is configured.
 
-## Auth
+### Notifications
+Supports in-app notifications and push notifications (via Firebase) for events like new bids, auction status changes, and admin messages.
 
-**Email-first auth** (Supabase email + password). Phone is a profile/contact field only — never used for authentication. Login uses `supabase.auth.signInWithPassword({ email, password })`. The `handle_new_auth_user` trigger on `auth.users` auto-creates a `profiles` row on signup.
+### Admin Panel
+A separate React admin panel provides tools for managing the application, including a live preview of the main web app with locale switching.
 
-**Google Sign-In** is also supported via Supabase OAuth (`supabase.auth.signInWithOAuth({ provider: "google" })`). After the OAuth redirect, `OAuthCallbackHandler` in `App.tsx` fires, calls `ensure-profile`, and routes the user.
+## System Design Choices
 
-**Auth/routing rules (as of auth-routing-fix session):**
-- New users (`isNewUser: true` from `POST /auth/ensure-profile`) AND `!isCompleted` → routed to `/interests` for onboarding.
-- Existing users (`isNewUser: false`) → always routed to `/feed`, regardless of `isCompleted`. Profile completeness is enforced at the **action level** only (e.g. create-auction page shows a wall listing missing fields).
-- `OnboardingGuard` in `App.tsx` is a no-op passthrough — no global `!isCompleted` redirect.
-- `splash.tsx` routes authenticated users directly to `/feed` (the `hasSeenInterests` localStorage flag is no longer used for routing).
-- Error paths in `afterSignIn` / `OAuthCallbackHandler` all fall through to `/feed`.
+-   **API Server:** Express 5 handles all API requests.
+-   **Frontend:** React with Vite and Tailwind CSS v4 for the main user application and the admin panel.
+-   **Database:** PostgreSQL, accessed via Supabase, with Drizzle ORM for type-safe schema definitions and interactions.
+-   **Validation:** Zod is used for data validation.
+-   **Media Storage:** Cloudflare R2 for storing auction media (videos, thumbnails).
+-   **Scheduled Jobs:** Background jobs manage media lifecycle (deleting expired media) and incomplete profile cleanup.
 
-Admin account: `lyracoin950@gmail.com` — `is_admin=true`, `is_completed=true` set by migration 019.
+# External Dependencies
 
-## Environment Variables
-
-Shared env vars:
-- `SUPABASE_URL` = `https://zhbfbjwagehwetyqljjr.supabase.co`
-
-Secrets configured:
-- `SUPABASE_ANON_KEY` — used by both Vite frontends (picked up as `process.env.SUPABASE_ANON_KEY` in vite.config.ts → `VITE_SUPABASE_ANON_KEY`)
-- `SUPABASE_SERVICE_ROLE_KEY` — used by API server only
-- `FIREBASE_SERVICE_ACCOUNT_JSON` — Firebase Admin SDK for push notifications
-- `Access_Key_ID`, `Secret_Access_Key`, `Account_id` — R2 object storage for media
-
-## Database Schema
-
-All migrations are SQL files in `artifacts/api-server/src/migrations/` and must be run manually in the Supabase SQL editor in order.
-
-**Applied migrations (001–019):**
-- `001`–`008` — initial schema: profiles, auctions, bids, likes, reports, blocks, notifications, devices
-- `009_schema_alignment.sql` — renames `current_price`→`current_bid`, `minimum_increment`→`min_increment`; adds media lifecycle cols, winner_id; fixes bid trigger
-- `010_unique_phone_constraint.sql` — UNIQUE on profiles.phone
-- `011_bids_created_at.sql` — `created_at` on bids
-- `012_add_lat_lng_to_auctions.sql` — `lat`, `lng` DOUBLE PRECISION on auctions
-- `013_add_currency_to_auctions.sql` — `currency_code`, `currency_label` on auctions
-- `014_user_follows.sql` — `user_follows` table + RLS
-- `015_saved_auctions.sql` — `saved_auctions` table + RLS
-- `016_add_username.sql` — `username` column on profiles (case-insensitive unique index)
-- `017_profile_completion.sql` — `is_completed` flag + trigger (`trg_set_profile_completed`)
-- `018_admin_notifications.sql` — `admin_notifications` table + triggers (new user/auction/report)
-- `019_email_auth_and_admin_setup.sql` — `email` column on profiles; drops phone UNIQUE; `handle_new_auth_user` trigger; admin upsert for lyracoin950@gmail.com
-
-**Key column names:**
-- `auctions.current_bid`, `auctions.min_increment` (renamed from `current_price`/`minimum_increment` in migration 009 — old fallback code removed)
-- `bids.user_id` (not `bidder_id` — Drizzle schema uses `userId`)
-- `profiles.is_completed` — true once username is set (onboarding done)
-- `profiles.email` — synced from auth.users via trigger
-
-**Key tables:**
-- `profiles` — `id, email, username, display_name, avatar_url, bio, phone, is_admin, is_completed, expo_push_token, created_at, updated_at`
-- `auctions` — `id, seller_id, title, description, category, video_url, thumbnail_url, start_price, current_bid, min_increment, bid_count, like_count, status, starts_at, ends_at, media_purge_after, lat, lng, currency_code, currency_label, winner_id, winner_bid_id, ...`
-- `bids` — `id, auction_id, user_id, amount, created_at`
-- `notifications` — `id, user_id, type, message, auction_id, read, created_at`
-- `admin_notifications` — `id, type, title, message, is_read, metadata, created_at`
-- `user_follows` — `id, follower_id, following_id, created_at`
-- `saved_auctions` — `id, user_id, auction_id, created_at`
-
-## Stack
-
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm only (preinstall script enforces this)
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL via Supabase, Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **Frontend**: React + Vite + Tailwind CSS v4
-- **Auth**: Supabase Auth (email + password)
-- **Build**: esbuild (API), Vite (frontends)
-
-## Structure
-
-```text
-/
-├── artifacts/
-│   ├── api-server/          # Express API server (PORT=8080)
-│   ├── bidreel-web/         # Main React app (PORT=24694, path=/)
-│   └── bidreel-admin/       # Admin React panel (PORT=22020, path=/bidreel-admin/)
-├── lib/
-│   ├── api-spec/            # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/    # Generated React Query hooks
-│   ├── api-zod/             # Generated Zod schemas
-│   └── db/                  # Drizzle ORM schema + DB connection
-├── scripts/                 # Utility scripts
-└── pnpm-workspace.yaml
-```
-
-## Packages
-
-### `artifacts/api-server` (`@workspace/api-server`)
-
-Express 5 API server. All routes under `/api`.
-
-Key files:
-- `src/config/env.ts` — all `process.env` reads
-- `src/routes/` — auth, auctions, bids, users, notifications, admin, media, reports
-- `src/middlewares/requireAuth.ts` — Bearer JWT validation
-- `src/lib/supabase.ts` — anon + service_role clients
-- `src/lib/fcm.ts` — Firebase Admin push (no-op without `FIREBASE_SERVICE_ACCOUNT_JSON`)
-- `src/lib/media-lifecycle.ts` — scheduled cleanup of expired media
-- `src/services/` — business logic per domain
-
-Scheduled jobs (run at startup and every minute):
-- **media-lifecycle** — deletes expired auction media from Supabase Storage
-- **profile-cleanup** — removes incomplete profiles older than 24h
-
-**Media processing pipeline** (`src/lib/video-processing.ts`):
-- Triggered fire-and-forget after a video auction is created (detected by `.mp4/.mov/.webm/.avi` extension in `videoUrl`)
-- Downloads original video from Supabase Storage to `/tmp/bidreel-{jobId}/`
-- Probes height with `ffprobe`, caps to 720p (never upscales)
-- Re-encodes with `libx264 CRF 28 veryfast`, AAC 128 kbps, `-movflags +faststart`
-- Extracts JPEG thumbnail at 1 s (falls back to frame 0 for short clips), scaled to 640 px wide
-- Uploads compressed video + thumbnail to `processed/{userId}/{jobId}_*` in `auction-media` bucket
-- Updates `auctions.video_url` and `auctions.thumbnail_url` in DB
-- Deletes original file from storage
-- Fails silently — original URL stays valid if processing fails
-
-**Feed intelligence ranking** (`src/lib/feed-ranking.ts`):
-- Applied per authenticated request to `GET /api/auctions` — anonymous users get recency order
-- Builds user context with two parallel rounds of queries (no new DB tables needed):
-  - Round 1 (parallel): `content_signals`, `bids`, `saved_auctions`, `user_follows`
-  - Round 2 (single batch): auction details (seller_id, category) for signal+bid history
-- Weighted additive scoring per auction:
-  - Explicit "interested" on this auction: **+100**
-  - Explicit "not_interested" on this auction: **−100**
-  - User has bid on this auction: **+80**
-  - User has saved this auction: **+50**
-  - User follows this seller: **+30**
-  - Per "interested" on seller's other auctions: **+8 each, cap +20**
-  - Per bid on seller's other auctions: **+8 each, cap +15**
-  - Per "interested" in same category: **+5 each, cap +10**
-  - Per "not_interested" on seller's auctions: **−8 each, floor −20**
-  - Per "not_interested" in same category: **−5 each, floor −10**
-- Stable sort (V8 Array.sort) — equal scores preserve created_at DESC order
-- Any single query failure degrades gracefully to empty (non-fatal via Promise.allSettled)
-- `user_signal` field (exact signal value) still returned per auction for frontend thumbs UI
-
-### `artifacts/bidreel-web` (`@workspace/bidreel-web`)
-
-Main user-facing React app. Served at `/`.
-
-Key patterns:
-- `src/lib/api-client.ts` — typed API client using `fetch`, Bearer JWT auth
-- `src/lib/supabase.ts` — Supabase client for auth session management
-- `src/contexts/LanguageContext.tsx` — EN/AR switching; reads `?lang=en|ar` URL param on init (used by admin preview panel to force locale)
-- `src/lib/i18n.ts` — translation strings
-- Auth flow: email+password → `supabase.auth.signInWithPassword` → JWT stored → API calls use Bearer token
-- Feed: vertical scroll, TikTok-style; real data from `GET /api/auctions`
-- Pages: `/login`, `/feed`, `/explore`, `/interests` (onboarding), `/profile`, `/auction/:id`, `/create-auction`
-
-Vite config picks up Supabase creds:
-- `VITE_SUPABASE_URL` or `SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY` or `SUPABASE_ANON_KEY`
-
-### `artifacts/bidreel-admin` (`@workspace/bidreel-admin`)
-
-Admin panel. Served at `/bidreel-admin/`.
-
-Key components:
-- `src/components/AppPreviewPanel.tsx` — live iframe preview of bidreel-web with grouped screen nav (Entry/Auth/Onboarding/App), EN/AR locale toggle (passes `?lang=` to iframe), phone frame UI, refresh/open controls
-- `src/lib/supabase.ts` — Supabase client (same creds as web app)
-- `src/services/admin-api.ts` — typed API client for admin endpoints
-
-Vite config extras:
-- `VITE_APP_PREVIEW_URL` — set to `https://${REPLIT_DEV_DOMAIN}` in Replit dev; points to live bidreel-web for the iframe preview
-- `VITE_API_URL` — API server URL (empty in dev = uses Vite proxy to localhost:8080)
-- Proxy: `/api` → `localhost:8080` in dev
-
-### `lib/db` (`@workspace/db`)
-
-Drizzle ORM schema + DB connection. Exports `db` (Drizzle instance) and schema tables.
-
-Schema files:
-- `src/schema/auctions.ts` — `auctionsTable`
-- `src/schema/bids.ts` — `bidsTable`
-- `src/schema/notifications.ts` — `notificationsTable`
-
-Note: `profiles` table is accessed directly via Supabase client in the API server (not through Drizzle), because profiles use Supabase Auth integration.
-
-## TypeScript
-
-Every package extends `tsconfig.base.json` (`composite: true`). Run `pnpm run typecheck` from root for full project build. Known pre-existing TS errors in `bidreel-web`: `use-bid-polling.ts`, `use-notifications.ts`, `use-realtime-bids.ts`, `public-profile.tsx` — these existed before the Replit migration and are not blocking.
+-   **Supabase:** Provides PostgreSQL database, authentication services (email/password, Google OAuth), and object storage (Supabase Storage for media during initial upload before processing).
+-   **Cloudflare R2:** Primary object storage for processed auction media (videos and thumbnails).
+-   **Firebase:** Utilized for Firebase Cloud Messaging (FCM) to send push notifications.
+-   **Media3 Transformer (Android):** `androidx.media3:media3-transformer:1.4.1` for client-side video compression on Android.
+-   **Express.js:** Node.js web application framework for the API server.
+-   **React:** JavaScript library for building user interfaces.
+-   **Vite:** Next-generation frontend tooling for fast development.
+-   **Tailwind CSS:** Utility-first CSS framework for styling.
+-   **TypeScript:** Superset of JavaScript for type-safe development.
+-   **Drizzle ORM:** TypeScript ORM for interacting with the PostgreSQL database.
+-   **Zod:** TypeScript-first schema declaration and validation library.
+-   **pnpm:** Fast, disk space efficient package manager for monorepos.
+-   **FFmpeg (server-side):** Used for server-side video transcoding and thumbnail extraction (implicitly, as part of the media processing pipeline).

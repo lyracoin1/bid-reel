@@ -40,6 +40,7 @@ const DealDetailPage       = lazy(() => import("@/pages/deal-detail"));
 const PaymentProtectionPage  = lazy(() => import("@/pages/payment-protection"));
 const SubscriptionPage        = lazy(() => import("@/pages/subscription"));
 const SecureDealCreatePage    = lazy(() => import("@/pages/secure-deal-create"));
+const SecureDealPayPage       = lazy(() => import("@/pages/secure-deal-pay"));
 
 // ── Suspense fallback — shown during lazy chunk fetch ────────────────────────
 // Minimal spinner that matches the app's dark background, keeping the
@@ -117,6 +118,7 @@ function Router() {
           <Route path="/payment-protection" component={PaymentProtectionPage} />
           <Route path="/subscription" component={SubscriptionPage} />
           <Route path="/secure-deals/create" component={SecureDealCreatePage} />
+          <Route path="/secure-deals/pay/:dealId" component={SecureDealPayPage} />
 
           <Route component={NotFound} />
         </Switch>

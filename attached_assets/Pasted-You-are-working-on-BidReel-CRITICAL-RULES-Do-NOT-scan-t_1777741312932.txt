@@ -1,0 +1,59 @@
+You are working on BidReel.
+
+CRITICAL RULES:
+- Do NOT scan the whole repo.
+- Work ONLY on Audio Reel recording UI/permission handling.
+- Do NOT touch backend, DB, bidding, images, feed, share sheet, billing, or unrelated files.
+- Keep changes minimal.
+- Build after changes.
+
+BUG:
+Android device settings show Microphone permission is allowed for BidReel.
+But inside Audio → Record, the app still shows a large denied permission banner:
+"لم يسمح باستخدام الميكروفون..."
+The Retry button does nothing useful.
+This banner is wrong and visually damages the UI.
+
+TASK:
+Remove the permission warning banner and Retry button from the Audio Record UI.
+
+New behavior:
+1. On page/app entry, keep requesting/checking microphone permission silently using getUserMedia.
+2. Inside the Audio Record tab:
+   - Do NOT show the large denied permission banner.
+   - Do NOT show Retry permission button.
+   - Keep the clean recording UI visible.
+3. When user presses the microphone record button:
+   - try getUserMedia/MediaRecorder directly.
+   - if permission is actually blocked, show only a small toast or small inline error, not a large red banner.
+4. If permission is granted in Android settings, recording must start normally.
+5. Do not trust navigator.permissions as final truth.
+6. Do not disable the record button just because micPermission says denied.
+7. Record button should always be tappable.
+
+FILES ONLY:
+- artifacts/bidreel-web/src/pages/create-auction.tsx
+
+REQUIREMENTS:
+- Remove denied banner JSX.
+- Remove/ignore Retry button UI.
+- Keep existing upload audio flow.
+- Keep animated logo.
+- Keep timer.
+- Keep preview playback.
+- Keep cover image behavior.
+- Keep AndroidManifest unchanged.
+
+VERIFY:
+- Audio Record UI is clean.
+- No large permission banner appears.
+- Record button remains visible and tappable.
+- If getUserMedia succeeds, recording starts.
+- If getUserMedia fails, show small non-blocking error only.
+- Build/typecheck has no new errors in modified file.
+
+OUTPUT:
+- Exact file changed
+- What UI was removed
+- What permission behavior changed
+- Verification result

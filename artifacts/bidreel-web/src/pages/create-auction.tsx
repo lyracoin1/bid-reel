@@ -534,12 +534,16 @@ export default function CreateAuction() {
     } catch (err) {
       const isDenied = err instanceof DOMException &&
         (err.name === "NotAllowedError" || err.name === "PermissionDeniedError" || err.name === "NotFoundError");
-      if (isDenied) setMicPermission("denied");
-      setMicError(isDenied
-        ? null // denied state is shown by the persistent banner, not a transient error
-        : (lang === "ar"
-          ? "تعذّر الوصول إلى الميكروفون."
-          : "Could not access the microphone."));
+      // Show a small inline error regardless of denial type — no large banner.
+      // Do NOT gate micPermission state here; let the mount-time getUserMedia
+      // check handle that. The record button stays tappable always.
+      setMicError(lang === "ar"
+        ? (isDenied
+            ? "تعذّر الوصول إلى الميكروفون. تحقق من إعدادات الجهاز."
+            : "تعذّر الوصول إلى الميكروفون.")
+        : (isDenied
+            ? "Could not access microphone. Check device settings."
+            : "Could not access the microphone."));
     }
   };
 
@@ -1161,34 +1165,10 @@ export default function CreateAuction() {
                           {lang === "ar" ? "جارٍ التسجيل — اضغط للإيقاف" : "Recording — tap to stop"}
                         </p>
                       )}
-                      {!isRecording && !recordedBlob && micPermission !== "denied" && (
+                      {!isRecording && !recordedBlob && (
                         <p className="mt-3 text-xs text-white/30">
                           {lang === "ar" ? "اضغط للبدء" : "Tap to start recording"}
                         </p>
-                      )}
-
-                      {/* Denied permission banner */}
-                      {micPermission === "denied" && (
-                        <div className="mt-4 w-full rounded-2xl bg-red-500/10 border border-red-500/25 px-4 py-3 flex items-start gap-3">
-                          <ShieldAlert size={18} className="text-red-400 mt-0.5 shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-red-300">
-                              {lang === "ar" ? "لم يُسمح باستخدام الميكروفون" : "Microphone access denied"}
-                            </p>
-                            <p className="text-xs text-red-400/80 mt-0.5 leading-snug">
-                              {lang === "ar"
-                                ? "فعّل إذن الميكروفون من إعدادات الجهاز ثم أعد المحاولة."
-                                : "Enable microphone access in device settings, then tap Retry."}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={recheckMicPermission}
-                              className="mt-2 text-xs font-semibold text-red-300 border border-red-400/40 rounded-lg px-3 py-1.5 active:scale-95 transition-transform"
-                            >
-                              {lang === "ar" ? "إعادة التحقق من الإذن" : "Retry permission check"}
-                            </button>
-                          </div>
-                        </div>
                       )}
                     </div>
                   )}

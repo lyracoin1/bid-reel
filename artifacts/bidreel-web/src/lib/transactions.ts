@@ -37,6 +37,8 @@ export interface Transaction {
   terms:           string | null;
   payment_status:  PaymentStatus;
   payment_date:    string | null;
+  /** Buyer-chosen open-price amount stored at payment time. May differ from price. */
+  paid_amount:     number | null;
   shipment_status: ShipmentStatus;
   funds_released:  boolean;
   payment_link:    string | null;

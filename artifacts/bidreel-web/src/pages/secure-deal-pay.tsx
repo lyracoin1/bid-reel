@@ -4,8 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, ShieldCheck, Package, FileText, DollarSign,
   Truck, StickyNote, Lock, Image, Video,
-  CheckCircle2, Clock, Bell, PartyPopper, AlertCircle,
-  Loader2, UserX, RefreshCw, User, UserCheck,
+  CheckCircle2, Bell, PartyPopper, AlertCircle,
+  Loader2, UserX, RefreshCw, User, UserCheck, PencilLine,
 } from "lucide-react";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { useLang } from "@/contexts/LanguageContext";
@@ -213,10 +213,15 @@ export default function SecureDealPayPage() {
   // Derived deal status (kept in sync with tx, updated optimistically on pay)
   const [dealStatus, setDealStatus] = useState<DealStatus>("awaiting_payment");
 
+  // Buyer-chosen open-price amount (string so the input stays editable)
+  const [buyerAmountStr, setBuyerAmountStr] = useState<string>("");
+  const [amountTouched, setAmountTouched]   = useState(false);
+
   // Payment action state
   const [paying, setPaying]         = useState(false);
   const [payError, setPayError]     = useState<string | null>(null);
   const [paySuccess, setPaySuccess] = useState(false);
+  const [paidAmount, setPaidAmount] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
 
   // ── Load transaction ─────────────────────────────────────────────────────
@@ -231,7 +236,12 @@ export default function SecureDealPayPage() {
       } else {
         setTx(data);
         setDealStatus(deriveDealStatus(data));
-        if (data.payment_status === "secured") setPaySuccess(true);
+        // Pre-fill buyer amount with the deal's listed price
+        setBuyerAmountStr(String(data.price));
+        if (data.payment_status === "secured") {
+          setPaySuccess(true);
+          setPaidAmount(data.paid_amount ?? data.price);
+        }
       }
     } catch {
       setTxError(ar ? "فشل تحميل الصفقة." : "Failed to load deal.");
@@ -251,41 +261,51 @@ export default function SecureDealPayPage() {
   //   3. The server-side gateway block lives in:
   //        api-server/src/routes/secure-deals.ts → POST /transactions/pay-now
   //
+  // Derived numeric amount from the input string — NaN means invalid
+  const buyerAmount = parseFloat(buyerAmountStr);
+  const amountValid = !Number.isNaN(buyerAmount) && buyerAmount > 0;
+  const showAmountError = amountTouched && !amountValid;
+
   async function handlePayNow() {
-    if (!user || !tx || paying || dealStatus !== "awaiting_payment") return;
+    if (!user || !tx || paying || dealStatus !== "awaiting_payment" || !amountValid) return;
     setPaying(true);
     setPayError(null);
 
     try {
-      // ── PLACEHOLDER: simulate gateway round-trip latency ──────────────────
-      // Replace this await with your real gateway charge call, e.g.:
-      //   const result = await GooglePlayBilling.purchase({ productId, ... });
-      //   if (!result.ok) throw new Error(result.message);
+      // ── PAYMENT GATEWAY INTEGRATION POINT (client-side) ──────────────────
+      // Replace the simulated delay below with your real gateway charge call:
+      //   Android: const result = await GooglePlayBilling.purchase({ … });
+      //            if (!result.ok) throw new Error(result.message);
+      //   Web:     const { paymentIntent } = await stripe.confirmPayment({ … });
+      // Only call updatePaymentStatus() AFTER the gateway confirms success.
       await new Promise<void>(resolve => setTimeout(resolve, 1400));
       // ── END PLACEHOLDER ───────────────────────────────────────────────────
 
-      // Calls POST /api/transactions/pay-now → { deal_id, buyer_id, amount, currency }
-      await updatePaymentStatus(tx.deal_id, user.id, tx.price, tx.currency);
+      // POST /api/transactions/pay-now  { deal_id, buyer_id, amount, currency }
+      await updatePaymentStatus(tx.deal_id, user.id, buyerAmount, tx.currency);
 
       // Placeholder client-side notification log (real FCM fires server-side)
-      sendPaymentNotification(tx.deal_id, user.id, tx.price, tx.currency);
+      sendPaymentNotification(tx.deal_id, user.id, buyerAmount, tx.currency);
 
-      // Optimistic UI update — no page reload needed
+      // Optimistic UI update
+      setPaidAmount(buyerAmount);
       setDealStatus("payment_secured");
       setPaySuccess(true);
       setTx(prev =>
-        prev ? { ...prev, payment_status: "secured", buyer_id: user.id } : prev,
+        prev
+          ? { ...prev, payment_status: "secured", buyer_id: user.id, paid_amount: buyerAmount }
+          : prev,
       );
 
       console.log("[SecureDeal] ✓ Payment secured:", {
         dealId: tx.deal_id, buyerId: user.id,
-        amount: tx.price, currency: tx.currency,
+        amount: buyerAmount, currency: tx.currency,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       console.error("[SecureDeal] Payment failed:", msg);
       setPayError(ar ? `فشل الدفع: ${msg}` : `Payment failed: ${msg}`);
-      // payment_status remains 'pending' — buyer can retry
+      // payment_status stays 'pending' — buyer can correct and retry
     } finally {
       setPaying(false);
     }
@@ -446,8 +466,8 @@ export default function SecureDealPayPage() {
                   </p>
                   <p className="text-[11px] text-white/40 mt-0.5 leading-snug">
                     {ar
-                      ? `تم تسجيل الدفع في قاعدة البيانات — رقم الصفقة: ${tx.deal_id}`
-                      : `Payment recorded in database — Deal: ${tx.deal_id}`}
+                      ? `المبلغ المدفوع: ${paidAmount?.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${tx.currency} — رقم الصفقة: ${tx.deal_id}`
+                      : `Paid: ${paidAmount?.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${tx.currency} — Deal: ${tx.deal_id}`}
                   </p>
                 </div>
               </motion.div>
@@ -574,17 +594,79 @@ export default function SecureDealPayPage() {
 
             <div className="px-5 py-5 space-y-4">
 
-              {/* Amount row */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-white/50">
-                  <DollarSign size={14} />
-                  <span className="text-sm">{ar ? "المبلغ الإجمالي" : "Total Amount"}</span>
+              {/* ── Open-price amount input (buyer chooses the amount) ── */}
+              {dealStatus === "awaiting_payment" && (
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-1.5 text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                    <PencilLine size={10} />
+                    {ar ? "المبلغ الذي تريد دفعه" : "Amount you wish to pay"}
+                  </label>
+
+                  {/* Suggested price hint */}
+                  <p className="text-[10px] text-white/25">
+                    {ar
+                      ? `السعر المقترح: ${priceFormatted} ${tx.currency}`
+                      : `Suggested price: ${priceFormatted} ${tx.currency}`}
+                  </p>
+
+                  {/* Input row */}
+                  <div className={`flex items-center gap-0 rounded-2xl border overflow-hidden transition-colors ${
+                    showAmountError
+                      ? "border-red-500/60 bg-red-500/8"
+                      : "border-white/12 bg-white/6 focus-within:border-emerald-500/50 focus-within:bg-white/8"
+                  }`}>
+                    <span className="px-4 py-3.5 text-sm font-bold text-white/40 shrink-0 select-none border-r border-white/8">
+                      {tx.currency}
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0.01"
+                      step="0.01"
+                      placeholder={String(tx.price)}
+                      value={buyerAmountStr}
+                      onChange={e => {
+                        setBuyerAmountStr(e.target.value);
+                        setAmountTouched(true);
+                        setPayError(null);
+                      }}
+                      onBlur={() => setAmountTouched(true)}
+                      className="flex-1 bg-transparent px-4 py-3.5 text-base font-bold text-white placeholder-white/20 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      dir="ltr"
+                    />
+                  </div>
+
+                  {/* Validation error */}
+                  <AnimatePresence>
+                    {showAmountError && (
+                      <motion.p
+                        key="amt-err"
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="flex items-center gap-1.5 text-[11px] text-red-400"
+                      >
+                        <AlertCircle size={11} />
+                        {ar ? "أدخل مبلغاً أكبر من صفر." : "Enter an amount greater than 0."}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
                 </div>
-                <p className="text-2xl font-black text-white">
-                  {priceFormatted}
-                  <span className="text-base font-semibold text-white/50 ms-1.5">{tx.currency}</span>
-                </p>
-              </div>
+              )}
+
+              {/* Secured — show actual paid amount */}
+              {dealStatus !== "awaiting_payment" && paidAmount !== null && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-white/50">
+                    <DollarSign size={14} />
+                    <span className="text-sm">{ar ? "المبلغ المدفوع" : "Amount Paid"}</span>
+                  </div>
+                  <p className="text-2xl font-black text-white">
+                    {paidAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    <span className="text-base font-semibold text-white/50 ms-1.5">{tx.currency}</span>
+                  </p>
+                </div>
+              )}
 
               {/* Escrow note */}
               <div className="rounded-xl bg-emerald-900/20 border border-emerald-500/20 px-3.5 py-3 flex items-start gap-2.5">
@@ -615,17 +697,17 @@ export default function SecureDealPayPage() {
               {/* ── Action buttons (state machine) ── */}
               <AnimatePresence mode="wait">
 
-                {/* ① Awaiting payment → Pay Now */}
+                {/* ① Awaiting payment → amount input + Pay Now */}
                 {dealStatus === "awaiting_payment" && (
                   <motion.button
                     key="pay-btn"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    whileTap={{ scale: paying ? 1 : 0.97 }}
+                    whileTap={{ scale: (paying || !amountValid) ? 1 : 0.97 }}
                     onClick={handlePayNow}
-                    disabled={paying}
-                    className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-700/30 hover:brightness-110 transition disabled:opacity-70 disabled:cursor-not-allowed"
+                    disabled={paying || !amountValid}
+                    className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-700/30 hover:brightness-110 transition disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {paying ? (
                       <>
@@ -635,9 +717,11 @@ export default function SecureDealPayPage() {
                     ) : (
                       <>
                         <Lock size={16} />
-                        {ar
-                          ? `ادفع الآن — ${priceFormatted} ${tx.currency}`
-                          : `Pay Now — ${priceFormatted} ${tx.currency}`}
+                        {amountValid
+                          ? (ar
+                              ? `ادفع الآن — ${buyerAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${tx.currency}`
+                              : `Pay Now — ${buyerAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${tx.currency}`)
+                          : (ar ? "أدخل المبلغ أولاً" : "Enter amount to pay")}
                       </>
                     )}
                   </motion.button>

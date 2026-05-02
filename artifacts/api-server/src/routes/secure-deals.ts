@@ -94,7 +94,7 @@ router.get("/secure-deals/:dealId", async (req, res) => {
     const { rows } = await pool.query(
       `SELECT deal_id, seller_id, buyer_id, product_name, price, currency,
               description, delivery_method, media_urls, terms,
-              payment_status, payment_date, shipment_status,
+              payment_status, payment_date, paid_amount, shipment_status,
               funds_released, payment_link, release_date, created_at, updated_at
        FROM transactions WHERE deal_id = $1`,
       [dealId],
@@ -239,15 +239,17 @@ router.post("/transactions/pay-now", requireAuth, async (req, res) => {
     const now = new Date().toISOString();
 
     // 3. Atomic update — concurrent-request safe via WHERE payment_status = 'pending'
+    //    paid_amount stores the buyer-chosen open-price amount.
     const { rows: updated } = await pool.query(
       `UPDATE transactions
        SET payment_status = 'secured',
            payment_date   = $1,
            buyer_id       = $2,
+           paid_amount    = $3,
            updated_at     = $1
-       WHERE deal_id = $3 AND payment_status = 'pending'
+       WHERE deal_id = $4 AND payment_status = 'pending'
        RETURNING *`,
-      [now, authenticatedBuyerId, dealId],
+      [now, authenticatedBuyerId, amount, dealId],
     );
 
     if (!updated.length) {
@@ -323,10 +325,14 @@ router.post("/secure-deals/:dealId/pay", requireAuth, async (req, res) => {
     const now = new Date().toISOString();
     const { rows: updated } = await pool.query(
       `UPDATE transactions
-       SET payment_status = 'secured', payment_date = $1, buyer_id = $2, updated_at = $1
-       WHERE deal_id = $3 AND payment_status = 'pending'
+       SET payment_status = 'secured',
+           payment_date   = $1,
+           buyer_id       = $2,
+           paid_amount    = $3,
+           updated_at     = $1
+       WHERE deal_id = $4 AND payment_status = 'pending'
        RETURNING *`,
-      [now, buyerId, dealId],
+      [now, buyerId, deal.price, dealId],
     );
 
     if (!updated.length) {

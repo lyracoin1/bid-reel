@@ -90,6 +90,13 @@ export async function bootstrapTransactionsTable(): Promise<void> {
         FOR EACH ROW EXECUTE FUNCTION update_transactions_updated_at();
     `);
 
+    // Idempotent column additions for tables that already exist.
+    // ADD COLUMN IF NOT EXISTS is safe to run on every startup.
+    await client.query(`
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(14,2);
+    `);
+
     _bootstrapped = true;
     logger.info("pg-pool: transactions table bootstrapped");
   } catch (err) {

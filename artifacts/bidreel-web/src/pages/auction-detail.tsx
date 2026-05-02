@@ -480,13 +480,13 @@ export default function AuctionDetail() {
               <video
                 ref={videoRef}
                 src={auction.mediaUrl}
-                // w-full h-full + object-contain = fills the stage and
-                // letterboxes the video on the black background without
-                // cropping or stretching. Using w-full h-full (instead of
-                // w-auto h-auto) ensures the element has a defined size
-                // before metadata loads so there is no layout jump.
+                // max-w-full max-h-full: constrain to the flex stage without
+                // relying on `object-fit`, which is silently ignored for
+                // <video> in some Capacitor / Android WebView versions.
+                // The flex parent (`items-center justify-center`) centres the
+                // element; `bg-black` on the container provides letterbox bars.
                 className={cn(
-                  "w-full h-full object-contain",
+                  "max-w-full max-h-full",
                   state !== "active" && "opacity-80",
                 )}
                 playsInline
@@ -507,7 +507,7 @@ export default function AuctionDetail() {
             <img
               src={auction.mediaUrl} alt={auction.title}
               className={cn(
-                "w-full h-full object-contain",
+                "max-w-full max-h-full",
                 state !== "active" && "opacity-80",
               )}
             />
@@ -949,8 +949,13 @@ export default function AuctionDetail() {
         </div>
       </div>
 
-      {/* ── Sticky bottom action bar ── */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-[60] px-4 pb-[88px] pt-4 bg-gradient-to-t from-background via-background/96 to-transparent">
+      {/* ── Sticky bottom action bar ──
+          pointer-events-none on the outer gradient wrapper so the transparent
+          top portion does NOT intercept vertical swipes on the scroll container
+          below. pointer-events-auto on the inner div restores interaction for
+          all the buttons/inputs. This is the fix for "can't scroll back up". */}
+      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-[60] px-4 pb-[88px] pt-4 bg-gradient-to-t from-background via-background/96 to-transparent pointer-events-none">
+        <div className="pointer-events-auto">
         {/* Sold / Reserved take precedence over every other state — once the
             listing is claimed it cannot be acted on, regardless of sale type. */}
         {isSold ? (
@@ -1090,6 +1095,7 @@ export default function AuctionDetail() {
             )}
           </AnimatePresence>
         )}
+        </div>
       </div>
 
       {/* ── First-bid rules gate modal ────────────────────────────────────── */}

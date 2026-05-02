@@ -1,0 +1,79 @@
+You are working on BidReel.
+
+CRITICAL RULES:
+- Do NOT scan the whole repository
+- Do NOT refactor or modify code yet
+- DIAGNOSIS ONLY
+- Do NOT change architecture
+- Focus ONLY on Android/Capacitor app performance, feed speed, scrolling smoothness, navigation responsiveness, and video delivery system
+- Preserve React + Vite + Express + Supabase + Cloudflare R2 architecture
+
+GOAL:
+Perform a professional performance audit of BidReel to identify the REAL root causes of app heaviness, lag, slow scrolling, delayed page transitions, heavy feed rendering, and media inefficiency.
+
+CORE AREAS TO AUDIT:
+
+1) FEED PERFORMANCE
+- FeedCard re-render frequency
+- React.memo effectiveness
+- useEffect loops
+- countdown timers
+- excessive state updates
+- React Query refetch frequency
+- image/video lazy loading
+- multiple simultaneous video loads
+- scroll FPS bottlenecks
+- IntersectionObserver effectiveness
+- event listeners causing lag
+
+2) CAPACITOR / ANDROID PERFORMANCE
+- WebView rendering bottlenecks
+- oversized JS bundle
+- initial hydration cost
+- route transition slowness
+- Android-specific touch/scroll issues
+- memory-heavy components
+- unnecessary DOM complexity
+
+3) MEDIA PIPELINE (CRITICAL)
+Audit current video delivery from Cloudflare R2:
+- Are videos being served as raw single-quality files only?
+- Is adaptive bitrate streaming implemented (HLS/DASH)?
+- Are multiple quality levels available (240p / 480p / 720p / etc)?
+- Does playback dynamically adapt to user network speed like Facebook/TikTok/Instagram?
+- Is Cloudflare Stream or equivalent transcoding used?
+- Are videos compressed/optimized before upload?
+- Are thumbnails optimized?
+- Are videos progressively loaded or fully downloaded?
+- Is current system professional-grade or bandwidth-heavy?
+
+4) IMAGE DELIVERY
+- Are multiple image sizes used?
+- Are thumbnails optimized?
+- Is full-size media loaded unnecessarily?
+- Can Cloudflare image transformations improve speed?
+
+5) BUILD / INFRASTRUCTURE
+- Bundle size
+- code splitting
+- chunking
+- route lazy loading
+- unused dependencies
+- Capacitor version
+- Android WebView compatibility issues
+
+REQUIRED OUTPUT:
+For each category provide:
+- Root causes
+- Severity (Critical / High / Medium / Low)
+- Exact bottlenecks
+- Whether issue is frontend, backend, R2, or Android WebView
+- Recommended fixes in priority order
+
+IMPORTANT:
+- Specifically state whether BidReel currently has professional adaptive video streaming
+- If NOT, explain exactly what is missing
+- Recommend best production-grade solution for TikTok-style performance while preserving existing stack
+
+DO NOT FIX YET.
+DIAGNOSIS + STRATEGIC PERFORMANCE PLAN ONLY.

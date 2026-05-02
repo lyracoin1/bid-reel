@@ -1,0 +1,87 @@
+You are working on BidReel.
+
+CRITICAL RULES:
+- Do NOT scan the whole repo.
+- Do NOT implement yet.
+- Do NOT modify code.
+- Only inspect the exact files needed.
+- Focus ONLY on whether BidReel can support Audio Reel as fixed-video.
+- Keep diagnosis practical and launch-focused.
+- Ignore native audio players for now.
+- Goal is fastest safe launch.
+
+GOAL:
+We want to add a new auction type:
+Audio Reel = audio file + optional user-selected cover image
+If user does NOT upload a cover image:
+- Automatically use BidReel logo / branded fallback image
+
+Backend should combine:
+- Static image
+- Audio file
+→ into MP4 video using ffmpeg
+
+This allows:
+- Existing video pipeline
+- Existing FeedCard
+- Existing auction detail
+- Existing DB structure
+- Existing thumbnail system
+- Existing Google Play readiness
+
+TASK:
+Inspect ONLY the minimum required files related to:
+- media upload
+- ffmpeg/video processing
+- backend media routes
+- auction creation flow
+- thumbnail generation
+- R2 upload restrictions
+- create-auction page media options
+
+Your job:
+
+### 1) Determine:
+- Can current backend ffmpeg pipeline generate MP4 from audio + image?
+- Which exact backend files would need changes?
+- Does current ffmpeg infrastructure already support enough processing?
+- Can existing video_url + thumbnail_url structure be reused without DB migration?
+- Can R2 accept audio uploads with minimal extension?
+- Can thumbnail fallback be auto-generated from BidReel logo?
+
+### 2) Identify minimal implementation path:
+Phase 1:
+- Upload audio
+- Optional cover image
+- Default logo fallback
+- Backend converts to MP4
+- Store as normal video auction
+
+### 3) Risks:
+- Processing cost
+- ffmpeg limitations
+- mobile upload constraints
+- file size
+- Android compatibility
+- Vercel/serverless concerns
+
+### 4) Provide:
+- Exact files to edit
+- Whether DB migration is required
+- Whether this is safer than true audio auctions
+- Recommended implementation order
+
+### IMPORTANT:
+- We are intentionally AVOIDING:
+  - media_type
+  - custom audio player
+  - DB schema changes
+  - FeedCard audio rendering
+  - recording
+  - advanced audio tools
+
+### FINAL OUTPUT:
+End with:
+- “Recommended next step”
+- exact next implementation prompt scope
+- launch viability score /10

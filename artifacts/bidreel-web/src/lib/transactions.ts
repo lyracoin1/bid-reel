@@ -3,18 +3,16 @@
  *
  * Client-side helpers for the Secure Deals (transactions) feature.
  *
- * All reads and writes go through the BidReel API server
- * (GET /api/secure-deals/:dealId, POST /api/secure-deals, etc.)
- * which stores data in the Replit PostgreSQL `transactions` table.
- *
- * The API server validates Supabase auth JWTs for write operations,
- * so the buyer/seller must be signed in.
+ * All reads and writes go through the BidReel API server:
+ *   GET  /api/secure-deals/:dealId       — load deal (+ seller_name)
+ *   POST /api/secure-deals               — seller creates deal
+ *   POST /api/transactions/pay-now       — buyer pays
+ *   PATCH /api/secure-deals/:dealId/ship — seller updates shipment
  *
  * PAYMENT GATEWAY INTEGRATION POINT
- *   POST /api/secure-deals/:dealId/pay currently performs a placeholder.
- *   The real gateway call (Google Play Billing, Stripe, etc.) lives in
- *   artifacts/api-server/src/routes/secure-deals.ts — replace the
- *   placeholder block there to go live.
+ *   POST /api/transactions/pay-now currently performs a placeholder charge.
+ *   Replace the gateway block in artifacts/api-server/src/routes/secure-deals.ts
+ *   with the real call (Google Play Billing / Stripe / etc.) before going live.
  */
 
 import { API_BASE, getToken } from "./api-client";
@@ -27,6 +25,8 @@ export type ShipmentStatus = "pending" | "verified" | "delivered";
 export interface Transaction {
   deal_id:         string;
   seller_id:       string;
+  /** Resolved from Supabase profiles by the api-server; null if not found. */
+  seller_name:     string | null;
   buyer_id:        string | null;
   product_name:    string;
   price:           number;
@@ -132,6 +132,7 @@ export async function createTransaction(input: CreateTransactionInput): Promise<
 
 /**
  * Fetch a single transaction by deal_id (public — no auth required).
+ * The response includes `seller_name` resolved by the api-server.
  * Returns null if not found.
  */
 export async function getTransaction(dealId: string): Promise<Transaction | null> {
@@ -148,22 +149,29 @@ export async function getTransaction(dealId: string): Promise<Transaction | null
 }
 
 /**
- * Mark a transaction as payment-secured via the api-server.
+ * Mark a transaction as payment-secured.
+ *
+ * Calls POST /api/transactions/pay-now with the exact body shape:
+ *   { deal_id, buyer_id, amount, currency }
  *
  * PAYMENT GATEWAY NOTE:
- *   The api-server POST /secure-deals/:dealId/pay is the integration point.
- *   Replace the placeholder block in secure-deals.ts (api-server) with the
- *   real gateway call before going live.
+ *   The real gateway charge lives in api-server/src/routes/secure-deals.ts.
+ *   Replace the placeholder `gatewaySuccess = true` block there before going live.
  */
 export async function updatePaymentStatus(
-  dealId:    string,
-  _buyerId:  string,   // provided by the server from the auth token
-  _amount:   number,   // stored in the existing transaction row
-  _currency: string,
+  dealId:   string,
+  buyerId:  string,
+  amount:   number,
+  currency: string,
 ): Promise<void> {
-  const res = await apiFetch(`/secure-deals/${encodeURIComponent(dealId)}/pay`, {
+  const res = await apiFetch("/transactions/pay-now", {
     method: "POST",
-    body:   JSON.stringify({}),
+    body: JSON.stringify({
+      deal_id:  dealId,
+      buyer_id: buyerId,
+      amount,
+      currency,
+    }),
   }, true);
 
   if (!res.ok) {
@@ -171,13 +179,12 @@ export async function updatePaymentStatus(
     throw new Error((err as any).message ?? `Payment failed (${res.status})`);
   }
 
-  console.log("[transactions] Payment secured via api-server:", { dealId });
+  console.log("[transactions] Payment secured via /transactions/pay-now:", { dealId, buyerId, amount, currency });
 }
 
 /**
- * Send a placeholder FCM/Email notification.
- * The real notification fires server-side in the api-server route.
- * This client-side function just logs for debugging.
+ * Placeholder notification log — the real FCM / Email notification fires
+ * server-side inside the /api/transactions/pay-now route handler.
  */
 export function sendPaymentNotification(
   dealId:   string,
@@ -185,9 +192,9 @@ export function sendPaymentNotification(
   amount:   number,
   currency: string,
 ): void {
-  console.log("[notify] Payment secured — server-side notification triggered:", {
+  console.log("[notify] server-side notification triggered for payment:", {
     dealId, buyerId, amount, currency,
-    note: "Real FCM/Email notification fires in api-server/src/routes/secure-deals.ts",
+    note: "Real FCM/Email fires in api-server/src/routes/secure-deals.ts → sendNotificationPlaceholder()",
   });
 }
 
@@ -209,10 +216,9 @@ export async function updateShipment(
 }
 
 /**
- * Mark funds as released (admin action — handled server-side or admin panel).
+ * Mark funds as released (admin action — handled via admin panel).
+ * Wire this to a /api/secure-deals/:dealId/release endpoint when needed.
  */
 export async function releaseFunds(_dealId: string): Promise<void> {
-  // Funds release is an admin operation handled in the admin panel.
-  // Wire this to a /api/secure-deals/:dealId/release endpoint when needed.
   console.log("[transactions] releaseFunds — admin operation; use admin panel");
 }

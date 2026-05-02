@@ -1,26 +1,26 @@
 /**
  * secure-deals.ts — Secure Deals (Transactions) API routes
  *
- * All data is stored in the Replit PostgreSQL `transactions` table
- * (created on first boot via bootstrapTransactionsTable).
+ * All transaction data lives in the Replit PostgreSQL `transactions` table.
+ * Seller profile data is fetched from Supabase cloud (read-only, admin key).
  *
  * Endpoints
- *   GET    /api/secure-deals/:dealId        — public; read deal by ID
- *   POST   /api/secure-deals               — auth required; create deal
- *   POST   /api/secure-deals/:dealId/pay   — auth required; mark as paid
- *   PATCH  /api/secure-deals/:dealId/ship  — auth required (seller only); update shipment
+ *   GET    /api/secure-deals/:dealId         — public; read deal + seller_name
+ *   POST   /api/secure-deals                 — auth required; seller creates deal
+ *   POST   /api/transactions/pay-now         — auth required; buyer pays
+ *   POST   /api/secure-deals/:dealId/pay     — alias for pay-now (backward compat)
+ *   PATCH  /api/secure-deals/:dealId/ship    — auth required (seller only)
  *
  * PAYMENT GATEWAY INTEGRATION POINT
- *   The POST /pay endpoint currently performs a placeholder "payment".
- *   Replace the placeholder block with the real gateway call
- *   (Google Play Billing, Stripe, etc.) before going live.
- *   All DB updates, notifications, and UI state are already wired to deal_id.
+ *   POST /api/transactions/pay-now performs a placeholder charge.
+ *   Replace the gateway block before going live (Google Play Billing / Stripe).
  */
 
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { pool } from "../lib/pg-pool";
+import { supabaseAdmin } from "../lib/supabase";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -28,19 +28,35 @@ const router: IRouter = Router();
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function sendNotificationPlaceholder(event: {
-  type: "payment_secured" | "shipment_updated";
-  dealId: string;
-  buyerId: string;
-  sellerId: string;
-  amount?: number;
+  type:      "payment_secured" | "shipment_updated";
+  dealId:    string;
+  buyerId:   string;
+  sellerId:  string;
+  amount?:   number;
   currency?: string;
 }) {
   // PLACEHOLDER — replace with real FCM / Email notification
   logger.info({ event }, "[notify] PLACEHOLDER: secure-deal notification");
-  // When wiring FCM:
-  //   await sendToDevice(buyerFcmToken, { title: '...', body: '...' });
-  // When wiring Email:
-  //   await sendEmail(buyerEmail, 'Payment Secured', `Deal ${dealId} ...`);
+  // FCM example:  await sendToDevice(buyerFcmToken, { title: '…', body: '…' });
+  // Email example: await sendEmail(buyerEmail, 'Payment Secured', `…`);
+}
+
+/** Resolve display_name or username from Supabase profiles for a given user UUID. */
+async function resolveSellerName(sellerId: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("profiles")
+      .select("display_name, username")
+      .eq("id", sellerId)
+      .maybeSingle();
+
+    if (error || !data) return null;
+
+    const name = (data as any).display_name || (data as any).username;
+    return typeof name === "string" && name.trim() ? name.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 // ── Validation schemas ────────────────────────────────────────────────────────
@@ -57,12 +73,19 @@ const createDealSchema = z.object({
   payment_link:    z.string().url(),
 });
 
+const payNowSchema = z.object({
+  deal_id:  z.string().min(1),
+  buyer_id: z.string().uuid(),
+  amount:   z.number().positive(),
+  currency: z.string().min(2).max(5),
+});
+
 const shipSchema = z.object({
   shipment_status: z.enum(["pending", "verified", "delivered"]).optional(),
   tracking_link:   z.string().url().optional(),
 });
 
-// ── GET /api/secure-deals/:dealId  (public — buyer reads deal by link) ─────────
+// ── GET /api/secure-deals/:dealId  (public — buyer reads deal by link) ────────
 
 router.get("/secure-deals/:dealId", async (req, res) => {
   const { dealId } = req.params;
@@ -82,14 +105,19 @@ router.get("/secure-deals/:dealId", async (req, res) => {
       return;
     }
 
-    res.json({ deal: rows[0] });
+    const deal = rows[0];
+
+    // Enrich with seller display name from Supabase profiles (best-effort)
+    const seller_name = await resolveSellerName(deal.seller_id);
+
+    res.json({ deal: { ...deal, seller_name } });
   } catch (err) {
     logger.error({ err, dealId }, "GET /secure-deals/:id failed");
     res.status(500).json({ error: "FETCH_FAILED", message: "Could not load deal." });
   }
 });
 
-// ── POST /api/secure-deals  (seller creates a deal) ───────────────────────────
+// ── POST /api/secure-deals  (seller creates a deal) ──────────────────────────
 
 router.post("/secure-deals", requireAuth, async (req, res) => {
   const sellerId = req.user!.id;
@@ -128,14 +156,40 @@ router.post("/secure-deals", requireAuth, async (req, res) => {
   }
 });
 
-// ── POST /api/secure-deals/:dealId/pay  (buyer pays) ──────────────────────────
+// ── POST /api/transactions/pay-now  (primary buyer payment endpoint) ──────────
+//
+// Body: { deal_id, buyer_id, amount, currency }
+//
+// Flow:
+//   1. Validate JWT → extract authenticated buyer ID (must match body.buyer_id)
+//   2. Load the deal, assert payment_status = 'pending'
+//   3. ── PAYMENT GATEWAY BLOCK (placeholder) ──
+//   4. Update DB: payment_status = 'secured', payment_date, buyer_id
+//   5. Fire placeholder notification
+//   6. Return updated deal
 
-router.post("/secure-deals/:dealId/pay", requireAuth, async (req, res) => {
-  const buyerId = req.user!.id;
-  const { dealId } = req.params;
+router.post("/transactions/pay-now", requireAuth, async (req, res) => {
+  const authenticatedBuyerId = req.user!.id;
+
+  const body = payNowSchema.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: "INVALID_BODY", details: body.error.flatten() });
+    return;
+  }
+
+  const { deal_id: dealId, buyer_id: bodyBuyerId, amount, currency } = body.data;
+
+  // Prevent spoofing: the buyer_id in the body must match the authenticated user
+  if (bodyBuyerId !== authenticatedBuyerId) {
+    res.status(403).json({
+      error: "BUYER_MISMATCH",
+      message: "buyer_id does not match the authenticated user.",
+    });
+    return;
+  }
 
   try {
-    // Load the deal
+    // 1. Load deal
     const { rows } = await pool.query(
       `SELECT deal_id, seller_id, buyer_id, price, currency, payment_status
        FROM transactions WHERE deal_id = $1`,
@@ -149,6 +203,15 @@ router.post("/secure-deals/:dealId/pay", requireAuth, async (req, res) => {
 
     const deal = rows[0];
 
+    // Seller cannot pay for their own deal
+    if (deal.seller_id === authenticatedBuyerId) {
+      res.status(403).json({
+        error: "SELLER_CANNOT_PAY",
+        message: "The seller cannot pay for their own deal.",
+      });
+      return;
+    }
+
     if (deal.payment_status !== "pending") {
       res.status(409).json({
         error: "ALREADY_PAID",
@@ -157,22 +220,25 @@ router.post("/secure-deals/:dealId/pay", requireAuth, async (req, res) => {
       return;
     }
 
-    // ── PAYMENT GATEWAY INTEGRATION POINT ──────────────────────────────────────
-    // Replace this block with the real gateway charge call:
-    //   Android: Google Play Billing (via Capacitor plugin → webhook → this route)
+    // 2. ── PAYMENT GATEWAY INTEGRATION POINT ─────────────────────────────────
+    //
+    // Replace this block with the real gateway charge:
+    //   Android: Google Play Billing (Capacitor plugin → webhook → this route)
     //   Web:     Stripe / PayPal / etc.
     //
-    // Only call the DB update below AFTER the gateway confirms a successful charge.
-    // Current behaviour: placeholder — always succeeds.
+    // Pass `amount` and `currency` (validated from the request body) to the gateway.
+    // Only run the DB update below AFTER the gateway confirms a successful charge.
+    //
     const gatewaySuccess = true; // ← replace with real gateway call
     if (!gatewaySuccess) {
-      res.status(402).json({ error: "PAYMENT_FAILED", message: "Payment was declined." });
+      res.status(402).json({ error: "PAYMENT_DECLINED", message: "Payment was declined by the gateway." });
       return;
     }
-    // ── END PAYMENT GATEWAY BLOCK ───────────────────────────────────────────────
+    // ── END PAYMENT GATEWAY BLOCK ────────────────────────────────────────────
 
     const now = new Date().toISOString();
 
+    // 3. Atomic update — concurrent-request safe via WHERE payment_status = 'pending'
     const { rows: updated } = await pool.query(
       `UPDATE transactions
        SET payment_status = 'secured',
@@ -181,18 +247,93 @@ router.post("/secure-deals/:dealId/pay", requireAuth, async (req, res) => {
            updated_at     = $1
        WHERE deal_id = $3 AND payment_status = 'pending'
        RETURNING *`,
-      [now, buyerId, dealId],
+      [now, authenticatedBuyerId, dealId],
     );
 
     if (!updated.length) {
-      // Another request snuck in — idempotent guard
-      res.status(409).json({ error: "CONCURRENT_UPDATE", message: "Deal status changed concurrently." });
+      res.status(409).json({
+        error: "CONCURRENT_UPDATE",
+        message: "Deal status changed concurrently — please refresh and try again.",
+      });
       return;
     }
 
     const updatedDeal = updated[0];
 
-    // Placeholder notification
+    // 4. Placeholder notification
+    sendNotificationPlaceholder({
+      type:     "payment_secured",
+      dealId:   String(dealId),
+      buyerId:  authenticatedBuyerId,
+      sellerId: deal.seller_id,
+      amount,
+      currency,
+    });
+
+    logger.info(
+      { dealId, buyerId: authenticatedBuyerId, amount, currency },
+      "Secure deal: payment secured via /transactions/pay-now",
+    );
+
+    res.json({ deal: updatedDeal });
+  } catch (err) {
+    logger.error({ err, dealId, buyerId: authenticatedBuyerId }, "POST /transactions/pay-now failed");
+    res.status(500).json({ error: "PAY_FAILED", message: "Could not process payment. Please try again." });
+  }
+});
+
+// ── POST /api/secure-deals/:dealId/pay  (backward-compat alias) ──────────────
+// Delegates to the same logic as /transactions/pay-now but reads deal_id from the URL.
+
+router.post("/secure-deals/:dealId/pay", requireAuth, async (req, res) => {
+  const buyerId = req.user!.id;
+  const dealId  = String(req.params["dealId"]);
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT deal_id, seller_id, buyer_id, price, currency, payment_status
+       FROM transactions WHERE deal_id = $1`,
+      [dealId],
+    );
+
+    if (!rows.length) {
+      res.status(404).json({ error: "NOT_FOUND", message: "Deal not found." });
+      return;
+    }
+
+    const deal = rows[0];
+
+    if (deal.seller_id === buyerId) {
+      res.status(403).json({ error: "SELLER_CANNOT_PAY", message: "The seller cannot pay for their own deal." });
+      return;
+    }
+
+    if (deal.payment_status !== "pending") {
+      res.status(409).json({ error: "ALREADY_PAID", message: `Deal is already in '${deal.payment_status}' state.` });
+      return;
+    }
+
+    // Placeholder gateway
+    const gatewaySuccess = true;
+    if (!gatewaySuccess) {
+      res.status(402).json({ error: "PAYMENT_DECLINED", message: "Payment declined." });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const { rows: updated } = await pool.query(
+      `UPDATE transactions
+       SET payment_status = 'secured', payment_date = $1, buyer_id = $2, updated_at = $1
+       WHERE deal_id = $3 AND payment_status = 'pending'
+       RETURNING *`,
+      [now, buyerId, dealId],
+    );
+
+    if (!updated.length) {
+      res.status(409).json({ error: "CONCURRENT_UPDATE", message: "Deal status changed concurrently." });
+      return;
+    }
+
     sendNotificationPlaceholder({
       type:     "payment_secured",
       dealId:   String(dealId),
@@ -202,22 +343,20 @@ router.post("/secure-deals/:dealId/pay", requireAuth, async (req, res) => {
       currency: deal.currency,
     });
 
-    logger.info({ dealId, buyerId, amount: deal.price, currency: deal.currency },
-      "Secure deal: payment secured (placeholder)");
-
-    res.json({ deal: updatedDeal });
+    logger.info({ dealId, buyerId }, "Secure deal: payment secured via /:dealId/pay");
+    res.json({ deal: updated[0] });
   } catch (err) {
     logger.error({ err, dealId, buyerId }, "POST /secure-deals/:id/pay failed");
     res.status(500).json({ error: "PAY_FAILED", message: "Could not process payment." });
   }
 });
 
-// ── PATCH /api/secure-deals/:dealId/ship  (seller updates shipment) ────────────
+// ── PATCH /api/secure-deals/:dealId/ship  (seller updates shipment) ───────────
 
 router.patch("/secure-deals/:dealId/ship", requireAuth, async (req, res) => {
   const callerId = req.user!.id;
-  const { dealId } = req.params;
-  const body = shipSchema.safeParse(req.body);
+  const dealId   = String(req.params["dealId"]);
+  const body     = shipSchema.safeParse(req.body);
 
   if (!body.success) {
     res.status(400).json({ error: "INVALID_BODY", details: body.error.flatten() });
@@ -236,13 +375,14 @@ router.patch("/secure-deals/:dealId/ship", requireAuth, async (req, res) => {
     }
 
     const deal = existing[0];
+
     if (deal.seller_id !== callerId) {
       res.status(403).json({ error: "FORBIDDEN", message: "Only the seller can update shipment." });
       return;
     }
     if (deal.payment_status !== "secured") {
       res.status(409).json({
-        error: "PAYMENT_PENDING",
+        error:   "PAYMENT_PENDING",
         message: "Cannot update shipment before payment is secured.",
       });
       return;
@@ -257,14 +397,12 @@ router.patch("/secure-deals/:dealId/ship", requireAuth, async (req, res) => {
       setClauses.push(`shipment_status = $${values.length}`);
     }
     if (d.tracking_link) {
-      // tracking_link is stored in terms field for now (no separate column)
       values.push(`Tracking: ${d.tracking_link}`);
       setClauses.push(`terms = COALESCE(terms || ' | ', '') || $${values.length}`);
     }
 
     const { rows: updated } = await pool.query(
-      `UPDATE transactions SET ${setClauses.join(", ")}
-       WHERE deal_id = $1 RETURNING *`,
+      `UPDATE transactions SET ${setClauses.join(", ")} WHERE deal_id = $1 RETURNING *`,
       values,
     );
 

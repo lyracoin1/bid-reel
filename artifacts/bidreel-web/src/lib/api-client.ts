@@ -676,6 +676,7 @@ export interface ApiUserProfile {
   isAdmin: boolean;
   /** true once the user has set a username (onboarding complete). */
   isCompleted: boolean;
+  isPremium?: boolean;
   createdAt: string;
 }
 

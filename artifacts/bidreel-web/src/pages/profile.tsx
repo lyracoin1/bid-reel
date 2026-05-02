@@ -587,7 +587,7 @@ export default function Profile() {
                             </p>
                           ) : (
                             <>
-                              <p className="text-sm font-bold text-white mt-0.5">{formatAuctionPrice(auction.current_bid ?? auction.start_price, auction.currency_code ?? "USD")}</p>
+                              <p className="text-sm font-bold text-white mt-0.5">{formatAuctionPrice(auction.current_bid ?? auction.start_price ?? 0, auction.currency_code ?? "USD")}</p>
                               <p className={`text-[10px] font-bold mt-1 ${timeInfo.isUrgent ? "text-red-400" : "text-emerald-400"}`}>{timeInfo.text}</p>
                             </>
                           )}

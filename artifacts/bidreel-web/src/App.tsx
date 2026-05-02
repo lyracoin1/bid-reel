@@ -356,7 +356,8 @@ function CapacitorOAuthHandler() {
     // ── Cold start: app was killed, relaunched via the deep link intent ──────
     console.log("[CapacitorOAuth] Mounted — checking getLaunchUrl…");
     CapApp.getLaunchUrl()
-      .then(({ url }) => {
+      .then((result) => {
+        const url = result?.url;
         console.log("[CapacitorOAuth] getLaunchUrl result:", url ?? "(null)");
         if (url) handleUrl(url);
       })

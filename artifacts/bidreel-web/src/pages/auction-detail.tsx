@@ -132,7 +132,7 @@ export default function AuctionDetail() {
       // equals min_increment (requirement: input default = min_increment).
       setTimeout(() => {
         setBidSuccess(false);
-        setIncInput(String(auction.minIncrement));
+        if (auction) setIncInput(String(auction.minIncrement));
       }, 2500);
     },
     onError: (code, message) => {
@@ -150,7 +150,7 @@ export default function AuctionDetail() {
       if (code === "BID_CONFLICT") {
         // Re-seed with the per-auction minimum (not blank) so the default
         // value invariant holds after a conflict-driven reset.
-        setIncInput(String(auction.minIncrement));
+        if (auction) setIncInput(String(auction.minIncrement));
         void refetchAuction();
         // The inline bid panel is now the only place the error is shown
         // (we removed the duplicate in the sticky bar). If the user submitted

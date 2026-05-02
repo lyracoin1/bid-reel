@@ -126,7 +126,7 @@ export async function compressListingThumbnail(file: File): Promise<File> {
 
 // ─── Unified uploadMedia() ──────────────────────────────────────────────────
 
-export type MediaKind = "video" | "image";
+export type MediaKind = "video" | "image" | "audio";
 
 /**
  * Upload a media file. Always attempts the presigned (direct-to-R2) path

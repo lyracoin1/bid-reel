@@ -18,7 +18,7 @@ import { buildOutbidMessage } from "../lib/whatsappTemplates";
 import { getBidderCol, getBidderUserId, hasWinnerBidIdCol } from "../lib/dbSchema";
 import { deleteMediaFile } from "../lib/media-lifecycle";
 import { runAuctionLifecycle } from "../lib/auction-lifecycle";
-import { processVideoAsync } from "../lib/video-processing";
+import { processVideoAsync, processAudioReelAsync } from "../lib/video-processing";
 import { assertOwnedMediaUrl } from "../lib/r2";
 import { buildUserFeedContext, scoreAuction } from "../lib/feed-ranking";
 import { recordEngagement } from "./views";
@@ -892,12 +892,18 @@ router.post("/auctions", requireAuth, async (req, res) => {
 
   logger.info({ auctionId: auction.id, sellerId }, "Auction created");
 
-  // ── Async video processing (fire-and-forget) ───────────────────────────────
-  // Detects whether videoUrl is a video by file extension.
-  // If yes: compresses to 720p H.264, extracts thumbnail, updates DB URLs.
-  // The original URL is valid immediately; processing happens in the background.
-  const isVideoUpload = /\.(mp4|mov|webm|avi)(\?|$)/i.test(videoUrl);
-  if (isVideoUpload) {
+  // ── Async media processing (fire-and-forget) ───────────────────────────────
+  // Route to the correct processor by inspecting the videoUrl file extension.
+  // The original URL is always valid immediately; processing happens in the background.
+  const isAudioUpload = /\.(mp3|m4a|aac|ogg|opus)(\?|$)/i.test(videoUrl);
+  const isVideoUpload = !isAudioUpload && /\.(mp4|mov|webm|avi)(\?|$)/i.test(videoUrl);
+
+  if (isAudioUpload) {
+    // When thumbnailUrl equals videoUrl the frontend signalled "no cover" — use logo fallback.
+    const coverImageUrl = thumbnailUrl !== videoUrl ? thumbnailUrl : null;
+    void processAudioReelAsync(auction.id, videoUrl, coverImageUrl, sellerId)
+      .catch(err => logger.error({ err: String(err), auctionId: auction.id }, "audio-reel: unhandled crash"));
+  } else if (isVideoUpload) {
     void processVideoAsync(auction.id, videoUrl, sellerId)
       .catch(err => logger.error({ err: String(err), auctionId: auction.id }, "video-processing: unhandled crash"));
   }

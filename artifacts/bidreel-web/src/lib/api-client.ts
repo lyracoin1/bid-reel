@@ -227,7 +227,7 @@ export async function getAuctionsApi(opts?: { before?: string }): Promise<GetAuc
 
 export async function uploadMediaApi(
   file: File,
-  fileType: "video" | "image",
+  fileType: "video" | "image" | "audio",
   onProgress?: (pct: number) => void,
 ): Promise<string> {
   const token = await getToken();
@@ -335,7 +335,7 @@ export class PresignedUploadError extends Error {
 
 export async function uploadMediaPresignedApi(
   file: File,
-  fileType: "video" | "image",
+  fileType: "video" | "image" | "audio",
   onProgress?: (pct: number) => void,
 ): Promise<string> {
   const token = await getToken();

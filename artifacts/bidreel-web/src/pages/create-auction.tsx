@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   ArrowLeft, ArrowRight, Camera, Upload, CheckCircle2, Clock,
   Play, Image as ImageIcon, X, AlertCircle, Loader2, Trash2,
-  MapPin, RefreshCw, DollarSign, ShieldAlert,
+  MapPin, RefreshCw, DollarSign, ShieldAlert, Music,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
@@ -30,7 +30,7 @@ import {
   type PickVideoResult,
 } from "@/lib/native-video-compressor";
 
-type PostType = "video" | "photos";
+type PostType = "video" | "photos" | "audio";
 
 // ─── First-listing rules gate ─────────────────────────────────────────────────
 // localStorage key — set to "1" when the user accepts the rules and publishes
@@ -46,7 +46,8 @@ const LISTING_RULES = [
 ] as const;
 
 // ─── File size limits (client-side enforcement) ───────────────────────────────
-const MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20 MB — pre-compression raw limit
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;  // 20 MB — pre-compression raw limit
+const MAX_AUDIO_BYTES_CLIENT = 30 * 1024 * 1024; // 30 MB — matches server cap
 // Videos are compressed natively (Android Media3 Transformer) before upload,
 // so we accept large raw inputs (up to MAX_RAW_VIDEO_INPUT_BYTES) and let the
 // compressor shrink them to the 20 MB server cap. There is NO raw-video
@@ -81,7 +82,7 @@ interface GeoCoords {
 // submitError box — no more generic "Something went wrong".
 function describeSubmitError(
   err: unknown,
-  step: "pick_video" | "compress" | "upload_video" | "upload_image" | "create_db",
+  step: "pick_video" | "compress" | "upload_video" | "upload_image" | "upload_audio" | "create_db",
   lang: string, // accepts the full Language union; only "ar" is special-cased.
 ): string {
   // Preserve full details in console for remote debugging via the user.
@@ -89,8 +90,8 @@ function describeSubmitError(
 
   const isAr = lang === "ar";
   const stepLabel = isAr
-    ? { pick_video: "اختيار الفيديو", compress: "ضغط الفيديو", upload_video: "رفع الفيديو", upload_image: "رفع الصورة", create_db: "نشر المزاد" }[step]
-    : { pick_video: "Video selection", compress: "Video compression", upload_video: "Video upload", upload_image: "Image upload", create_db: "Publishing auction" }[step];
+    ? { pick_video: "اختيار الفيديو", compress: "ضغط الفيديو", upload_video: "رفع الفيديو", upload_image: "رفع الصورة", upload_audio: "رفع الملف الصوتي", create_db: "نشر المزاد" }[step]
+    : { pick_video: "Video selection", compress: "Video compression", upload_video: "Video upload", upload_image: "Image upload", upload_audio: "Audio upload", create_db: "Publishing auction" }[step];
 
   // ── create_db: map backend error codes → localized messages ─────────────────
   // Never concatenate a raw English backend message with an Arabic step label.
@@ -160,6 +161,14 @@ export default function CreateAuction() {
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
   const [photoErrors, setPhotoErrors] = useState<string[]>([]);
+
+  // ── Audio state ──────────────────────────────────────────────────────────────
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   // ── Form state ──────────────────────────────────────────────────────────────
   const [form, setForm] = useState({
@@ -361,6 +370,43 @@ export default function CreateAuction() {
     setPhotoErrors([]);
   };
 
+  // ── Audio handlers ───────────────────────────────────────────────────────────
+
+  const handleAudioSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > MAX_AUDIO_BYTES_CLIENT) {
+      setAudioError(lang === "ar"
+        ? `${file.name}: ${(file.size / 1024 / 1024).toFixed(1)} ميغابايت تتجاوز الحد (30 ميغابايت)`
+        : `${file.name}: ${(file.size / 1024 / 1024).toFixed(1)} MB exceeds the 30 MB limit`);
+      return;
+    }
+    setAudioError(null);
+    setAudioFile(file);
+  };
+
+  const clearAudio = () => {
+    setAudioFile(null);
+    setAudioError(null);
+  };
+
+  const handleCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > MAX_IMAGE_BYTES) return;
+    if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl);
+    setCoverFile(file);
+    setCoverPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const clearCover = () => {
+    if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl);
+    setCoverFile(null);
+    setCoverPreviewUrl(null);
+  };
+
   // ── Submit ───────────────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
@@ -464,6 +510,40 @@ export default function CreateAuction() {
         } else {
           thumbnailUrl = videoUrl;
         }
+      } else if (postType === "audio") {
+        if (!audioFile) {
+          setSubmitError(lang === "ar" ? "يرجى اختيار ملف صوتي." : "Please select an audio file.");
+          return;
+        }
+
+        // ── 1. Upload audio file ─────────────────────────────────────────────
+        const audioLabel = lang === "ar" ? "جارٍ رفع الملف الصوتي…" : "Uploading audio…";
+        setUploadProgress(audioLabel);
+        try {
+          videoUrl = await uploadMedia(audioFile, "audio", pct => {
+            setUploadProgress(`${audioLabel} ${pct}%`);
+          });
+        } catch (err) {
+          setUploadProgress(null);
+          setSubmitError(describeSubmitError(err, "upload_audio", lang));
+          return;
+        }
+
+        // ── 2. Upload cover image, or signal "no cover" to the backend ───────
+        // When thumbnailUrl === videoUrl, the backend uses the BidReel logo fallback.
+        if (coverFile) {
+          setUploadProgress(lang === "ar" ? "جارٍ رفع صورة الغلاف…" : "Uploading cover image…");
+          try {
+            const compressedCover = await compressListingThumbnail(coverFile);
+            thumbnailUrl = await uploadMedia(compressedCover, "image");
+          } catch (err) {
+            setUploadProgress(null);
+            setSubmitError(describeSubmitError(err, "upload_image", lang));
+            return;
+          }
+        } else {
+          thumbnailUrl = videoUrl; // backend detects equality → uses logo fallback
+        }
       } else {
         if (photoFiles.length === 0) {
           setSubmitError(lang === "ar" ? "يرجى إضافة صورة واحدة على الأقل." : "Please add at least one photo.");
@@ -565,7 +645,9 @@ export default function CreateAuction() {
   const isSubmitting = isUploading || isCreating;
 
   const canProceedFromStep1 =
-    postType === "video" ? !!pickedVideo : photoFiles.length > 0;
+    postType === "video" ? !!pickedVideo :
+    postType === "audio" ? !!audioFile :
+    photoFiles.length > 0;
 
   const canPublish =
     !!form.title &&
@@ -617,7 +699,7 @@ export default function CreateAuction() {
 
               {/* Type toggle */}
               <div className="flex bg-white/5 border border-white/8 rounded-2xl p-1 mb-5">
-                {(["video", "photos"] as PostType[]).map((pt) => (
+                {(["video", "photos", "audio"] as PostType[]).map((pt) => (
                   <button key={pt} onClick={() => setPostType(pt)}
                     className="relative flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold transition-colors">
                     {postType === pt && (
@@ -625,18 +707,25 @@ export default function CreateAuction() {
                     )}
                     {pt === "video"
                       ? <Play size={14} className={cn("relative z-10", postType === pt ? "text-primary" : "text-white/40")} />
-                      : <ImageIcon size={14} className={cn("relative z-10", postType === pt ? "text-primary" : "text-white/40")} />
+                      : pt === "photos"
+                      ? <ImageIcon size={14} className={cn("relative z-10", postType === pt ? "text-primary" : "text-white/40")} />
+                      : <Music size={14} className={cn("relative z-10", postType === pt ? "text-primary" : "text-white/40")} />
                     }
                     <span className={cn("relative z-10 capitalize", postType === pt ? "text-white" : "text-white/40")}>
-                      {t(pt === "video" ? "video" : "photos")}
+                      {pt === "video" ? t("video") : pt === "photos" ? t("photos") : (lang === "ar" ? "صوت" : "Audio")}
                     </span>
                   </button>
                 ))}
               </div>
 
-              {/* Hidden inputs (photos only — video uses the native picker) */}
+              {/* Hidden inputs — photos & audio use file pickers; video uses the native picker */}
               <input ref={photoInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
                 multiple className="hidden" onChange={handlePhotosSelect} />
+              <input ref={audioInputRef} type="file"
+                accept="audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/webm,audio/x-m4a,.mp3,.m4a,.aac,.ogg"
+                className="hidden" onChange={handleAudioSelect} />
+              <input ref={coverInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
+                className="hidden" onChange={handleCoverSelect} />
 
               {/* ── VIDEO MODE ── */}
               {postType === "video" ? (
@@ -721,6 +810,102 @@ export default function CreateAuction() {
                     </motion.button>
                   </div>
                 </>
+              ) : postType === "audio" ? (
+
+                /* ── AUDIO MODE ── */
+                <>
+                  <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
+                    {lang === "ar"
+                      ? "اختر ملفاً صوتياً. سيُحوَّل تلقائياً إلى رييل مرئي مع صورة الغلاف."
+                      : "Select an audio file. It will be auto-converted to a video reel with your cover image."}
+                  </p>
+
+                  {/* Audio file picker */}
+                  {!audioFile ? (
+                    <button
+                      onClick={() => audioInputRef.current?.click()}
+                      className="w-full min-h-40 border-2 border-dashed border-white/12 rounded-3xl bg-white/3 flex flex-col items-center justify-center p-8 text-center cursor-pointer transition-all active:scale-[0.98] hover:border-primary/50 hover:bg-primary/5 mb-4"
+                    >
+                      <div className="w-16 h-16 rounded-2xl bg-primary/15 flex items-center justify-center mb-4">
+                        <Music size={28} className="text-primary" />
+                      </div>
+                      <h3 className="font-bold text-white text-lg mb-1">
+                        {lang === "ar" ? "اضغط لاختيار ملف صوتي" : "Tap to select audio file"}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {lang === "ar" ? "MP3، AAC، M4A، OGG — حتى 30 ميغابايت" : "MP3, AAC, M4A, OGG — up to 30 MB"}
+                      </p>
+                    </button>
+                  ) : (
+                    <div className="rounded-2xl bg-white/5 border border-emerald-500/30 p-4 flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
+                        <Music size={22} className="text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{audioFile.name}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <CheckCircle2 size={11} className="text-emerald-400 shrink-0" />
+                          <p className="text-xs text-emerald-400">{(audioFile.size / 1024 / 1024).toFixed(1)} MB</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={clearAudio}
+                        className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center active:scale-95"
+                      >
+                        <X size={14} className="text-red-400" />
+                      </button>
+                    </div>
+                  )}
+
+                  {audioError && (
+                    <div className="mb-3 flex items-center gap-2 text-red-400 text-xs font-medium">
+                      <AlertCircle size={13} className="shrink-0" />
+                      {audioError}
+                    </div>
+                  )}
+
+                  {/* Optional cover image */}
+                  <div className="mb-5">
+                    <label className="block text-xs font-bold text-white/50 uppercase tracking-widest mb-2">
+                      {lang === "ar" ? "صورة الغلاف (اختياري)" : "Cover Image (optional)"}
+                    </label>
+                    {!coverFile ? (
+                      <button
+                        onClick={() => coverInputRef.current?.click()}
+                        className="w-full py-3.5 border border-dashed border-white/12 rounded-2xl bg-white/3 flex items-center justify-center gap-2 text-white/40 hover:border-primary/40 hover:text-primary/60 transition-all active:scale-[0.98]"
+                      >
+                        <ImageIcon size={16} />
+                        <span className="text-sm font-medium">
+                          {lang === "ar" ? "اختر صورة — الافتراضي: شعار BidReel" : "Pick image — default: BidReel logo"}
+                        </span>
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-3 rounded-2xl bg-white/5 border border-white/10 p-3">
+                        <div className="w-14 h-14 rounded-xl overflow-hidden border border-white/15 shrink-0">
+                          <img src={coverPreviewUrl!} alt="Cover" className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">{coverFile.name}</p>
+                          <p className="text-xs text-white/40 mt-0.5">{(coverFile.size / 1024 / 1024).toFixed(1)} MB</p>
+                        </div>
+                        <button
+                          onClick={clearCover}
+                          className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center active:scale-95"
+                        >
+                          <X size={14} className="text-red-400" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <motion.button whileTap={{ scale: 0.97 }}
+                    onClick={() => canProceedFromStep1 && setStep(2)}
+                    disabled={!canProceedFromStep1}
+                    className="w-full py-4 rounded-2xl bg-primary text-white font-bold flex items-center justify-center gap-2 shadow-md shadow-primary/30 disabled:opacity-40">
+                    {t("continue")}<ArrowRight size={18} />
+                  </motion.button>
+                </>
+
               ) : (
 
                 /* ── PHOTOS MODE ── */

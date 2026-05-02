@@ -42,10 +42,19 @@ const ALLOWED_IMAGE_TYPES = new Set([
   "image/webp",
 ]);
 
-// Post-compression upload caps. Clients run ffmpeg.wasm on videos before upload
-// and Canvas-WebP on images, so we expect compressed payloads here.
+const ALLOWED_AUDIO_TYPES = new Set([
+  "audio/mpeg",    // .mp3
+  "audio/mp4",     // .m4a
+  "audio/aac",     // .aac
+  "audio/ogg",     // .ogg
+  "audio/webm",    // .webm (audio)
+  "audio/x-m4a",  // .m4a (alternate MIME)
+]);
+
+// Post-compression upload caps.
 const MAX_VIDEO_BYTES = 20 * 1024 * 1024; // 20 MB
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20 MB
+const MAX_AUDIO_BYTES = 30 * 1024 * 1024; // 30 MB
 
 const MIME_TO_EXT: Record<string, string> = {
   "video/mp4": "mp4",
@@ -56,6 +65,12 @@ const MIME_TO_EXT: Record<string, string> = {
   "image/jpg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
+  "audio/mpeg": "mp3",
+  "audio/mp4": "m4a",
+  "audio/aac": "aac",
+  "audio/ogg": "ogg",
+  "audio/webm": "webm",
+  "audio/x-m4a": "m4a",
 };
 
 /** Sanitize a generated filename — only alphanumerics, dash, dot. */
@@ -86,8 +101,8 @@ router.post(
     // Strip charset suffix (e.g. "video/mp4; codecs=…" → "video/mp4")
     const mimeType = rawMime?.split(";")[0]?.trim() ?? "";
 
-    if (!fileType || !["video", "image"].includes(fileType)) {
-      res.status(400).json({ error: "VALIDATION_ERROR", message: "fileType must be 'video' or 'image'" });
+    if (!fileType || !["video", "image", "audio"].includes(fileType)) {
+      res.status(400).json({ error: "VALIDATION_ERROR", message: "fileType must be 'video', 'image', or 'audio'" });
       return;
     }
 
@@ -109,6 +124,15 @@ router.post(
       return;
     }
 
+    if (fileType === "audio" && !ALLOWED_AUDIO_TYPES.has(mimeType)) {
+      res.status(400).json({
+        error: "INVALID_MIME_TYPE",
+        message: `Unsupported audio type "${mimeType}". Allowed: mp3, aac, m4a, ogg.`,
+        allowed: [...ALLOWED_AUDIO_TYPES],
+      });
+      return;
+    }
+
     const body = req.body as Buffer;
 
     if (!Buffer.isBuffer(body) || body.length === 0) {
@@ -116,19 +140,19 @@ router.post(
       return;
     }
 
-    const maxBytes = fileType === "video" ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+    const maxBytes = fileType === "video" ? MAX_VIDEO_BYTES : fileType === "audio" ? MAX_AUDIO_BYTES : MAX_IMAGE_BYTES;
     if (body.length > maxBytes) {
       const maxMb = maxBytes / (1024 * 1024);
       res.status(400).json({
         error: "FILE_TOO_LARGE",
-        message: `${fileType === "video" ? "Video" : "Image"} must be smaller than ${maxMb} MB.`,
+        message: `${fileType === "video" ? "Video" : fileType === "audio" ? "Audio" : "Image"} must be smaller than ${maxMb} MB.`,
         maxBytes,
       });
       return;
     }
 
     const userId = req.user!.id;
-    const ext = MIME_TO_EXT[mimeType] ?? (fileType === "video" ? "mp4" : "jpg");
+    const ext = MIME_TO_EXT[mimeType] ?? (fileType === "video" ? "mp4" : fileType === "audio" ? "mp3" : "jpg");
     const filename = safeFilename(randomUUID(), ext);
     const key = `pending/${userId}/${filename}`;
 
@@ -174,8 +198,8 @@ router.post("/media/presign-upload", requireAuth, express.json(), async (req, re
   const mimeType = rawMime.split(";")[0]?.trim() ?? "";
   const sizeBytes = Number(req.body?.sizeBytes);
 
-  if (!["video", "image"].includes(fileType)) {
-    res.status(400).json({ error: "VALIDATION_ERROR", message: "fileType must be 'video' or 'image'" });
+  if (!["video", "image", "audio"].includes(fileType)) {
+    res.status(400).json({ error: "VALIDATION_ERROR", message: "fileType must be 'video', 'image', or 'audio'" });
     return;
   }
 
@@ -187,12 +211,12 @@ router.post("/media/presign-upload", requireAuth, express.json(), async (req, re
     return;
   }
 
-  const maxBytes = fileType === "video" ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+  const maxBytes = fileType === "video" ? MAX_VIDEO_BYTES : fileType === "audio" ? MAX_AUDIO_BYTES : MAX_IMAGE_BYTES;
   if (sizeBytes > maxBytes) {
     const maxMb = maxBytes / (1024 * 1024);
     res.status(400).json({
       error: "FILE_TOO_LARGE",
-      message: `${fileType === "video" ? "Video" : "Image"} must be smaller than ${maxMb} MB.`,
+      message: `${fileType === "video" ? "Video" : fileType === "audio" ? "Audio" : "Image"} must be smaller than ${maxMb} MB.`,
       maxBytes,
     });
     return;
@@ -216,8 +240,17 @@ router.post("/media/presign-upload", requireAuth, express.json(), async (req, re
     return;
   }
 
+  if (fileType === "audio" && !ALLOWED_AUDIO_TYPES.has(mimeType)) {
+    res.status(400).json({
+      error: "INVALID_MIME_TYPE",
+      message: `Unsupported audio type "${mimeType}". Allowed: mp3, aac, m4a, ogg.`,
+      allowed: [...ALLOWED_AUDIO_TYPES],
+    });
+    return;
+  }
+
   const userId = req.user!.id;
-  const ext = MIME_TO_EXT[mimeType] ?? (fileType === "video" ? "mp4" : "jpg");
+  const ext = MIME_TO_EXT[mimeType] ?? (fileType === "video" ? "mp4" : fileType === "audio" ? "mp3" : "jpg");
   const filename = safeFilename(randomUUID(), ext);
   const key = `pending/${userId}/${filename}`;
 

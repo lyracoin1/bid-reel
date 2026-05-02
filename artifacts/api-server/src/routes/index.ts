@@ -20,6 +20,7 @@ import secureDealsRouter from "./secure-deals";
 import dealConditionsRouter from "./deal-conditions";
 import sellerConditionsRouter from "./seller-conditions";
 import dealRatingsRouter from "./deal-ratings";
+import paymentProofRouter from "./payment-proof";
 
 const router: IRouter = Router();
 
@@ -35,6 +36,10 @@ router.use(followsRouter);
 router.use(savesRouter);
 router.use(likesRouter);
 router.use(mediaRouter);
+// paymentProofRouter must be registered BEFORE adminRouter because it defines
+// GET /admin/payment-proofs — if adminRouter is checked first it would intercept
+// all /admin/* paths and return 404 before this route is ever reached.
+router.use(paymentProofRouter);
 router.use("/admin", adminRouter);
 router.use(auctionRouter);
 router.use(billingRouter);

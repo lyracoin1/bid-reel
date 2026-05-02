@@ -315,6 +315,74 @@ export async function getSellerConditions(
   return condition as SellerCondition | null;
 }
 
+// ── Payment Proof (payment-proof) ────────────────────────────────────────────
+
+export interface PaymentProof {
+  id:          string;
+  deal_id:     string;
+  buyer_id:    string;
+  file_url:    string;
+  file_name:   string;
+  file_type:   string;
+  file_size:   number | null;
+  uploaded_at: string;
+}
+
+/**
+ * Upload a payment proof file for a deal.
+ * Sends the file as a raw binary body to POST /api/payment-proof.
+ * Requires auth (buyer only).
+ * Accepted formats: PDF, JPEG, PNG, WebP. Max 10 MB.
+ * A re-upload silently replaces the previous proof in the DB (old R2 file orphaned).
+ */
+export async function uploadPaymentProof(
+  dealId: string,
+  file:   File,
+): Promise<PaymentProof> {
+  const buffer = await file.arrayBuffer();
+  const res = await apiFetch(
+    `/payment-proof?dealId=${encodeURIComponent(dealId)}&mimeType=${encodeURIComponent(file.type)}&fileName=${encodeURIComponent(file.name)}`,
+    {
+      method:  "POST",
+      // Override default "application/json" so the server receives the correct MIME type
+      headers: { "Content-Type": file.type },
+      body:    buffer,
+    },
+    true,
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).message ?? `Upload failed (${res.status})`);
+  }
+
+  const { proof } = await res.json();
+  return proof as PaymentProof;
+}
+
+/**
+ * Fetch the current payment proof for a deal.
+ * Calls GET /api/payment-proof/:dealId — requires auth.
+ * Returns null when no proof has been uploaded yet, or on 403/404.
+ */
+export async function getPaymentProof(dealId: string): Promise<PaymentProof | null> {
+  const res = await apiFetch(
+    `/payment-proof/${encodeURIComponent(dealId)}`,
+    {},
+    true,
+  );
+
+  if (res.status === 403 || res.status === 404) return null;
+
+  if (!res.ok) {
+    console.warn("[transactions] getPaymentProof error:", res.status);
+    return null;
+  }
+
+  const { proof } = await res.json();
+  return proof as PaymentProof | null;
+}
+
 // ── Deal Ratings (deal-ratings) ───────────────────────────────────────────────
 
 export interface DealRating {

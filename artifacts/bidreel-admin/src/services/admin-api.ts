@@ -337,6 +337,33 @@ export async function adminMarkAllNotificationsRead(): Promise<void> {
   await adminFetch("/notifications/read-all", { method: "POST" });
 }
 
+// ─── Payment Proofs (Secure Deals Part #4) ───────────────────────────────────
+
+export interface AdminPaymentProof {
+  id:           string;
+  deal_id:      string;
+  buyer_id:     string;
+  file_url:     string;
+  file_name:    string;
+  file_type:    string;
+  file_size:    number | null;
+  uploaded_at:  string;
+  product_name: string | null;
+  seller_id:    string;
+  currency:     string;
+  price:        number;
+}
+
+/**
+ * Fetch all payment proofs across all deals.
+ * Calls GET /api/admin/payment-proofs — requires admin auth.
+ * Returns an empty array when no proofs have been uploaded yet.
+ */
+export async function adminGetPaymentProofs(): Promise<AdminPaymentProof[]> {
+  const data = await adminFetch<{ proofs: AdminPaymentProof[] }>("/payment-proofs");
+  return data.proofs ?? [];
+}
+
 // ─── Deploy ───────────────────────────────────────────────────────────────────
 
 export interface DeployResult {

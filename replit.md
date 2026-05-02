@@ -73,6 +73,33 @@ A peer-to-peer escrow-style "Secure Deal" feature for off-auction sales:
 - Table bootstraps automatically on api-server startup via `bootstrapTransactionsTable()` (idempotent).
 - Route registration: `secureDealsRouter` must be mounted **before** `notificationRouter` in `routes/index.ts` because that router applies a global `requireAuth` to all subsequent handlers.
 
+#### Secure Deals — Feature Parts
+
+**Part #1 — Buyer Conditions** (migration 042, `deal_conditions` table)
+- `POST/GET /api/deal-conditions` — buyer submits terms; seller receives FCM + in-app notification.
+- UI: violet-accented card in `secure-deal-pay.tsx`.
+
+**Part #2 — Seller Conditions** (migration 043, `seller_conditions` table)
+- `POST/GET /api/seller-conditions` — seller submits counter-conditions; buyer receives notification.
+- UI: amber-accented card in `secure-deal-pay.tsx`.
+
+**Part #3 — Deal Ratings** (migration 044, `deal_ratings` table)
+- `POST /api/deal-ratings`, `GET /api/deal-ratings/:dealId` — 5-star rating after delivery.
+- UI: emerald-header, amber-stars card in `secure-deal-pay.tsx` (delivered deals only).
+
+**Part #4 — Buyer Payment Proof Upload** (migration 045, `payment_proofs` table)
+- `POST /api/payment-proof` — raw binary upload to R2 under `payment-proofs/{buyerId}/{uuid}.{ext}`.
+  - Accepts PDF, JPEG, PNG, WebP up to 10 MB. Uses `express.raw()` middleware, same as media uploads.
+  - Upserts `payment_proofs` (UNIQUE deal_id) so re-uploads replace previous proof.
+  - Notifies seller via FCM + in-app notification (`"payment_proof_uploaded"`).
+- `GET /api/payment-proof/:dealId` — returns proof for buyer, seller, or admin.
+- `GET /api/admin/payment-proofs` — lists all proofs across all deals (admin-only, uses `requireAdmin`).
+  - Registered via `paymentProofRouter` **before** `adminRouter` in `routes/index.ts` so the `/admin/payment-proofs` path is intercepted before the broader `/admin/*` subrouter.
+- UI (buyer): sky-blue card with file picker between Progress Stepper and Payment Card in `secure-deal-pay.tsx`.
+- UI (seller): read-only view of uploaded proof (filename + date + View link).
+- Admin: collapsible "إثباتات الدفع" panel at top of `SecureDeals.tsx` with real data from API (deal ID, product, price, filename, type, size, date, View link). Uses `adminGetPaymentProofs()` from `admin-api.ts`.
+- Client helpers: `uploadPaymentProof(dealId, File)` and `getPaymentProof(dealId)` in `transactions.ts`.
+
 ## System Design Choices
 
 -   **API Server:** Express 5 handles all API requests.

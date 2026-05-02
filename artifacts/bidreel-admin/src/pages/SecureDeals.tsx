@@ -1,11 +1,12 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ShieldCheck, Package, DollarSign, Clock, CheckCircle2,
   Truck, Upload, Link2, ChevronDown, ChevronUp, X,
-  AlertCircle, FileText, Search, Banknote, Info,
+  AlertCircle, FileText, Search, Banknote, Info, ExternalLink,
 } from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
+import { adminGetPaymentProofs, type AdminPaymentProof } from "@/services/admin-api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -299,6 +300,12 @@ export default function SecureDeals() {
   const [filterPay, setFilterPay]   = useState<PayStatus | "all">("all");
   const [filterShip, setFilterShip] = useState<ShipStatus | "all">("all");
 
+  // Payment proofs — real data from API
+  const [proofs, setProofs]               = useState<AdminPaymentProof[]>([]);
+  const [proofsLoading, setProofsLoading] = useState(false);
+  const [proofsError, setProofsError]     = useState<string | null>(null);
+  const [proofsExpanded, setProofsExpanded] = useState(true);
+
   const filtered = deals.filter(d => {
     const q = search.toLowerCase();
     const matchQ    = !q || d.id.toLowerCase().includes(q) || d.product.toLowerCase().includes(q) || d.buyerName.toLowerCase().includes(q) || d.sellerName.toLowerCase().includes(q);
@@ -328,6 +335,15 @@ export default function SecureDeals() {
     setDeals(prev => prev.map(d => d.id === id ? { ...d, fundsReleased: true } : d));
     console.log("[SecureDeals Admin] Funds released (placeholder) for:", id);
   }
+
+  // Fetch real payment proofs on mount
+  useEffect(() => {
+    setProofsLoading(true);
+    adminGetPaymentProofs()
+      .then(data => { setProofs(data); setProofsError(null); })
+      .catch(err  => { setProofsError((err as Error).message ?? "فشل تحميل الإثباتات"); })
+      .finally(()  => setProofsLoading(false));
+  }, []);
 
   const summaryStats = {
     total:         deals.length,
@@ -369,6 +385,121 @@ export default function SecureDeals() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* ── Payment Proofs Panel — real data from API ── */}
+        <div className="rounded-2xl border border-white/8 overflow-hidden" dir="rtl">
+          <button
+            onClick={() => setProofsExpanded(p => !p)}
+            className="w-full flex items-center justify-between px-5 py-4 bg-white/3 hover:bg-white/5 transition-colors"
+          >
+            <div className="flex items-center gap-2.5">
+              <FileText size={14} className="text-sky-400" />
+              <span className="text-sm font-bold text-white/80">إثباتات الدفع</span>
+              {!proofsLoading && proofs.length > 0 && (
+                <span className="bg-sky-500/20 border border-sky-500/30 text-sky-300 text-[10px] font-bold px-1.5 py-0.5 rounded-lg">
+                  {proofs.length}
+                </span>
+              )}
+            </div>
+            {proofsExpanded
+              ? <ChevronUp   size={14} className="text-white/30" />
+              : <ChevronDown size={14} className="text-white/30" />}
+          </button>
+
+          <AnimatePresence>
+            {proofsExpanded && (
+              <motion.div
+                key="proofs-panel"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                style={{ overflow: "hidden" }}
+              >
+                {proofsLoading ? (
+                  <div className="px-5 py-8 text-center text-white/25 text-sm">جارٍ التحميل…</div>
+                ) : proofsError ? (
+                  <div className="px-5 py-6 flex items-center gap-2 text-red-400 text-sm">
+                    <AlertCircle size={14} className="shrink-0" />
+                    {proofsError}
+                  </div>
+                ) : proofs.length === 0 ? (
+                  <div className="px-5 py-8 text-center text-white/25 text-sm">لم يُرفع أي إثبات دفع بعد.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-white/6 text-right bg-white/2">
+                          {["رقم الصفقة", "المنتج", "السعر", "اسم الملف", "النوع", "الحجم", "تاريخ الرفع", ""].map(h => (
+                            <th
+                              key={h}
+                              className="px-4 py-2.5 text-[10px] font-bold text-white/30 uppercase tracking-widest whitespace-nowrap"
+                            >
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {proofs.map((p, i) => (
+                          <tr
+                            key={p.id}
+                            className={`border-b border-white/5 hover:bg-white/3 transition-colors ${i % 2 === 0 ? "" : "bg-white/1"}`}
+                            dir="rtl"
+                          >
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="font-mono text-[11px] font-bold text-white/60 bg-white/5 border border-white/8 rounded-lg px-2 py-0.5">
+                                {p.deal_id}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 max-w-[180px]">
+                              <span className="text-white/75 text-[12px] truncate block">{p.product_name ?? "—"}</span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-white font-bold text-[12px]">{Number(p.price).toLocaleString()}</span>
+                              <span className="text-white/40 text-[11px] ms-1">{p.currency}</span>
+                            </td>
+                            <td className="px-4 py-3 max-w-[200px]">
+                              <div className="flex items-center gap-1.5">
+                                <FileText size={11} className="text-sky-400 shrink-0" />
+                                <span className="text-white/70 text-[12px] truncate">{p.file_name}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-white/40 text-[11px]">
+                                {p.file_type.split("/")[1]?.toUpperCase() ?? p.file_type}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-white/40 text-[11px]">
+                                {p.file_size ? `${(p.file_size / 1024).toFixed(0)} KB` : "—"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-white/50 text-[11px]">
+                                {new Date(p.uploaded_at).toLocaleDateString("ar-SA", { dateStyle: "short" })}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <a
+                                href={p.file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-500/15 border border-sky-500/25 text-sky-300 text-[11px] font-bold hover:brightness-110 transition whitespace-nowrap"
+                              >
+                                <ExternalLink size={11} /> عرض
+                              </a>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Filters + Search */}

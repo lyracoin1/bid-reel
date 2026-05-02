@@ -1,0 +1,61 @@
+You are implementing Part #5 of Secure Deals / Pay Now: Seller Shipment Proof Upload + Tracking Link in BidReel.
+
+Requirements:
+
+1. Database Migration:
+   - Create a new migration SQL (046_seller_shipment_upload.sql)
+   - Create table `shipment_proofs` or add columns in transactions:
+     - id UUID PK DEFAULT gen_random_uuid()
+     - deal_id TEXT FK → transactions.deal_id ON DELETE CASCADE
+     - seller_id UUID NOT NULL (from JWT)
+     - file_url TEXT NOT NULL
+     - tracking_link TEXT NOT NULL
+     - uploaded_at TIMESTAMPTZ DEFAULT now()
+     - UNIQUE(deal_id, seller_id)
+   - Include RLS policies:
+     - SELECT: seller of the deal, assigned buyer, or admin
+     - INSERT / UPDATE: only seller_id = auth.uid()
+
+2. API Endpoint:
+   - POST /api/shipment-proof
+     - Auth required (JWT)
+     - Accept file upload + tracking_link
+     - Store file in R2 / cloud storage
+     - Save file_url + tracking_link + timestamp in DB
+     - Notify buyer: "Seller uploaded shipping proof"
+
+   - GET /api/shipment-proof/:dealId
+     - Return all shipment proofs for the deal
+     - Only participants (buyer/seller) or admin can access
+
+3. Frontend:
+   - Seller Dashboard / secure-deal-pay.tsx
+     - File input + textarea for tracking link
+     - Submit button calls POST /api/shipment-proof
+     - Success / error banner
+   - Admin Dashboard:
+     - List all uploaded proofs per deal
+     - Download link + tracking link displayed
+     - Reactive to DB changes
+
+4. Notifications:
+   - createNotification() type: "shipment_proof_uploaded"
+   - FCM push + Supabase in-app
+   - Non-fatal failure does not block DB write
+
+5. Security:
+   - Only seller of the deal can upload
+   - Validate deal exists and belongs to seller
+   - File size/type validation
+
+6. Migration Activation:
+   - Run `046_seller_shipment_upload.sql` in Supabase SQL Editor
+   - Ensure foreign key to transactions exists
+   - This migration must be executed before API is live to store data
+
+Output:
+- SQL migration file (046_seller_shipment_upload.sql)
+- API handler Node/Express + PostgreSQL/Supabase
+- Frontend UI snippet for seller upload + Admin dashboard view
+- Notification integration
+- Fully real implementation, no placeholders

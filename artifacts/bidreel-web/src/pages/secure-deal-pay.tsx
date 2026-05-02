@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -6,7 +6,7 @@ import {
   Truck, StickyNote, Lock, Image, Video,
   CheckCircle2, Bell, PartyPopper, AlertCircle,
   Loader2, UserX, RefreshCw, User, UserCheck, PencilLine,
-  ScrollText, Send, Star,
+  ScrollText, Send, Star, Upload, X,
 } from "lucide-react";
 import {
   isPlayBillingAvailable,
@@ -22,7 +22,8 @@ import {
   submitDealConditions, getDealConditions,
   submitSellerConditions, getSellerConditions,
   submitDealRating, getDealRatings,
-  Transaction, DealCondition, SellerCondition, DealRating,
+  uploadPaymentProof, getPaymentProof,
+  Transaction, DealCondition, SellerCondition, DealRating, PaymentProof,
 } from "@/lib/transactions";
 
 // ── Deal UI status (derived from DB payment_status + shipment_status) ──────
@@ -259,6 +260,14 @@ export default function SecureDealPayPage() {
   const [ratingError, setRatingError]           = useState<string | null>(null);
   const [ratingSuccess, setRatingSuccess]       = useState(false);
 
+  // Payment proof state
+  const proofFileRef                              = useRef<HTMLInputElement>(null);
+  const [proofFile, setProofFile]               = useState<File | null>(null);
+  const [proofUploading, setProofUploading]     = useState(false);
+  const [proofError, setProofError]             = useState<string | null>(null);
+  const [proofSuccess, setProofSuccess]         = useState(false);
+  const [existingProof, setExistingProof]       = useState<PaymentProof | null>(null);
+
   // ── Load transaction ─────────────────────────────────────────────────────
   const loadTx = useCallback(async () => {
     if (!dealId) return;
@@ -381,6 +390,19 @@ export default function SecureDealPayPage() {
 
   useEffect(() => { loadRatings(); }, [loadRatings]);
 
+  // ── Load existing payment proof (buyer + seller, best-effort) ─────────────
+  const loadProof = useCallback(async () => {
+    if (!dealId || !user) return;
+    try {
+      const found = await getPaymentProof(dealId);
+      if (found) setExistingProof(found);
+    } catch {
+      // Non-fatal
+    }
+  }, [dealId, user]);
+
+  useEffect(() => { loadProof(); }, [loadProof]);
+
   // ── Submit rating ─────────────────────────────────────────────────────────
   async function handleSubmitRating() {
     if (!user || !tx || ratingStars < 1 || ratingSubmitting) return;
@@ -405,6 +427,26 @@ export default function SecureDealPayPage() {
       setRatingError(ar ? `فشل الإرسال: ${msg}` : `Submission failed: ${msg}`);
     } finally {
       setRatingSubmitting(false);
+    }
+  }
+
+  // ── Upload payment proof ──────────────────────────────────────────────────
+  async function handleUploadProof() {
+    if (!user || !tx || !proofFile || proofUploading) return;
+    setProofUploading(true);
+    setProofError(null);
+    setProofSuccess(false);
+    try {
+      const saved = await uploadPaymentProof(tx.deal_id, proofFile);
+      setExistingProof(saved);
+      setProofFile(null);
+      setProofSuccess(true);
+      if (proofFileRef.current) proofFileRef.current.value = "";
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setProofError(ar ? `فشل الرفع: ${msg}` : `Upload failed: ${msg}`);
+    } finally {
+      setProofUploading(false);
     }
   }
 
@@ -1113,6 +1155,189 @@ export default function SecureDealPayPage() {
             </p>
             <DealStepper status={dealStatus} ar={ar} />
           </motion.div>
+
+          {/* ═══ 5. PAYMENT PROOF CARD ════════════════════════════════════════════
+               Buyer uploads an external payment receipt / screenshot.
+               Buyer sees editable upload form; seller sees read-only view.    */}
+          {(dealStatus === "awaiting_payment" || !!existingProof) && (!isSeller || !!existingProof) && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.13 }}
+              className="rounded-3xl bg-white/4 border border-white/8 overflow-hidden"
+            >
+              <div className="bg-gradient-to-r from-sky-600/15 to-transparent px-5 pt-4 pb-3 border-b border-white/6">
+                <div className="flex items-center gap-2">
+                  <Upload size={12} className="text-sky-400" />
+                  <p className="text-[10px] font-bold text-sky-400/80 uppercase tracking-widest">
+                    {ar ? "إثبات الدفع" : "Payment Proof"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="px-5 py-4 space-y-3">
+
+                {/* Helper text — buyer only, no proof uploaded yet */}
+                {!isSeller && !existingProof && dealStatus === "awaiting_payment" && (
+                  <p className="text-[11px] text-white/35 leading-relaxed">
+                    {ar
+                      ? "إذا أجريت التحويل خارج المنصة (تحويل بنكي مثلاً)، ارفع إيصال الدفع هنا. سيتلقى البائع إشعاراً فورياً."
+                      : "If you paid outside the platform (e.g. bank transfer), upload your receipt here. The seller will be notified immediately."}
+                  </p>
+                )}
+
+                {/* Existing proof — visible to both buyer and seller */}
+                {existingProof && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="rounded-2xl bg-sky-600/8 border border-sky-500/20 px-4 py-3.5"
+                  >
+                    <div className="flex items-start gap-3">
+                      <FileText size={16} className="text-sky-400 shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <p className="text-sm font-medium text-white/80 truncate">
+                          {existingProof.file_name}
+                        </p>
+                        <p className="text-[10px] text-white/30">
+                          {new Date(existingProof.uploaded_at).toLocaleString(
+                            ar ? "ar-SA" : "en-US",
+                            { dateStyle: "medium", timeStyle: "short" },
+                          )}
+                        </p>
+                      </div>
+                      <a
+                        href={existingProof.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 px-3 py-1.5 rounded-xl bg-sky-600/20 border border-sky-500/25 text-sky-300 text-[11px] font-bold hover:brightness-110 transition"
+                      >
+                        {ar ? "عرض" : "View"}
+                      </a>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* File picker + upload controls — buyer only + awaiting payment */}
+                {!isSeller && dealStatus === "awaiting_payment" && (
+                  <>
+                    <input
+                      ref={proofFileRef}
+                      type="file"
+                      accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp"
+                      className="hidden"
+                      onChange={e => {
+                        const f = e.target.files?.[0] ?? null;
+                        setProofFile(f);
+                        setProofError(null);
+                        setProofSuccess(false);
+                      }}
+                    />
+
+                    {/* Selected file preview */}
+                    {proofFile && (
+                      <div className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
+                        <FileText size={13} className="text-white/50 shrink-0" />
+                        <span className="text-[12px] text-white/70 flex-1 truncate">{proofFile.name}</span>
+                        <span className="text-[10px] text-white/30 shrink-0">
+                          {(proofFile.size / 1024).toFixed(0)} KB
+                        </span>
+                        <button
+                          onClick={() => {
+                            setProofFile(null);
+                            if (proofFileRef.current) proofFileRef.current.value = "";
+                          }}
+                          className="text-white/20 hover:text-white/50 transition shrink-0"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Choose / Upload buttons */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => proofFileRef.current?.click()}
+                        className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white/6 border border-white/10 text-white/50 text-[12px] font-medium hover:bg-white/10 hover:text-white/70 transition"
+                      >
+                        <Upload size={12} />
+                        {existingProof
+                          ? (ar ? "تغيير الملف" : "Replace")
+                          : (ar ? "اختر ملفاً" : "Choose File")}
+                      </button>
+
+                      {proofFile && (
+                        <motion.button
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          whileTap={{ scale: proofUploading ? 1 : 0.97 }}
+                          onClick={handleUploadProof}
+                          disabled={proofUploading}
+                          className="flex-1 py-2.5 rounded-xl bg-sky-600 text-white font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-md shadow-sky-700/20 hover:brightness-110 transition disabled:opacity-50"
+                        >
+                          {proofUploading ? (
+                            <>
+                              <Loader2 size={12} className="animate-spin" />
+                              {ar ? "جارٍ الرفع…" : "Uploading…"}
+                            </>
+                          ) : (
+                            <>
+                              <Upload size={12} />
+                              {ar ? "رفع الإثبات" : "Upload Proof"}
+                            </>
+                          )}
+                        </motion.button>
+                      )}
+                    </div>
+
+                    {/* Format hint */}
+                    <p className="text-[10px] text-white/20">
+                      {ar
+                        ? "الصيغ المقبولة: PDF، JPEG، PNG، WebP — الحد الأقصى 10 ميجابايت"
+                        : "Accepted: PDF, JPEG, PNG, WebP — max 10 MB"}
+                    </p>
+                  </>
+                )}
+
+                {/* Success banner */}
+                <AnimatePresence>
+                  {proofSuccess && (
+                    <motion.div
+                      key="proof-ok"
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="rounded-xl bg-sky-600/12 border border-sky-500/25 px-3.5 py-2.5 flex items-center gap-2"
+                    >
+                      <CheckCircle2 size={13} className="text-sky-400 shrink-0" />
+                      <p className="text-[12px] text-sky-300 font-medium">
+                        {ar
+                          ? "✓ تم رفع الإثبات — سيتلقى البائع إشعاراً."
+                          : "✓ Proof uploaded — the seller has been notified."}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Error banner */}
+                <AnimatePresence>
+                  {proofError && (
+                    <motion.div
+                      key="proof-err"
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="rounded-xl bg-red-500/10 border border-red-500/20 px-3.5 py-2.5 flex items-start gap-2"
+                    >
+                      <AlertCircle size={13} className="text-red-400 shrink-0 mt-0.5" />
+                      <p className="text-[12px] text-red-300 leading-snug">{proofError}</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+              </div>
+            </motion.div>
+          )}
 
           {/* ═══ 4. PAYMENT CARD + PAY NOW BUTTON ═══════════════════════════════ */}
           <motion.div

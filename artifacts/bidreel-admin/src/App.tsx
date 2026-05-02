@@ -13,6 +13,7 @@ import Reports from "@/pages/Reports";
 import Stats from "@/pages/Stats";
 import Actions from "@/pages/Actions";
 import AccountSettings from "@/pages/AccountSettings";
+import SecureDeals from "@/pages/SecureDeals";
 import NotFound from "@/pages/not-found";
 
 function AdminGuard({ children }: { children: React.ReactNode }) {
@@ -117,6 +118,9 @@ function Router() {
       </Route>
       <Route path="/account">
         <AdminGuard><AccountSettings /></AdminGuard>
+      </Route>
+      <Route path="/secure-deals">
+        <AdminGuard><SecureDeals /></AdminGuard>
       </Route>
       <Route><NotFound /></Route>
     </Switch>

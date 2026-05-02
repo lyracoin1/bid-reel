@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import {
-  LayoutDashboard, Users, Gavel, Flag, BarChart3, LogOut, History, Settings,
+  LayoutDashboard, Users, Gavel, Flag, BarChart3, LogOut, History, Settings, ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { clearAdminSession } from "@/lib/admin-session";
@@ -18,7 +18,8 @@ const NAV: NavItem[] = [
   { label: "المزادات",     path: "/auctions",  icon: <Gavel size={18} /> },
   { label: "البلاغات",     path: "/reports",   icon: <Flag size={18} /> },
   { label: "الإحصائيات",   path: "/stats",     icon: <BarChart3 size={18} /> },
-  { label: "سجل الأحداث",  path: "/actions",   icon: <History size={18} /> },
+  { label: "سجل الأحداث",  path: "/actions",        icon: <History     size={18} /> },
+  { label: "الصفقات الآمنة", path: "/secure-deals", icon: <ShieldCheck size={18} /> },
 ];
 
 interface AdminLayoutProps {

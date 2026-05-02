@@ -46,7 +46,7 @@ export default function Users() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase?.auth.getSession().then(({ data: { session } }) => {
       if (session?.user?.id) setCurrentAdminId(session.user.id);
     });
   }, []);

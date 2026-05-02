@@ -1150,10 +1150,27 @@ export default function CreateAuction() {
                           {lang === "ar" ? "جارٍ التسجيل — اضغط للإيقاف" : "Recording — tap to stop"}
                         </p>
                       )}
-                      {!isRecording && !recordedBlob && (
+                      {!isRecording && !recordedBlob && micPermission !== "denied" && (
                         <p className="mt-3 text-xs text-white/30">
                           {lang === "ar" ? "اضغط للبدء" : "Tap to start recording"}
                         </p>
+                      )}
+
+                      {/* Denied permission banner */}
+                      {micPermission === "denied" && (
+                        <div className="mt-4 w-full rounded-2xl bg-red-500/10 border border-red-500/25 px-4 py-3 flex items-start gap-3">
+                          <ShieldAlert size={18} className="text-red-400 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-sm font-semibold text-red-300">
+                              {lang === "ar" ? "لم يُسمح باستخدام الميكروفون" : "Microphone access denied"}
+                            </p>
+                            <p className="text-xs text-red-400/80 mt-0.5 leading-snug">
+                              {lang === "ar"
+                                ? "فعّل إذن الميكروفون من إعدادات الجهاز ثم أعد فتح التطبيق."
+                                : "Enable microphone access in device settings, then reopen the app."}
+                            </p>
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}

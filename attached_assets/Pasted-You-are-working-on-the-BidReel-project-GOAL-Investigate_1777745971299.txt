@@ -1,0 +1,45 @@
+You are working on the BidReel project.
+
+GOAL:
+Investigate and fix the microphone access issue in the "Record Audio" screen.
+
+CONTEXT:
+- The microphone permission has already been granted by the user.
+- The UI still shows: "Unable to access the microphone. Check device settings."
+- The recording button does not start recording.
+
+TASKS / SUSPECT AREAS:
+1) WebView / Capacitor context:
+   - Check if the WebView blocks microphone access due to the page origin (localhost or non-HTTPS).
+   - Verify server.url in capacitor.config.ts is HTTPS or that allowNavigation is configured.
+
+2) Runtime permission:
+   - Even if the manifest is correct, Android 6+ may require runtime permission.
+   - Confirm the app queries microphone permission at runtime before attempting recording.
+
+3) Manifest and Capacitor setup:
+   - Check that AndroidManifest.xml contains RECORD_AUDIO and MODIFY_AUDIO_SETTINGS permissions.
+   - Confirm capacitor.config.ts settings for server, allowNavigation, and cleartext.
+
+4) Dev vs Production environment:
+   - Determine if running in Vite dev server (localhost) on device might block microphone.
+   - Test if build APK works properly with microphone.
+
+5) Device-specific issues:
+   - Some Xiaomi, Huawei, Samsung phones restrict microphone access even if permissions are granted.
+   - Check battery optimization, privacy, or permission lock settings.
+
+6) Fallbacks and error reporting:
+   - Ensure the app correctly handles permission denied, blocked, or unavailable states.
+   - Provide clear UI messages to the user when microphone access is unavailable.
+
+INSTRUCTIONS:
+- Investigate each suspected area systematically.
+- Identify the root cause preventing microphone access.
+- Apply fixes in a safe, minimal way.
+- Build and test after each change to confirm recording now works.
+- Do NOT modify unrelated features or backend logic.
+- Provide a concise report of:
+  - What was preventing microphone access
+  - What fix was applied
+  - Any remaining warnings or potential issues

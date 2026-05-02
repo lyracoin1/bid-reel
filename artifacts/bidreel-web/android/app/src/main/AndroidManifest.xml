@@ -29,6 +29,8 @@
 
     <!-- Microphone (Audio Reel voice recording) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Required on many OEM ROMs (Samsung, Xiaomi, Huawei) for WebView getUserMedia audio capture -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <!-- Location (for auction geo-filtering) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />

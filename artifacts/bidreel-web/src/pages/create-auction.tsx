@@ -532,18 +532,29 @@ export default function CreateAuction() {
         setRecordingDuration(prev => prev + 1);
       }, 1000);
     } catch (err) {
-      const isDenied = err instanceof DOMException &&
-        (err.name === "NotAllowedError" || err.name === "PermissionDeniedError" || err.name === "NotFoundError");
-      // Show a small inline error regardless of denial type — no large banner.
-      // Do NOT gate micPermission state here; let the mount-time getUserMedia
-      // check handle that. The record button stays tappable always.
-      setMicError(lang === "ar"
-        ? (isDenied
-            ? "تعذّر الوصول إلى الميكروفون. تحقق من إعدادات الجهاز."
-            : "تعذّر الوصول إلى الميكروفون.")
-        : (isDenied
-            ? "Could not access microphone. Check device settings."
-            : "Could not access the microphone."));
+      // Classify the error precisely so the user gets an actionable message.
+      // NotAllowedError / PermissionDeniedError → OS or WebView denied the grant.
+      // NotFoundError → microphone hardware not found or track is busy (not a permission issue).
+      // Anything else → generic device error.
+      const errName = err instanceof DOMException ? err.name : "";
+      const isPermissionDenied = errName === "NotAllowedError" || errName === "PermissionDeniedError";
+      const isNotFound        = errName === "NotFoundError";
+
+      console.warn("[BidReel] getUserMedia failed:", errName, err);
+
+      if (isPermissionDenied) {
+        setMicError(lang === "ar"
+          ? "لم يُسمح بالوصول إلى الميكروفون. تحقق من إذن التطبيق في الإعدادات."
+          : "Microphone access denied. Check app permissions in device settings.");
+      } else if (isNotFound) {
+        setMicError(lang === "ar"
+          ? "لم يتم العثور على الميكروفون أو أنه مشغول. أعد المحاولة."
+          : "Microphone not found or is in use by another app. Please try again.");
+      } else {
+        setMicError(lang === "ar"
+          ? "تعذّر الوصول إلى الميكروفون."
+          : "Could not access the microphone.");
+      }
     }
   };
 

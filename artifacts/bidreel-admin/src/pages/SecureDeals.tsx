@@ -3,50 +3,53 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ShieldCheck, Package, DollarSign, Clock, CheckCircle2,
   Truck, Upload, Link2, ChevronDown, ChevronUp, X,
-  AlertCircle, FileText, Search,
+  AlertCircle, FileText, Search, Banknote, Info,
 } from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-type PayStatus     = "awaiting" | "secured";
-type ShipStatus    = "pending"  | "verified" | "delivered";
+type PayStatus  = "awaiting" | "secured";
+type ShipStatus = "pending"  | "verified" | "delivered";
 
 interface SecureDeal {
-  id:           string;
-  product:      string;
-  price:        number;
-  currency:     string;
-  buyerName:    string;
-  sellerName:   string;
-  payStatus:    PayStatus;
-  shipStatus:   ShipStatus;
-  trackingLink: string;
-  docFileName:  string | null;
-  createdAt:    string;
+  id:             string;
+  product:        string;
+  price:          number;
+  currency:       string;
+  buyerName:      string;
+  sellerName:     string;
+  payStatus:      PayStatus;
+  shipStatus:     ShipStatus;
+  trackingLink:   string;
+  docFileName:    string | null;
+  createdAt:      string;
+  fundsReleased:  boolean;
 }
 
-// ── Placeholder seed data ─────────────────────────────────────────────────────
+// ── Placeholder data ──────────────────────────────────────────────────────────
+
+const COMMISSION_RATE = 0.05; // 5%
 
 const INITIAL_DEALS: SecureDeal[] = [
-  { id: "BD-A1B2C3", product: "Authentic Rolex Submariner",    price: 2800,  currency: "USD", buyerName: "Ahmed Al-Rashid",   sellerName: "Khalid Nasser",   payStatus: "secured",  shipStatus: "verified",   trackingLink: "https://track.dhl.com/BD-A1B2C3", docFileName: "dhl_receipt_A1B2C3.pdf", createdAt: "2026-04-28" },
-  { id: "BD-D4E5F6", product: "iPhone 15 Pro Max 256GB",       price: 1200,  currency: "USD", buyerName: "Sara Mahmoud",      sellerName: "Omar Khalil",     payStatus: "secured",  shipStatus: "pending",    trackingLink: "",                                docFileName: null,                     createdAt: "2026-04-30" },
-  { id: "BD-G7H8I9", product: "Vintage Camera Collection",     price: 450,   currency: "EUR", buyerName: "Tariq Yusuf",       sellerName: "Layla Hassan",    payStatus: "awaiting", shipStatus: "pending",    trackingLink: "",                                docFileName: null,                     createdAt: "2026-05-01" },
-  { id: "BD-J0K1L2", product: "MacBook Pro M3 14-inch",        price: 1950,  currency: "USD", buyerName: "Nora Al-Amri",      sellerName: "Faisal Ibrahim",  payStatus: "secured",  shipStatus: "delivered",  trackingLink: "https://track.fedex.com/J0K1L2",  docFileName: "fedex_J0K1L2.pdf",       createdAt: "2026-04-25" },
-  { id: "BD-M3N4O5", product: "Original Chanel Handbag",       price: 3200,  currency: "USD", buyerName: "Hana Al-Zahrani",   sellerName: "Reem Qasim",      payStatus: "awaiting", shipStatus: "pending",    trackingLink: "",                                docFileName: null,                     createdAt: "2026-05-02" },
-  { id: "BD-P6Q7R8", product: "PS5 + 3 Controllers Bundle",    price: 680,   currency: "USD", buyerName: "Jassim Al-Dosari",  sellerName: "Mona Saleh",      payStatus: "secured",  shipStatus: "verified",   trackingLink: "https://track.ups.com/P6Q7R8",    docFileName: "ups_P6Q7R8.pdf",         createdAt: "2026-04-29" },
+  { id: "BD-A1B2C3", product: "Authentic Rolex Submariner",  price: 2800,  currency: "USD", buyerName: "Ahmed Al-Rashid",  sellerName: "Khalid Nasser",  payStatus: "secured",  shipStatus: "verified",  trackingLink: "https://track.dhl.com/BD-A1B2C3", docFileName: "dhl_receipt_A1B2C3.pdf", createdAt: "2026-04-28", fundsReleased: false },
+  { id: "BD-D4E5F6", product: "iPhone 15 Pro Max 256GB",     price: 1200,  currency: "USD", buyerName: "Sara Mahmoud",     sellerName: "Omar Khalil",    payStatus: "secured",  shipStatus: "pending",   trackingLink: "",                                docFileName: null,                     createdAt: "2026-04-30", fundsReleased: false },
+  { id: "BD-G7H8I9", product: "Vintage Camera Collection",   price: 450,   currency: "EUR", buyerName: "Tariq Yusuf",      sellerName: "Layla Hassan",   payStatus: "awaiting", shipStatus: "pending",   trackingLink: "",                                docFileName: null,                     createdAt: "2026-05-01", fundsReleased: false },
+  { id: "BD-J0K1L2", product: "MacBook Pro M3 14-inch",      price: 1950,  currency: "USD", buyerName: "Nora Al-Amri",     sellerName: "Faisal Ibrahim", payStatus: "secured",  shipStatus: "delivered", trackingLink: "https://track.fedex.com/J0K1L2",  docFileName: "fedex_J0K1L2.pdf",       createdAt: "2026-04-25", fundsReleased: true  },
+  { id: "BD-M3N4O5", product: "Original Chanel Handbag",     price: 3200,  currency: "USD", buyerName: "Hana Al-Zahrani",  sellerName: "Reem Qasim",     payStatus: "awaiting", shipStatus: "pending",   trackingLink: "",                                docFileName: null,                     createdAt: "2026-05-02", fundsReleased: false },
+  { id: "BD-P6Q7R8", product: "PS5 + 3 Controllers Bundle",  price: 680,   currency: "USD", buyerName: "Jassim Al-Dosari", sellerName: "Mona Saleh",     payStatus: "secured",  shipStatus: "verified",  trackingLink: "https://track.ups.com/P6Q7R8",    docFileName: "ups_P6Q7R8.pdf",         createdAt: "2026-04-29", fundsReleased: false },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const PAY_BADGE: Record<PayStatus, { label: string; cls: string }> = {
-  awaiting: { label: "بانتظار الدفع",    cls: "bg-amber-500/12 text-amber-400 border-amber-500/25" },
-  secured:  { label: "تم تأمين الدفع",   cls: "bg-emerald-500/12 text-emerald-400 border-emerald-500/25" },
+  awaiting: { label: "بانتظار الدفع",  cls: "bg-amber-500/12 text-amber-400 border-amber-500/25" },
+  secured:  { label: "تم تأمين الدفع", cls: "bg-emerald-500/12 text-emerald-400 border-emerald-500/25" },
 };
 const SHIP_BADGE: Record<ShipStatus, { label: string; cls: string }> = {
-  pending:   { label: "قيد الانتظار",   cls: "bg-gray-500/12 text-gray-400 border-gray-500/20" },
-  verified:  { label: "تم التحقق",      cls: "bg-blue-500/12 text-blue-400 border-blue-500/25" },
-  delivered: { label: "تم التسليم",     cls: "bg-emerald-500/12 text-emerald-400 border-emerald-500/25" },
+  pending:   { label: "قيد الانتظار", cls: "bg-gray-500/12 text-gray-400 border-gray-500/20" },
+  verified:  { label: "تم التحقق",    cls: "bg-blue-500/12 text-blue-400 border-blue-500/25" },
+  delivered: { label: "تم التسليم",   cls: "bg-emerald-500/12 text-emerald-400 border-emerald-500/25" },
 };
 
 function Badge({ cfg }: { cfg: { label: string; cls: string } }) {
@@ -57,6 +60,10 @@ function Badge({ cfg }: { cfg: { label: string; cls: string } }) {
   );
 }
 
+function fmt(n: number, currency: string) {
+  return `${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+}
+
 // ── Expanded row ──────────────────────────────────────────────────────────────
 
 function DealExpandedRow({
@@ -64,13 +71,16 @@ function DealExpandedRow({
   onVerify,
   onTrackingChange,
   onDocUpload,
+  onReleaseFunds,
 }: {
   deal: SecureDeal;
   onVerify: (id: string) => void;
   onTrackingChange: (id: string, val: string) => void;
   onDocUpload: (id: string, fileName: string) => void;
+  onReleaseFunds: (id: string) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [releasing, setReleasing] = useState(false);
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -86,6 +96,20 @@ function DealExpandedRow({
     if (deal.shipStatus === "pending") onVerify(deal.id);
   }
 
+  function handleReleaseFunds() {
+    if (releasing || deal.fundsReleased) return;
+    setReleasing(true);
+    console.log("[SecureDeals Admin] Release Funds triggered (placeholder) for deal:", deal.id, "amount:", deal.price, deal.currency);
+    setTimeout(() => {
+      onReleaseFunds(deal.id);
+      setReleasing(false);
+    }, 1200);
+  }
+
+  const commission   = deal.price * COMMISSION_RATE;
+  const sellerAmount = deal.price - commission;
+  const canRelease   = deal.payStatus === "secured" && deal.shipStatus !== "pending" && !deal.fundsReleased;
+
   return (
     <motion.tr
       initial={{ opacity: 0 }}
@@ -93,31 +117,34 @@ function DealExpandedRow({
       exit={{ opacity: 0 }}
       transition={{ duration: 0.18 }}
     >
-      <td colSpan={7} className="bg-white/2 border-b border-white/6 px-5 py-4">
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 max-w-3xl" dir="rtl">
+      <td colSpan={8} className="bg-white/2 border-b border-white/6 px-5 py-4">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 max-w-5xl" dir="rtl">
 
-          {/* Buyer / Seller info */}
+          {/* ── Parties info ── */}
           <div className="rounded-xl bg-white/3 border border-white/8 px-4 py-3 space-y-1.5 text-sm">
             <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2">تفاصيل الأطراف</p>
-            <div className="flex justify-between text-white/60">
+            <div className="flex justify-between">
               <span className="text-white/35">البائع</span>
               <span className="font-medium text-white/80">{deal.sellerName}</span>
             </div>
-            <div className="flex justify-between text-white/60">
+            <div className="flex justify-between">
               <span className="text-white/35">المشتري</span>
               <span className="font-medium text-white/80">{deal.buyerName}</span>
             </div>
-            <div className="flex justify-between text-white/60">
+            <div className="flex justify-between">
               <span className="text-white/35">تاريخ الإنشاء</span>
               <span className="font-medium text-white/80">{deal.createdAt}</span>
             </div>
+            <div className="flex justify-between pt-1 border-t border-white/6">
+              <span className="text-white/35">رقم الصفقة</span>
+              <span className="font-mono text-[11px] font-bold text-white/60">{deal.id}</span>
+            </div>
           </div>
 
-          {/* Shipment verification */}
+          {/* ── Shipment verification ── */}
           <div className="rounded-xl bg-white/3 border border-white/8 px-4 py-3 space-y-3">
             <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest">التحقق من الشحن</p>
 
-            {/* Tracking link */}
             <div className="space-y-1.5">
               <label className="text-xs text-white/40">رابط التتبع (DHL / FedEx / UPS)</label>
               <div className="flex gap-2">
@@ -142,7 +169,6 @@ function DealExpandedRow({
               </div>
             </div>
 
-            {/* Doc upload */}
             <div className="space-y-1.5">
               <label className="text-xs text-white/40">وثيقة الشحن (PDF / صورة)</label>
               <input ref={fileRef} type="file" accept=".pdf,image/*" className="hidden" onChange={handleFile} />
@@ -157,14 +183,13 @@ function DealExpandedRow({
                 {deal.docFileName && (
                   <div className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2.5 py-1.5">
                     <FileText size={11} />
-                    <span className="truncate max-w-[140px]">{deal.docFileName}</span>
+                    <span className="truncate max-w-[120px]">{deal.docFileName}</span>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Verify button */}
-            {deal.shipStatus === "pending" && (
+            {deal.shipStatus === "pending" ? (
               <button
                 onClick={() => onVerify(deal.id)}
                 className="w-full py-2.5 rounded-lg bg-emerald-600/80 text-white text-xs font-bold flex items-center justify-center gap-1.5 hover:brightness-110 transition"
@@ -172,14 +197,93 @@ function DealExpandedRow({
                 <CheckCircle2 size={13} />
                 تأكيد التحقق من الشحن
               </button>
-            )}
-            {deal.shipStatus !== "pending" && (
+            ) : (
               <div className="flex items-center gap-1.5 text-xs text-emerald-400">
                 <CheckCircle2 size={13} />
                 {deal.shipStatus === "delivered" ? "تم التسليم والتأكيد" : "تم التحقق من الشحن"}
               </div>
             )}
           </div>
+
+          {/* ── Release Funds ── */}
+          <div className={`rounded-xl border px-4 py-3 space-y-3 transition-colors ${
+            deal.fundsReleased
+              ? "bg-emerald-500/5 border-emerald-500/15"
+              : canRelease
+                ? "bg-amber-500/5 border-amber-500/20"
+                : "bg-white/3 border-white/8"
+          }`}>
+            <div className="flex items-center gap-2">
+              <Banknote size={13} className={deal.fundsReleased ? "text-emerald-400" : canRelease ? "text-amber-400" : "text-white/30"} />
+              <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest">تحرير الأموال</p>
+            </div>
+
+            {/* Commission breakdown */}
+            <div className="space-y-1.5 text-xs">
+              <div className="flex justify-between text-white/50">
+                <span className="text-white/35">المبلغ الإجمالي</span>
+                <span className="font-medium">{fmt(deal.price, deal.currency)}</span>
+              </div>
+              <div className="flex justify-between text-white/50">
+                <span className="flex items-center gap-1 text-white/35">
+                  عمولة بيدريل (5%)
+                  <Info size={10} className="text-white/20" />
+                </span>
+                <span className="font-medium text-amber-400">– {fmt(commission, deal.currency)}</span>
+              </div>
+              <div className="flex justify-between border-t border-white/8 pt-1.5">
+                <span className="font-bold text-white/60">يستلم البائع</span>
+                <span className="font-bold text-emerald-400">{fmt(sellerAmount, deal.currency)}</span>
+              </div>
+            </div>
+
+            {/* Status / button */}
+            <AnimatePresence mode="wait">
+              {deal.fundsReleased ? (
+                <motion.div
+                  key="released"
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 text-xs font-bold"
+                >
+                  <CheckCircle2 size={13} />
+                  تم تحرير الأموال للبائع
+                </motion.div>
+              ) : (
+                <motion.div key="release-btn" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
+                  <button
+                    onClick={handleReleaseFunds}
+                    disabled={!canRelease || releasing}
+                    className={`w-full py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                      canRelease && !releasing
+                        ? "bg-amber-500/80 text-white hover:brightness-110 shadow-sm shadow-amber-700/20"
+                        : "bg-white/5 text-white/20 border border-white/8 cursor-not-allowed"
+                    }`}
+                  >
+                    {releasing ? (
+                      <>
+                        <div className="w-3 h-3 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+                        جارٍ التحرير...
+                      </>
+                    ) : (
+                      <>
+                        <Banknote size={13} />
+                        تحرير الأموال للبائع
+                      </>
+                    )}
+                  </button>
+                  {!canRelease && !deal.fundsReleased && (
+                    <p className="text-[10px] text-white/25 text-center leading-snug">
+                      {deal.payStatus !== "secured"
+                        ? "يجب تأمين الدفع أولاً"
+                        : "يجب التحقق من الشحن أولاً"}
+                    </p>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
         </div>
       </td>
     </motion.tr>
@@ -189,15 +293,15 @@ function DealExpandedRow({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function SecureDeals() {
-  const [deals, setDeals] = useState<SecureDeal[]>(INITIAL_DEALS);
+  const [deals, setDeals]       = useState<SecureDeal[]>(INITIAL_DEALS);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [filterPay, setFilterPay] = useState<PayStatus | "all">("all");
+  const [search, setSearch]     = useState("");
+  const [filterPay, setFilterPay]   = useState<PayStatus | "all">("all");
   const [filterShip, setFilterShip] = useState<ShipStatus | "all">("all");
 
   const filtered = deals.filter(d => {
     const q = search.toLowerCase();
-    const matchQ = !q || d.id.toLowerCase().includes(q) || d.product.toLowerCase().includes(q) || d.buyerName.toLowerCase().includes(q) || d.sellerName.toLowerCase().includes(q);
+    const matchQ    = !q || d.id.toLowerCase().includes(q) || d.product.toLowerCase().includes(q) || d.buyerName.toLowerCase().includes(q) || d.sellerName.toLowerCase().includes(q);
     const matchPay  = filterPay  === "all" || d.payStatus  === filterPay;
     const matchShip = filterShip === "all" || d.shipStatus === filterShip;
     return matchQ && matchPay && matchShip;
@@ -220,11 +324,17 @@ export default function SecureDeals() {
     setDeals(prev => prev.map(d => d.id === id ? { ...d, docFileName: fileName } : d));
   }
 
+  function releaseFunds(id: string) {
+    setDeals(prev => prev.map(d => d.id === id ? { ...d, fundsReleased: true } : d));
+    console.log("[SecureDeals Admin] Funds released (placeholder) for:", id);
+  }
+
   const summaryStats = {
-    total:    deals.length,
-    secured:  deals.filter(d => d.payStatus === "secured").length,
-    pending:  deals.filter(d => d.shipStatus === "pending").length,
-    verified: deals.filter(d => d.shipStatus === "verified").length,
+    total:         deals.length,
+    secured:       deals.filter(d => d.payStatus === "secured").length,
+    pending:       deals.filter(d => d.shipStatus === "pending").length,
+    verified:      deals.filter(d => d.shipStatus === "verified").length,
+    fundsReleased: deals.filter(d => d.fundsReleased).length,
   };
 
   return (
@@ -243,12 +353,13 @@ export default function SecureDeals() {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3" dir="rtl">
+        <div className="grid grid-cols-2 xl:grid-cols-5 gap-3" dir="rtl">
           {[
-            { label: "إجمالي الصفقات",   value: summaryStats.total,    icon: <ShieldCheck size={16} />, cls: "text-white/60  bg-white/5   border-white/10" },
-            { label: "مدفوعات مؤمّنة",   value: summaryStats.secured,  icon: <DollarSign  size={16} />, cls: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
-            { label: "شحن معلّق",         value: summaryStats.pending,  icon: <Clock       size={16} />, cls: "text-amber-400  bg-amber-500/10  border-amber-500/20" },
-            { label: "تم التحقق",         value: summaryStats.verified, icon: <Truck       size={16} />, cls: "text-blue-400   bg-blue-500/10   border-blue-500/20" },
+            { label: "إجمالي الصفقات",  value: summaryStats.total,         icon: <ShieldCheck size={15} />, cls: "text-white/60   bg-white/5       border-white/10" },
+            { label: "مدفوعات مؤمّنة",  value: summaryStats.secured,        icon: <DollarSign  size={15} />, cls: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
+            { label: "شحن معلّق",        value: summaryStats.pending,        icon: <Clock       size={15} />, cls: "text-amber-400  bg-amber-500/10   border-amber-500/20" },
+            { label: "تم التحقق",        value: summaryStats.verified,       icon: <Truck       size={15} />, cls: "text-blue-400   bg-blue-500/10    border-blue-500/20" },
+            { label: "أموال محرَّرة",    value: summaryStats.fundsReleased,  icon: <Banknote    size={15} />, cls: "text-violet-400 bg-violet-500/10  border-violet-500/20" },
           ].map(s => (
             <div key={s.label} className={`rounded-xl border px-4 py-3.5 flex items-center gap-3 ${s.cls}`}>
               {s.icon}
@@ -262,7 +373,6 @@ export default function SecureDeals() {
 
         {/* Filters + Search */}
         <div className="flex flex-wrap items-center gap-2.5" dir="rtl">
-          {/* Search */}
           <div className="relative flex-1 min-w-[180px]">
             <Search size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/25 pointer-events-none" />
             <input
@@ -279,19 +389,17 @@ export default function SecureDeals() {
             )}
           </div>
 
-          {/* Pay filter */}
           <select
             value={filterPay}
             onChange={e => setFilterPay(e.target.value as PayStatus | "all")}
             className="bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white/70 focus:outline-none focus:border-primary/40 transition cursor-pointer"
             dir="rtl"
           >
-            <option value="all" className="bg-[#0c0c14]">كل حالات الدفع</option>
+            <option value="all"      className="bg-[#0c0c14]">كل حالات الدفع</option>
             <option value="awaiting" className="bg-[#0c0c14]">بانتظار الدفع</option>
             <option value="secured"  className="bg-[#0c0c14]">تم تأمين الدفع</option>
           </select>
 
-          {/* Ship filter */}
           <select
             value={filterShip}
             onChange={e => setFilterShip(e.target.value as ShipStatus | "all")}
@@ -311,7 +419,7 @@ export default function SecureDeals() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-white/4 border-b border-white/8 text-right" dir="rtl">
-                  {["رقم الصفقة", "المنتج", "السعر", "حالة الدفع", "حالة الشحن", "التتبع / الوثيقة", ""].map(h => (
+                  {["رقم الصفقة", "المنتج", "السعر", "حالة الدفع", "حالة الشحن", "الأموال", "التتبع / الوثيقة", ""].map(h => (
                     <th key={h} className="px-4 py-3 text-[10px] font-bold text-white/35 uppercase tracking-widest whitespace-nowrap">
                       {h}
                     </th>
@@ -321,7 +429,7 @@ export default function SecureDeals() {
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-16 text-center">
+                    <td colSpan={8} className="py-16 text-center">
                       <div className="flex flex-col items-center gap-2 text-white/25">
                         <AlertCircle size={22} />
                         <p className="text-sm">لا توجد صفقات تطابق البحث</p>
@@ -373,6 +481,18 @@ export default function SecureDeals() {
                           <Badge cfg={SHIP_BADGE[deal.shipStatus]} />
                         </td>
 
+                        {/* Funds released */}
+                        <td className="px-4 py-3.5 whitespace-nowrap">
+                          {deal.fundsReleased ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border bg-violet-500/12 text-violet-400 border-violet-500/25">
+                              <CheckCircle2 size={9} />
+                              تم التحرير
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-white/20 italic">—</span>
+                          )}
+                        </td>
+
                         {/* Tracking / doc */}
                         <td className="px-4 py-3.5 whitespace-nowrap">
                           {deal.trackingLink ? (
@@ -413,6 +533,7 @@ export default function SecureDeals() {
                             onVerify={verifyShipment}
                             onTrackingChange={updateTracking}
                             onDocUpload={uploadDoc}
+                            onReleaseFunds={releaseFunds}
                           />
                         )}
                       </AnimatePresence>

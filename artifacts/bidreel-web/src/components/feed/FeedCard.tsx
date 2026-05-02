@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { useLocation } from "wouter";
-import { Gavel, Bell, MapPin, Volume2, VolumeX, Bookmark, ThumbsUp, ThumbsDown, Eye, ShoppingBag, CheckCircle2, Users, X, Link2 } from "lucide-react";
+import { Gavel, Bell, MapPin, Volume2, VolumeX, Bookmark, ThumbsUp, ThumbsDown, Eye, ShoppingBag, CheckCircle2, Users, X, Link2, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type Auction } from "@/lib/mock-data";
 import { cn, getPublicBaseUrl } from "@/lib/utils";
@@ -102,6 +102,9 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   const { isSaved, toggle: toggleSave } = useSaveAuction();
   const { t, lang } = useLang();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const albumStartX = useRef<number | null>(null);
+  const albumSwiped = useRef(false);
+  const [albumIdx, setAlbumIdx] = useState(0);
   const { user: currentUser } = useCurrentUser();
   const isOwner = !!currentUser && auction.seller.id === currentUser.id;
   const viewerLoc = useViewerLocation();
@@ -374,7 +377,87 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent via-35% to-black/90 pointer-events-none" />
           {state !== "active" && <div className="absolute inset-0 bg-black/25 pointer-events-none" />}
         </div>
+      ) : auction.type === "album" && (auction.images?.length ?? 0) > 1 ? (
+        /* ── Multi-image album carousel ───────────────────────────────────── */
+        <div className="absolute inset-0">
+          {/* Current image — object-cover for full-bleed TikTok look */}
+          <img
+            src={auction.images![albumIdx]}
+            alt={`${auction.title} ${albumIdx + 1}`}
+            loading="lazy"
+            decoding="async"
+            className={cn("w-full h-full object-cover transition-all duration-300", isActive ? "scale-100" : "scale-105")}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent via-35% to-black/90 pointer-events-none" />
+          {state !== "active" && <div className="absolute inset-0 bg-black/25 pointer-events-none" />}
+
+          {/* Swipe + tap capture layer — swipe changes image, tap opens detail */}
+          <div
+            className="absolute inset-0"
+            onTouchStart={(e) => {
+              albumStartX.current = e.touches[0].clientX;
+              albumSwiped.current = false;
+            }}
+            onTouchEnd={(e) => {
+              if (albumStartX.current === null) return;
+              const dx = e.changedTouches[0].clientX - albumStartX.current;
+              if (Math.abs(dx) > 40) {
+                albumSwiped.current = true;
+                dx < 0
+                  ? setAlbumIdx(i => Math.min(auction.images!.length - 1, i + 1))
+                  : setAlbumIdx(i => Math.max(0, i - 1));
+              }
+              albumStartX.current = null;
+            }}
+            onClick={() => {
+              if (albumSwiped.current) { albumSwiped.current = false; return; }
+              setLocation(`/auction/${auction.id}`);
+            }}
+          />
+
+          {/* Left arrow — hidden on first image */}
+          {albumIdx > 0 && (
+            <button
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/55 backdrop-blur-sm border border-white/20 flex items-center justify-center active:scale-90 transition-transform"
+              onClick={(e) => { e.stopPropagation(); setAlbumIdx(i => Math.max(0, i - 1)); }}
+              aria-label="Previous image"
+            >
+              <ChevronLeft size={18} className="text-white" />
+            </button>
+          )}
+
+          {/* Right arrow — hidden on last image */}
+          {albumIdx < auction.images!.length - 1 && (
+            <button
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/55 backdrop-blur-sm border border-white/20 flex items-center justify-center active:scale-90 transition-transform"
+              onClick={(e) => { e.stopPropagation(); setAlbumIdx(i => Math.min(auction.images!.length - 1, i + 1)); }}
+              aria-label="Next image"
+            >
+              <ChevronRight size={18} className="text-white" />
+            </button>
+          )}
+
+          {/* Count badge — top-left, below safe-area */}
+          <div
+            className="absolute left-4 z-10 bg-black/55 backdrop-blur-sm rounded-full px-2.5 py-1 text-xs font-bold text-white pointer-events-none"
+            style={{ top: "max(52px, calc(env(safe-area-inset-top, 0px) + 12px))" }}
+          >
+            {albumIdx + 1} / {auction.images!.length}
+          </div>
+
+          {/* Dot strip — bottom-center, above info strip */}
+          <div className="absolute bottom-36 left-0 right-0 flex justify-center gap-1.5 z-10 pointer-events-none">
+            {auction.images!.map((_, i) => (
+              <div
+                key={i}
+                className={cn("rounded-full transition-all duration-200", i === albumIdx ? "w-5 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/50")}
+              />
+            ))}
+          </div>
+        </div>
       ) : (
+        /* ── Single image ─────────────────────────────────────────────────── */
         <div className="absolute inset-0 cursor-pointer" onClick={() => setLocation(`/auction/${auction.id}`)}>
           <img
             src={auction.mediaUrl} alt={auction.title}
@@ -408,8 +491,9 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
         className="absolute right-3 z-20 flex flex-col items-end gap-2"
         style={{ top: "max(104px, calc(env(safe-area-inset-top, 0px) + 68px))" }}
       >
-        {!isVideo && auction.type === "album" && (auction.images?.length ?? 0) > 1 && (
-          /* Album badge — non-interactive, 32dp visual size is fine */
+        {/* Album badge: show only for single-image albums (multi-image gets an
+            inline count badge from the carousel, making this icon redundant). */}
+        {!isVideo && auction.type === "album" && (auction.images?.length ?? 0) === 1 && (
           <div className="w-8 h-8 rounded-lg bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white pointer-events-none">
             <AlbumIcon size={16} />
           </div>

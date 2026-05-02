@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { useLocation } from "wouter";
-import { Gavel, Bell, MapPin, Volume2, VolumeX, Bookmark, ThumbsUp, ThumbsDown, Eye, ShoppingBag, CheckCircle2, Users } from "lucide-react";
+import { Gavel, Bell, MapPin, Volume2, VolumeX, Bookmark, ThumbsUp, ThumbsDown, Eye, ShoppingBag, CheckCircle2, Users, X, Link2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type Auction } from "@/lib/mock-data";
 import { cn, getPublicBaseUrl } from "@/lib/utils";
@@ -272,6 +272,7 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   }, [auction.id, auction.title, lang]);
 
   const [sharingToFollowers, setSharingToFollowers] = useState(false);
+  const [showShareSheet, setShowShareSheet] = useState(false);
 
   const handleShareToFollowers = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -287,6 +288,31 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
       setSharingToFollowers(false);
     }
   }, [sharingToFollowers, auction.id, lang]);
+
+  // Copy-link only — used as the tertiary fallback option inside the share sheet.
+  const handleCopyLink = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowShareSheet(false);
+    const shareUrl = `${getPublicBaseUrl()}/auction/${auction.id}`;
+    const isAr = lang === "ar";
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = shareUrl;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      toast({ title: isAr ? "تم نسخ الرابط" : "Link copied" });
+    } catch {
+      toast({ title: isAr ? "تعذّر النسخ" : "Could not copy", variant: "destructive" });
+    }
+  }, [auction.id, lang]);
 
   const handleOpenProfile = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();

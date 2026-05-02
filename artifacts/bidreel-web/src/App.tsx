@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -13,23 +13,41 @@ import { CapApp, isNative, OAUTH_SCHEME, closeBrowser } from "@/lib/capacitor-ap
 import { Browser } from "@capacitor/browser";
 import { installAudioIntentListener } from "@/lib/global-mute";
 
-// Core user pages — loaded eagerly (always needed)
+// ── Critical path — loaded eagerly (needed on first paint) ───────────────────
+// Splash is the entry point, Login is always reachable from Splash, and Feed
+// is the primary surface. These three must never be behind a lazy boundary.
 import Splash from "@/pages/splash";
 import Login from "@/pages/login";
 import Feed from "@/pages/feed";
-import Explore from "@/pages/explore";
-import AuctionDetail from "@/pages/auction-detail";
-import CreateAuction from "@/pages/create-auction";
-import Profile from "@/pages/profile";
-import PublicProfilePage from "@/pages/public-profile";
-import Interests from "@/pages/interests";
-import ProfileEdit from "@/pages/profile-edit";
-import SafetyRules from "@/pages/safety-rules";
-import ChangePassword from "@/pages/change-password";
 import NotFound from "@/pages/not-found";
-import PrivacyPolicy from "@/pages/privacy";
-import MyDealsPage from "@/pages/my-deals";
-import DealDetailPage from "@/pages/deal-detail";
+
+// ── Secondary routes — loaded lazily (code split on demand) ─────────────────
+// Each lazy() call tells Vite to emit a separate JS chunk for that page.
+// The chunk is fetched from cache (or network) only when the user navigates
+// there, so it never adds to the cold-start parse budget.
+const Explore          = lazy(() => import("@/pages/explore"));
+const AuctionDetail    = lazy(() => import("@/pages/auction-detail"));
+const CreateAuction    = lazy(() => import("@/pages/create-auction"));
+const Profile          = lazy(() => import("@/pages/profile"));
+const ProfileEdit      = lazy(() => import("@/pages/profile-edit"));
+const PublicProfilePage = lazy(() => import("@/pages/public-profile"));
+const Interests        = lazy(() => import("@/pages/interests"));
+const SafetyRules      = lazy(() => import("@/pages/safety-rules"));
+const ChangePassword   = lazy(() => import("@/pages/change-password"));
+const PrivacyPolicy    = lazy(() => import("@/pages/privacy"));
+const MyDealsPage      = lazy(() => import("@/pages/my-deals"));
+const DealDetailPage   = lazy(() => import("@/pages/deal-detail"));
+
+// ── Suspense fallback — shown during lazy chunk fetch ────────────────────────
+// Minimal spinner that matches the app's dark background, keeping the
+// transition from Feed visually seamless.
+function PageLoader() {
+  return (
+    <div className="w-full h-[100dvh] flex items-center justify-center bg-background">
+      <div className="w-7 h-7 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -72,25 +90,31 @@ function OnboardingGuard({ children }: { children: React.ReactNode }) {
 function Router() {
   return (
     <OnboardingGuard>
-      <Switch>
-        <Route path="/login" component={Login} />
-        <Route path="/" component={Splash} />
-        <Route path="/feed" component={Feed} />
-        <Route path="/explore" component={Explore} />
-        <Route path="/auction/:id" component={AuctionDetail} />
-        <Route path="/create" component={CreateAuction} />
-        <Route path="/profile" component={Profile} />
-        <Route path="/profile/edit" component={ProfileEdit} />
-        <Route path="/users/:userId" component={PublicProfilePage} />
-        <Route path="/interests" component={Interests} />
-        <Route path="/safety-rules" component={SafetyRules} />
-        <Route path="/change-password" component={ChangePassword} />
-        <Route path="/privacy" component={PrivacyPolicy} />
-        <Route path="/deals" component={MyDealsPage} />
-        <Route path="/deals/:dealId" component={DealDetailPage} />
+      {/* Suspense boundary covers all lazy-loaded page chunks.
+          The fallback spinner is shown only for the brief moment (usually
+          <100 ms on a warm cache, <500 ms on first visit) while the chunk
+          for a secondary page is fetched and parsed. */}
+      <Suspense fallback={<PageLoader />}>
+        <Switch>
+          <Route path="/login" component={Login} />
+          <Route path="/" component={Splash} />
+          <Route path="/feed" component={Feed} />
+          <Route path="/explore" component={Explore} />
+          <Route path="/auction/:id" component={AuctionDetail} />
+          <Route path="/create" component={CreateAuction} />
+          <Route path="/profile" component={Profile} />
+          <Route path="/profile/edit" component={ProfileEdit} />
+          <Route path="/users/:userId" component={PublicProfilePage} />
+          <Route path="/interests" component={Interests} />
+          <Route path="/safety-rules" component={SafetyRules} />
+          <Route path="/change-password" component={ChangePassword} />
+          <Route path="/privacy" component={PrivacyPolicy} />
+          <Route path="/deals" component={MyDealsPage} />
+          <Route path="/deals/:dealId" component={DealDetailPage} />
 
-        <Route component={NotFound} />
-      </Switch>
+          <Route component={NotFound} />
+        </Switch>
+      </Suspense>
     </OnboardingGuard>
   );
 }

@@ -71,6 +71,47 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // ── Vendor chunk splitting ───────────────────────────────────────────
+        // Splitting heavy node_modules into named chunks gives two benefits:
+        //   1. Smaller initial parse cost — the browser/WebView only parses
+        //      what is needed for the current route on cold start.
+        //   2. Better long-term HTTP cache hit rate — vendor chunks rarely
+        //      change between deploys, so returning users skip re-downloading
+        //      framer-motion/radix/supabase even when app code updates.
+        //
+        // Firebase is handled separately: firebase.ts uses dynamic imports so
+        // the SDK is never in the initial bundle at all. The manualChunks entry
+        // below just gives it a stable, predictable chunk name.
+        manualChunks(id: string) {
+          // Firebase Web SDK — loaded lazily, only when push notifications
+          // are configured. Named chunk for stable caching.
+          if (id.includes("/node_modules/firebase/") ||
+              id.includes("/node_modules/@firebase/")) {
+            return "vendor-firebase";
+          }
+          // Framer Motion — animation runtime, not needed for initial render.
+          if (id.includes("/node_modules/framer-motion/")) {
+            return "vendor-framer";
+          }
+          // Radix UI primitives — large collection of component packages.
+          if (id.includes("/node_modules/@radix-ui/")) {
+            return "vendor-radix";
+          }
+          // Supabase client + realtime + storage.
+          if (id.includes("/node_modules/@supabase/")) {
+            return "vendor-supabase";
+          }
+          // React core — tiny but benefits from a long-lived cache entry.
+          if (id.includes("/node_modules/react/") ||
+              id.includes("/node_modules/react-dom/") ||
+              id.includes("/node_modules/scheduler/")) {
+            return "vendor-react";
+          }
+        },
+      },
+    },
   },
   server: {
     port,

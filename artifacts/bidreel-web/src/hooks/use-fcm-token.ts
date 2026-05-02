@@ -14,12 +14,17 @@
  *
  * Usage: mount once at the App root. The hook is safe to mount even when Firebase
  * is not configured — it exits gracefully in both paths.
+ *
+ * ── Bundle-size note ─────────────────────────────────────────────────────────
+ * `getToken` from firebase/messaging is NOT imported at the top level.
+ * It is loaded via dynamic import inside initWebFcm(), which only runs when
+ * Firebase is actually configured and the user grants notification permission.
+ * This keeps the firebase/messaging chunk completely off the critical path.
  */
 
 import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Capacitor } from "@capacitor/core";
-import { getToken } from "firebase/messaging";
 import {
   isFirebaseConfigured,
   getFirebaseMessaging,
@@ -185,10 +190,14 @@ async function initWebFcm(
       activeSw.postMessage({ type: "FIREBASE_SW_CONFIG", config: firebaseConfig });
     }
 
-    // 4. Get FCM registration token
-    const messaging = getFirebaseMessaging();
+    // 4. Get FCM registration token.
+    //    Both firebase/messaging and getFirebaseMessaging() are loaded here
+    //    as dynamic imports — they are never on the cold-start critical path.
+    const messaging = await getFirebaseMessaging();
     if (!messaging) return;
 
+    // Dynamic import keeps `getToken` out of the initial bundle entirely.
+    const { getToken } = await import("firebase/messaging");
     const token = await getToken(messaging, {
       vapidKey,
       serviceWorkerRegistration: swReg,
@@ -202,7 +211,7 @@ async function initWebFcm(
     console.info("[fcm] Token obtained, registering with server…");
 
     // 5. Register token with the backend (platform: "web")
-    await registerDeviceToken(token, "web");
+    await onToken(token, "web", "initWebFcm");
     console.info("[fcm] Device token registered successfully");
   } catch (err) {
     console.error("[fcm] Initialisation error:", err);

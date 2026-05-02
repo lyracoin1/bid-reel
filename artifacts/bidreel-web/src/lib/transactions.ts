@@ -4,10 +4,12 @@
  * Client-side helpers for the Secure Deals (transactions) feature.
  *
  * All reads and writes go through the BidReel API server:
- *   GET  /api/secure-deals/:dealId       — load deal (+ seller_name)
- *   POST /api/secure-deals               — seller creates deal
- *   POST /api/transactions/pay-now       — buyer pays
- *   PATCH /api/secure-deals/:dealId/ship — seller updates shipment
+ *   GET  /api/secure-deals/:dealId            — load deal (+ seller_name)
+ *   POST /api/secure-deals                    — seller creates deal
+ *   POST /api/transactions/pay-now            — buyer pays
+ *   PATCH /api/secure-deals/:dealId/ship      — seller updates shipment
+ *   POST /api/deal-conditions                 — buyer submits conditions
+ *   GET  /api/deal-conditions/:dealId         — read submitted conditions
  *
  * PAYMENT GATEWAY INTEGRATION POINT
  *   POST /api/transactions/pay-now currently performs a placeholder charge.
@@ -45,6 +47,18 @@ export interface Transaction {
   release_date:    string | null;
   created_at:      string;
   updated_at:      string;
+}
+
+export type ConditionStatus = "pending" | "accepted" | "rejected";
+
+export interface DealCondition {
+  id:          string;
+  deal_id:     string;
+  buyer_id:    string;
+  conditions:  string;
+  status:      ConditionStatus;
+  created_at:  string;
+  updated_at:  string;
 }
 
 export interface CreateTransactionInput {
@@ -237,4 +251,57 @@ export async function updateShipment(
  */
 export async function releaseFunds(_dealId: string): Promise<void> {
   console.log("[transactions] releaseFunds — admin operation; use admin panel");
+}
+
+// ── Buyer Conditions (deal-conditions) ───────────────────────────────────────
+
+/**
+ * Submit (or re-submit) buyer conditions for a deal.
+ * Calls POST /api/deal-conditions — requires auth.
+ * A re-submission silently replaces the previous conditions row.
+ * Throws if the request fails or the server returns an error.
+ */
+export async function submitDealConditions(
+  dealId:     string,
+  conditions: string,
+): Promise<DealCondition> {
+  const res = await apiFetch("/deal-conditions", {
+    method: "POST",
+    body:   JSON.stringify({ deal_id: dealId, conditions }),
+  }, true);
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).message ?? `Failed to submit conditions (${res.status})`);
+  }
+
+  const { condition } = await res.json();
+  return condition as DealCondition;
+}
+
+/**
+ * Fetch previously submitted conditions for a deal.
+ * Calls GET /api/deal-conditions/:dealId — requires auth.
+ * Returns the caller's own condition row (buyer) or all rows (seller).
+ * Returns null if the caller has not submitted any conditions yet.
+ */
+export async function getDealConditions(
+  dealId: string,
+): Promise<DealCondition | null> {
+  const res = await apiFetch(
+    `/deal-conditions/${encodeURIComponent(dealId)}`,
+    {},
+    true,
+  );
+
+  if (res.status === 403 || res.status === 404) return null;
+
+  if (!res.ok) {
+    console.warn("[transactions] getDealConditions error:", res.status);
+    return null;
+  }
+
+  const { conditions } = await res.json();
+  const rows = conditions as DealCondition[];
+  return rows.length > 0 ? rows[0] : null;
 }

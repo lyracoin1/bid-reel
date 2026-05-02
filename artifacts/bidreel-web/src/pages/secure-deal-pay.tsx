@@ -6,6 +6,7 @@ import {
   Truck, StickyNote, Lock, Image, Video,
   CheckCircle2, Bell, PartyPopper, AlertCircle,
   Loader2, UserX, RefreshCw, User, UserCheck, PencilLine,
+  ScrollText, Send,
 } from "lucide-react";
 import {
   isPlayBillingAvailable,
@@ -18,7 +19,8 @@ import { useLang } from "@/contexts/LanguageContext";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getTransaction, updatePaymentStatus, sendPaymentNotification,
-  Transaction,
+  submitDealConditions, getDealConditions,
+  Transaction, DealCondition,
 } from "@/lib/transactions";
 
 // ── Deal UI status (derived from DB payment_status + shipment_status) ──────
@@ -230,6 +232,14 @@ export default function SecureDealPayPage() {
   const [paidAmount, setPaidAmount] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
 
+  // Buyer conditions state
+  const [conditionsText, setConditionsText]         = useState("");
+  const [conditionsSubmitting, setConditionsSubmitting] = useState(false);
+  const [conditionsError, setConditionsError]       = useState<string | null>(null);
+  const [conditionsSuccess, setConditionsSuccess]   = useState(false);
+  const [existingCondition, setExistingCondition]   = useState<DealCondition | null>(null);
+  const [conditionsEditMode, setConditionsEditMode] = useState(false);
+
   // ── Load transaction ─────────────────────────────────────────────────────
   const loadTx = useCallback(async () => {
     if (!dealId) return;
@@ -257,6 +267,46 @@ export default function SecureDealPayPage() {
   }, [dealId, ar]);
 
   useEffect(() => { loadTx(); }, [loadTx]);
+
+  // ── Load previously-submitted conditions (buyer only, best-effort) ────────
+  const loadConditions = useCallback(async () => {
+    if (!dealId || !user) return;
+    try {
+      const row = await getDealConditions(dealId);
+      if (row) {
+        setExistingCondition(row);
+        setConditionsText(row.conditions);
+      }
+    } catch {
+      // Non-fatal — conditions section degrades gracefully
+    }
+  }, [dealId, user]);
+
+  useEffect(() => { loadConditions(); }, [loadConditions]);
+
+  // ── Submit buyer conditions ───────────────────────────────────────────────
+  async function handleSubmitConditions() {
+    if (!user || !tx || conditionsSubmitting) return;
+    const trimmed = conditionsText.trim();
+    if (!trimmed) return;
+
+    setConditionsSubmitting(true);
+    setConditionsError(null);
+    setConditionsSuccess(false);
+
+    try {
+      const saved = await submitDealConditions(tx.deal_id, trimmed);
+      setExistingCondition(saved);
+      setConditionsText(saved.conditions);
+      setConditionsSuccess(true);
+      setConditionsEditMode(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setConditionsError(ar ? `فشل الإرسال: ${msg}` : `Submission failed: ${msg}`);
+    } finally {
+      setConditionsSubmitting(false);
+    }
+  }
 
   // ── Pay Now ──────────────────────────────────────────────────────────────
   //
@@ -601,7 +651,175 @@ export default function SecureDealPayPage() {
             </div>
           </motion.div>
 
-          {/* ═══ 3. PROGRESS STEPPER (below transaction details) ════════════════ */}
+          {/* ═══ 3. BUYER TERMS CARD ═════════════════════════════════════════════
+               Visible only while awaiting payment OR when conditions were
+               already submitted (read-only view after payment).              */}
+          {(dealStatus === "awaiting_payment" || existingCondition) && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+              className="rounded-3xl bg-white/4 border border-white/8 overflow-hidden"
+            >
+              {/* Card header */}
+              <div className="bg-gradient-to-r from-violet-600/15 to-transparent px-5 pt-4 pb-3 border-b border-white/6">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <ScrollText size={12} className="text-violet-400" />
+                    <p className="text-[10px] font-bold text-violet-400/80 uppercase tracking-widest">
+                      {ar ? "شروط المشتري" : "Buyer Terms"}
+                    </p>
+                  </div>
+                  {/* Edit toggle — only when conditions exist and payment is still pending */}
+                  {existingCondition && dealStatus === "awaiting_payment" && !conditionsEditMode && (
+                    <button
+                      onClick={() => { setConditionsEditMode(true); setConditionsSuccess(false); }}
+                      className="text-[10px] font-bold text-violet-400/60 hover:text-violet-300 transition"
+                    >
+                      {ar ? "تعديل" : "Edit"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="px-5 py-4 space-y-3">
+
+                {/* Helper text */}
+                <p className="text-[11px] text-white/35 leading-relaxed">
+                  {ar
+                    ? "يمكنك إضافة أي شروط أو ملاحظات خاصة تريد إبلاغ البائع بها قبل إتمام الدفع. سيتلقى البائع إشعاراً فورياً."
+                    : "Add any special conditions or notes for the seller before paying. The seller will be notified immediately."}
+                </p>
+
+                {/* ── Read-only view: submitted & not editing ── */}
+                {existingCondition && !conditionsEditMode && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="rounded-2xl bg-violet-600/8 border border-violet-500/20 px-4 py-3.5 space-y-2"
+                  >
+                    <p className="text-[10px] font-bold text-violet-400/60 uppercase tracking-widest">
+                      {ar ? "تم الإرسال" : "Submitted"}
+                    </p>
+                    <p className="text-sm text-white/80 leading-relaxed whitespace-pre-wrap break-words">
+                      {existingCondition.conditions}
+                    </p>
+                    <p className="text-[10px] text-white/25">
+                      {new Date(existingCondition.updated_at).toLocaleString(ar ? "ar-SA" : "en-US", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </p>
+                  </motion.div>
+                )}
+
+                {/* ── Textarea: new submission or editing ── */}
+                {(dealStatus === "awaiting_payment" && (!existingCondition || conditionsEditMode)) && (
+                  <textarea
+                    value={conditionsText}
+                    onChange={e => {
+                      setConditionsText(e.target.value);
+                      setConditionsError(null);
+                      setConditionsSuccess(false);
+                    }}
+                    placeholder={
+                      ar
+                        ? "مثال: أريد فاتورة ضريبية، أو التسليم خلال 3 أيام…"
+                        : "e.g. I need a tax invoice, or delivery within 3 days…"
+                    }
+                    maxLength={2000}
+                    rows={4}
+                    dir={ar ? "rtl" : "ltr"}
+                    className="w-full rounded-2xl bg-white/6 border border-white/12 focus:border-violet-500/50 focus:bg-white/8 px-4 py-3 text-sm text-white placeholder-white/20 outline-none resize-none leading-relaxed transition-colors"
+                  />
+                )}
+
+                {/* Character count */}
+                {(dealStatus === "awaiting_payment" && (!existingCondition || conditionsEditMode)) && (
+                  <p className="text-[10px] text-white/20 text-end">
+                    {conditionsText.length} / 2000
+                  </p>
+                )}
+
+                {/* Success banner */}
+                <AnimatePresence>
+                  {conditionsSuccess && (
+                    <motion.div
+                      key="cond-ok"
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="rounded-xl bg-violet-600/12 border border-violet-500/25 px-3.5 py-2.5 flex items-center gap-2"
+                    >
+                      <CheckCircle2 size={13} className="text-violet-400 shrink-0" />
+                      <p className="text-[12px] text-violet-300 font-medium">
+                        {ar
+                          ? "✓ تم إرسال شروطك — سيتلقى البائع إشعاراً."
+                          : "✓ Conditions sent — the seller has been notified."}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Error banner */}
+                <AnimatePresence>
+                  {conditionsError && (
+                    <motion.div
+                      key="cond-err"
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="rounded-xl bg-red-500/10 border border-red-500/20 px-3.5 py-2.5 flex items-start gap-2"
+                    >
+                      <AlertCircle size={13} className="text-red-400 shrink-0 mt-0.5" />
+                      <p className="text-[12px] text-red-300 leading-snug">{conditionsError}</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Submit button */}
+                {dealStatus === "awaiting_payment" && (!existingCondition || conditionsEditMode) && (
+                  <motion.button
+                    whileTap={{ scale: conditionsSubmitting || !conditionsText.trim() ? 1 : 0.97 }}
+                    onClick={handleSubmitConditions}
+                    disabled={conditionsSubmitting || !conditionsText.trim()}
+                    className="w-full py-3.5 rounded-2xl bg-violet-600 text-white font-bold text-sm flex items-center justify-center gap-2.5 shadow-lg shadow-violet-700/25 hover:brightness-110 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {conditionsSubmitting ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        {ar ? "جارٍ الإرسال…" : "Sending…"}
+                      </>
+                    ) : (
+                      <>
+                        <Send size={14} />
+                        {existingCondition
+                          ? (ar ? "تحديث الشروط" : "Update Conditions")
+                          : (ar ? "إرسال الشروط للبائع" : "Send Conditions to Seller")}
+                      </>
+                    )}
+                  </motion.button>
+                )}
+
+                {/* Cancel edit */}
+                {conditionsEditMode && (
+                  <button
+                    onClick={() => {
+                      setConditionsEditMode(false);
+                      setConditionsText(existingCondition?.conditions ?? "");
+                      setConditionsError(null);
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-white/4 border border-white/8 text-white/35 text-[11px] font-medium hover:text-white/55 hover:bg-white/7 transition"
+                  >
+                    {ar ? "إلغاء" : "Cancel"}
+                  </button>
+                )}
+
+              </div>
+            </motion.div>
+          )}
+
+          {/* ═══ 4. PROGRESS STEPPER (below transaction details) ════════════════ */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}

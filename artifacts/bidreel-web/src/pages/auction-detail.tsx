@@ -172,6 +172,10 @@ export default function AuctionDetail() {
   const viewerLoc = useViewerLocation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  // True once the video element fires onLoadedData — used to hide the
+  // thumbnail overlay. Reset to false whenever the auction changes so
+  // the thumbnail shows again while the new video is fetching its first frame.
+  const [videoHasData, setVideoHasData] = useState(false);
   const { isRefreshing, refresh } = useBidPolling();
   const { pullDistance, pullProgress, isRefreshing: isPulling } =
     usePullToRefresh(scrollRef, refresh);
@@ -193,6 +197,8 @@ export default function AuctionDetail() {
     if (!auction || auction.type !== "video") return;
     const el = videoRef.current;
     if (!el) return;
+    // Reset thumbnail overlay whenever we switch to a different auction.
+    setVideoHasData(false);
     // Use latest global value at play() time to avoid one-frame mismatch.
     el.muted = getGlobalMuted();
     el.play().catch(() => {});
@@ -201,6 +207,29 @@ export default function AuctionDetail() {
       console.error(`[AuctionDetail] Video error for "${auction.id}":`, el.error);
     el.addEventListener("error", handleError);
     return () => el.removeEventListener("error", handleError);
+  }, [auction?.id, auction?.type]);
+
+  // Pause video when the media stage scrolls off-screen; resume when it
+  // returns. Prevents audio + network buffering from continuing while the
+  // user reads the bid history at the bottom of the page.
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || auction?.type !== "video") return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry) return;
+        if (entry.isIntersecting) {
+          el.play().catch(() => {});
+        } else {
+          el.pause();
+        }
+      },
+      { threshold: 0.25 },
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [auction?.id, auction?.type]);
 
   // ── Seed the bid-increment input with the per-auction floor ──────────────
@@ -477,6 +506,18 @@ export default function AuctionDetail() {
             <ImageSlider images={auction.images!} alt={auction.title} className="w-full h-full" />
           ) : isVideo ? (
             <>
+              {/* Thumbnail overlay — visible until the video fires onLoadedData.
+                  Prevents a flash of black while preload="metadata" fetches the
+                  first frame. Uses object-contain to match the video's letterbox
+                  treatment. The video sits above (relative z-10) and replaces it
+                  visually once its data is ready. */}
+              {auction.thumbnailUrl && !videoHasData && (
+                <img
+                  src={auction.thumbnailUrl}
+                  aria-hidden
+                  className="absolute inset-0 w-full h-full object-contain"
+                />
+              )}
               <video
                 ref={videoRef}
                 src={auction.mediaUrl}
@@ -485,14 +526,16 @@ export default function AuctionDetail() {
                 // <video> in some Capacitor / Android WebView versions.
                 // The flex parent (`items-center justify-center`) centres the
                 // element; `bg-black` on the container provides letterbox bars.
+                // relative z-10: stack above the absolute thumbnail overlay.
                 className={cn(
-                  "max-w-full max-h-full",
+                  "max-w-full max-h-full relative z-10",
                   state !== "active" && "opacity-80",
                 )}
                 playsInline
                 preload="metadata"
                 loop
                 muted
+                onLoadedData={() => setVideoHasData(true)}
               />
               {/* Mute / unmute control */}
               <button

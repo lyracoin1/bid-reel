@@ -1,0 +1,69 @@
+You are working on BidReel.
+
+CRITICAL RULES:
+- Do NOT touch upload logic
+- Do NOT touch R2 pipeline
+- Do NOT touch ffmpeg/video-processing
+- Do NOT change database schema
+- Do NOT change auction creation
+- Do NOT change media saving logic
+- Work ONLY on video viewing/playback behavior
+- Keep changes minimal and safe
+
+TASK:
+Optimize video viewing behavior only.
+
+Goal:
+Make video playback lighter and smarter in FeedCard and auction detail.
+
+Required fixes:
+1. Videos should NOT load unless needed.
+2. In the feed:
+   - Only the active video should play.
+   - Nearby videos may load metadata only if already implemented safely.
+   - Videos far from the active card should not keep src loaded.
+   - Off-screen videos must pause and release resources when possible.
+
+3. In auction detail:
+   - Do not aggressively load the video immediately if not needed.
+   - Use preload="metadata".
+   - Add poster/thumbnail display if thumbnailUrl exists.
+   - Pause video when it goes off-screen or when user scrolls away from the media area.
+   - Do not autoplay detail video if that causes heavy buffering.
+
+4. Preserve:
+   - existing video controls
+   - mute/unmute behavior
+   - play/pause behavior
+   - image auctions
+   - multi-image auctions
+   - audio future compatibility
+
+Do NOT implement:
+- HLS
+- adaptive quality
+- Cloudflare Stream
+- multiple video qualities
+- upload compression changes
+- DB changes
+
+Likely files to inspect ONLY:
+- artifacts/bidreel-web/src/components/feed/FeedCard.tsx
+- artifacts/bidreel-web/src/pages/auction-detail.tsx
+- any local video/media display component used by these files
+
+VERIFY:
+1. Feed plays only one video at a time.
+2. Off-screen videos pause.
+3. Far feed videos do not keep src loaded.
+4. Auction detail video uses preload="metadata".
+5. Auction detail video shows thumbnail/poster when available.
+6. Auction detail video pauses when off-screen.
+7. Build passes.
+
+FINAL:
+- Explain exactly what viewing behavior changed.
+- Confirm upload/R2/ffmpeg/DB were untouched.
+- List files changed.
+- Build verification.
+- git push origin main.

@@ -1,0 +1,69 @@
+You are working on BidReel.
+
+CRITICAL RULES:
+- Do NOT scan the whole repository
+- Do NOT refactor unrelated code
+- Do NOT change auction logic
+- Do NOT change bidding logic
+- Do NOT change media upload/display logic
+- Do NOT change performance fixes already done
+- Work ONLY on FeedCard action buttons UI and share behavior
+- Keep changes minimal and safe
+
+TASK:
+Clean up the FeedCard left-side action buttons.
+
+Problem:
+There is a standalone left-side action button labeled "متابعيني" / "My followers".
+It takes too much vertical space and makes the vertical action stack crowded.
+
+Required change:
+1. Remove the standalone "متابعيني" / "My followers" button from the left-side vertical action stack.
+2. Move the same action inside the existing Share flow as an option:
+   - English: "Share to my followers"
+   - Arabic: "متابعيني"
+3. Reuse the exact existing behavior of the old followers button.
+4. Do NOT remove or break the normal Share button.
+
+IMPORTANT SHARE REQUIREMENT:
+Do NOT make Share = copy link only.
+
+The main Share button must open the real device/app share sheet when available.
+
+Required share behavior:
+1. On Android / Capacitor / mobile:
+   - Use navigator.share when supported
+   - Open the native share sheet so the user can choose apps like WhatsApp, Facebook, Telegram, Messenger, etc.
+2. If native share is not supported:
+   - Show fallback share options.
+3. Copy link may exist only as a fallback option, NOT as the main share behavior.
+4. Add "Share to my followers / متابعيني" inside the share options/menu.
+5. Keep WhatsApp/Facebook/native share behavior working.
+
+Do NOT change:
+- like button
+- save button
+- bid button
+- WhatsApp button
+- auction card data
+- media rendering
+- performance hooks
+
+Likely file to inspect ONLY:
+- artifacts/bidreel-web/src/components/feed/FeedCard.tsx
+
+VERIFY:
+1. The standalone followers button no longer appears in the left action stack.
+2. The followers action appears inside the Share options.
+3. The Share button opens the native device/app share sheet on Android when supported.
+4. Copy link is fallback only, not the main behavior.
+5. Existing WhatsApp/Facebook/share options still work.
+6. Feed layout has more vertical space.
+7. Build passes.
+
+FINAL:
+- Explain root cause
+- List files changed
+- Confirm native share behavior is preserved
+- Build verification
+- git push origin main

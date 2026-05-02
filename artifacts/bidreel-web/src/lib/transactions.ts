@@ -253,6 +253,68 @@ export async function releaseFunds(_dealId: string): Promise<void> {
   console.log("[transactions] releaseFunds — admin operation; use admin panel");
 }
 
+// ── Seller Conditions (seller-conditions) ────────────────────────────────────
+
+export interface SellerCondition {
+  id:          string;
+  deal_id:     string;
+  seller_id:   string;
+  conditions:  string;
+  status:      ConditionStatus;
+  created_at:  string;
+  updated_at:  string;
+}
+
+/**
+ * Submit (or re-submit) seller conditions for a deal.
+ * Calls POST /api/seller-conditions — requires auth (seller only).
+ * A re-submission silently replaces the previous conditions row.
+ * Throws if the request fails or the server returns an error.
+ */
+export async function submitSellerConditions(
+  dealId:     string,
+  conditions: string,
+): Promise<SellerCondition> {
+  const res = await apiFetch("/seller-conditions", {
+    method: "POST",
+    body:   JSON.stringify({ deal_id: dealId, conditions }),
+  }, true);
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).message ?? `Failed to submit conditions (${res.status})`);
+  }
+
+  const { condition } = await res.json();
+  return condition as SellerCondition;
+}
+
+/**
+ * Fetch seller conditions for a deal.
+ * Calls GET /api/seller-conditions/:dealId — requires auth.
+ * Returns the seller's condition row or null if none submitted yet.
+ * Returns null on 403 (caller not authorised) or 404 (deal not found).
+ */
+export async function getSellerConditions(
+  dealId: string,
+): Promise<SellerCondition | null> {
+  const res = await apiFetch(
+    `/seller-conditions/${encodeURIComponent(dealId)}`,
+    {},
+    true,
+  );
+
+  if (res.status === 403 || res.status === 404) return null;
+
+  if (!res.ok) {
+    console.warn("[transactions] getSellerConditions error:", res.status);
+    return null;
+  }
+
+  const { condition } = await res.json();
+  return condition as SellerCondition | null;
+}
+
 // ── Buyer Conditions (deal-conditions) ───────────────────────────────────────
 
 /**

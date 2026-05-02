@@ -18,6 +18,7 @@ import whatsappRouter from "./whatsapp";
 import billingRouter from "./billing";
 import secureDealsRouter from "./secure-deals";
 import dealConditionsRouter from "./deal-conditions";
+import sellerConditionsRouter from "./seller-conditions";
 
 const router: IRouter = Router();
 
@@ -41,6 +42,7 @@ router.use(billingRouter);
 // requireAuth that intercepts every subsequent /api/* request.
 router.use(secureDealsRouter);
 router.use(dealConditionsRouter);
+router.use(sellerConditionsRouter);
 router.use(notificationRouter);
 router.use(reportsRouter);
 router.use(viewsRouter);

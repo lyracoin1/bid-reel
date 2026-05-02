@@ -22,6 +22,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { pool } from "../lib/pg-pool";
 import { supabaseAdmin } from "../lib/supabase";
 import { logger } from "../lib/logger";
+import { verifyPlayInAppPurchase } from "../lib/play-verify";
 
 const router: IRouter = Router();
 
@@ -74,10 +75,15 @@ const createDealSchema = z.object({
 });
 
 const payNowSchema = z.object({
-  deal_id:  z.string().min(1),
-  buyer_id: z.string().uuid(),
-  amount:   z.number().positive(),
-  currency: z.string().min(2).max(5),
+  deal_id:        z.string().min(1),
+  buyer_id:       z.string().uuid(),
+  amount:         z.number().positive(),
+  currency:       z.string().min(2).max(5),
+  // Google Play Billing — present only when paying from native Android.
+  // When provided the backend verifies the token and uses priceAmountMicros
+  // from Google as the authoritative paid_amount, overriding the `amount` field.
+  purchase_token: z.string().min(1).optional(),
+  product_id:     z.string().min(1).optional(),
 });
 
 const shipSchema = z.object({
@@ -177,7 +183,8 @@ router.post("/transactions/pay-now", requireAuth, async (req, res) => {
     return;
   }
 
-  const { deal_id: dealId, buyer_id: bodyBuyerId, amount, currency } = body.data;
+  const { deal_id: dealId, buyer_id: bodyBuyerId, amount, currency,
+          purchase_token, product_id } = body.data;
 
   // Prevent spoofing: the buyer_id in the body must match the authenticated user
   if (bodyBuyerId !== authenticatedBuyerId) {
@@ -220,26 +227,51 @@ router.post("/transactions/pay-now", requireAuth, async (req, res) => {
       return;
     }
 
-    // 2. ── PAYMENT GATEWAY INTEGRATION POINT ─────────────────────────────────
+    // 2. ── PAYMENT GATEWAY BLOCK ──────────────────────────────────────────────
     //
-    // Replace this block with the real gateway charge:
-    //   Android: Google Play Billing (Capacitor plugin → webhook → this route)
-    //   Web:     Stripe / PayPal / etc.
+    // Two modes:
     //
-    // Pass `amount` and `currency` (validated from the request body) to the gateway.
-    // Only run the DB update below AFTER the gateway confirms a successful charge.
+    //   A) Google Play Billing (native Android — purchase_token present):
+    //      Verify the token with the Play Developer API.
+    //      paid_amount comes from priceAmountMicros in the verified receipt —
+    //      the buyer's self-reported `amount` field is ignored for security.
     //
-    const gatewaySuccess = true; // ← replace with real gateway call
-    if (!gatewaySuccess) {
-      res.status(402).json({ error: "PAYMENT_DECLINED", message: "Payment was declined by the gateway." });
-      return;
+    //   B) Placeholder / web (no purchase_token):
+    //      Allowed only in development (NODE_ENV !== 'production').
+    //      paid_amount falls back to the buyer-entered `amount`.
+    //
+    let finalPaidAmount = amount;
+
+    if (purchase_token && product_id) {
+      // ── Mode A: Google Play Billing ────────────────────────────────────────
+      const verified = await verifyPlayInAppPurchase(product_id, purchase_token);
+      // Use the amount Google actually charged, not what the client claimed
+      finalPaidAmount = verified.paid_amount;
+
+      logger.info(
+        { dealId, product_id, order_id: verified.order_id, finalPaidAmount },
+        "Secure deal: Play purchase verified",
+      );
+    } else {
+      // ── Mode B: placeholder (dev only) ────────────────────────────────────
+      if (process.env["NODE_ENV"] === "production") {
+        res.status(402).json({
+          error: "PAYMENT_REQUIRED",
+          message: "A verified Google Play purchase token is required in production.",
+        });
+        return;
+      }
+      logger.warn(
+        { dealId },
+        "Secure deal: using placeholder payment (no purchase_token) — dev mode only",
+      );
     }
     // ── END PAYMENT GATEWAY BLOCK ────────────────────────────────────────────
 
     const now = new Date().toISOString();
 
     // 3. Atomic update — concurrent-request safe via WHERE payment_status = 'pending'
-    //    paid_amount stores the buyer-chosen open-price amount.
+    //    paid_amount is set from Google's verified receipt (or buyer-entered in dev).
     const { rows: updated } = await pool.query(
       `UPDATE transactions
        SET payment_status = 'secured',
@@ -249,7 +281,7 @@ router.post("/transactions/pay-now", requireAuth, async (req, res) => {
            updated_at     = $1
        WHERE deal_id = $4 AND payment_status = 'pending'
        RETURNING *`,
-      [now, authenticatedBuyerId, amount, dealId],
+      [now, authenticatedBuyerId, finalPaidAmount, dealId],
     );
 
     if (!updated.length) {

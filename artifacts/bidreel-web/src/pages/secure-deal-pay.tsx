@@ -7,6 +7,12 @@ import {
   CheckCircle2, Bell, PartyPopper, AlertCircle,
   Loader2, UserX, RefreshCw, User, UserCheck, PencilLine,
 } from "lucide-react";
+import {
+  isPlayBillingAvailable,
+  purchaseDealProduct,
+  acknowledgeDealPurchase,
+  SECURE_DEAL_PRODUCT_ID,
+} from "@/lib/google-play-billing";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { useLang } from "@/contexts/LanguageContext";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -271,41 +277,73 @@ export default function SecureDealPayPage() {
     setPaying(true);
     setPayError(null);
 
+    // Will be set to the purchase returned by Google Play on native Android
+    let playPurchase: { purchase_token: string; product_id: string } | undefined;
+
     try {
-      // ── PAYMENT GATEWAY INTEGRATION POINT (client-side) ──────────────────
-      // Replace the simulated delay below with your real gateway charge call:
-      //   Android: const result = await GooglePlayBilling.purchase({ … });
-      //            if (!result.ok) throw new Error(result.message);
-      //   Web:     const { paymentIntent } = await stripe.confirmPayment({ … });
-      // Only call updatePaymentStatus() AFTER the gateway confirms success.
-      await new Promise<void>(resolve => setTimeout(resolve, 1400));
-      // ── END PLACEHOLDER ───────────────────────────────────────────────────
+      if (isPlayBillingAvailable()) {
+        // ── MODE A: Real Google Play Billing (native Android) ─────────────
+        //
+        // 1. query   — confirm product is active in Play Console
+        // 2. launch  — show native payment sheet to user
+        // 3. receive — purchaseToken returned immediately (not yet acknowledged)
+        // 4. verify  — backend confirms token + records paid_amount from Google
+        // 5. ack     — only after backend confirms (see below, after DB update)
+        //
+        // The product ID "secure_deal_payment" must be created as a consumable
+        // INAPP product in Play Console → Monetise → In-app products.
+        playPurchase = await purchaseDealProduct(SECURE_DEAL_PRODUCT_ID);
 
-      // POST /api/transactions/pay-now  { deal_id, buyer_id, amount, currency }
-      await updatePaymentStatus(tx.deal_id, user.id, buyerAmount, tx.currency);
+      } else {
+        // ── MODE B: Placeholder (web / development only) ──────────────────
+        // The backend will reject this in production (NODE_ENV=production).
+        await new Promise<void>(resolve => setTimeout(resolve, 1400));
+      }
 
-      // Placeholder client-side notification log (real FCM fires server-side)
-      sendPaymentNotification(tx.deal_id, user.id, buyerAmount, tx.currency);
+      // POST /api/transactions/pay-now
+      //   Native: sends { deal_id, buyer_id, amount, currency, purchase_token, product_id }
+      //           → backend verifies with Play API → paid_amount = priceAmountMicros / 1e6
+      //   Web dev: sends { deal_id, buyer_id, amount, currency }
+      //           → backend uses buyer-entered amount
+      const { paid_amount: verifiedAmount } = await updatePaymentStatus(
+        tx.deal_id, user.id, buyerAmount, tx.currency, playPurchase,
+      );
 
-      // Optimistic UI update
-      setPaidAmount(buyerAmount);
+      // Acknowledge AFTER backend confirms — Google requires ack within 3 days
+      // or the purchase is auto-refunded.
+      if (playPurchase) {
+        await acknowledgeDealPurchase(playPurchase.purchase_token).catch(err => {
+          // Log but don't fail — DB already updated; ack can be retried
+          console.warn("[SecureDeal] sendAck failed (non-fatal):", (err as Error).message);
+        });
+      }
+
+      // Client-side notification log (real FCM fires server-side)
+      sendPaymentNotification(tx.deal_id, user.id, verifiedAmount, tx.currency);
+
+      // Update UI — use the amount Google actually charged (verifiedAmount),
+      // not the buyer-entered buyerAmount
+      setPaidAmount(verifiedAmount);
       setDealStatus("payment_secured");
       setPaySuccess(true);
       setTx(prev =>
         prev
-          ? { ...prev, payment_status: "secured", buyer_id: user.id, paid_amount: buyerAmount }
+          ? { ...prev, payment_status: "secured", buyer_id: user.id, paid_amount: verifiedAmount }
           : prev,
       );
 
       console.log("[SecureDeal] ✓ Payment secured:", {
         dealId: tx.deal_id, buyerId: user.id,
-        amount: buyerAmount, currency: tx.currency,
+        amount: verifiedAmount, currency: tx.currency,
+        via: playPurchase ? "Google Play Billing" : "placeholder",
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       console.error("[SecureDeal] Payment failed:", msg);
       setPayError(ar ? `فشل الدفع: ${msg}` : `Payment failed: ${msg}`);
-      // payment_status stays 'pending' — buyer can correct and retry
+      // payment_status stays 'pending' — buyer can retry
+      // If Play token was obtained but backend failed, the purchase is un-acked
+      // and will appear in the next session for retry/refund.
     } finally {
       setPaying(false);
     }

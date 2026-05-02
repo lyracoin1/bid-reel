@@ -153,19 +153,24 @@ export async function getTransaction(dealId: string): Promise<Transaction | null
 /**
  * Mark a transaction as payment-secured.
  *
- * Calls POST /api/transactions/pay-now with the exact body shape:
- *   { deal_id, buyer_id, amount, currency }
+ * Calls POST /api/transactions/pay-now with the body:
+ *   { deal_id, buyer_id, amount, currency [, purchase_token, product_id] }
  *
- * PAYMENT GATEWAY NOTE:
- *   The real gateway charge lives in api-server/src/routes/secure-deals.ts.
- *   Replace the placeholder `gatewaySuccess = true` block there before going live.
+ * When playPurchase is provided the backend verifies the token with the
+ * Google Play Developer API and uses priceAmountMicros as the authoritative
+ * paid_amount. The returned paid_amount should be used for the UI instead of
+ * the buyer-entered amount.
+ *
+ * Without playPurchase the backend falls back to the buyer-entered amount
+ * (allowed only in development).
  */
 export async function updatePaymentStatus(
-  dealId:   string,
-  buyerId:  string,
-  amount:   number,
-  currency: string,
-): Promise<void> {
+  dealId:       string,
+  buyerId:      string,
+  amount:       number,
+  currency:     string,
+  playPurchase?: { purchase_token: string; product_id: string },
+): Promise<{ paid_amount: number }> {
   const res = await apiFetch("/transactions/pay-now", {
     method: "POST",
     body: JSON.stringify({
@@ -173,6 +178,7 @@ export async function updatePaymentStatus(
       buyer_id: buyerId,
       amount,
       currency,
+      ...(playPurchase ?? {}),
     }),
   }, true);
 
@@ -181,7 +187,15 @@ export async function updatePaymentStatus(
     throw new Error((err as any).message ?? `Payment failed (${res.status})`);
   }
 
-  console.log("[transactions] Payment secured via /transactions/pay-now:", { dealId, buyerId, amount, currency });
+  const json = await res.json();
+  const paid_amount: number = json?.deal?.paid_amount ?? amount;
+
+  console.log("[transactions] Payment secured via /transactions/pay-now:", {
+    dealId, buyerId, paid_amount, currency,
+    via: playPurchase ? "Google Play Billing" : "placeholder",
+  });
+
+  return { paid_amount };
 }
 
 /**

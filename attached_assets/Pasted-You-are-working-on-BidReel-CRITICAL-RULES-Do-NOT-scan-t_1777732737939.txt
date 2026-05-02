@@ -1,0 +1,134 @@
+You are working on BidReel.
+
+CRITICAL RULES:
+- Do NOT scan the whole repo.
+- Work ONLY on the specified files.
+- Keep edits minimal and production-safe.
+- Do NOT implement voice recording yet.
+- Do NOT touch FeedCard, auction-detail, billing, subscriptions, DB schema, or unrelated systems.
+- Do NOT create media_type.
+- Do NOT redesign the full UI.
+- Build after changes.
+
+GOAL:
+Implement Phase 1 of Audio Reel using the EXISTING media selector structure.
+
+UX REQUIREMENT:
+In create auction media selection:
+Current:
+- Image
+- Video
+
+New:
+- Image
+- Video
+- Audio
+
+When user selects Audio:
+Phase 1 ONLY:
+- Allow upload of existing audio file from device
+- Allow optional cover image selection
+- If no cover image selected:
+  backend automatically uses BidReel fallback logo
+- Backend converts:
+  audio + image/logo → MP4
+- Result behaves exactly like normal video auction
+
+IMPORTANT:
+- NO recording yet
+- NO waveform
+- NO playback controls
+- NO custom player
+- NO advanced editing
+- Keep interface simple and consistent
+
+FILES ONLY:
+
+Frontend:
+- artifacts/bidreel-web/src/pages/create-auction.tsx
+- artifacts/bidreel-web/src/lib/media-upload.ts
+
+Backend:
+- artifacts/api-server/src/routes/media.ts
+- artifacts/api-server/src/lib/video-processing.ts
+- artifacts/api-server/src/routes/auctions.ts
+- artifacts/api-server/src/assets/logo-fallback.png
+
+TASKS:
+
+### FRONTEND:
+
+1) create-auction.tsx:
+- Add "Audio" as third media option beside image/video
+- Keep current selector style
+- On Audio:
+   - audio file picker
+   - optional cover image picker
+- If cover omitted:
+   - backend fallback handles it
+- Keep existing flows unchanged
+
+2) media-upload.ts:
+- Extend upload pipeline:
+   MediaKind = "image" | "video" | "audio"
+
+---
+
+### BACKEND:
+
+3) media.ts:
+- Accept fileType "audio"
+- Allow MIME:
+   audio/mpeg
+   audio/mp4
+   audio/aac
+   audio/ogg
+   audio/webm
+- Add safe upload size limits
+
+4) video-processing.ts:
+- Add processAudioReelAsync()
+- Use ffmpeg:
+   cover image OR fallback logo
+   +
+   audio
+   →
+   MP4
+- Generate thumbnail
+- Upload MP4 + thumbnail to R2
+- Delete temporary files
+- Add max duration safety guard
+
+5) auctions.ts:
+- Detect audio reel creation
+- Accept optional coverImageUrl
+- Route to processAudioReelAsync()
+
+---
+
+### UX PRIORITY:
+- Audio should feel like native third content type
+- Minimal interface clutter
+- Fastest launch path
+- TikTok-style audio reel concept
+
+---
+
+### VERIFY:
+- Existing image auctions still work
+- Existing video auctions still work
+- Audio reel uploads work
+- Cover image optional works
+- Fallback logo works
+- Generated MP4 works in existing feed
+- Build passes
+
+---
+
+### OUTPUT:
+Provide:
+- Exact files changed
+- Exact UI logic added
+- Exact backend processing added
+- Verification checklist
+- Confirmation that no unrelated systems were touched

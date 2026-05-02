@@ -19,6 +19,7 @@ import billingRouter from "./billing";
 import secureDealsRouter from "./secure-deals";
 import dealConditionsRouter from "./deal-conditions";
 import sellerConditionsRouter from "./seller-conditions";
+import dealRatingsRouter from "./deal-ratings";
 
 const router: IRouter = Router();
 
@@ -43,6 +44,7 @@ router.use(billingRouter);
 router.use(secureDealsRouter);
 router.use(dealConditionsRouter);
 router.use(sellerConditionsRouter);
+router.use(dealRatingsRouter);
 router.use(notificationRouter);
 router.use(reportsRouter);
 router.use(viewsRouter);

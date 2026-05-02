@@ -315,6 +315,68 @@ export async function getSellerConditions(
   return condition as SellerCondition | null;
 }
 
+// ── Deal Ratings (deal-ratings) ───────────────────────────────────────────────
+
+export interface DealRating {
+  id:         string;
+  deal_id:    string;
+  rater_id:   string;
+  ratee_id:   string;
+  stars:      number;
+  comment:    string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Submit a rating for the other deal participant.
+ * Calls POST /api/deal-ratings — requires auth.
+ * Only allowed after the deal reaches the 'delivered' terminal state.
+ * Throws a typed error if the server rejects the request.
+ */
+export async function submitDealRating(
+  dealId:   string,
+  rateeId:  string,
+  stars:    number,
+  comment?: string,
+): Promise<DealRating> {
+  const res = await apiFetch("/deal-ratings", {
+    method: "POST",
+    body:   JSON.stringify({ deal_id: dealId, ratee_id: rateeId, stars, comment }),
+  }, true);
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).message ?? `Failed to submit rating (${res.status})`);
+  }
+
+  const { rating } = await res.json();
+  return rating as DealRating;
+}
+
+/**
+ * Fetch all ratings submitted for a deal.
+ * Calls GET /api/deal-ratings/:dealId — requires auth.
+ * Returns an empty array on 403/404 (caller not a participant, or deal not found).
+ */
+export async function getDealRatings(dealId: string): Promise<DealRating[]> {
+  const res = await apiFetch(
+    `/deal-ratings/${encodeURIComponent(dealId)}`,
+    {},
+    true,
+  );
+
+  if (res.status === 403 || res.status === 404) return [];
+
+  if (!res.ok) {
+    console.warn("[transactions] getDealRatings error:", res.status);
+    return [];
+  }
+
+  const { ratings } = await res.json();
+  return (ratings ?? []) as DealRating[];
+}
+
 // ── Buyer Conditions (deal-conditions) ───────────────────────────────────────
 
 /**

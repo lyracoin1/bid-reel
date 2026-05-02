@@ -6,7 +6,7 @@ import {
   Truck, StickyNote, Lock, Image, Video,
   CheckCircle2, Bell, PartyPopper, AlertCircle,
   Loader2, UserX, RefreshCw, User, UserCheck, PencilLine,
-  ScrollText, Send,
+  ScrollText, Send, Star,
 } from "lucide-react";
 import {
   isPlayBillingAvailable,
@@ -21,7 +21,8 @@ import {
   getTransaction, updatePaymentStatus, sendPaymentNotification,
   submitDealConditions, getDealConditions,
   submitSellerConditions, getSellerConditions,
-  Transaction, DealCondition, SellerCondition,
+  submitDealRating, getDealRatings,
+  Transaction, DealCondition, SellerCondition, DealRating,
 } from "@/lib/transactions";
 
 // ── Deal UI status (derived from DB payment_status + shipment_status) ──────
@@ -249,6 +250,15 @@ export default function SecureDealPayPage() {
   const [existingSellerCond, setExistingSellerCond]       = useState<SellerCondition | null>(null);
   const [sellerCondEditMode, setSellerCondEditMode]       = useState(false);
 
+  // Rating state
+  const [allRatings, setAllRatings]             = useState<DealRating[]>([]);
+  const [ratingStars, setRatingStars]           = useState(0);
+  const [ratingHover, setRatingHover]           = useState(0);
+  const [ratingComment, setRatingComment]       = useState("");
+  const [ratingSubmitting, setRatingSubmitting] = useState(false);
+  const [ratingError, setRatingError]           = useState<string | null>(null);
+  const [ratingSuccess, setRatingSuccess]       = useState(false);
+
   // ── Load transaction ─────────────────────────────────────────────────────
   const loadTx = useCallback(async () => {
     if (!dealId) return;
@@ -355,6 +365,46 @@ export default function SecureDealPayPage() {
       setConditionsError(ar ? `فشل الإرسال: ${msg}` : `Submission failed: ${msg}`);
     } finally {
       setConditionsSubmitting(false);
+    }
+  }
+
+  // ── Load deal ratings (only after deal is delivered) ─────────────────────
+  const loadRatings = useCallback(async () => {
+    if (!dealId || !user || dealStatus !== "delivered") return;
+    try {
+      const rows = await getDealRatings(dealId);
+      setAllRatings(rows);
+    } catch {
+      // Non-fatal
+    }
+  }, [dealId, user, dealStatus]);
+
+  useEffect(() => { loadRatings(); }, [loadRatings]);
+
+  // ── Submit rating ─────────────────────────────────────────────────────────
+  async function handleSubmitRating() {
+    if (!user || !tx || ratingStars < 1 || ratingSubmitting) return;
+    // Derive ratee at call time — avoids dependency on render-time derived vars
+    const isSellerNow = user.id === tx.seller_id;
+    const rateeId     = isSellerNow ? (tx.buyer_id ?? null) : tx.seller_id;
+    if (!rateeId) return;
+
+    setRatingSubmitting(true);
+    setRatingError(null);
+    setRatingSuccess(false);
+
+    try {
+      const saved = await submitDealRating(
+        tx.deal_id, rateeId, ratingStars,
+        ratingComment.trim() || undefined,
+      );
+      setAllRatings(prev => [...prev.filter(r => r.rater_id !== user.id), saved]);
+      setRatingSuccess(true);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setRatingError(ar ? `فشل الإرسال: ${msg}` : `Submission failed: ${msg}`);
+    } finally {
+      setRatingSubmitting(false);
     }
   }
 
@@ -546,6 +596,12 @@ export default function SecureDealPayPage() {
   const priceFormatted = tx.price.toLocaleString(undefined, { maximumFractionDigits: 2 });
   const sellerDisplay  = tx.seller_name ?? tx.seller_id.slice(0, 8).toUpperCase() + "…";
   const isSeller       = !!user && user.id === tx.seller_id;
+  const rateeId        = isSeller ? (tx.buyer_id ?? null) : tx.seller_id;
+  const myRating       = allRatings.find(r => r.rater_id === user?.id) ?? null;
+  const theirRating    = allRatings.find(r => r.ratee_id === user?.id) ?? null;
+  const starLabels     = ar
+    ? ["سيء جداً", "سيء", "مقبول", "جيد", "ممتاز"]
+    : ["Terrible",  "Poor",  "Okay",  "Good", "Excellent"];
 
   return (
     <MobileLayout>
@@ -1282,6 +1338,244 @@ export default function SecureDealPayPage() {
               </p>
             </div>
           </motion.div>
+
+          {/* ═══ 6. DEAL RATING CARD ══════════════════════════════════════════
+               Visible only once the deal reaches the 'delivered' terminal state.
+               Both buyer and seller can each rate the other party exactly once.
+               • myRating exists    → read-only star panel
+               • myRating is null   → interactive star picker + optional comment
+               • theirRating exists → read-only panel for the other party's rating */}
+          {dealStatus === "delivered" && rateeId && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.18 }}
+              className="rounded-3xl bg-white/4 border border-white/8 overflow-hidden"
+            >
+              {/* Card header */}
+              <div className="bg-gradient-to-r from-emerald-600/15 to-transparent px-5 pt-4 pb-3 border-b border-white/6">
+                <div className="flex items-center gap-2">
+                  <Star size={12} className="text-amber-400" fill="currentColor" />
+                  <p className="text-[10px] font-bold text-emerald-400/80 uppercase tracking-widest">
+                    {ar ? "تقييم الصفقة" : "Rate this Deal"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="px-5 py-4 space-y-4">
+
+                {/* ── USER'S OWN RATING ──────────────────────────────────────── */}
+                <div className="space-y-3">
+                  <p className="text-[11px] font-bold text-white/50">
+                    {myRating
+                      ? (ar ? "تقييمك" : "Your Rating")
+                      : (ar
+                          ? `قيّم ${isSeller ? "المشتري" : "البائع"}`
+                          : `Rate the ${isSeller ? "Buyer" : "Seller"}`)}
+                  </p>
+
+                  {/* Already rated — read-only panel */}
+                  {myRating && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="rounded-2xl bg-amber-600/8 border border-amber-500/20 px-4 py-3.5 space-y-2.5"
+                    >
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {[1,2,3,4,5].map(n => (
+                          <Star key={n} size={18}
+                            fill={n <= myRating.stars ? "currentColor" : "none"}
+                            strokeWidth={1.5}
+                            className={n <= myRating.stars ? "text-amber-400" : "text-white/15"}
+                          />
+                        ))}
+                        <span className="text-xs font-bold text-amber-300 ml-1">
+                          {starLabels[myRating.stars - 1]}
+                        </span>
+                      </div>
+                      {myRating.comment && (
+                        <p className="text-sm text-white/75 leading-relaxed whitespace-pre-wrap break-words">
+                          {myRating.comment}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-white/25">
+                        {new Date(myRating.created_at).toLocaleString(
+                          ar ? "ar-SA" : "en-US",
+                          { dateStyle: "medium", timeStyle: "short" }
+                        )}
+                      </p>
+                    </motion.div>
+                  )}
+
+                  {/* Success banner — shown immediately after submission */}
+                  <AnimatePresence>
+                    {ratingSuccess && (
+                      <motion.div
+                        key="rating-ok"
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="rounded-xl bg-emerald-600/12 border border-emerald-500/25 px-3.5 py-2.5 flex items-center gap-2"
+                      >
+                        <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+                        <p className="text-[12px] text-emerald-300 font-medium">
+                          {ar
+                            ? "✓ تم إرسال تقييمك — تلقّى الطرف الآخر إشعاراً."
+                            : "✓ Rating submitted — the other party has been notified."}
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Interactive star picker — shown when not yet rated */}
+                  {!myRating && (
+                    <div className="space-y-3">
+
+                      {/* Star row */}
+                      <div className="flex gap-2 justify-center py-1">
+                        {[1,2,3,4,5].map(n => (
+                          <button
+                            key={n}
+                            onClick={() => { setRatingStars(n); setRatingError(null); }}
+                            onMouseEnter={() => setRatingHover(n)}
+                            onMouseLeave={() => setRatingHover(0)}
+                            className="transition-all duration-100 hover:scale-110 focus:outline-none"
+                            aria-label={`${n} star${n !== 1 ? "s" : ""}`}
+                          >
+                            <Star
+                              size={32}
+                              strokeWidth={1.5}
+                              fill={n <= (ratingHover || ratingStars) ? "currentColor" : "none"}
+                              className={n <= (ratingHover || ratingStars)
+                                ? "text-amber-400"
+                                : "text-white/15"}
+                            />
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Animated label below stars */}
+                      <AnimatePresence mode="wait">
+                        {(ratingHover || ratingStars) > 0 && (
+                          <motion.p
+                            key={ratingHover || ratingStars}
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            className="text-center text-sm font-bold text-amber-300"
+                          >
+                            {starLabels[(ratingHover || ratingStars) - 1]}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
+
+                      {/* Optional comment — only shown after a star is chosen */}
+                      <AnimatePresence>
+                        {ratingStars > 0 && (
+                          <motion.div
+                            key="comment-area"
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden space-y-1"
+                          >
+                            <textarea
+                              value={ratingComment}
+                              onChange={e => {
+                                setRatingComment(e.target.value);
+                                setRatingError(null);
+                              }}
+                              placeholder={ar
+                                ? "أضف تعليقاً (اختياري)…"
+                                : "Add a comment (optional)…"}
+                              maxLength={500}
+                              rows={3}
+                              dir={ar ? "rtl" : "ltr"}
+                              className="w-full rounded-2xl bg-white/6 border border-white/12 focus:border-amber-500/50 focus:bg-white/8 px-4 py-3 text-sm text-white placeholder-white/20 outline-none resize-none leading-relaxed transition-colors"
+                            />
+                            <p className="text-[10px] text-white/20 text-end">
+                              {ratingComment.length} / 500
+                            </p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      {/* Error banner */}
+                      <AnimatePresence>
+                        {ratingError && (
+                          <motion.div
+                            key="rating-err"
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            className="rounded-xl bg-red-500/10 border border-red-500/20 px-3.5 py-2.5 flex items-start gap-2"
+                          >
+                            <AlertCircle size={13} className="text-red-400 shrink-0 mt-0.5" />
+                            <p className="text-[12px] text-red-300 leading-snug">{ratingError}</p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      {/* Submit button */}
+                      <motion.button
+                        whileTap={{ scale: (ratingSubmitting || ratingStars < 1) ? 1 : 0.97 }}
+                        onClick={handleSubmitRating}
+                        disabled={ratingStars < 1 || ratingSubmitting}
+                        className="w-full py-3.5 rounded-2xl bg-amber-500 text-white font-bold text-sm flex items-center justify-center gap-2.5 shadow-lg shadow-amber-700/20 hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {ratingSubmitting ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin" />
+                            {ar ? "جارٍ الإرسال…" : "Submitting…"}
+                          </>
+                        ) : (
+                          <>
+                            <Star size={14} fill="currentColor" />
+                            {ar ? "إرسال التقييم" : "Submit Rating"}
+                          </>
+                        )}
+                      </motion.button>
+
+                    </div>
+                  )}
+                </div>
+
+                {/* ── OTHER PARTY'S RATING OF THE USER ───────────────────────── */}
+                {theirRating && (
+                  <>
+                    <div className="border-t border-white/6" />
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-bold text-white/30">
+                        {ar
+                          ? `تقييم ${isSeller ? "المشتري" : "البائع"} لك`
+                          : `${isSeller ? "Buyer" : "Seller"}'s Rating of You`}
+                      </p>
+                      <div className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3.5 space-y-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {[1,2,3,4,5].map(n => (
+                            <Star key={n} size={16}
+                              fill={n <= theirRating.stars ? "currentColor" : "none"}
+                              strokeWidth={1.5}
+                              className={n <= theirRating.stars ? "text-amber-400" : "text-white/15"}
+                            />
+                          ))}
+                          <span className="text-[11px] font-bold text-white/40 ml-1">
+                            {starLabels[theirRating.stars - 1]}
+                          </span>
+                        </div>
+                        {theirRating.comment && (
+                          <p className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap break-words">
+                            {theirRating.comment}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+              </div>
+            </motion.div>
+          )}
 
           {/* ── Dispute / safety note ── */}
           <motion.div

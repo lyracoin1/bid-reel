@@ -1,0 +1,67 @@
+You are working on BidReel.
+
+CRITICAL RULES:
+- Do NOT scan the whole repo.
+- Do NOT modify any file.
+- Do NOT implement audio yet.
+- Do NOT touch upload/R2/ffmpeg/database yet.
+- Only inspect the files needed to understand the current media model.
+- Keep the answer clear and practical.
+
+GOAL:
+We want to add Audio Auctions later, but first we need a precise diagnosis of the current media flow.
+
+Context:
+BidReel currently supports image/video auctions.
+We want to add an Audio option beside Image and Video later.
+Audio auctions should eventually support:
+- Upload audio file.
+- Record audio inside the app, similar to WhatsApp voice recording.
+- Display audio as a playable card/feed item.
+- Use BidReel logo/brand background instead of video thumbnail.
+- Audio playback speed control: 1x, 1.5x, 2x.
+- Auction title/description should explain the audio content.
+- Later we may add tools similar to video controls.
+
+Please inspect ONLY these areas/files if they exist:
+- auction create page/component
+- media upload component/hooks
+- auction media rendering in FeedCard
+- auction detail media rendering
+- API client calls related to creating auctions/media
+- backend auction create/update routes only if needed to understand media fields
+- Supabase/R2 media field usage only if needed
+
+Your task:
+1. Explain how media is currently represented:
+   - field names
+   - image/video type detection
+   - media URL storage
+   - thumbnail/poster handling if any
+   - upload flow
+   - create auction payload
+
+2. Identify the minimum files that would need changes to add audio later.
+
+3. Tell us if the existing model already supports generic media types, or if it is hardcoded to only image/video.
+
+4. Identify risks:
+   - DB migration needed or not
+   - R2 upload restrictions
+   - frontend type assumptions
+   - Capacitor/mobile recording limitations
+   - feed rendering assumptions
+   - detail page assumptions
+
+5. Propose a safe phased implementation plan:
+   Phase 1: Add uploaded audio only.
+   Phase 2: Render audio player in feed/detail.
+   Phase 3: Add recording.
+   Phase 4: Add playback speed and polishing.
+   Phase 5: Optional advanced tools.
+
+6. Do NOT change code.
+7. End your answer with:
+   - “Recommended next step”
+   - exact files to edit in the next prompt
+   - whether DB migration is needed or not based on current code

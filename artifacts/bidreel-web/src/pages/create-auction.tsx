@@ -277,38 +277,52 @@ export default function CreateAuction() {
     requestLocation();
   }, [requestLocation]);
 
+  // ── Mic permission via getUserMedia — always the source of truth ─────────────
+  // navigator.permissions.query() returns stale/wrong state on Android WebView
+  // (Capacitor) even when the OS has granted mic access.  getUserMedia is the
+  // only reliable check on that platform, so it is always used to verify.
+  const recheckMicPermission = useCallback(() => {
+    if (!navigator.mediaDevices) return;
+    navigator.mediaDevices
+      .getUserMedia({ audio: true, video: false })
+      .then((stream) => {
+        stream.getTracks().forEach(t => t.stop());
+        setMicPermission("granted");
+        setMicError(null);
+      })
+      .catch((err) => {
+        // Only show the denied banner when the OS truly refused access.
+        // Other errors (NotFoundError, device busy) leave permission state
+        // unchanged so we don't falsely block the user.
+        const isActualDenial = err instanceof DOMException &&
+          (err.name === "NotAllowedError" || err.name === "PermissionDeniedError");
+        if (isActualDenial) setMicPermission("denied");
+      });
+  }, []);
+
   // ── Proactive microphone permission check on mount ───────────────────────────
   useEffect(() => {
     let permStatus: PermissionStatus | null = null;
 
-    const requestMicEarly = () =>
-      navigator.mediaDevices
-        .getUserMedia({ audio: true, video: false })
-        .then((stream) => { stream.getTracks().forEach(t => t.stop()); setMicPermission("granted"); })
-        .catch(() => setMicPermission("denied"));
+    // Always verify via getUserMedia — never trust the Permissions API alone.
+    // This fires the native prompt on first visit (when state is "prompt") and
+    // correctly reports "granted" on Android even when the Permissions API
+    // returns a stale "denied".
+    recheckMicPermission();
 
     if (navigator.permissions) {
       navigator.permissions
         .query({ name: "microphone" as PermissionName })
         .then((status) => {
           permStatus = status;
-          if (status.state === "granted") setMicPermission("granted");
-          else if (status.state === "denied") setMicPermission("denied");
-          else requestMicEarly(); // "prompt" → trigger native dialog now
-          status.onchange = () => {
-            setMicPermission(
-              status.state === "granted" ? "granted" :
-              status.state === "denied"  ? "denied"  : "unknown",
-            );
-          };
+          // Re-verify via getUserMedia whenever the OS-level permission changes.
+          status.onchange = () => recheckMicPermission();
         })
-        .catch(() => { if (navigator.mediaDevices) requestMicEarly(); });
-    } else if (navigator.mediaDevices) {
-      requestMicEarly();
+        .catch(() => {}); // Permissions API unsupported — getUserMedia already ran above
     }
 
     return () => { if (permStatus) permStatus.onchange = null; };
-  }, []);
+  }, [recheckMicPermission]);
 
   // ── Recording cleanup on unmount ─────────────────────────────────────────────
   useEffect(() => {
@@ -997,13 +1011,10 @@ export default function CreateAuction() {
                         onClick={() => {
                           if (src !== "record" && isRecording) stopRecording();
                           setAudioSource(src);
-                          // Proactively prompt if permission still unknown when user picks Record
-                          if (src === "record" && micPermission === "unknown" && navigator.mediaDevices) {
-                            navigator.mediaDevices
-                              .getUserMedia({ audio: true, video: false })
-                              .then((s) => { s.getTracks().forEach(t => t.stop()); setMicPermission("granted"); })
-                              .catch(() => setMicPermission("denied"));
-                          }
+                          // Always re-verify via getUserMedia when switching to
+                          // Record tab — clears false-denied state on Android
+                          // WebView after the user grants access in OS settings.
+                          if (src === "record") recheckMicPermission();
                         }}
                         className="relative flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold transition-colors"
                       >
@@ -1160,15 +1171,22 @@ export default function CreateAuction() {
                       {micPermission === "denied" && (
                         <div className="mt-4 w-full rounded-2xl bg-red-500/10 border border-red-500/25 px-4 py-3 flex items-start gap-3">
                           <ShieldAlert size={18} className="text-red-400 mt-0.5 shrink-0" />
-                          <div>
+                          <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-red-300">
                               {lang === "ar" ? "لم يُسمح باستخدام الميكروفون" : "Microphone access denied"}
                             </p>
                             <p className="text-xs text-red-400/80 mt-0.5 leading-snug">
                               {lang === "ar"
-                                ? "فعّل إذن الميكروفون من إعدادات الجهاز ثم أعد فتح التطبيق."
-                                : "Enable microphone access in device settings, then reopen the app."}
+                                ? "فعّل إذن الميكروفون من إعدادات الجهاز ثم أعد المحاولة."
+                                : "Enable microphone access in device settings, then tap Retry."}
                             </p>
+                            <button
+                              type="button"
+                              onClick={recheckMicPermission}
+                              className="mt-2 text-xs font-semibold text-red-300 border border-red-400/40 rounded-lg px-3 py-1.5 active:scale-95 transition-transform"
+                            >
+                              {lang === "ar" ? "إعادة التحقق من الإذن" : "Retry permission check"}
+                            </button>
                           </div>
                         </div>
                       )}

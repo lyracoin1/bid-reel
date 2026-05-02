@@ -1,0 +1,60 @@
+You are working on BidReel.
+
+CRITICAL RULES:
+- Do NOT scan the whole repo.
+- Work ONLY on Audio Reel microphone permission behavior.
+- Do NOT touch bidding, images, FeedCard, backend, DB, billing, or unrelated files.
+- Keep changes minimal.
+- Build after changes.
+
+BUG:
+On Android, microphone permission was requested and user allowed it.
+Device settings shows microphone permission is allowed.
+But inside the app it still shows:
+"Enable microphone access from device settings / فعّل إذن الميكروفون من إعدادات الجهاز ثم أعد فتح التطبيق"
+
+Likely cause:
+navigator.permissions.query({ name: "microphone" }) may return stale/unsupported/denied in Android WebView even when getUserMedia works.
+
+TASK:
+Fix permission logic to use getUserMedia as the source of truth.
+
+Requirements:
+1. Do NOT show the denied banner only because navigator.permissions says denied.
+2. On page load or Audio tab open:
+   - try getUserMedia({ audio: true })
+   - if stream succeeds:
+      - stop tracks immediately
+      - set micPermission = "granted"
+      - clear any mic error/banner
+   - if stream fails with NotAllowedError:
+      - set micPermission = "denied"
+      - show banner
+3. navigator.permissions can be used as helper only, not final truth.
+4. Add a “Retry permission check / إعادة التحقق من الإذن” button inside denied banner.
+5. When retry is pressed:
+   - run getUserMedia again
+   - if success, hide banner and allow recording.
+6. Preserve:
+   - recording
+   - upload audio
+   - preview
+   - animated logo
+   - cover image logic
+7. Android/Capacitor WebView first.
+
+FILES ONLY:
+- artifacts/bidreel-web/src/pages/create-auction.tsx
+
+VERIFY:
+- If Android setting is allowed, banner disappears after retry or page load.
+- Recording starts after permission is allowed.
+- Denied state still shows helpful guidance.
+- Existing upload/recording UI unchanged.
+- Build/typecheck passes or no new errors in modified file.
+
+OUTPUT:
+- Exact bug cause
+- Exact file changed
+- Permission logic change
+- Verification result

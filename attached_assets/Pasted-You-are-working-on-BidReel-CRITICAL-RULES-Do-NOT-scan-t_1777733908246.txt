@@ -1,0 +1,99 @@
+You are working on BidReel.
+
+CRITICAL RULES:
+- Do NOT scan the whole repo.
+- Work ONLY on the Audio Reel creation flow.
+- Keep changes minimal, production-safe, and mobile-first.
+- Do NOT touch FeedCard, auction-detail, billing, subscriptions, backend media architecture, or unrelated systems.
+- Reuse existing Audio Reel upload pipeline already implemented.
+- Build after changes.
+
+GOAL:
+Implement Phase 2:
+WhatsApp-style voice recording inside the Audio tab.
+
+CURRENT STATE:
+- Audio tab exists
+- Upload existing audio works
+- Optional cover image works
+- Backend converts audio + image/logo → MP4
+- Audio Reel pipeline is functional
+
+NEW TASK:
+Inside Audio tab, add direct voice recording.
+
+FEATURES REQUIRED:
+
+### 1) Audio source options:
+Inside Audio mode:
+- Upload existing audio
+- Record audio
+
+### 2) Recording UI:
+- Record button similar to WhatsApp voice note UX
+- Tap to start
+- Tap stop to finish
+- Show recording timer
+- Preview playback after stop
+- Allow discard/reset
+- Recorded file should be treated exactly like uploaded audio
+
+### 3) Animated BidReel logo during recording:
+If user has NOT selected a custom cover image:
+- Show small circular BidReel logo
+- Centered
+- Smooth 3D-like rotation animation while recording
+- Distinct premium motion
+- Stops instantly when recording stops
+- Also animates during playback if using fallback logo
+- If user selected custom image:
+  show their image normally instead
+
+### 4) Technical:
+- Use Capacitor-compatible recording approach
+- Mobile Android first
+- Request microphone permissions safely
+- Keep implementation lightweight
+- Reuse existing upload flow
+- Output audio file into current Audio Reel pipeline
+
+### 5) UI priorities:
+- Minimal clutter
+- Premium visual feel
+- TikTok/WhatsApp inspired
+- Smooth on mobile
+- Avoid large dependencies
+
+FILES ONLY:
+Frontend:
+- artifacts/bidreel-web/src/pages/create-auction.tsx
+- artifacts/bidreel-web/src/components (only if a tiny reusable recording widget is needed)
+
+Optional:
+- package.json only if microphone package is absolutely required
+
+DO NOT:
+- Change backend
+- Change DB
+- Change FeedCard rendering
+- Add waveform libraries unless extremely lightweight
+- Add unnecessary redesign
+
+VERIFY:
+- Upload audio still works
+- Recording works
+- Permission flow works
+- Timer works
+- Preview works
+- Reset works
+- Animated logo works
+- Custom cover overrides logo
+- Build passes
+
+OUTPUT:
+Provide:
+- Exact files changed
+- Recording implementation method
+- Permission handling
+- Animation logic
+- Verification checklist

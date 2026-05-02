@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   ArrowLeft, ArrowRight, Camera, Upload, CheckCircle2, Clock,
   Play, Image as ImageIcon, X, AlertCircle, Loader2, Trash2,
-  MapPin, RefreshCw, DollarSign, ShieldAlert, Music,
+  MapPin, RefreshCw, DollarSign, ShieldAlert, Music, Mic,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
@@ -137,6 +137,26 @@ function describeSubmitError(
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+// ─── Audio recording helpers ──────────────────────────────────────────────────
+
+function getSupportedMimeType(): string {
+  if (typeof MediaRecorder === "undefined") return "";
+  const types = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/ogg;codecs=opus",
+    "audio/ogg",
+    "audio/mp4",
+  ];
+  return types.find(t => MediaRecorder.isTypeSupported(t)) ?? "";
+}
+
+function formatRecordingDuration(secs: number): string {
+  const m = Math.floor(secs / 60).toString().padStart(2, "0");
+  const s = (secs % 60).toString().padStart(2, "0");
+  return `${m}:${s}`;
+}
+
 export default function CreateAuction() {
   const [, setLocation] = useLocation();
   const { mutate: create, isPending: isCreating } = useCreateAuction();
@@ -169,6 +189,20 @@ export default function CreateAuction() {
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Recording state ──────────────────────────────────────────────────────────
+  const [audioSource, setAudioSource] = useState<"upload" | "record">("upload");
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [recordedBlobUrl, setRecordedBlobUrl] = useState<string | null>(null);
+  const [micError, setMicError] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = useRef<BlobPart[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recordedBlobUrlRef = useRef<string | null>(null);
 
   // ── Form state ──────────────────────────────────────────────────────────────
   const [form, setForm] = useState({
@@ -241,6 +275,15 @@ export default function CreateAuction() {
   useEffect(() => {
     requestLocation();
   }, [requestLocation]);
+
+  // ── Recording cleanup on unmount ─────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      if (recordedBlobUrlRef.current) URL.revokeObjectURL(recordedBlobUrlRef.current);
+    };
+  }, []);
 
   // ── Profile completeness gate ─────────────────────────────────────────────────
   // All hooks must be called BEFORE this conditional return (React rules).
@@ -388,6 +431,104 @@ export default function CreateAuction() {
 
   const clearAudio = () => {
     setAudioFile(null);
+    setAudioError(null);
+    // Stop any active stream / timer and discard recorded blob
+    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
+    if (recordedBlobUrlRef.current) { URL.revokeObjectURL(recordedBlobUrlRef.current); recordedBlobUrlRef.current = null; }
+    setIsRecording(false);
+    setRecordingDuration(0);
+    setRecordedBlob(null);
+    setRecordedBlobUrl(null);
+    setMicError(null);
+  };
+
+  // ── Recording handlers ────────────────────────────────────────────────────────
+
+  const startRecording = async () => {
+    setMicError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      streamRef.current = stream;
+      recordingChunksRef.current = [];
+      const mimeType = getSupportedMimeType();
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+
+      mr.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordingChunksRef.current.push(e.data);
+      };
+      mr.onstop = () => {
+        const finalMime = mr.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(recordingChunksRef.current, { type: finalMime });
+        const url = URL.createObjectURL(blob);
+        if (recordedBlobUrlRef.current) URL.revokeObjectURL(recordedBlobUrlRef.current);
+        recordedBlobUrlRef.current = url;
+        setRecordedBlob(blob);
+        setRecordedBlobUrl(url);
+        stream.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      };
+
+      mr.start(250);
+      mediaRecorderRef.current = mr;
+      setIsRecording(true);
+      setRecordingDuration(0);
+      setRecordedBlob(null);
+      if (recordedBlobUrlRef.current) {
+        URL.revokeObjectURL(recordedBlobUrlRef.current);
+        recordedBlobUrlRef.current = null;
+        setRecordedBlobUrl(null);
+      }
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    } catch (err) {
+      const isDenied = err instanceof DOMException &&
+        (err.name === "NotAllowedError" || err.name === "PermissionDeniedError" || err.name === "NotFoundError");
+      setMicError(isDenied
+        ? (lang === "ar"
+          ? "لم يُسمح باستخدام الميكروفون. يرجى تفعيله من الإعدادات."
+          : "Microphone access denied. Enable it in device settings.")
+        : (lang === "ar"
+          ? "تعذّر الوصول إلى الميكروفون."
+          : "Could not access the microphone."));
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
+    setIsRecording(false);
+  };
+
+  const discardRecording = () => {
+    if (recordedBlobUrlRef.current) { URL.revokeObjectURL(recordedBlobUrlRef.current); recordedBlobUrlRef.current = null; }
+    setRecordedBlob(null);
+    setRecordedBlobUrl(null);
+    setRecordingDuration(0);
+    setIsRecording(false);
+    if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
+  };
+
+  const useRecording = () => {
+    if (!recordedBlob) return;
+    const mime = recordedBlob.type || "audio/webm";
+    const ext = mime.includes("mp4") ? "mp4" : mime.includes("ogg") ? "ogg" : "webm";
+    const file = new File([recordedBlob], `voice_${Date.now()}.${ext}`, { type: mime });
+    if (file.size > MAX_AUDIO_BYTES_CLIENT) {
+      setAudioError(lang === "ar"
+        ? `التسجيل (${(file.size / 1024 / 1024).toFixed(1)} ميغابايت) يتجاوز الحد (30 ميغابايت).`
+        : `Recording (${(file.size / 1024 / 1024).toFixed(1)} MB) exceeds the 30 MB limit.`);
+      discardRecording();
+      return;
+    }
+    if (recordedBlobUrlRef.current) { URL.revokeObjectURL(recordedBlobUrlRef.current); recordedBlobUrlRef.current = null; }
+    setRecordedBlob(null);
+    setRecordedBlobUrl(null);
+    setRecordingDuration(0);
+    setAudioFile(file);
     setAudioError(null);
   };
 
@@ -814,14 +955,51 @@ export default function CreateAuction() {
 
                 /* ── AUDIO MODE ── */
                 <>
-                  <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
-                    {lang === "ar"
-                      ? "اختر ملفاً صوتياً. سيُحوَّل تلقائياً إلى رييل مرئي مع صورة الغلاف."
-                      : "Select an audio file. It will be auto-converted to a video reel with your cover image."}
-                  </p>
+                  {/* ── Source selector: Upload | Record ─────────────────────── */}
+                  <div className="flex bg-white/5 border border-white/8 rounded-2xl p-1 mb-5">
+                    {(["upload", "record"] as const).map((src) => (
+                      <button
+                        key={src}
+                        onClick={() => {
+                          if (src !== "record" && isRecording) stopRecording();
+                          setAudioSource(src);
+                        }}
+                        className="relative flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                      >
+                        {audioSource === src && (
+                          <motion.div layoutId="audio-src-tab" className="absolute inset-0 bg-primary/20 border border-primary/30 rounded-xl" />
+                        )}
+                        {src === "upload"
+                          ? <Upload size={13} className={cn("relative z-10", audioSource === src ? "text-primary" : "text-white/40")} />
+                          : <Mic size={13} className={cn("relative z-10", audioSource === src ? "text-primary" : "text-white/40")} />
+                        }
+                        <span className={cn("relative z-10", audioSource === src ? "text-white" : "text-white/40")}>
+                          {src === "upload" ? (lang === "ar" ? "رفع ملف" : "Upload") : (lang === "ar" ? "تسجيل" : "Record")}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
 
-                  {/* Audio file picker */}
-                  {!audioFile ? (
+                  {/* ── Audio file card — shared for both upload and recording result ── */}
+                  {audioFile ? (
+                    <div className="rounded-2xl bg-white/5 border border-emerald-500/30 p-4 flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
+                        {audioSource === "record" ? <Mic size={20} className="text-primary" /> : <Music size={20} className="text-primary" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{audioFile.name}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <CheckCircle2 size={11} className="text-emerald-400 shrink-0" />
+                          <p className="text-xs text-emerald-400">{(audioFile.size / 1024 / 1024).toFixed(1)} MB</p>
+                        </div>
+                      </div>
+                      <button onClick={clearAudio} className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center active:scale-95">
+                        <X size={14} className="text-red-400" />
+                      </button>
+                    </div>
+                  ) : audioSource === "upload" ? (
+
+                    /* ── Upload: file picker ─────────────────────────────────── */
                     <button
                       onClick={() => audioInputRef.current?.click()}
                       className="w-full min-h-40 border-2 border-dashed border-white/12 rounded-3xl bg-white/3 flex flex-col items-center justify-center p-8 text-center cursor-pointer transition-all active:scale-[0.98] hover:border-primary/50 hover:bg-primary/5 mb-4"
@@ -836,31 +1014,114 @@ export default function CreateAuction() {
                         {lang === "ar" ? "MP3، AAC، M4A، OGG — حتى 30 ميغابايت" : "MP3, AAC, M4A, OGG — up to 30 MB"}
                       </p>
                     </button>
+
                   ) : (
-                    <div className="rounded-2xl bg-white/5 border border-emerald-500/30 p-4 flex items-center gap-3 mb-4">
-                      <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
-                        <Music size={22} className="text-primary" />
+
+                    /* ── Record: animated logo + timer + record button ────────── */
+                    <div className="flex flex-col items-center mb-4">
+
+                      {/* Animated cover / BidReel logo */}
+                      <div style={{ perspective: "600px" }} className="mb-2">
+                        <motion.div
+                          animate={isRecording
+                            ? {
+                                rotateY: [0, 360],
+                                boxShadow: [
+                                  "0 0 0px 0px rgba(139,92,246,0.5)",
+                                  "0 0 28px 10px rgba(139,92,246,0.3)",
+                                  "0 0 0px 0px rgba(139,92,246,0.5)",
+                                ],
+                              }
+                            : { rotateY: 0, boxShadow: "0 0 0px 0px rgba(139,92,246,0)" }}
+                          transition={isRecording
+                            ? {
+                                rotateY: { duration: 4, repeat: Infinity, ease: "linear" },
+                                boxShadow: { duration: 2, repeat: Infinity, ease: "easeInOut" },
+                              }
+                            : { duration: 0.4, ease: "easeOut" }}
+                          className="w-24 h-24 rounded-full overflow-hidden border-2 border-primary/40"
+                          style={{ transformStyle: "preserve-3d" }}
+                        >
+                          {coverFile
+                            ? <img src={coverPreviewUrl!} alt="Cover" className="w-full h-full object-cover" />
+                            : <img src="/images/logo-icon.png" alt="BidReel" className="w-full h-full object-cover bg-[#0e0e1a]" />
+                          }
+                        </motion.div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">{audioFile.name}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <CheckCircle2 size={11} className="text-emerald-400 shrink-0" />
-                          <p className="text-xs text-emerald-400">{(audioFile.size / 1024 / 1024).toFixed(1)} MB</p>
+
+                      {/* Timer */}
+                      <div className={cn(
+                        "font-mono text-3xl font-bold tabular-nums mb-5 transition-colors",
+                        isRecording ? "text-red-400" : recordedBlob ? "text-white" : "text-white/25",
+                      )}>
+                        {formatRecordingDuration(recordingDuration)}
+                      </div>
+
+                      {/* Preview player + Use / Discard — shown after recording finishes */}
+                      {recordedBlob && !isRecording ? (
+                        <div className="w-full flex flex-col gap-3 mb-2">
+                          <audio
+                            ref={previewAudioRef}
+                            src={recordedBlobUrl!}
+                            controls
+                            className="w-full rounded-xl"
+                            style={{ colorScheme: "dark" }}
+                          />
+                          <div className="flex gap-3">
+                            <button
+                              onClick={discardRecording}
+                              className="flex-1 py-3 rounded-2xl bg-white/6 border border-white/10 text-white/60 font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.97]"
+                            >
+                              <RefreshCw size={14} />
+                              {lang === "ar" ? "إعادة التسجيل" : "Record Again"}
+                            </button>
+                            <motion.button whileTap={{ scale: 0.97 }}
+                              onClick={useRecording}
+                              className="flex-1 py-3 rounded-2xl bg-primary text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md shadow-primary/30"
+                            >
+                              <CheckCircle2 size={14} />
+                              {lang === "ar" ? "استخدام التسجيل" : "Use Recording"}
+                            </motion.button>
+                          </div>
                         </div>
-                      </div>
-                      <button
-                        onClick={clearAudio}
-                        className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center active:scale-95"
-                      >
-                        <X size={14} className="text-red-400" />
-                      </button>
+                      ) : (
+                        /* Big record button */
+                        <motion.button
+                          whileTap={{ scale: 0.92 }}
+                          onClick={isRecording ? stopRecording : startRecording}
+                          className={cn(
+                            "w-20 h-20 rounded-full flex items-center justify-center border-4 shadow-xl transition-colors",
+                            isRecording
+                              ? "bg-red-500 border-red-300/30 shadow-red-500/40"
+                              : "bg-primary border-primary/30 shadow-primary/30",
+                          )}
+                        >
+                          {isRecording
+                            ? <div className="w-7 h-7 rounded-md bg-white" />
+                            : <Mic size={28} className="text-white" />
+                          }
+                        </motion.button>
+                      )}
+
+                      {/* Hint text */}
+                      {isRecording && (
+                        <p className="mt-3 text-xs text-red-400/80 font-medium">
+                          {lang === "ar" ? "جارٍ التسجيل — اضغط للإيقاف" : "Recording — tap to stop"}
+                        </p>
+                      )}
+                      {!isRecording && !recordedBlob && (
+                        <p className="mt-3 text-xs text-white/30">
+                          {lang === "ar" ? "اضغط للبدء" : "Tap to start recording"}
+                        </p>
+                      )}
                     </div>
                   )}
 
-                  {audioError && (
+                  {/* Errors */}
+                  {(audioError || micError) && (
                     <div className="mb-3 flex items-center gap-2 text-red-400 text-xs font-medium">
                       <AlertCircle size={13} className="shrink-0" />
-                      {audioError}
+                      {audioError ?? micError}
                     </div>
                   )}
 
@@ -888,10 +1149,7 @@ export default function CreateAuction() {
                           <p className="text-sm font-medium text-white truncate">{coverFile.name}</p>
                           <p className="text-xs text-white/40 mt-0.5">{(coverFile.size / 1024 / 1024).toFixed(1)} MB</p>
                         </div>
-                        <button
-                          onClick={clearCover}
-                          className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center active:scale-95"
-                        >
+                        <button onClick={clearCover} className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center active:scale-95">
                           <X size={14} className="text-red-400" />
                         </button>
                       </div>

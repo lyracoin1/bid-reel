@@ -159,7 +159,35 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
 export async function refreshAuctions(): Promise<void> {
   try {
     const { auctions, nextCursor } = await getAuctionsApi();
-    globalAuctions = auctions.map(a => backendToAuction(a));
+
+    // ── Stable reference diffing ──────────────────────────────────────────
+    // For any auction whose display-relevant fields have NOT changed, reuse
+    // the existing object reference instead of replacing it with a new one.
+    // This keeps React.memo effective: FeedCards whose auction prop hasn't
+    // changed will bail out of re-rendering even when the feed refreshes.
+    const existingById = new Map<string, Auction>(
+      globalAuctions.map(a => [a.id, a]),
+    );
+    globalAuctions = auctions.map(raw => {
+      const next = backendToAuction(raw);
+      const prev = existingById.get(next.id);
+      if (!prev) return next; // new auction — no existing reference to keep
+      // Compare every field the card visibly renders. If all match, return
+      // the SAME object reference so shallow equality checks pass.
+      if (
+        prev.currentBid  === next.currentBid  &&
+        prev.bidCount    === next.bidCount     &&
+        prev.likes       === next.likes        &&
+        prev.views       === next.views        &&
+        prev.status      === next.status       &&
+        prev.isLikedByMe === next.isLikedByMe  &&
+        prev.buyerId     === next.buyerId
+      ) {
+        return prev; // unchanged — preserve reference, memo stays intact ✓
+      }
+      return next; // something changed — use fresh object
+    });
+
     feedCursor = nextCursor;
     feedHasMore = nextCursor !== null;
     lastRefreshError = false;

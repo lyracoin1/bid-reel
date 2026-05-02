@@ -550,38 +550,18 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
           </span>
         </motion.button>
 
-        {/* 5. Share — TikTok paper-plane arrow */}
+        {/* 5. Share — opens in-app share sheet */}
         <motion.button
           whileTap={{ scale: 0.8 }}
           className="flex flex-col items-center gap-1"
           style={{ minWidth: 44, minHeight: 44 }}
           aria-label={t("aria_share_auction")}
-          onClick={handleShare}
+          onClick={(e) => { e.stopPropagation(); setShowShareSheet(true); }}
         >
           <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white">
             <TikTokShareIcon />
           </div>
           <span className="text-[11px] font-semibold text-white/80">{t("share")}</span>
-        </motion.button>
-
-        {/* 5b. Share with followers */}
-        <motion.button
-          whileTap={{ scale: 0.8 }}
-          className="flex flex-col items-center gap-1"
-          style={{ minWidth: 44, minHeight: 44 }}
-          aria-label={lang === "ar" ? "مشاركة مع متابعيني" : "Share with followers"}
-          onClick={handleShareToFollowers}
-          disabled={sharingToFollowers}
-        >
-          <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white">
-            {sharingToFollowers
-              ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-              : <Users size={20} />
-            }
-          </div>
-          <span className="text-[11px] font-semibold text-white/80 text-center leading-tight">
-            {lang === "ar" ? "متابعيني" : "Followers"}
-          </span>
         </motion.button>
 
         {/* 6. Primary CTA — Bell (upcoming) · Bid (active) · Ended indicator */}
@@ -807,6 +787,101 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
           {lang === "ar" ? "مهتم" : "Interested"}
         </motion.button>
       </div>
+
+      {/* ── Share sheet ──────────────────────────────────────────────────── */}
+      {/* Opens when the Share button is tapped. Backdrop closes it.        */}
+      <AnimatePresence>
+        {showShareSheet && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              key="share-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="absolute inset-0 z-40 bg-black/50"
+              onClick={(e) => { e.stopPropagation(); setShowShareSheet(false); }}
+            />
+
+            {/* Sheet */}
+            <motion.div
+              key="share-sheet"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="absolute bottom-0 left-0 right-0 z-50 bg-[#111] border-t border-white/10 rounded-t-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-white/8">
+                <span className="text-sm font-semibold text-white/80">
+                  {lang === "ar" ? "مشاركة" : "Share"}
+                </span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowShareSheet(false); }}
+                  className="w-7 h-7 flex items-center justify-center rounded-full bg-white/10 text-white/60 active:bg-white/20"
+                  aria-label="Close share menu"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {/* Option 1 — Share via device apps (native sheet) */}
+              <button
+                className="w-full flex items-center gap-4 px-5 py-4 text-white active:bg-white/5"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowShareSheet(false);
+                  void handleShare(e);
+                }}
+              >
+                <div className="w-10 h-10 rounded-full bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
+                  <TikTokShareIcon />
+                </div>
+                <span className="text-sm font-medium">
+                  {lang === "ar" ? "مشاركة عبر التطبيقات" : "Share via apps"}
+                </span>
+              </button>
+
+              {/* Option 2 — Share to followers */}
+              <button
+                className="w-full flex items-center gap-4 px-5 py-4 text-white active:bg-white/5 disabled:opacity-50"
+                disabled={sharingToFollowers}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowShareSheet(false);
+                  void handleShareToFollowers(e);
+                }}
+              >
+                <div className="w-10 h-10 rounded-full bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
+                  {sharingToFollowers
+                    ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    : <Users size={18} />
+                  }
+                </div>
+                <span className="text-sm font-medium">
+                  {lang === "ar" ? "متابعيني" : "Share to my followers"}
+                </span>
+              </button>
+
+              {/* Option 3 — Copy link (fallback) */}
+              <button
+                className="w-full flex items-center gap-4 px-5 py-4 pb-6 text-white active:bg-white/5"
+                onClick={handleCopyLink}
+              >
+                <div className="w-10 h-10 rounded-full bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
+                  <Link2 size={18} />
+                </div>
+                <span className="text-sm font-medium">
+                  {lang === "ar" ? "نسخ الرابط" : "Copy link"}
+                </span>
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

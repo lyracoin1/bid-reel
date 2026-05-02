@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { ArrowLeft, Crown, ShieldCheck, Check, Zap, MessageCircle, Lock, TrendingDown, HeadphonesIcon, Handshake, BadgeCheck, Users, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Crown, ShieldCheck, Check, Zap, MessageCircle, Lock, TrendingDown, HeadphonesIcon, Handshake, BadgeCheck, Users, AlertTriangle, Sparkles } from "lucide-react";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { motion } from "framer-motion";
 import { useLang } from "@/contexts/LanguageContext";
@@ -10,6 +10,7 @@ const PRO_FEATURES = [
   { icon: ShieldCheck,      en: "Secure Deals access",              ar: "الوصول إلى الصفقات الآمنة" },
   { icon: TrendingDown,     en: "Lower marketplace fees",           ar: "رسوم منصة أقل" },
   { icon: HeadphonesIcon,   en: "Priority support",                 ar: "دعم ذو أولوية" },
+  { icon: Sparkles,         en: "Early access to premium tools",    ar: "وصول مبكر للأدوات المميزة" },
 ];
 
 const DEAL_FEATURES = [

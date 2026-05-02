@@ -77,6 +77,7 @@ async function insertAuction(payload: {
   min_increment_value: number;
   video_url: string;
   thumbnail_url: string;
+  image_urls?: string[] | null;
   created_at: string;
   ends_at: string;
   media_purge_after: string;
@@ -90,7 +91,7 @@ async function insertAuction(payload: {
   const {
     start_price_value, min_increment_value, media_purge_after,
     lat, lng, currency_code, currency_label,
-    sale_type, fixed_price,
+    sale_type, fixed_price, image_urls,
     ...base
   } = payload;
 
@@ -109,6 +110,7 @@ async function insertAuction(payload: {
       media_purge_after,
       sale_type,
       fixed_price,
+      image_urls: image_urls ?? null,
       ...locationFields,
       ...currencyFields,
     })
@@ -675,6 +677,10 @@ const createAuctionSchema = z.object({
     .default(10),
   videoUrl: z.string().url("videoUrl must be a valid URL"),
   thumbnailUrl: z.string().url("thumbnailUrl must be a valid URL"),
+  imageUrls: z
+    .array(z.string().url("Each imageUrl must be a valid URL"))
+    .max(6, "A maximum of 6 images are allowed per listing")
+    .optional(),
   lat: z
     .number({ required_error: "lat is required — location must be granted before publishing" })
     .min(-90).max(90),
@@ -735,7 +741,7 @@ router.post("/auctions", requireAuth, async (req, res) => {
     return;
   }
 
-  const { title, description, category, startPrice, saleType, fixedPrice, minIncrement, videoUrl, thumbnailUrl, lat, lng, currencyCode, currencyLabel, durationHours } =
+  const { title, description, category, startPrice, saleType, fixedPrice, minIncrement, videoUrl, thumbnailUrl, imageUrls, lat, lng, currencyCode, currencyLabel, durationHours } =
     parsed.data;
   const sellerId = req.user!.id;
   // Sale-type normalization:
@@ -799,6 +805,9 @@ router.post("/auctions", requireAuth, async (req, res) => {
   try {
     assertOwnedMediaUrl(videoUrl, sellerId);
     assertOwnedMediaUrl(thumbnailUrl, sellerId);
+    for (const imgUrl of imageUrls ?? []) {
+      assertOwnedMediaUrl(imgUrl, sellerId);
+    }
   } catch (err) {
     res.status(400).json({
       error: "INVALID_MEDIA_URL",
@@ -860,6 +869,7 @@ router.post("/auctions", requireAuth, async (req, res) => {
     min_increment_value: minIncrement,
     video_url: videoUrl,
     thumbnail_url: thumbnailUrl,
+    image_urls: imageUrls && imageUrls.length > 0 ? imageUrls : null,
     created_at: createdAt.toISOString(),
     ends_at: endsAt.toISOString(),
     media_purge_after: mediaPurgeAfter.toISOString(),

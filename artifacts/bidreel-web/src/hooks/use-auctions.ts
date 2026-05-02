@@ -106,6 +106,10 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
   const startingBid: number = r.start_price ?? 0;
   const videoUrl: string | undefined = r.video_url;
   const thumbUrl: string | undefined = r.thumbnail_url;
+  const imageUrls: string[] = Array.isArray(r.image_urls) && r.image_urls.length > 0
+    ? r.image_urls as string[]
+    : [];
+  const isVideoUrl = (url: string) => /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
   const mediaUrl = videoUrl ?? thumbUrl ?? '';
 
   return {
@@ -121,7 +125,10 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
     // For video auctions: thumbUrl is the thumbnail image.
     // For image auctions: thumbUrl may equal mediaUrl — fine as a poster fallback.
     thumbnailUrl: thumbUrl ?? null,
-    type: videoUrl ? 'video' : 'album',
+    images: imageUrls.length > 0 ? imageUrls : undefined,
+    type: imageUrls.length > 0
+      ? 'album'
+      : (videoUrl && isVideoUrl(videoUrl) ? 'video' : 'album'),
     seller: apiProfileToUser(raw.seller, raw.seller_id),
     likes: r.like_count ?? 0,
     views: r.views_count ?? 0,

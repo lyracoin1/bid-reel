@@ -386,6 +386,7 @@ export default function CreateAuction() {
     try {
       let videoUrl: string;
       let thumbnailUrl: string;
+      let allImageUrls: string[] | undefined;
 
       if (postType === "video") {
         if (!videoSupported) {
@@ -498,6 +499,7 @@ export default function CreateAuction() {
         }
         videoUrl     = uploadedUrls[0];
         thumbnailUrl = coverThumbnailUrl || uploadedUrls[0];
+        allImageUrls = uploadedUrls;
       }
 
       setUploadProgress(lang === "ar" ? "جارٍ نشر المزاد…" : "Publishing your auction…");
@@ -518,6 +520,7 @@ export default function CreateAuction() {
             : { fixedPrice: parseInt(form.fixedPrice, 10) }),
           videoUrl,
           thumbnailUrl,
+          ...(allImageUrls && allImageUrls.length > 0 ? { imageUrls: allImageUrls } : {}),
           lat: coords.lat,
           lng: coords.lng,
           currencyCode: effectiveCurrency.code,

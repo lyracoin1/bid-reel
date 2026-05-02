@@ -150,6 +150,7 @@ export interface ApiAuctionRaw {
   min_increment: number | null;
   video_url: string | null;
   thumbnail_url: string | null;
+  image_urls?: string[] | null;
   bid_count: number;
   like_count: number;
   /** Public qualified-views count (server-decided). May be absent on legacy
@@ -534,6 +535,9 @@ export interface CreateAuctionInput {
   fixedPrice?: number;
   videoUrl: string;
   thumbnailUrl: string;
+  /** All uploaded image URLs for multi-image (album) listings. Include all
+   *  images in order; the first item should match `videoUrl`. */
+  imageUrls?: string[];
   lat: number;
   lng: number;
   currencyCode?: string;

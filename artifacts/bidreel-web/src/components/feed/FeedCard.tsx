@@ -896,6 +896,7 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
               className="absolute bottom-0 left-0 right-0 z-50 bg-[#111] border-t border-white/10 rounded-t-2xl overflow-hidden"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 72px)" }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}

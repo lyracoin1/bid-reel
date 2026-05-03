@@ -40,6 +40,17 @@ export type NotificationType =
   | "auction_ending_soon"
   | "admin_message"
   | "account_warning"
+  | "auction_shared"
+  // Secure Deals
+  | "buyer_conditions_submitted"
+  | "seller_conditions_submitted"
+  | "deal_rated"
+  | "payment_proof_uploaded"
+  | "shipment_proof_uploaded"
+  | "buyer_confirmed_receipt"
+  | "buyer_delivery_proof_uploaded"
+  | "shipping_fee_dispute_created"
+  | "seller_penalty_applied"
   // legacy aliases (still emitted by older rows in production)
   | "new_follower"
   | "new_bid"

@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   Home, Search, Plus, User, Bell, X, ShoppingBag, Gavel, Trophy, Tag, UserPlus,
   Heart, Bookmark, MessageCircle, AtSign, ShieldAlert, Megaphone, XCircle,
+  Share2, FileText, Star, CreditCard, Truck, Package, CheckCircle2, AlertTriangle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,18 @@ const TYPE_CONFIG: Record<
   auction_ending_soon:       { icon: Gavel,       colour: "text-orange-400",  labelKey: "notif_label_ending_soon"  },
   admin_message:             { icon: Megaphone,   colour: "text-yellow-300",  labelKey: "notif_label_admin"        },
   account_warning:           { icon: ShieldAlert, colour: "text-red-500",     labelKey: "notif_label_warning"      },
+  // auction shared
+  auction_shared:                { icon: Share2,        colour: "text-sky-400",     labelKey: "notif_label_shared"         },
+  // Secure Deals
+  buyer_conditions_submitted:    { icon: FileText,      colour: "text-violet-400",  labelKey: "notif_label_conditions"     },
+  seller_conditions_submitted:   { icon: FileText,      colour: "text-violet-400",  labelKey: "notif_label_conditions"     },
+  deal_rated:                    { icon: Star,          colour: "text-amber-400",   labelKey: "notif_label_rated"          },
+  payment_proof_uploaded:        { icon: CreditCard,    colour: "text-emerald-400", labelKey: "notif_label_payment"        },
+  shipment_proof_uploaded:       { icon: Truck,         colour: "text-blue-400",    labelKey: "notif_label_shipped"        },
+  buyer_delivery_proof_uploaded: { icon: Package,       colour: "text-purple-400",  labelKey: "notif_label_delivery_proof" },
+  buyer_confirmed_receipt:       { icon: CheckCircle2,  colour: "text-green-400",   labelKey: "notif_label_confirmed"      },
+  shipping_fee_dispute_created:  { icon: AlertTriangle, colour: "text-orange-400",  labelKey: "notif_label_dispute"        },
+  seller_penalty_applied:        { icon: ShieldAlert,   colour: "text-red-500",     labelKey: "notif_label_penalty"        },
   // legacy aliases
   new_follower:     { icon: UserPlus,    colour: "text-blue-400",    labelKey: "notif_label_followed_you" },
   new_bid:          { icon: ShoppingBag, colour: "text-emerald-400", labelKey: "notif_label_bid_received" },

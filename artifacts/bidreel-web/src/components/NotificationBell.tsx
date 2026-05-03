@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Bell, X, ShoppingBag, Gavel, Trophy, Tag, UserPlus,
   Heart, Bookmark, MessageCircle, AtSign, ShieldAlert, Megaphone, XCircle,
+  Share2, FileText, Star, CreditCard, Truck, Package, CheckCircle2, AlertTriangle,
 } from "lucide-react";
 import { useNotifications, type AppNotification, type NotificationType } from "@/hooks/use-notifications";
 import { useLang } from "@/contexts/LanguageContext";
@@ -39,6 +40,18 @@ const TYPE_CONFIG: Record<
   auction_ending_soon:       { icon: Gavel,         colour: "text-orange-400",  label: "Ending Soon",  labelAr: "ينتهي قريباً" },
   admin_message:             { icon: Megaphone,     colour: "text-yellow-300",  label: "Announcement", labelAr: "إعلان" },
   account_warning:           { icon: ShieldAlert,   colour: "text-red-500",     label: "Warning",      labelAr: "تحذير" },
+  // ── Auction shared ───────────────────────────────────────────────────────────
+  auction_shared:                { icon: Share2,         colour: "text-sky-400",     label: "Shared",         labelAr: "مشاركة" },
+  // ── Secure Deals ─────────────────────────────────────────────────────────────
+  buyer_conditions_submitted:    { icon: FileText,       colour: "text-violet-400",  label: "Conditions",     labelAr: "شروط المشتري" },
+  seller_conditions_submitted:   { icon: FileText,       colour: "text-violet-400",  label: "Conditions",     labelAr: "شروط البائع" },
+  deal_rated:                    { icon: Star,           colour: "text-amber-400",   label: "Rating",         labelAr: "تقييم" },
+  payment_proof_uploaded:        { icon: CreditCard,     colour: "text-emerald-400", label: "Payment",        labelAr: "إثبات الدفع" },
+  shipment_proof_uploaded:       { icon: Truck,          colour: "text-blue-400",    label: "Shipped",        labelAr: "تم الشحن" },
+  buyer_delivery_proof_uploaded: { icon: Package,        colour: "text-purple-400",  label: "Delivery Proof", labelAr: "إثبات الاستلام" },
+  buyer_confirmed_receipt:       { icon: CheckCircle2,   colour: "text-green-400",   label: "Confirmed",      labelAr: "تأكيد الاستلام" },
+  shipping_fee_dispute_created:  { icon: AlertTriangle,  colour: "text-orange-400",  label: "Dispute",        labelAr: "نزاع شحن" },
+  seller_penalty_applied:        { icon: ShieldAlert,    colour: "text-red-500",     label: "Penalty",        labelAr: "عقوبة" },
   // ── Legacy aliases (still emitted by old rows) ──────────────────────────────
   new_follower:     { icon: UserPlus,    colour: "text-blue-400",    label: "Follower", labelAr: "متابع" },
   new_bid:          { icon: ShoppingBag, colour: "text-emerald-400", label: "New Bid",  labelAr: "مزايدة" },
@@ -94,6 +107,25 @@ function getDeepLink(n: AppNotification): string | null {
       if (!link.startsWith("/") || link.startsWith("//")) return null;
       return link;
     }
+
+    // ── Secure Deals — all route to the deal detail page ─────────────────
+    case "payment_proof_uploaded":
+    case "shipment_proof_uploaded":
+    case "buyer_delivery_proof_uploaded":
+    case "buyer_confirmed_receipt":
+    case "shipping_fee_dispute_created":
+    case "seller_penalty_applied":
+    case "buyer_conditions_submitted":
+    case "seller_conditions_submitted":
+    case "deal_rated": {
+      const dealId =
+        (n.metadata?.["dealId"] as string | undefined) ??
+        (n.metadata?.["deal_id"] as string | undefined);
+      return dealId ? `/deals/${dealId}` : "/deals";
+    }
+
+    case "auction_shared":
+      return n.auctionId ? `/auction/${n.auctionId}` : null;
   }
 }
 

@@ -1,0 +1,49 @@
+Task for Replit:
+
+Goal: Optimize the BidReel WebView (React + Capacitor) performance for Android without breaking any existing functionality or UI, improving scrolling, navigation, and responsiveness.
+
+Requirements:
+
+1. Lists & Rendering:
+   - Reduce the number of DOM elements rendered at once in lists (FeedCard, auction-detail, etc.)
+   - Use virtualization or lazy rendering for long lists to minimize memory usage
+
+2. Media Lazy Loading:
+   - Implement lazy loading for all large images and videos in the feed and detail pages
+   - Ensure only near-viewport media is loaded to improve performance
+   - Preserve existing functionality: one video at a time, auto-pause offscreen
+
+3. Code Splitting:
+   - Apply code splitting for the main React bundle
+   - Ensure route-level lazy loading for non-critical pages
+   - No existing route or page should break
+
+4. CSS & Animations:
+   - Optimize or remove heavy CSS effects
+   - Replace CPU-heavy animations with GPU-accelerated CSS transitions where possible
+   - Ensure layout and styles remain consistent
+
+5. Caching:
+   - Apply efficient caching strategies for images, videos, and API data
+   - Reuse cached media to reduce network calls without breaking dynamic content
+
+6. Testing & Safety:
+   - Test on mid-range and low-end Android devices (emulators acceptable)
+   - Verify that no UI components break
+   - Confirm that all features (auction, secure deals, notifications, feeds, media uploads) still work as expected
+   - LSP and TypeScript should have zero new errors
+
+7. Hardware Acceleration:
+   - Test enabling hardware acceleration in Android manifest
+   - Ensure no visual glitches occur
+
+Expected Output:
+- WebView responsiveness improved: faster scrolling, smoother navigation, better media loading
+- No broken features or visual issues
+- Build and run without new errors
+- Respond only with: "WebView performance optimized safely ✅"
+
+Notes:
+- Focus purely on performance optimizations and safety
+- Do not remove any features or change UI logic
+- Apply changes incrementally and safely

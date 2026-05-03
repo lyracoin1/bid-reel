@@ -1,0 +1,64 @@
+Goal: Implement a robust audio-to-video conversion feature for the BidReel project while fixing the "Could not create deal" error on auction creation.
+
+Requirements:
+
+1. Audio-to-Video Conversion:
+   - Input: 1+ images + 1 audio file (MP3, M4A, AAC, OGG, OPUS).
+   - Conversion:
+     - Single image → static video frame (FFmpeg -loop 1, min 2s).
+     - Multiple images → slideshow video:
+       - Each image displayed evenly across audio duration (minimum 2s per image).
+       - Ensure last frame duplicates if needed to avoid EOF cut-off.
+     - Combine audio and images to produce MP4 video.
+     - Output path: R2 bucket `audio-videos/{userId}/{jobId}.mp4`.
+     - Limit output size ≤ 30 MB.
+   - FFmpeg usage preferred, keep processing asynchronous (“fire-and-forget”) to avoid blocking auction creation.
+   - Backend: update `artifacts/api-server/src/routes/auctions.ts` and `processAudioReelAsync` function.
+   - Ensure `backendToAuction` logic prioritizes video type after conversion over images alone.
+
+2. Frontend Handling:
+   - FeedCard.tsx & auction-detail.tsx:
+     - Type "audio" → show `<video>` element when MP4 exists.
+     - Fallback: ImageSlider for cover images if video fails.
+     - Handle `videoError` state and reset when auction changes.
+     - Optional: mute/unmute button, autoplay, pause off-screen.
+
+3. Auction Creation Fix:
+   - Investigate why `Could not create deal` occurs:
+     - Likely due to missing or invalid `payment_link` or other required fields.
+   - Backend route: `POST /api/auctions`:
+     - Make `payment_link` optional; generate a fallback link if missing.
+     - Ensure all required fields are validated without blocking new audio/video auction creation.
+     - Files to inspect: `artifacts/api-server/src/routes/auctions.ts`, `create-auction.tsx`, `backendToAuction` mapping, `FeedCard.tsx`.
+
+4. Deliverables:
+   - Backend:
+     - Updated `processAudioReelAsync` in `video-processing.ts`.
+     - Updated auctions.ts route.
+     - Ensure R2 storage and metadata logging.
+   - Frontend:
+     - FeedCard + auction-detail rendering for audio/video.
+     - Graceful fallback handling.
+   - Fix auction creation issue (Could not create deal) with proper default/fallback links.
+
+5. Safety:
+   - Do not break existing video auctions.
+   - Ensure all other auction types remain unaffected.
+   - Maintain backward compatibility with previously uploaded videos/images.
+
+6. Expected Output:
+   - Audio + multiple images → MP4 generated and stored correctly.
+   - FeedCard + auction-detail display video if exists, fallback to images.
+   - Auction creation succeeds for audio auctions with or without payment link.
+   - Logs confirm process completion, output file paths, and video size limit.
+   - Failures gracefully reported without breaking other auctions.
+
+Extra:
+   - Manus should anticipate file locations based on existing project structure:
+     - `artifacts/api-server/src/routes/auctions.ts`
+     - `artifacts/api-server/src/lib/video-processing.ts`
+     - `artifacts/bidreel-web/src/components/FeedCard.tsx`
+     - `artifacts/bidreel-web/src/pages/auction-detail.tsx`
+     - `artifacts/bidreel-web/src/hooks/use-auctions.ts`
+
+Respond only after verifying file paths and dependencies. Provide a step-by-step implementation with full safety for existing auctions.

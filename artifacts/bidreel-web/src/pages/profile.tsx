@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Grid, Bookmark, LogOut, ShieldCheck, Trash2, Shield, MapPin,
-  Pencil, Settings, ChevronRight, Gavel, Trophy, AlertCircle, Loader2,
+  Pencil, Settings, ChevronRight, Gavel, Trophy, AlertCircle, Loader2, Crown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
@@ -620,6 +620,40 @@ export default function Profile() {
         <div className="px-5 pt-2 pb-3">
           <p className="text-[10px] font-bold text-white/25 uppercase tracking-widest mb-2 px-1">{t("account_section")}</p>
           <div className="rounded-2xl bg-white/4 border border-white/8 divide-y divide-white/6 overflow-hidden">
+
+            {/* BidReel Pro upgrade / status row */}
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setLocation("/subscription")}
+              className="w-full flex items-center gap-3 px-4 py-4 text-left hover:bg-white/5 active:bg-white/8 transition-colors"
+            >
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                user?.isPremium
+                  ? "bg-primary/20 border border-primary/30"
+                  : "bg-amber-500/15 border border-amber-500/25"
+              }`}>
+                <Crown size={15} className={user?.isPremium ? "text-primary" : "text-amber-400"} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium text-white/70">
+                  {user?.isPremium
+                    ? (lang === "ar" ? "بيدريل برو" : "BidReel Pro")
+                    : (lang === "ar" ? "الترقية إلى برو" : "Upgrade to Pro")}
+                </span>
+                {!user?.isPremium && (
+                  <p className="text-[10px] text-amber-400/70 mt-0.5">
+                    {lang === "ar" ? "اشترك بـ 10$ شهرياً للحصول على مزايا مميزة" : "Subscribe $10/mo for unlimited bidding & more"}
+                  </p>
+                )}
+              </div>
+              {user?.isPremium ? (
+                <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 rounded-full px-2.5 py-0.5">
+                  {lang === "ar" ? "نشط" : "Active"}
+                </span>
+              ) : (
+                <ChevronRight size={14} className="text-amber-400/50" />
+              )}
+            </motion.button>
 
             {/* Settings */}
             <motion.button

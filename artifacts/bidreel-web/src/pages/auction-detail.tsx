@@ -27,60 +27,17 @@ import { formatDistanceToNow } from "date-fns";
 import { useViewerLocation } from "@/hooks/use-viewer-location";
 import { haversineDistance, formatDistance, formatAuctionPrice } from "@/lib/geo";
 import { useGlobalMute, getGlobalMuted } from "@/lib/global-mute";
-import { BillingPlugin } from "capacitor-billing";
-import { API_BASE, getToken } from "@/lib/api-client";
 // ─── Google Play subscription purchase flow ───────────────────────────────────
-// Triggered when the user taps "Subscribe now" after hitting the premium gate.
-// Flow: querySkuDetails → launchBillingFlow → sendAck → backend verify.
+// Re-exported from the shared lib. Triggered when the user taps "Subscribe now"
+// after hitting the premium gate. The full flow is documented in
+// src/lib/subscription-billing.ts.
+import { startSubscription as _startSubscription } from "@/lib/subscription-billing";
+
+/** Thin wrapper that swallows errors so the call site stays a one-liner. */
 async function startSubscription(userId: string): Promise<void> {
-  // Guard: user must be authenticated before any billing call.
-  if (!userId) {
-    console.error("Billing: cannot start purchase — user is not authenticated");
-    return;
-  }
-
   try {
-    // 1. Confirm the product is available in the Play Store.
-    await BillingPlugin.querySkuDetails({ product: "bidreel_plus", type: "SUBS" });
-
-    // 2. Launch the native Google Play purchase dialog.
-    const result = await BillingPlugin.launchBillingFlow({ product: "bidreel_plus", type: "SUBS" });
-
-    const purchaseToken = result.value;
-    if (!purchaseToken) {
-      console.error("Billing: no purchase token returned");
-      return;
-    }
-
-    // 3. Verify with backend FIRST — never acknowledge before server confirms.
-const token = await getToken();
-if (!token) {
-  console.error("Billing: cannot verify purchase — missing auth token");
-  return;
-}
-
-const response = await fetch(`${API_BASE}/billing/verify`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  },
-  body: JSON.stringify({ userId, productId: "bidreel_plus", purchaseToken }),
-});
-
-let json: { success?: boolean } = {};
-try { json = await response.json() as { success?: boolean }; } catch { /* non-JSON body */ }
-
-if (!response.ok || !json.success) {
-  // Do NOT acknowledge — token remains pending and can be retried.
-  console.error("Billing: backend verification failed", response.status);
-  return;
-}
-
-    // 4. Only acknowledge after backend has confirmed and granted premium.
-    await BillingPlugin.sendAck({ purchaseToken });
+    await _startSubscription(userId);
   } catch (err) {
-    // Never log purchaseToken in the error — it is bearer-equivalent.
     console.error("Billing error", (err as Error).message);
   }
 }

@@ -240,28 +240,39 @@ async function probeDuration(filePath: string): Promise<number> {
   }
 }
 
+/** Max generated MP4 size — 30 MB. Checked after generation; job fails if exceeded. */
+const MAX_OUTPUT_SIZE_BYTES = 30 * 1024 * 1024;
+
 /**
- * Convert an uploaded audio file + optional cover image into a looping MP4 reel.
- * When coverImageUrl is null the BidReel logo PNG is used as the background frame.
- * The generated MP4 replaces video_url / thumbnail_url in the auctions row so the
- * feed and player work without any schema changes.
+ * Convert an uploaded audio file + cover image(s) into a mobile-optimised MP4 reel.
+ *
+ * coverImageUrls behaviour:
+ *   • []  or null → use the BidReel logo as a static background frame
+ *   • [url]       → static frame for the full audio duration
+ *   • [u1, u2, …] → slideshow: each image shown for audioDuration/N seconds,
+ *                   looping smoothly via the FFmpeg concat demuxer
+ *
+ * The generated MP4 replaces video_url / thumbnail_url in the auctions row so
+ * the feed and detail player (type="video") render it without any schema changes.
+ *
+ * Storage path: audio-videos/{userId}/{jobId}.mp4
+ *
  * Call fire-and-forget after inserting the auction row.
  */
 export async function processAudioReelAsync(
   auctionId: string,
   audioUrl: string,
-  coverImageUrl: string | null,
+  coverImageUrls: string[],
   userId: string,
 ): Promise<void> {
-  const jobId = randomUUID().slice(0, 8);
+  const jobId  = randomUUID().slice(0, 8);
   const tmpDir = path.join(tmpdir(), `bidreel-audio-${jobId}`);
-  logger.info({ auctionId, jobId }, "audio-reel: job started");
+  logger.info({ auctionId, jobId, imageCount: coverImageUrls.length }, "audio-reel: job started");
 
   try {
     await fs.mkdir(tmpDir, { recursive: true });
 
     const audioPath = path.join(tmpDir, "audio.tmp");
-    const coverPath = path.join(tmpDir, "cover.jpg");
     const outPath   = path.join(tmpDir, "reel_720.mp4");
     const thumbPath = path.join(tmpDir, "thumb.jpg");
 
@@ -276,53 +287,110 @@ export async function processAudioReelAsync(
       throw new Error(`Audio too long: ${Math.round(dur)}s exceeds ${MAX_AUDIO_DURATION_S}s limit`);
     }
 
-    // ── 3. Cover image — user upload or BidReel logo fallback ─────────────
-    if (coverImageUrl) {
-      const coverBytes = await downloadMedia(coverImageUrl);
-      await fs.writeFile(coverPath, coverBytes);
-      logger.info({ auctionId, jobId }, "audio-reel: cover image downloaded");
-    } else {
-      await fs.copyFile(LOGO_FALLBACK_PATH, coverPath);
+    // ── 3. Download / prepare cover image(s) ──────────────────────────────
+    const coverPaths: string[] = [];
+
+    if (coverImageUrls.length === 0) {
+      // No cover — use BidReel logo as a static frame
+      const logoPath = path.join(tmpDir, "cover_0.jpg");
+      await fs.copyFile(LOGO_FALLBACK_PATH, logoPath);
+      coverPaths.push(logoPath);
       logger.info({ auctionId, jobId }, "audio-reel: using BidReel logo fallback");
+    } else {
+      for (let i = 0; i < coverImageUrls.length; i++) {
+        const imgPath = path.join(tmpDir, `cover_${i}.jpg`);
+        const imgBytes = await downloadMedia(coverImageUrls[i]);
+        await fs.writeFile(imgPath, imgBytes);
+        coverPaths.push(imgPath);
+      }
+      logger.info({ auctionId, jobId, count: coverPaths.length }, "audio-reel: cover image(s) downloaded");
     }
 
-    // ── 4. Generate MP4: still image looped over audio ────────────────────
-    // -loop 1         : hold the image for the full audio duration
-    // -tune stillimage: optimise libx264 for a static background frame
-    // -shortest       : cut video when audio ends
-    // -movflags +faststart: MOOV atom at the front for progressive streaming
-    await shell(
-      `ffmpeg -y -loop 1 -i "${coverPath}" -i "${audioPath}" ` +
-      `-vf "scale=720:720:force_original_aspect_ratio=decrease,` +
-      `pad=720:720:(ow-iw)/2:(oh-ih)/2:color=black" ` +
-      `-c:v libx264 -tune stillimage -crf 28 -preset veryfast ` +
-      `-c:a aac -b:a 128k ` +
-      `-shortest -movflags +faststart ` +
-      `"${outPath}"`,
-    );
-    const outStat = await fs.stat(outPath);
-    logger.info({ auctionId, jobId, kb: Math.round(outStat.size / 1024) }, "audio-reel: MP4 generated");
+    // ── 4. Generate MP4 ───────────────────────────────────────────────────
+    // Common video filter: letterbox/pillarbox to 720×720, black bars, no stretch.
+    // fps=5: enough for smooth still/slide transitions, keeps file size small.
+    const scaleFilter =
+      `scale=720:720:force_original_aspect_ratio=decrease,` +
+      `pad=720:720:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=5`;
 
-    // ── 5. Extract thumbnail (first frame of generated MP4) ───────────────
+    if (coverPaths.length === 1) {
+      // ── Single image: static frame over audio ─────────────────────────
+      // -loop 1         : hold the image for the full audio duration
+      // -tune stillimage: optimise libx264 for a static background
+      // -shortest       : cut video stream when audio ends
+      await shell(
+        `ffmpeg -y -loop 1 -i "${coverPaths[0]}" -i "${audioPath}" ` +
+        `-vf "${scaleFilter}" ` +
+        `-c:v libx264 -tune stillimage -crf 28 -preset veryfast ` +
+        `-c:a aac -b:a 128k ` +
+        `-shortest -movflags +faststart ` +
+        `"${outPath}"`,
+      );
+    } else {
+      // ── Multiple images: slideshow ─────────────────────────────────────
+      // Each image is shown for an equal slice of the audio duration
+      // (minimum 2 s per slide so fast content isn't invisible).
+      // The concat demuxer feeds images as a video stream; audio is mixed in.
+      const safeDur  = dur > 0 ? dur : 30; // fallback 30 s if probe failed
+      const slideDur = Math.max(2, safeDur / coverPaths.length);
+
+      // Build the concat file list.  The last entry is duplicated with a tiny
+      // duration to work around the concat demuxer's last-frame truncation bug.
+      const listLines: string[] = [];
+      for (const p of coverPaths) {
+        listLines.push(`file '${p.replace(/'/g, "'\\''")}'`);
+        listLines.push(`duration ${slideDur.toFixed(3)}`);
+      }
+      // Duplicate last frame to avoid black tail
+      listLines.push(`file '${coverPaths[coverPaths.length - 1].replace(/'/g, "'\\''")}'`);
+      listLines.push(`duration 0.1`);
+
+      const listPath = path.join(tmpDir, "slide_list.txt");
+      await fs.writeFile(listPath, listLines.join("\n"));
+
+      await shell(
+        `ffmpeg -y -f concat -safe 0 -i "${listPath}" -i "${audioPath}" ` +
+        `-vf "${scaleFilter}" ` +
+        `-c:v libx264 -crf 28 -preset veryfast ` +
+        `-c:a aac -b:a 128k ` +
+        `-shortest -movflags +faststart ` +
+        `"${outPath}"`,
+      );
+    }
+
+    const outStat = await fs.stat(outPath);
+    logger.info(
+      { auctionId, jobId, kb: Math.round(outStat.size / 1024), slides: coverPaths.length },
+      "audio-reel: MP4 generated",
+    );
+
+    // ── 5. File-size guard (30 MB) ─────────────────────────────────────────
+    if (outStat.size > MAX_OUTPUT_SIZE_BYTES) {
+      throw new Error(
+        `Generated video too large: ${Math.round(outStat.size / 1024 / 1024)}MB exceeds 30 MB limit`,
+      );
+    }
+
+    // ── 6. Extract thumbnail (first frame of generated MP4) ───────────────
     await shell(
       `ffmpeg -y -i "${outPath}" -vframes 1 -vf "scale=640:-2" "${thumbPath}"`,
     );
 
-    // ── 6. Upload MP4 + thumbnail to R2 ────────────────────────────────────
+    // ── 7. Upload MP4 + thumbnail to R2 ────────────────────────────────────
     const [outBytes, thumbBytes] = await Promise.all([
       fs.readFile(outPath),
       fs.readFile(thumbPath),
     ]);
 
-    const videoKey = `processed/${userId}/${jobId}_audio_reel.mp4`;
-    const thumbKey = `processed/${userId}/${jobId}_audio_thumb.jpg`;
+    const videoKey = `audio-videos/${userId}/${jobId}.mp4`;
+    const thumbKey = `audio-videos/${userId}/${jobId}_thumb.jpg`;
 
     const [vidUpload, thumbUpload] = await Promise.all([
       r2Upload(videoKey, outBytes, "video/mp4"),
       r2Upload(thumbKey, thumbBytes, "image/jpeg"),
     ]);
 
-    // ── 7. Update auction row with generated MP4 URLs ─────────────────────
+    // ── 8. Update auction row with generated MP4 URLs ─────────────────────
     const { error: updateErr } = await supabaseAdmin
       .from("auctions")
       .update({ video_url: vidUpload.publicUrl, thumbnail_url: thumbUpload.publicUrl })
@@ -331,10 +399,12 @@ export async function processAudioReelAsync(
 
     logger.info({ auctionId, jobId }, "audio-reel: ✅ complete");
 
-    // ── 8. Remove originals from R2 (non-fatal) ───────────────────────────
+    // ── 9. Remove originals from R2 (non-fatal) ───────────────────────────
     try {
       await deleteOriginal(audioUrl);
-      if (coverImageUrl) await deleteOriginal(coverImageUrl);
+      for (const imgUrl of coverImageUrls) {
+        await deleteOriginal(imgUrl);
+      }
     } catch (delErr) {
       logger.warn({ auctionId, jobId, err: String(delErr) }, "audio-reel: cleanup failed (non-fatal)");
     }

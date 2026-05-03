@@ -107,6 +107,7 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   const albumStartX = useRef<number | null>(null);
   const albumSwiped = useRef(false);
   const [albumIdx, setAlbumIdx] = useState(0);
+  const [videoError, setVideoError] = useState(false);
   const { user: currentUser } = useCurrentUser();
   const isOwner = !!currentUser && auction.seller.id === currentUser.id;
   const viewerLoc = useViewerLocation();
@@ -390,15 +391,25 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
               className="absolute inset-0 w-full h-full object-cover"
             />
           )}
-          <video
-            ref={videoRef}
-            src={isNear ? auction.mediaUrl : undefined}
-            className={cn("absolute inset-0 w-full h-full object-cover transition-transform duration-700", isActive ? "scale-100" : "scale-105")}
-            playsInline
-            preload="metadata"
-            loop
-            muted
-          />
+          {videoError ? (
+            /* Graceful fallback: video failed to load — show cover image(s) */
+            (auction.images?.length ?? 0) > 0 ? (
+              <ImageSlider images={auction.images!} alt={auction.title} className="absolute inset-0 w-full h-full" />
+            ) : auction.thumbnailUrl ? (
+              <img src={auction.thumbnailUrl} alt={auction.title} className="absolute inset-0 w-full h-full object-cover" />
+            ) : null
+          ) : (
+            <video
+              ref={videoRef}
+              src={isNear ? auction.mediaUrl : undefined}
+              className={cn("absolute inset-0 w-full h-full object-cover transition-transform duration-700", isActive ? "scale-100" : "scale-105")}
+              playsInline
+              preload="metadata"
+              loop
+              muted
+              onError={() => setVideoError(true)}
+            />
+          )}
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent via-35% to-black/90 pointer-events-none" />
           {state !== "active" && <div className="absolute inset-0 bg-black/25 pointer-events-none" />}
         </div>

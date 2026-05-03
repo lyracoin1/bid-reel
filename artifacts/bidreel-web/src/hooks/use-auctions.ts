@@ -141,9 +141,11 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
     images: isAudio ? audioImages : (imageUrls.length > 0 ? imageUrls : undefined),
     type: isAudio
       ? 'audio'
+      : (videoUrl && isVideoUrl(videoUrl))
+      ? 'video'
       : imageUrls.length > 0
       ? 'album'
-      : (videoUrl && isVideoUrl(videoUrl) ? 'video' : 'album'),
+      : 'album',
     seller: apiProfileToUser(raw.seller, raw.seller_id),
     likes: r.like_count ?? 0,
     views: r.views_count ?? 0,

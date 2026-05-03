@@ -177,6 +177,7 @@ export default function AuctionDetail() {
   // thumbnail overlay. Reset to false whenever the auction changes so
   // the thumbnail shows again while the new video is fetching its first frame.
   const [videoHasData, setVideoHasData] = useState(false);
+  const [videoError, setVideoError] = useState(false);
   const { isRefreshing, refresh } = useBidPolling();
   const { pullDistance, pullProgress, isRefreshing: isPulling } =
     usePullToRefresh(scrollRef, refresh);
@@ -199,8 +200,9 @@ export default function AuctionDetail() {
     if (!auction || auction.type !== "video") return;
     const el = videoRef.current;
     if (!el) return;
-    // Reset thumbnail overlay whenever we switch to a different auction.
+    // Reset thumbnail overlay and error state whenever we switch to a different auction.
     setVideoHasData(false);
+    setVideoError(false);
     // Use latest global value at play() time to avoid one-frame mismatch.
     el.muted = getGlobalMuted();
     el.play().catch(() => {});
@@ -548,37 +550,49 @@ export default function AuctionDetail() {
             </>
           ) : isVideo ? (
             <>
-              {/* Thumbnail overlay — visible until the video fires onLoadedData.
-                  Prevents a flash of black while preload="metadata" fetches the
-                  first frame. Uses object-contain to match the video's letterbox
-                  treatment. The video sits above (relative z-10) and replaces it
-                  visually once its data is ready. */}
-              {auction.thumbnailUrl && !videoHasData && (
-                <img
-                  src={auction.thumbnailUrl}
-                  aria-hidden
-                  className="absolute inset-0 w-full h-full object-contain"
-                />
+              {videoError ? (
+                /* Graceful fallback: video failed to load — show cover image(s) */
+                (auction.images?.length ?? 0) > 0 ? (
+                  <ImageSlider images={auction.images!} alt={auction.title} className="w-full h-full" />
+                ) : auction.thumbnailUrl ? (
+                  <img src={auction.thumbnailUrl} alt={auction.title} className="w-full h-full object-contain" />
+                ) : null
+              ) : (
+                <>
+                  {/* Thumbnail overlay — visible until the video fires onLoadedData.
+                      Prevents a flash of black while preload="metadata" fetches the
+                      first frame. Uses object-contain to match the video's letterbox
+                      treatment. The video sits above (relative z-10) and replaces it
+                      visually once its data is ready. */}
+                  {auction.thumbnailUrl && !videoHasData && (
+                    <img
+                      src={auction.thumbnailUrl}
+                      aria-hidden
+                      className="absolute inset-0 w-full h-full object-contain"
+                    />
+                  )}
+                  <video
+                    ref={videoRef}
+                    src={auction.mediaUrl}
+                    // max-w-full max-h-full: constrain to the flex stage without
+                    // relying on `object-fit`, which is silently ignored for
+                    // <video> in some Capacitor / Android WebView versions.
+                    // The flex parent (`items-center justify-center`) centres the
+                    // element; `bg-black` on the container provides letterbox bars.
+                    // relative z-10: stack above the absolute thumbnail overlay.
+                    className={cn(
+                      "max-w-full max-h-full relative z-10",
+                      state !== "active" && "opacity-80",
+                    )}
+                    playsInline
+                    preload="metadata"
+                    loop
+                    muted
+                    onLoadedData={() => setVideoHasData(true)}
+                    onError={() => setVideoError(true)}
+                  />
+                </>
               )}
-              <video
-                ref={videoRef}
-                src={auction.mediaUrl}
-                // max-w-full max-h-full: constrain to the flex stage without
-                // relying on `object-fit`, which is silently ignored for
-                // <video> in some Capacitor / Android WebView versions.
-                // The flex parent (`items-center justify-center`) centres the
-                // element; `bg-black` on the container provides letterbox bars.
-                // relative z-10: stack above the absolute thumbnail overlay.
-                className={cn(
-                  "max-w-full max-h-full relative z-10",
-                  state !== "active" && "opacity-80",
-                )}
-                playsInline
-                preload="metadata"
-                loop
-                muted
-                onLoadedData={() => setVideoHasData(true)}
-              />
               {/* Mute / unmute control */}
               <button
                 onClick={() => setMuted(!isMuted)}

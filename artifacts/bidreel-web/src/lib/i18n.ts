@@ -170,6 +170,22 @@ export type TKey =
   | "notif_label_product_media"
   | "notif_label_ext_payment"
   | "notif_label_receipt"
+  // Notification bodies/titles
+  | "notif_title_followed_you" | "notif_body_followed_you"
+  | "notif_title_liked_your_auction" | "notif_body_liked_your_auction"
+  | "notif_title_saved_your_auction" | "notif_body_saved_your_auction"
+  | "notif_title_commented_on_your_auction" | "notif_body_commented_on_your_auction"
+  | "notif_title_replied_to_your_comment" | "notif_body_replied_to_your_comment"
+  | "notif_title_mentioned_you" | "notif_body_mentioned_you"
+  | "notif_title_bid_received" | "notif_body_bid_received"
+  | "notif_title_outbid" | "notif_body_outbid"
+  | "notif_title_auction_won" | "notif_body_auction_won"
+  | "notif_title_auction_ended" | "notif_body_auction_ended"
+  | "notif_title_auction_unsold" | "notif_body_auction_unsold"
+  | "notif_title_auction_ending_soon" | "notif_body_auction_ending_soon"
+  | "notif_title_auction_started" | "notif_body_auction_started"
+  | "notif_title_account_warning" | "notif_body_account_warning"
+  | "notif_title_admin_message" | "notif_body_admin_message"
   // Profile — delete account warning
   | "delete_irreversible" | "delete_account_body" | "delete_account_irreversible_emphasis"
   // Aria-labels (screen-reader strings on touch buttons)

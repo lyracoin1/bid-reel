@@ -421,8 +421,8 @@ export async function notifyLikedYourAuction(
   await createNotification({
     userId: sellerId,
     type: "liked_your_auction",
-    title: t(lang, "إعجاب جديد ❤️", "New like ❤️"),
-    body: t(lang, `أعجب ${likerName} بمزادك "${auctionTitle}"`, `${likerName} liked your auction "${auctionTitle}"`),
+    title: t(lang, "إعجاب جديد ❤️", "New like ❤️", { ru: "Новый лайк ❤️", es: "Nuevo me gusta ❤️", fr: "Nouveau j'aime ❤️", tr: "Yeni beğeni ❤️" }),
+    body: t(lang, `أعجب ${likerName} بمزادك "${auctionTitle}"`, `${likerName} liked your auction "${auctionTitle}"`, { ru: `${likerName} поставил лайк вашему аукциону "${auctionTitle}"`, es: `${likerName} dio me gusta a tu subasta "${auctionTitle}"`, fr: `${likerName} a aimé votre enchère "${auctionTitle}"`, tr: `${likerName} "${auctionTitle}" açık artırmanı beğendi` }),
     auctionId,
     actorId: likerId,
     metadata: { auctionId, actorId: likerId },
@@ -448,8 +448,8 @@ export async function notifySavedYourAuction(
   await createNotification({
     userId: sellerId,
     type: "saved_your_auction",
-    title: t(lang, "تم الحفظ 🔖", "Saved 🔖"),
-    body: t(lang, `قام ${saverName} بحفظ مزادك "${auctionTitle}"`, `${saverName} saved your auction "${auctionTitle}"`),
+    title: t(lang, "تم الحفظ 🔖", "Saved 🔖", { ru: "Сохранено 🔖", es: "Guardado 🔖", fr: "Enregistré 🔖", tr: "Kaydedildi 🔖" }),
+    body: t(lang, `قام ${saverName} بحفظ مزادك "${auctionTitle}"`, `${saverName} saved your auction "${auctionTitle}"`, { ru: `${saverName} сохранил(а) ваш аукцион "${auctionTitle}"`, es: `${saverName} guardó tu subasta "${auctionTitle}"`, fr: `${saverName} a enregistré votre enchère "${auctionTitle}"`, tr: `${saverName} "${auctionTitle}" açık artırmanı kaydetti` }),
     auctionId,
     actorId: saverId,
     metadata: { auctionId, actorId: saverId },
@@ -477,8 +477,8 @@ export async function notifyCommentedOnYourAuction(
   await createNotification({
     userId: sellerId,
     type: "commented_on_your_auction",
-    title: t(lang, `علق ${commenterName}`, `${commenterName} commented`),
-    body: t(lang, `على "${auctionTitle}": ${excerpt}`, `On "${auctionTitle}": ${excerpt}`),
+    title: t(lang, `علق ${commenterName}`, `${commenterName} commented`, { ru: `${commenterName} прокомментировал(а)`, es: `${commenterName} comentó`, fr: `${commenterName} a commenté`, tr: `${commenterName} yorum yaptı` }),
+    body: t(lang, `على "${auctionTitle}": ${excerpt}`, `On "${auctionTitle}": ${excerpt}`, { ru: `В "${auctionTitle}": ${excerpt}`, es: `En "${auctionTitle}": ${excerpt}`, fr: `Sur "${auctionTitle}" : ${excerpt}`, tr: `"${auctionTitle}" üzerinde: ${excerpt}` }),
     auctionId,
     actorId: commenterId,
     metadata: { auctionId, actorId: commenterId, commentId },
@@ -503,7 +503,7 @@ export async function notifyRepliedToYourComment(
   await createNotification({
     userId: parentAuthorId,
     type: "replied_to_your_comment",
-    title: t(lang, `رد ${replierName}`, `${replierName} replied`),
+    title: t(lang, `رد ${replierName}`, `${replierName} replied`, { ru: `${replierName} ответил(а)`, es: `${replierName} respondió`, fr: `${replierName} a répondu`, tr: `${replierName} yanıt verdi` }),
     body: excerpt,
     auctionId,
     actorId: replierId,
@@ -528,7 +528,7 @@ export async function notifyMentionedYou(
   await createNotification({
     userId: mentionedUserId,
     type: "mentioned_you",
-    title: t(lang, `ذكرك ${mentionerName}`, `${mentionerName} mentioned you`),
+    title: t(lang, `ذكرك ${mentionerName}`, `${mentionerName} mentioned you`, { ru: `${mentionerName} упомянул(а) вас`, es: `${mentionerName} te mencionó`, fr: `${mentionerName} vous a mentionné`, tr: `${mentionerName} senden bahsetti` }),
     body: excerpt,
     auctionId,
     actorId: mentionerId,
@@ -574,8 +574,8 @@ export async function notifyBidReceived(
     await createNotification({
       userId: sellerId,
       type: "bid_received",
-      title: t(lang, "مزايدة جديدة على مزادك 💰", "New bid on your auction 💰"),
-      body: t(lang, `قام ${who} بوضع مزايدة بقيمة ${dollars} على "${auctionTitle}"`, `${who} placed a bid of ${dollars} on "${auctionTitle}"`),
+      title: t(lang, "مزايدة جديدة على مزادك 💰", "New bid on your auction 💰", { ru: "Новая ставка на ваш аукцион 💰", es: "Nueva puja en tu subasta 💰", fr: "Nouvelle enchère sur votre enchère 💰", tr: "Açık artırmana yeni teklif 💰" }),
+      body: t(lang, `قام ${who} بوضع مزايدة بقيمة ${dollars} على "${auctionTitle}"`, `${who} placed a bid of ${dollars} on "${auctionTitle}"`, { ru: `${who} сделал(а) ставку ${dollars} на "${auctionTitle}"`, es: `${who} hizo una puja de ${dollars} en "${auctionTitle}"`, fr: `${who} a placé une enchère de ${dollars} sur "${auctionTitle}"`, tr: `${who}, "${auctionTitle}" için ${dollars} teklif verdi` }),
       auctionId,
       actorId: bidderId,
       metadata: { auctionId, actorId: bidderId, bidAmountCents: newAmount },
@@ -799,8 +799,8 @@ export async function notifyAuctionEnded(
   await createNotification({
     userId: sellerId,
     type: "auction_ended",
-    title: t(lang, "انتهى المزاد ✅", "Auction ended ✅"),
-    body: t(lang, `تم بيع "${auctionTitle}" مقابل ${dollars}. تم إخطار الفائز.`, `"${auctionTitle}" sold for ${dollars}. The winner has been notified.`),
+    title: t(lang, "انتهى المزاد ✅", "Auction ended ✅", { ru: "Аукцион завершён ✅", es: "Subasta finalizada ✅", fr: "Enchère terminée ✅", tr: "Açık artırma bitti ✅" }),
+    body: t(lang, `تم بيع "${auctionTitle}" مقابل ${dollars}. تم إخطار الفائز.`, `"${auctionTitle}" sold for ${dollars}. The winner has been notified.`, { ru: `"${auctionTitle}" продан за ${dollars}. Победитель уведомлён.`, es: `"${auctionTitle}" se vendió por ${dollars}. Se notificó al ganador.`, fr: `"${auctionTitle}" a été vendu pour ${dollars}. Le gagnant a été notifié.`, tr: `"${auctionTitle}" ${dollars} karşılığında satıldı. Kazanan bilgilendirildi.` }),
     auctionId,
     metadata: { auctionId, finalAmountCents: finalAmount },
   });
@@ -821,8 +821,8 @@ export async function notifyAuctionUnsold(
   await createNotification({
     userId: sellerId,
     type: "auction_unsold",
-    title: t(lang, "انتهى المزاد — لا توجد مزايدات", "Auction ended — no bids"),
-    body: t(lang, `انتهى "${auctionTitle}" دون أي مزايدات. يمكنك إعادة إدراجه من ملفك الشخصي.`, `"${auctionTitle}" ended without any bids. You can relist it from your profile.`),
+    title: t(lang, "انتهى المزاد — لا توجد مزايدات", "Auction ended — no bids", { ru: "Аукцион завершён — ставок нет", es: "Subasta finalizada — sin pujas", fr: "Enchère terminée — aucune offre", tr: "Açık artırma bitti — teklif yok" }),
+    body: t(lang, `انتهى "${auctionTitle}" دون أي مزايدات. يمكنك إعادة إدراجه من ملفك الشخصي.`, `"${auctionTitle}" ended without any bids. You can relist it from your profile.`, { ru: `"${auctionTitle}" завершился без ставок. Вы можете перевыставить его в профиле.`, es: `"${auctionTitle}" terminó sin pujas. Puedes volver a publicarlo desde tu perfil.`, fr: `"${auctionTitle}" s'est terminé sans enchère. Vous pouvez le remettre en ligne depuis votre profil.`, tr: `"${auctionTitle}" teklifsiz sona erdi. Profilinden tekrar listeleyebilirsin.` }),
     auctionId,
     metadata: { auctionId },
   });
@@ -848,8 +848,8 @@ export async function notifyAuctionEndingSoon(
   await createNotification({
     userId,
     type: "auction_ending_soon",
-    title: t(lang, "⏳ ينتهي المزاد قريبًا", "⏳ Auction ending soon"),
-    body: t(lang, `ينتهي "${auctionTitle}" خلال ${timeLabel}`, `"${auctionTitle}" ends in ${timeLabel}`),
+    title: t(lang, "⏳ ينتهي المزاد قريبًا", "⏳ Auction ending soon", { ru: "⏳ Аукцион скоро завершится", es: "⏳ La subasta termina pronto", fr: "⏳ L'enchère se termine bientôt", tr: "⏳ Açık artırma yakında bitiyor" }),
+    body: t(lang, `ينتهي "${auctionTitle}" خلال ${timeLabel}`, `"${auctionTitle}" ends in ${timeLabel}`, { ru: `"${auctionTitle}" завершится через ${timeLabel}`, es: `"${auctionTitle}" termina en ${timeLabel}`, fr: `"${auctionTitle}" se termine dans ${timeLabel}`, tr: `"${auctionTitle}" ${timeLabel} içinde bitecek` }),
     auctionId,
     metadata: { auctionId, minutesLeft },
   });
@@ -884,7 +884,7 @@ export async function notifyAccountWarning(
   await createNotification({
     userId,
     type: "account_warning",
-    title: "Account warning ⚠️",
+    title: t("en", "تحذير الحساب ⚠️", "Account warning ⚠️", { ru: "Предупреждение аккаунта ⚠️", es: "Advertencia de cuenta ⚠️", fr: "Avertissement de compte ⚠️", tr: "Hesap uyarısı ⚠️" }),
     body: reason,
     metadata,
   });

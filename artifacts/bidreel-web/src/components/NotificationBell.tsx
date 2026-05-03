@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useNotifications, type AppNotification, type NotificationType } from "@/hooks/use-notifications";
 import { useLang } from "@/contexts/LanguageContext";
+import { t } from "@/lib/i18n";
 
 // ─── Icon + colour per notification type ──────────────────────────────────────
 
@@ -208,7 +209,12 @@ function NotificationRow({ n, onNavigate, lang }: { n: AppNotification; onNaviga
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2 mb-0.5">
           <span className={`text-xs font-semibold uppercase tracking-wide ${cfg.colour}`}>
-            {lang === "ar" ? cfg.labelAr : cfg.label}
+            {t(lang, cfg.labelAr, cfg.label, {
+              ru: cfg.label,
+              es: cfg.label,
+              fr: cfg.label,
+              tr: cfg.label,
+            })}
           </span>
           <span className="text-xs text-muted-foreground flex-shrink-0">
             {timeAgo(n.createdAt, lang)}
@@ -349,7 +355,12 @@ export function NotificationBell() {
                 {visibleNotifications.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
                     <Bell size={32} className="opacity-30" />
-                    <p className="text-sm">{lang === "ar" ? "لا إشعارات بعد" : "No notifications yet"}</p>
+                    <p className="text-sm">{t(lang, "لا توجد إشعارات بعد", "No notifications yet", {
+                      ru: "Уведомлений пока нет",
+                      es: "No hay notificaciones todavía",
+                      fr: "Aucune notification pour le moment",
+                      tr: "Henüz bildirim yok",
+                    })}</p>
                   </div>
                 ) : (
                   visibleNotifications.map(n => <NotificationRow key={n.id} n={n} onNavigate={handleNavigate} lang={lang} />)

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,14 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
   const [current, setCurrent] = useState(0);
   const startX = useRef<number | null>(null);
 
+  useEffect(() => {
+    if (images.length <= 1) return;
+    const id = window.setInterval(() => {
+      setCurrent(c => (c + 1) % images.length);
+    }, 3500);
+    return () => window.clearInterval(id);
+  }, [images.length]);
+
   if (images.length === 0) return null;
   if (images.length === 1) {
     // Detail-view consumer expects letterboxing (no crop). The wrapper
@@ -20,7 +28,7 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
     // `object-contain` here keeps the real aspect ratio intact on both
     // mobile browsers and Capacitor's Android WebView.
     return (
-      <div className={cn("flex items-center justify-center bg-black", className)}>
+      <div className={cn("flex items-center justify-center bg-black overflow-hidden", className)}>
         <img
           src={images[0]}
           alt={alt}

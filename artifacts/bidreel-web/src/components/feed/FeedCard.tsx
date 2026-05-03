@@ -24,6 +24,7 @@ import { useViewTracker } from "@/hooks/use-view-tracker";
 import { useGlobalMute, getGlobalMuted } from "@/lib/global-mute";
 import { TrustBadge } from "@/components/trust/TrustBadge";
 import { useUserTrust } from "@/hooks/use-user-trust";
+import { ImageSlider } from "@/components/feed/ImageSlider";
 
 function SellerTrust({ sellerId }: { sellerId: string }) {
   const { trust } = useUserTrust(sellerId);
@@ -378,83 +379,12 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
           {state !== "active" && <div className="absolute inset-0 bg-black/25 pointer-events-none" />}
         </div>
       ) : auction.type === "album" && (auction.images?.length ?? 0) > 1 ? (
-        /* ── Multi-image album carousel ───────────────────────────────────── */
-        <div className="absolute inset-0">
-          {/* Current image — object-cover for full-bleed TikTok look */}
-          <img
-            src={auction.images![albumIdx]}
-            alt={`${auction.title} ${albumIdx + 1}`}
-            loading="lazy"
-            decoding="async"
-            className={cn("w-full h-full object-cover transition-all duration-300", isActive ? "scale-100" : "scale-105")}
-            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-          />
+        <div className="absolute inset-0" onClick={() => setLocation(`/auction/${auction.id}`)}>
+          <div className={cn("absolute inset-0 transition-transform duration-700", isActive ? "scale-100" : "scale-105")}>
+            <ImageSlider images={auction.images!} alt={auction.title} className="w-full h-full" />
+          </div>
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent via-35% to-black/90 pointer-events-none" />
           {state !== "active" && <div className="absolute inset-0 bg-black/25 pointer-events-none" />}
-
-          {/* Swipe + tap capture layer — swipe changes image, tap opens detail */}
-          <div
-            className="absolute inset-0"
-            onTouchStart={(e) => {
-              albumStartX.current = e.touches[0].clientX;
-              albumSwiped.current = false;
-            }}
-            onTouchEnd={(e) => {
-              if (albumStartX.current === null) return;
-              const dx = e.changedTouches[0].clientX - albumStartX.current;
-              if (Math.abs(dx) > 40) {
-                albumSwiped.current = true;
-                dx < 0
-                  ? setAlbumIdx(i => Math.min(auction.images!.length - 1, i + 1))
-                  : setAlbumIdx(i => Math.max(0, i - 1));
-              }
-              albumStartX.current = null;
-            }}
-            onClick={() => {
-              if (albumSwiped.current) { albumSwiped.current = false; return; }
-              setLocation(`/auction/${auction.id}`);
-            }}
-          />
-
-          {/* Left arrow — hidden on first image */}
-          {albumIdx > 0 && (
-            <button
-              className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/55 backdrop-blur-sm border border-white/20 flex items-center justify-center active:scale-90 transition-transform"
-              onClick={(e) => { e.stopPropagation(); setAlbumIdx(i => Math.max(0, i - 1)); }}
-              aria-label="Previous image"
-            >
-              <ChevronLeft size={18} className="text-white" />
-            </button>
-          )}
-
-          {/* Right arrow — hidden on last image */}
-          {albumIdx < auction.images!.length - 1 && (
-            <button
-              className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/55 backdrop-blur-sm border border-white/20 flex items-center justify-center active:scale-90 transition-transform"
-              onClick={(e) => { e.stopPropagation(); setAlbumIdx(i => Math.min(auction.images!.length - 1, i + 1)); }}
-              aria-label="Next image"
-            >
-              <ChevronRight size={18} className="text-white" />
-            </button>
-          )}
-
-          {/* Count badge — top-left, below safe-area */}
-          <div
-            className="absolute left-4 z-10 bg-black/55 backdrop-blur-sm rounded-full px-2.5 py-1 text-xs font-bold text-white pointer-events-none"
-            style={{ top: "max(52px, calc(env(safe-area-inset-top, 0px) + 12px))" }}
-          >
-            {albumIdx + 1} / {auction.images!.length}
-          </div>
-
-          {/* Dot strip — bottom-center, above info strip */}
-          <div className="absolute bottom-36 left-0 right-0 flex justify-center gap-1.5 z-10 pointer-events-none">
-            {auction.images!.map((_, i) => (
-              <div
-                key={i}
-                className={cn("rounded-full transition-all duration-200", i === albumIdx ? "w-5 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/50")}
-              />
-            ))}
-          </div>
         </div>
       ) : (
         /* ── Single image ─────────────────────────────────────────────────── */

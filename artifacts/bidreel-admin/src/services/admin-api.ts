@@ -680,6 +680,39 @@ export async function adminGetProductMedia(): Promise<AdminProductMedia[]> {
   return data.media ?? [];
 }
 
+// ─── Receipts (Secure Deals Part #17) ────────────────────────────────────────
+
+export interface AdminReceipt {
+  deal_id:             string;
+  seller_id:           string | null;
+  buyer_id:            string | null;
+  product_name:        string | null;
+  currency:            string | null;
+  price:               number | null;
+  order_id:            string | null;
+  receipt_file_url:    string | null;
+  receipt_uploaded_at: string | null;
+}
+
+/**
+ * Fetch all receipts (uploaded by buyers) across all deals.
+ * Calls GET /api/admin/receipts — requires admin auth.
+ * Supports optional query filters: dealId, sellerId, buyerId.
+ */
+export async function adminGetReceipts(filters?: {
+  dealId?:   string;
+  sellerId?: string;
+  buyerId?:  string;
+}): Promise<AdminReceipt[]> {
+  const params = new URLSearchParams();
+  if (filters?.dealId)   params.set("dealId",   filters.dealId);
+  if (filters?.sellerId) params.set("sellerId", filters.sellerId);
+  if (filters?.buyerId)  params.set("buyerId",  filters.buyerId);
+  const qs = params.toString();
+  const data = await adminFetch<{ receipts: AdminReceipt[] }>(`/receipts${qs ? `?${qs}` : ""}`);
+  return data.receipts ?? [];
+}
+
 export async function adminGetDealProductMedia(dealId: string): Promise<AdminProductMedia[]> {
   const data = await rootFetch<{ media: AdminProductMedia[] }>(`/product-media/${encodeURIComponent(dealId)}`);
   return data.media ?? [];

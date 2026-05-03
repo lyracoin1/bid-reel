@@ -33,7 +33,8 @@ import {
   reportExternalPayment,
   showBuyerInfo, getBuyerInfo,
   uploadProductMedia, getProductMedia,
-  Transaction, DealCondition, SellerCondition, DealRating, PaymentProof, ShipmentProof, DeliveryProof, ShippingFeeDispute, SellerPenalty, EscrowRow, ProductMedia, BuyerRevealedInfo,
+  uploadDealReceipt, getDealReceipt,
+  Transaction, DealCondition, SellerCondition, DealRating, PaymentProof, ShipmentProof, DeliveryProof, ShippingFeeDispute, SellerPenalty, EscrowRow, ProductMedia, BuyerRevealedInfo, DealReceipt,
 } from "@/lib/transactions";
 
 // ── Deal UI status (derived from DB payment_status + shipment_status) ──────
@@ -866,6 +867,15 @@ export default function SecureDealPayPage() {
   // ── Seller Penalty state (Part #10) ──────────────────────────────────────────
   const [penalties,          setPenalties]          = useState<SellerPenalty[]>([]);
 
+  // ── Receipt upload state (Part #17) ──────────────────────────────────────
+  const receiptFileRef                                           = useRef<HTMLInputElement>(null);
+  const [receiptFile,        setReceiptFile]                    = useState<File | null>(null);
+  const [receiptOrderId,     setReceiptOrderId]                 = useState("");
+  const [receiptUploading,   setReceiptUploading]               = useState(false);
+  const [receiptUploadError, setReceiptUploadError]             = useState<string | null>(null);
+  const [receiptUploadOk,    setReceiptUploadOk]                = useState(false);
+  const [existingReceipt,    setExistingReceipt]                = useState<DealReceipt | null>(null);
+
   // ── External Payment Warning state (Part #13) ─────────────────────────────
   const [extReportExpanded,  setExtReportExpanded]  = useState(false);
   const [extReportReason,    setExtReportReason]    = useState("");
@@ -1007,6 +1017,42 @@ export default function SecureDealPayPage() {
   }, [dealId, user]);
 
   useEffect(() => { loadProof(); }, [loadProof]);
+
+  // ── Load existing receipt (buyer + seller, best-effort) ─────────────────
+  const loadReceipt = useCallback(async () => {
+    if (!dealId || !user) return;
+    try {
+      const found = await getDealReceipt(dealId);
+      if (found) {
+        setExistingReceipt(found);
+        setReceiptOrderId(found.order_id ?? "");
+      }
+    } catch {
+      // Non-fatal
+    }
+  }, [dealId, user]);
+
+  useEffect(() => { loadReceipt(); }, [loadReceipt]);
+
+  // ── Upload receipt ────────────────────────────────────────────────────────
+  async function handleUploadReceipt() {
+    if (!user || !tx || !receiptFile || receiptUploading) return;
+    setReceiptUploading(true);
+    setReceiptUploadError(null);
+    setReceiptUploadOk(false);
+    try {
+      const saved = await uploadDealReceipt(tx.deal_id, receiptFile, receiptOrderId);
+      setExistingReceipt(saved);
+      setReceiptFile(null);
+      if (receiptFileRef.current) receiptFileRef.current.value = "";
+      setReceiptUploadOk(true);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setReceiptUploadError(ar ? `فشل الرفع: ${msg}` : `Upload failed: ${msg}`);
+    } finally {
+      setReceiptUploading(false);
+    }
+  }
 
   // ── Submit rating ─────────────────────────────────────────────────────────
   async function handleSubmitRating() {
@@ -2161,6 +2207,181 @@ export default function SecureDealPayPage() {
                     >
                       <AlertCircle size={13} className="text-red-400 shrink-0 mt-0.5" />
                       <p className="text-[12px] text-red-300 leading-snug">{proofError}</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+              </div>
+            </motion.div>
+          )}
+
+          {/* ═══ 5b. PURCHASE RECEIPT / ORDER ID CARD (Part #17) ════════════════
+               Buyer uploads their purchase receipt + optional order number.
+               Visible to buyer (upload) and seller/both (read-only).         */}
+          {!isSeller && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.14 }}
+              className="rounded-3xl bg-white/4 border border-white/8 overflow-hidden"
+            >
+              <div className="bg-gradient-to-r from-violet-600/15 to-transparent px-5 pt-4 pb-3 border-b border-white/6">
+                <div className="flex items-center gap-2">
+                  <FileText size={12} className="text-violet-400" />
+                  <p className="text-[10px] font-bold text-violet-400/80 uppercase tracking-widest">
+                    {ar ? "إيصال الشراء" : "Purchase Receipt"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="px-5 py-4 space-y-3">
+
+                {/* Helper text */}
+                {!existingReceipt && (
+                  <p className="text-[11px] text-white/35 leading-relaxed">
+                    {ar
+                      ? "ارفع إيصال الشراء (بنكي أو إلكتروني) وأدخل رقم الطلب إن وُجد. يُرسَل إشعار للإدارة."
+                      : "Upload your purchase receipt (bank or e-payment) and optionally enter the order number. Admins will be notified."}
+                  </p>
+                )}
+
+                {/* Existing receipt row */}
+                {existingReceipt && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="rounded-2xl bg-violet-600/8 border border-violet-500/20 px-4 py-3.5 space-y-2"
+                  >
+                    <div className="flex items-start gap-3">
+                      <FileText size={16} className="text-violet-400 shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0 space-y-1">
+                        {existingReceipt.order_id && (
+                          <p className="text-[11px] text-white/50">
+                            {ar ? "رقم الطلب:" : "Order #:"}{" "}
+                            <span className="font-mono font-bold text-violet-300">{existingReceipt.order_id}</span>
+                          </p>
+                        )}
+                        <p className="text-[10px] text-white/30">
+                          {new Date(existingReceipt.receipt_uploaded_at).toLocaleString(
+                            ar ? "ar-SA" : "en-US",
+                            { dateStyle: "medium", timeStyle: "short" },
+                          )}
+                        </p>
+                      </div>
+                      <a
+                        href={existingReceipt.receipt_file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 px-3 py-1.5 rounded-xl bg-violet-600/20 border border-violet-500/25 text-violet-300 text-[11px] font-bold hover:brightness-110 transition"
+                      >
+                        {ar ? "عرض" : "View"}
+                      </a>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Order ID field */}
+                <input
+                  type="text"
+                  value={receiptOrderId}
+                  onChange={e => setReceiptOrderId(e.target.value)}
+                  placeholder={ar ? "رقم الطلب (اختياري)" : "Order ID (optional)"}
+                  maxLength={200}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2.5 text-[13px] text-white placeholder-white/20 focus:outline-none focus:border-violet-500/40 transition"
+                />
+
+                {/* Hidden file input */}
+                <input
+                  ref={receiptFileRef}
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/jpg,image/png"
+                  className="hidden"
+                  onChange={e => {
+                    const f = e.target.files?.[0] ?? null;
+                    setReceiptFile(f);
+                    setReceiptUploadError(null);
+                    setReceiptUploadOk(false);
+                  }}
+                />
+
+                {/* Selected file preview */}
+                {receiptFile && (
+                  <div className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
+                    <FileText size={13} className="text-white/50 shrink-0" />
+                    <span className="text-[12px] text-white/70 flex-1 truncate">{receiptFile.name}</span>
+                    <span className="text-[10px] text-white/30 shrink-0">{(receiptFile.size / 1024).toFixed(0)} KB</span>
+                    <button
+                      onClick={() => { setReceiptFile(null); if (receiptFileRef.current) receiptFileRef.current.value = ""; }}
+                      className="text-white/20 hover:text-white/50 transition shrink-0"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Choose / Upload buttons */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => receiptFileRef.current?.click()}
+                    className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white/6 border border-white/10 text-white/50 text-[12px] font-medium hover:bg-white/10 hover:text-white/70 transition"
+                  >
+                    <Upload size={12} />
+                    {existingReceipt
+                      ? (ar ? "استبدال الإيصال" : "Replace")
+                      : (ar ? "اختر ملفاً" : "Choose File")}
+                  </button>
+
+                  {(receiptFile || receiptOrderId.trim()) && (
+                    <motion.button
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      whileTap={{ scale: receiptUploading ? 1 : 0.97 }}
+                      onClick={handleUploadReceipt}
+                      disabled={receiptUploading || !receiptFile}
+                      className="flex-1 py-2.5 rounded-xl bg-violet-600 text-white font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-md shadow-violet-700/20 hover:brightness-110 transition disabled:opacity-50"
+                    >
+                      {receiptUploading ? (
+                        <><Loader2 size={12} className="animate-spin" />{ar ? "جارٍ الرفع…" : "Uploading…"}</>
+                      ) : (
+                        <><Upload size={12} />{ar ? "رفع الإيصال" : "Upload Receipt"}</>
+                      )}
+                    </motion.button>
+                  )}
+                </div>
+
+                <p className="text-[10px] text-white/20">
+                  {ar ? "الصيغ المقبولة: PDF، JPEG، PNG — الحد الأقصى 10 ميجابايت" : "Accepted: PDF, JPEG, PNG — max 10 MB"}
+                </p>
+
+                {/* Success banner */}
+                <AnimatePresence>
+                  {receiptUploadOk && (
+                    <motion.div
+                      key="receipt-ok"
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2.5"
+                    >
+                      <p className="text-[12px] text-emerald-300">
+                        {ar ? "✓ تم رفع الإيصال — تم إبلاغ الإدارة." : "✓ Receipt uploaded — admins have been notified."}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Error banner */}
+                <AnimatePresence>
+                  {receiptUploadError && (
+                    <motion.div
+                      key="receipt-err"
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="rounded-xl bg-red-500/10 border border-red-500/20 px-3.5 py-2.5 flex items-start gap-2"
+                    >
+                      <AlertCircle size={13} className="text-red-400 shrink-0 mt-0.5" />
+                      <p className="text-[12px] text-red-300 leading-snug">{receiptUploadError}</p>
                     </motion.div>
                   )}
                 </AnimatePresence>

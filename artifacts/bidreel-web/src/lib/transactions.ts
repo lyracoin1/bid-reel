@@ -51,6 +51,10 @@ export interface Transaction {
   external_payment_warning_reason: string | null;
   // Buyer Info Visibility
   buyer_info_visible: boolean;
+  // Receipt / Order ID (Part #17)
+  order_id:              string | null;
+  receipt_file_url:      string | null;
+  receipt_uploaded_at:   string | null;
   payment_link:    string | null;
   release_date:    string | null;
   created_at:      string;
@@ -389,6 +393,77 @@ export async function getPaymentProof(dealId: string): Promise<PaymentProof | nu
 
   const { proof } = await res.json();
   return proof as PaymentProof | null;
+}
+
+// ── Receipt / Order ID (Part #17) ────────────────────────────────────────────
+
+export interface DealReceipt {
+  receipt_file_url:    string;
+  order_id:            string | null;
+  receipt_uploaded_at: string;
+}
+
+/**
+ * Upload a purchase receipt file for a deal (buyer-only).
+ * Sends the file as a raw binary body to POST /api/deal/receipt.
+ * Accepted formats: PDF, JPEG, PNG. Max 10 MB.
+ * Re-uploading replaces the previous receipt (old R2 object orphaned).
+ * orderId is optional — pass empty string to clear / not set.
+ */
+export async function uploadDealReceipt(
+  dealId:  string,
+  file:    File,
+  orderId: string,
+): Promise<DealReceipt> {
+  const buffer = await file.arrayBuffer();
+  const params = new URLSearchParams({
+    dealId,
+    mimeType: file.type,
+    fileName: file.name,
+  });
+  if (orderId.trim()) params.set("orderId", orderId.trim());
+
+  const res = await apiFetch(
+    `/deal/receipt?${params.toString()}`,
+    {
+      method:  "POST",
+      headers: { "Content-Type": file.type },
+      body:    buffer,
+    },
+    true,
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).message ?? `Upload failed (${res.status})`);
+  }
+
+  const { proof } = await res.json();
+  return proof as DealReceipt;
+}
+
+/**
+ * Fetch the current receipt for a deal.
+ * Calls GET /api/deal/receipt/:dealId — requires auth (buyer, seller, or admin).
+ * Returns null when no receipt has been uploaded yet, or on 403/404.
+ */
+export async function getDealReceipt(dealId: string): Promise<DealReceipt | null> {
+  const res = await apiFetch(
+    `/deal/receipt/${encodeURIComponent(dealId)}`,
+    {},
+    true,
+  );
+
+  if (res.status === 403 || res.status === 404) return null;
+
+  if (!res.ok) {
+    console.warn("[transactions] getDealReceipt error:", res.status);
+    return null;
+  }
+
+  const data = await res.json();
+  if (!data.receipt_file_url) return null;
+  return data as DealReceipt;
 }
 
 // ── Deal Ratings (deal-ratings) ───────────────────────────────────────────────

@@ -18,6 +18,7 @@ import {
   adminResolveSellerPenalty,
   adminReleaseEscrow,
   adminGetDealProductMedia,      type AdminProductMedia,
+  adminGetReceipts,              type AdminReceipt,
   type FullDealSellerPenalty,
 } from "@/services/admin-api";
 
@@ -700,6 +701,13 @@ export default function SecureDeals() {
   const [penaltiesExpanded,   setPenaltiesExpanded]   = useState(true);
   const [resolvingId,         setResolvingId]         = useState<string | null>(null);
 
+  // Receipts — real data from API (Part #17)
+  const [receipts,            setReceipts]            = useState<AdminReceipt[]>([]);
+  const [receiptsLoading,     setReceiptsLoading]     = useState(false);
+  const [receiptsError,       setReceiptsError]       = useState<string | null>(null);
+  const [receiptsExpanded,    setReceiptsExpanded]    = useState(true);
+  const [receiptDealFilter,   setReceiptDealFilter]   = useState("");
+
   // Create penalty form state
   const [createFormOpen,      setCreateFormOpen]      = useState(false);
   const [cpDealId,            setCpDealId]            = useState("");
@@ -758,6 +766,15 @@ export default function SecureDeals() {
       .then(data => { setPenalties(data); setPenaltiesError(null); })
       .catch(err  => setPenaltiesError((err as Error).message ?? "فشل تحميل عقوبات البائعين"))
       .finally(()  => setPenaltiesLoading(false));
+  }, [refreshTick]);
+
+  // ── Fetch receipts (Part #17) ──────────────────────────────────────────────
+  useEffect(() => {
+    setReceiptsLoading(true);
+    adminGetReceipts()
+      .then(data => { setReceipts(data); setReceiptsError(null); })
+      .catch(err  => setReceiptsError((err as Error).message ?? "فشل تحميل الإيصالات"))
+      .finally(()  => setReceiptsLoading(false));
   }, [refreshTick]);
 
   // ── Filtering ───────────────────────────────────────────────────────────────
@@ -1023,6 +1040,126 @@ export default function SecureDeals() {
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/6 border border-white/10 text-white/50 text-[11px] font-bold hover:brightness-110 transition whitespace-nowrap">
                                 تنزيل
                               </a>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* ── Receipts Panel (Part #17) ── */}
+        <div className="rounded-2xl bg-white/3 border border-white/8 overflow-hidden">
+          <div className="w-full flex items-center justify-between px-5 py-4 bg-white/3">
+            <button
+              onClick={() => setReceiptsExpanded(p => !p)}
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
+            >
+              <FileText size={14} className="text-violet-400" />
+              <span className="text-sm font-bold text-white/80">إيصالات الشراء</span>
+              {!receiptsLoading && receipts.length > 0 && (
+                <span className="bg-violet-500/20 border border-violet-500/30 text-violet-300 text-[10px] font-bold px-1.5 py-0.5 rounded-lg">
+                  {receiptDealFilter
+                    ? receipts.filter(r => r.deal_id.toLowerCase().includes(receiptDealFilter.toLowerCase())).length
+                    : receipts.length}
+                </span>
+              )}
+            </button>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={receiptDealFilter}
+                onChange={e => setReceiptDealFilter(e.target.value)}
+                placeholder="تصفية بـ deal ID"
+                className="bg-white/5 border border-white/10 rounded-lg px-2.5 py-1 text-[11px] text-white placeholder-white/20 w-36 focus:outline-none focus:border-violet-500/30 transition"
+                dir="ltr"
+              />
+              <button onClick={() => setReceiptsExpanded(p => !p)} className="text-white/30 hover:text-white/50 transition">
+                {receiptsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+            </div>
+          </div>
+
+          <AnimatePresence>
+            {receiptsExpanded && (
+              <motion.div
+                key="receipts-panel"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                style={{ overflow: "hidden" }}
+              >
+                {receiptsLoading ? (
+                  <div className="px-5 py-8 text-center text-white/25 text-sm">جارٍ التحميل…</div>
+                ) : receiptsError ? (
+                  <div className="px-5 py-6 flex items-center gap-2 text-red-400 text-sm">
+                    <AlertCircle size={14} className="shrink-0" /> {receiptsError}
+                  </div>
+                ) : receipts.filter(r => !receiptDealFilter || r.deal_id.toLowerCase().includes(receiptDealFilter.toLowerCase())).length === 0 ? (
+                  <div className="px-5 py-8 text-center text-white/25 text-sm">لم يُرفع أي إيصال بعد.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-white/6 text-right bg-white/2">
+                          {["رقم الصفقة","المنتج","السعر","رقم الطلب","تاريخ الرفع","",""].map((h, i) => (
+                            <th key={i} className="px-4 py-2.5 text-[10px] font-bold text-white/30 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {receipts
+                          .filter(r => !receiptDealFilter || r.deal_id.toLowerCase().includes(receiptDealFilter.toLowerCase()))
+                          .map((r, i) => (
+                          <tr key={r.deal_id} className={`border-b border-white/5 hover:bg-white/3 transition-colors ${i % 2 === 0 ? "" : "bg-white/1"}`} dir="rtl">
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="font-mono text-[11px] font-bold text-white/60 bg-white/5 border border-white/8 rounded-lg px-2 py-0.5">{r.deal_id}</span>
+                            </td>
+                            <td className="px-4 py-3 max-w-[180px]">
+                              <span className="text-white/75 text-[12px] truncate block">{r.product_name ?? "—"}</span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {r.price != null ? (
+                                <>
+                                  <span className="text-white font-bold text-[12px]">{Number(r.price).toLocaleString()}</span>
+                                  <span className="text-white/40 text-[11px] ms-1">{r.currency}</span>
+                                </>
+                              ) : <span className="text-white/25">—</span>}
+                            </td>
+                            <td className="px-4 py-3 max-w-[160px]">
+                              {r.order_id ? (
+                                <span className="font-mono text-violet-300 text-[12px] truncate block">{r.order_id}</span>
+                              ) : (
+                                <span className="text-white/25 text-[11px]">لا يوجد</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-white/50 text-[11px]">
+                                {r.receipt_uploaded_at
+                                  ? new Date(r.receipt_uploaded_at).toLocaleDateString("ar-SA", { dateStyle: "short" })
+                                  : "—"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              {r.receipt_file_url ? (
+                                <a href={r.receipt_file_url} target="_blank" rel="noopener noreferrer"
+                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-500/15 border border-violet-500/25 text-violet-300 text-[11px] font-bold hover:brightness-110 transition whitespace-nowrap">
+                                  <ExternalLink size={11} /> عرض
+                                </a>
+                              ) : <span className="text-white/20 text-[11px]">—</span>}
+                            </td>
+                            <td className="px-4 py-3">
+                              {r.receipt_file_url ? (
+                                <a href={r.receipt_file_url} download
+                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/6 border border-white/10 text-white/50 text-[11px] font-bold hover:brightness-110 transition whitespace-nowrap">
+                                  تنزيل
+                                </a>
+                              ) : null}
                             </td>
                           </tr>
                         ))}

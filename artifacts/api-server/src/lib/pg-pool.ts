@@ -180,6 +180,13 @@ export async function bootstrapTransactionsTable(): Promise<void> {
       -- Hide Buyer Info Until Payment Confirmed
       ALTER TABLE transactions
         ADD COLUMN IF NOT EXISTS buyer_info_visible  BOOLEAN NOT NULL DEFAULT FALSE;
+      -- Part #17: Receipt / Order ID storage
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS order_id              TEXT;
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS receipt_file_url      TEXT;
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS receipt_uploaded_at   TIMESTAMPTZ;
     `);
 
     // ── payment_proofs (Part #4: Buyer Payment Proof Upload) ─────────────────

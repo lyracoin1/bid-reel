@@ -31,6 +31,7 @@ import escrowRouter from "./escrow";
 import externalPaymentWarningRouter from "./external-payment-warning";
 import productMediaRouter from "./product-media";
 import buyerInfoRouter from "./buyer-info";
+import receiptRouter from "./receipt";
 
 const router: IRouter = Router();
 
@@ -71,6 +72,9 @@ router.use(externalPaymentWarningRouter);
 // GET /admin/product-media which would otherwise be swallowed by /admin subrouter.
 router.use(productMediaRouter);
 router.use(buyerInfoRouter);
+// receiptRouter registered before adminRouter because it defines
+// GET /admin/receipts which would otherwise be swallowed by /admin subrouter.
+router.use(receiptRouter);
 router.use("/admin", adminRouter);
 router.use(auctionRouter);
 router.use(billingRouter);

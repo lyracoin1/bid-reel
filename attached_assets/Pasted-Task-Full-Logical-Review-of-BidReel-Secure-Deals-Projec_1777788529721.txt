@@ -1,0 +1,74 @@
+Task: Full Logical Review of BidReel Secure Deals Project
+
+Goal: Review the entire project (Part #1 → Part #18) and verify that all business logic, database tables, API endpoints, and frontend/admin components are fully consistent with each other, with no conflicts or placeholders.
+
+Scope:
+- Backend: artifacts/api-server
+- Frontend: artifacts/bidreel-web
+- Admin panel: artifacts/bidreel-admin
+- Database: PostgreSQL (Replit native + Supabase fallback)
+- Notifications: all types implemented and registered
+- Escrow, payments, receipts, shipment proofs, delivery proofs, disputes, penalties, buyer info, media uploads, tracking links, release funds
+
+Steps:
+
+1. Database Review:
+   - Confirm all tables exist:
+     transactions, payment_proofs, shipment_proofs, delivery_proofs, shipping_fee_disputes, seller_penalties, escrow, product_media
+   - Verify all required columns exist for each feature (e.g., buyer_info_visible, platform_fee, seller_receive_amount, order_id, receipt_file_url, tracking_link)
+   - Check RLS policies: Admin, Buyer, Seller access correctly applied
+
+2. API Review:
+   - Verify each endpoint exists and is reachable:
+     - /api/secure-deals
+     - /api/payment-proof, /api/shipment-proof, /api/delivery-proof
+     - /api/shipping-fee-dispute
+     - /api/seller-penalty
+     - /api/escrow
+     - /api/deal/receipt
+     - /api/product-media
+     - /api/deal/show-buyer-info
+   - Check auth guards for all endpoints (Buyer/Seller/Admin)
+   - Confirm POST/GET requests properly update or read DB
+
+3. Frontend Review (bidreel-web):
+   - Verify secure-deal-pay.tsx:
+     - All cards appear in correct order: ProductMedia → Escrow → Delivery Proof → Dispute → Seller Penalty → Receipt → Buyer Info → Rating
+     - Conditional rendering works for Buyer/Seller/Admin
+     - Buttons are enabled/disabled according to logic (e.g., Reveal Buyer Info only after payment)
+   - Check all notifications types: escrow_released_with_fee, shipment_tracking_updated, product_media_uploaded, receipt_uploaded, external_payment_warning, seller_penalty_applied
+   - Verify i18n keys present and translations applied
+
+4. Admin Panel Review (bidreel-admin):
+   - Verify SecureDeals.tsx:
+     - Expanded rows show full deal details
+     - Payment Proof, Shipment Proof, Delivery Proof panels populated from API
+     - Filters for Tracking Links, Receipt, Disputes work
+     - Release Funds button works only when escrow.status = 'payment_secured'
+     - Seller penalties, disputes, buyer info visibility, media gallery all rendered correctly
+   - Check admin API functions correspond with backend endpoints
+
+5. Logical Flow Review:
+   - Deal creation → payment → escrow → shipment → delivery → release funds → rating
+   - Free bids / subscription logic
+   - WhatsApp visibility logic
+   - Monthly free bid limits
+   - Platform fee (3%) correctly applied
+   - External payment warnings block relevant actions
+   - Buyer info hidden until payment confirmed
+
+6. Consistency Checks:
+   - All IDs (deal_id, buyer_id, seller_id) match between DB, frontend, and admin panel
+   - No placeholders in UI
+   - Upserts replace existing data where required
+   - Notifications fire at correct points
+   - RLS policies enforce correct read/write permissions
+
+Expected Outcome:
+- List of any inconsistencies, missing logic, or potential conflicts
+- Confirmation that all features (#1 → #18) are fully implemented, correctly ordered, and logically consistent
+- If everything correct → Respond with: "Full project logical review complete: all parts consistent ✅"
+
+Notes:
+- Do not modify any code
+- Focus purely on logical consistency, endpoint connections, DB integrity, and frontend/admin rendering

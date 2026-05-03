@@ -46,8 +46,9 @@ const TYPE_CONFIG: Record<
   shipping_fee_dispute_created:  { icon: AlertTriangle, colour: "text-orange-400",  labelKey: "notif_label_dispute"        },
   seller_penalty_applied:        { icon: ShieldAlert,   colour: "text-red-500",     labelKey: "notif_label_penalty"        },
   // Escrow (Part #12)
-  escrow_released: { icon: CheckCircle2,  colour: "text-emerald-400", labelKey: "notif_label_escrow_released" },
-  escrow_disputed: { icon: AlertTriangle, colour: "text-orange-400",  labelKey: "notif_label_escrow_disputed" },
+  escrow_released:          { icon: CheckCircle2,  colour: "text-emerald-400", labelKey: "notif_label_escrow_released" },
+  escrow_disputed:          { icon: AlertTriangle, colour: "text-orange-400",  labelKey: "notif_label_escrow_disputed" },
+  escrow_released_with_fee: { icon: CheckCircle2,  colour: "text-emerald-400", labelKey: "notif_label_escrow_released_with_fee" },
   // External Payment Warning (Part #13)
   external_payment_warning: { icon: AlertTriangle, colour: "text-red-400", labelKey: "notif_label_ext_payment" },
   // legacy aliases

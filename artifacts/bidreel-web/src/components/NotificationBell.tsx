@@ -53,8 +53,9 @@ const TYPE_CONFIG: Record<
   shipping_fee_dispute_created:  { icon: AlertTriangle,  colour: "text-orange-400",  label: "Dispute",        labelAr: "نزاع شحن" },
   seller_penalty_applied:        { icon: ShieldAlert,    colour: "text-red-500",     label: "Penalty",        labelAr: "عقوبة" },
   // ── Escrow (Part #12) ────────────────────────────────────────────────────────
-  escrow_released: { icon: CheckCircle2,  colour: "text-emerald-400", label: "Escrow Released", labelAr: "تحرير الضمان" },
-  escrow_disputed: { icon: AlertTriangle, colour: "text-orange-400",  label: "Escrow Dispute",  labelAr: "نزاع الضمان" },
+  escrow_released:          { icon: CheckCircle2,  colour: "text-emerald-400", label: "Escrow Released",          labelAr: "تحرير الضمان" },
+  escrow_disputed:          { icon: AlertTriangle, colour: "text-orange-400",  label: "Escrow Dispute",           labelAr: "نزاع الضمان" },
+  escrow_released_with_fee: { icon: CheckCircle2,  colour: "text-emerald-400", label: "Funds Released (3% Fee)", labelAr: "تحرير الأموال (عمولة 3%)" },
   // ── External Payment Warning (Part #13) ──────────────────────────────────────
   external_payment_warning: { icon: AlertTriangle, colour: "text-red-400", label: "Ext. Payment", labelAr: "دفع خارجي" },
   // ── Legacy aliases (still emitted by old rows) ──────────────────────────────
@@ -131,6 +132,7 @@ function getDeepLink(n: AppNotification): string | null {
 
     case "escrow_released":
     case "escrow_disputed":
+    case "escrow_released_with_fee":
     case "external_payment_warning": {
       const dealId =
         (n.metadata?.["dealId"] as string | undefined) ??

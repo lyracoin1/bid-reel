@@ -625,15 +625,17 @@ export async function adminTriggerDeploy(): Promise<DeployResult> {
 // ─── Escrow (Part #12) ────────────────────────────────────────────────────────
 
 export interface EscrowRow {
-  id:          string;
-  deal_id:     string;
-  buyer_id:    string;
-  seller_id:   string;
-  amount:      number;
-  status:      "pending" | "released" | "disputed";
-  released_at: string | null;
-  dispute_id:  string | null;
-  created_at:  string;
+  id:                    string;
+  deal_id:               string;
+  buyer_id:              string;
+  seller_id:             string;
+  amount:                number;
+  status:                "pending" | "released" | "disputed";
+  released_at:           string | null;
+  dispute_id:            string | null;
+  platform_fee:          number;
+  seller_receive_amount: number;
+  created_at:            string;
 }
 
 /**

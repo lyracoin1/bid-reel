@@ -174,11 +174,29 @@ function EscrowPanel({
         </div>
       )}
 
-      {/* Released confirmation */}
+      {/* Released confirmation with fee breakdown */}
       {escrow?.status === "released" && (
-        <p className="text-[10px] text-emerald-400/70 text-center">
-          {ar ? "تم تحرير الأموال للبائع بنجاح." : "Funds have been released to the seller."}
-        </p>
+        <div className="space-y-1.5">
+          <p className="text-[10px] text-emerald-400/70 text-center">
+            {ar ? "تم تحرير الأموال بنجاح. تبقى الأموال داخل المنصة." : "Funds released. Funds remain within the platform."}
+          </p>
+          {escrow.seller_receive_amount > 0 && (
+            <div className="rounded-xl bg-emerald-500/6 border border-emerald-500/15 px-3 py-2 space-y-1">
+              <div className="flex justify-between text-[10px] text-white/40">
+                <span>{ar ? "المبلغ الإجمالي" : "Total Amount"}</span>
+                <span>{escrow.amount.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-[10px] text-amber-400/80">
+                <span>{ar ? "عمولة المنصة (3%)" : "Platform Fee (3%)"}</span>
+                <span>– {escrow.platform_fee.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-[10px] font-bold text-emerald-400 border-t border-white/8 pt-1">
+                <span>{ar ? "يستلم البائع" : "Seller Receives"}</span>
+                <span>{escrow.seller_receive_amount.toLocaleString()}</span>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Disputed confirmation */}

@@ -289,17 +289,23 @@ export async function bootstrapTransactionsTable(): Promise<void> {
     // status: 'pending' → 'released' (admin) | 'disputed' (buyer/seller)
     await client.query(`
       CREATE TABLE IF NOT EXISTS escrow (
-        id          UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-        deal_id     TEXT          NOT NULL UNIQUE,
-        buyer_id    UUID          NOT NULL,
-        seller_id   UUID          NOT NULL,
-        amount      NUMERIC(14,2) NOT NULL,
-        status      TEXT          NOT NULL DEFAULT 'pending'
-                      CHECK (status IN ('pending', 'released', 'disputed')),
-        released_at TIMESTAMPTZ,
-        dispute_id  UUID,
-        created_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+        id                   UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+        deal_id              TEXT          NOT NULL UNIQUE,
+        buyer_id             UUID          NOT NULL,
+        seller_id            UUID          NOT NULL,
+        amount               NUMERIC(14,2) NOT NULL,
+        status               TEXT          NOT NULL DEFAULT 'pending'
+                               CHECK (status IN ('pending', 'released', 'disputed')),
+        released_at          TIMESTAMPTZ,
+        dispute_id           UUID,
+        platform_fee         NUMERIC(12,2) NOT NULL DEFAULT 0,
+        seller_receive_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+        created_at           TIMESTAMPTZ   NOT NULL DEFAULT NOW()
       );
+
+      ALTER TABLE escrow
+        ADD COLUMN IF NOT EXISTS platform_fee          NUMERIC(12,2) NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS seller_receive_amount NUMERIC(12,2) NOT NULL DEFAULT 0;
 
       CREATE INDEX IF NOT EXISTS idx_escrow_deal_id   ON escrow (deal_id);
       CREATE INDEX IF NOT EXISTS idx_escrow_buyer_id  ON escrow (buyer_id);

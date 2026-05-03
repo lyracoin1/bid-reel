@@ -199,13 +199,24 @@ router.post("/escrow/release", requireAuth, requireAdmin, async (req, res) => {
 
     const now = new Date().toISOString();
 
+    // Calculate 3% platform commission
+    const PLATFORM_FEE_RATE    = 0.03;
+    const paidAmount           = Number(escrow.amount);
+    const platformFee          = Math.round(paidAmount * PLATFORM_FEE_RATE * 100) / 100;
+    const sellerReceiveAmount  = Math.round((paidAmount - platformFee) * 100) / 100;
+
     // Atomic release — WHERE status = 'pending' prevents double-release
+    // Records platform_fee and seller_receive_amount for internal accounting.
+    // Funds do NOT leave escrow — this is internal bookkeeping only.
     const { rows: updatedEscrow } = await pool.query(
       `UPDATE escrow
-       SET status = 'released', released_at = $1
+       SET status                = 'released',
+           released_at           = $1,
+           platform_fee          = $3,
+           seller_receive_amount = $4
        WHERE deal_id = $2 AND status = 'pending'
        RETURNING *`,
-      [now, dealId],
+      [now, dealId, platformFee, sellerReceiveAmount],
     );
 
     if (!updatedEscrow.length) {
@@ -224,22 +235,27 @@ router.post("/escrow/release", requireAuth, requireAdmin, async (req, res) => {
       [now, dealId],
     );
 
-    // Notifications (non-fatal)
-    const meta = { deal_id: dealId };
+    // Notifications (non-fatal) — use escrow_released_with_fee type (Part #14)
+    const currency = tx.currency ?? "SAR";
+    const feeStr   = `${platformFee.toLocaleString()} ${currency}`;
+    const rcvStr   = `${sellerReceiveAmount.toLocaleString()} ${currency}`;
+    const totStr   = `${paidAmount.toLocaleString()} ${currency}`;
+    const meta     = { deal_id: dealId, platform_fee: platformFee, seller_receive_amount: sellerReceiveAmount };
+
     void Promise.allSettled([
       createNotification({
         userId:   tx.seller_id,
-        type:     "escrow_released",
-        title:    "Escrow Released",
-        body:     "The escrow funds have been released to your account. The deal is complete.",
+        type:     "escrow_released_with_fee",
+        title:    "تم تحرير الأموال",
+        body:     `تم تحرير الصفقة. المبلغ الإجمالي ${totStr} — عمولة المنصة (3%) ${feeStr} — يستلم البائع ${rcvStr}. تبقى الأموال داخل المنصة.`,
         actorId:  adminId,
         metadata: meta,
       }),
       createNotification({
         userId:   tx.buyer_id,
-        type:     "escrow_released",
+        type:     "escrow_released_with_fee",
         title:    "Escrow Released",
-        body:     "The escrow funds have been released to the seller. The deal is complete.",
+        body:     `The deal is complete. Total paid: ${totStr}. Platform fee (3%): ${feeStr}. Seller receives: ${rcvStr}. Funds remain within the platform.`,
         actorId:  adminId,
         metadata: meta,
       }),

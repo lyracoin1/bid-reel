@@ -27,7 +27,7 @@ type ShipStatus = "pending"  | "verified" | "delivered";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const COMMISSION_RATE = 0.05;
+const COMMISSION_RATE = 0.03;
 
 const PAY_BADGE: Record<PayStatus, { label: string; cls: string }> = {
   awaiting: { label: "بانتظار الدفع",  cls: "bg-amber-500/12 text-amber-400 border-amber-500/25" },
@@ -167,6 +167,7 @@ function FullDealExpandedRow({ deal }: { deal: FullDeal }) {
   const [releasing,     setReleasing]     = useState(false);
   const [released,      setReleased]      = useState(deal.funds_released);
   const [releaseError,  setReleaseError]  = useState<string | null>(null);
+  const [escrowData,    setEscrowData]    = useState<import("../services/admin-api").EscrowRow | null>(null);
 
   const ps         = payStatus(deal);
   const ss         = shipStatus(deal);
@@ -174,12 +175,16 @@ function FullDealExpandedRow({ deal }: { deal: FullDeal }) {
   const sellerAmount = deal.price - commission;
   const canRelease   = ps === "secured" && ss !== "pending" && !released;
 
+  const displayFee    = escrowData ? Number(escrowData.platform_fee)          : commission;
+  const displayReceive = escrowData ? Number(escrowData.seller_receive_amount) : sellerAmount;
+
   async function handleReleaseFunds() {
     if (releasing || released) return;
     setReleasing(true);
     setReleaseError(null);
     try {
-      await adminReleaseEscrow(deal.deal_id);
+      const row = await adminReleaseEscrow(deal.deal_id);
+      setEscrowData(row);
       setReleased(true);
     } catch (err) {
       setReleaseError(err instanceof Error ? err.message : "حدث خطأ — حاول مجدداً");
@@ -294,13 +299,13 @@ function FullDealExpandedRow({ deal }: { deal: FullDeal }) {
                 </div>
                 <div className="flex justify-between text-white/50">
                   <span className="flex items-center gap-1 text-white/35">
-                    عمولة بيدريل (5%) <Info size={9} className="text-white/20" />
+                    عمولة بيدريل (3%) <Info size={9} className="text-white/20" />
                   </span>
-                  <span className="text-amber-400">– {fmt(commission, deal.currency)}</span>
+                  <span className="text-amber-400">– {fmt(displayFee, deal.currency)}</span>
                 </div>
                 <div className="flex justify-between border-t border-white/8 pt-1.5">
                   <span className="font-bold text-white/60">يستلم البائع</span>
-                  <span className="font-bold text-emerald-400">{fmt(sellerAmount, deal.currency)}</span>
+                  <span className="font-bold text-emerald-400">{fmt(displayReceive, deal.currency)}</span>
                 </div>
                 <AnimatePresence mode="wait">
                   {released ? (

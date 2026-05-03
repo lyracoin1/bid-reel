@@ -1,3 +1,22 @@
+# Replit Environment
+
+## Running the App
+- `pnpm install` — installs all workspace dependencies
+- Workflow "Start application" runs all three services in parallel:
+  - **bidreel-web** (frontend) on port 5000 — proxies `/api/*` to the API server
+  - **api-server** (Express API) on port 8080
+  - **bidreel-admin** (admin dashboard) on port 22020 at path `/bidreel-admin/`
+
+## Required Secrets
+- `SUPABASE_ANON_KEY` — Supabase anon/public key (set as Replit Secret)
+- `SUPABASE_SERVICE_ROLE_KEY` — Supabase service role key (set as Replit Secret)
+- Optional: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL` — Cloudflare R2 storage
+- Optional: `FIREBASE_SERVICE_ACCOUNT_JSON` — Firebase push notifications
+
+## Replit-specific Notes
+- `VITE_API_URL` is cleared in dev (Replit) mode so the Vite proxy handles `/api/*` locally instead of hitting the production URL
+- `PGHOST`/`PGPORT`/`PGUSER`/`PGPASSWORD`/`PGDATABASE` are injected by Replit for the native Postgres instance (used for Secure Deals transactions table)
+
 # Overview
 
 BidReel is a pnpm monorepo TypeScript project for a short-video Arabic auction mobile application. It allows users to upload video/image content for items, host auctions, and bid on items through a TikTok-style vertical feed. A key feature is direct WhatsApp contact for auction winners via server-generated deep-links, ensuring user privacy. The application features a dark theme with a neon purple accent and prioritizes a RTL/Arabic-first UI with English/Arabic language switching. The vision is to capture the online auction market in Arabic-speaking regions with an engaging, secure, and visually appealing video-centric marketplace.

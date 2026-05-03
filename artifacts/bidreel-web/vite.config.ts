@@ -75,6 +75,11 @@ export default defineConfig({
     // Supports both VITE_ prefix (auto-exposed by Vite) and bare name fallback.
     'import.meta.env.VITE_PUBLIC_BASE_URL':
       JSON.stringify(process.env['VITE_PUBLIC_BASE_URL'] ?? process.env['PUBLIC_BASE_URL'] ?? ''),
+    // API base URL — in Replit dev the Vite proxy handles /api/* so we must
+    // NOT forward the production VITE_API_URL secret to the browser bundle.
+    // Clearing it here lets api-client.ts fall back to the relative `/api` path.
+    'import.meta.env.VITE_API_URL':
+      JSON.stringify(isReplit && !isBuild ? '' : (process.env['VITE_API_URL'] ?? '')),
   },
   plugins: [
     react(),

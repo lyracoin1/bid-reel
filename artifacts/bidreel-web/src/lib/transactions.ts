@@ -471,6 +471,72 @@ export async function submitDealConditions(
   return condition as DealCondition;
 }
 
+// ── Shipment Proof (shipment-proof) ──────────────────────────────────────────
+
+export interface ShipmentProof {
+  id:            string;
+  deal_id:       string;
+  seller_id:     string;
+  file_url:      string;
+  tracking_link: string;
+  uploaded_at:   string;
+}
+
+/**
+ * Upload a shipment proof file for a deal (seller only).
+ * Sends the file as a raw binary body to POST /api/shipment-proof.
+ * Also passes an optional tracking_link URL via query param.
+ * Accepted formats: PDF, JPEG, PNG, WebP. Max 10 MB.
+ * A re-upload upserts the DB row (old R2 file is orphaned).
+ */
+export async function uploadShipmentProof(
+  dealId:       string,
+  file:         File,
+  trackingLink: string,
+): Promise<ShipmentProof> {
+  const buffer = await file.arrayBuffer();
+  const res = await apiFetch(
+    `/shipment-proof?dealId=${encodeURIComponent(dealId)}&mimeType=${encodeURIComponent(file.type)}&fileName=${encodeURIComponent(file.name)}&trackingLink=${encodeURIComponent(trackingLink)}`,
+    {
+      method:  "POST",
+      headers: { "Content-Type": file.type },
+      body:    buffer,
+    },
+    true,
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).message ?? `Upload failed (${res.status})`);
+  }
+
+  const { proof } = await res.json();
+  return proof as ShipmentProof;
+}
+
+/**
+ * Fetch the current shipment proof for a deal.
+ * Calls GET /api/shipment-proof/:dealId — requires auth.
+ * Returns null when no proof has been uploaded yet, or on 403/404.
+ */
+export async function getShipmentProof(dealId: string): Promise<ShipmentProof | null> {
+  const res = await apiFetch(
+    `/shipment-proof/${encodeURIComponent(dealId)}`,
+    {},
+    true,
+  );
+
+  if (res.status === 403 || res.status === 404) return null;
+
+  if (!res.ok) {
+    console.warn("[transactions] getShipmentProof error:", res.status);
+    return null;
+  }
+
+  const { proof } = await res.json();
+  return proof as ShipmentProof | null;
+}
+
 /**
  * Fetch previously submitted conditions for a deal.
  * Calls GET /api/deal-conditions/:dealId — requires auth.

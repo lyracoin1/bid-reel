@@ -56,6 +56,7 @@ export type NotificationType =
   | "seller_conditions_submitted"
   | "deal_rated"
   | "payment_proof_uploaded"
+  | "shipment_proof_uploaded"
   // legacy aliases (kept so older inserts and existing rows still parse)
   | "new_follower"
   | "new_bid"
@@ -84,6 +85,7 @@ const PUSH_ENABLED: ReadonlySet<NotificationType> = new Set<NotificationType>([
   "seller_conditions_submitted",
   "deal_rated",
   "payment_proof_uploaded",
+  "shipment_proof_uploaded",
 ]);
 
 /**

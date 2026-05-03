@@ -100,6 +100,24 @@ A peer-to-peer escrow-style "Secure Deal" feature for off-auction sales:
 - Admin: collapsible "إثباتات الدفع" panel at top of `SecureDeals.tsx` with real data from API (deal ID, product, price, filename, type, size, date, View link). Uses `adminGetPaymentProofs()` from `admin-api.ts`.
 - Client helpers: `uploadPaymentProof(dealId, File)` and `getPaymentProof(dealId)` in `transactions.ts`.
 
+**Part #5 — Seller Shipment Proof Upload + Tracking Link** (migration 046, `shipment_proofs` table)
+- `POST /api/shipment-proof` — raw binary upload to R2 under `shipment-proofs/{sellerId}/{uuid}.{ext}`.
+  - Accepts PDF, JPEG, PNG, WebP up to 10 MB. Uses `express.raw()` middleware.
+  - Only the deal's `seller_id` may upload (403 `NOT_SELLER` if buyer or third party tries).
+  - Query params: `dealId`, `mimeType`, `fileName`, `trackingLink` (URL-encoded). Tracking link is optional (empty string = local pickup).
+  - Upserts `shipment_proofs` (UNIQUE deal_id, seller_id) — re-upload replaces the DB row (old R2 file orphaned).
+  - Notifies buyer via FCM + in-app notification (`"shipment_proof_uploaded"`) — non-fatal.
+- `GET /api/shipment-proof/:dealId` — returns proof to seller, buyer, or admin.
+- `GET /api/admin/shipment-proofs` — lists all proofs with deal metadata (admin-only).
+  - Registered via `shipmentProofRouter` **before** `adminRouter` in `routes/index.ts` (same pattern as paymentProofRouter).
+- UI (seller): indigo-accented "إثبات الشحن" card inserted between the Payment Card and Rating Card in `secure-deal-pay.tsx`.
+  - Visible when `dealStatus === "payment_secured"` → upload form with tracking link input + file picker.
+  - Shows read-only existing proof (file link + tracking URL + upload date) when proof exists.
+  - Can re-upload; buyer receives a notification banner.
+- UI (buyer): same card in read-only mode — shows file link, tracking link, and upload date when proof exists; waiting message if seller hasn't uploaded yet.
+- Admin: collapsible orange-accented "إثباتات الشحن" panel in `SecureDeals.tsx` after the payment proofs panel, with deal ID, product, price, tracking link (clickable), upload date, View and Download buttons.
+- Client helpers: `uploadShipmentProof(dealId, File, trackingLink)` and `getShipmentProof(dealId)` in `transactions.ts`.
+
 ## System Design Choices
 
 -   **API Server:** Express 5 handles all API requests.

@@ -364,6 +364,31 @@ export async function adminGetPaymentProofs(): Promise<AdminPaymentProof[]> {
   return data.proofs ?? [];
 }
 
+// ─── Shipment Proofs (Secure Deals Part #5) ──────────────────────────────────
+
+export interface AdminShipmentProof {
+  id:            string;
+  deal_id:       string;
+  seller_id:     string;
+  file_url:      string;
+  tracking_link: string;
+  uploaded_at:   string;
+  product_name:  string | null;
+  buyer_id:      string | null;
+  currency:      string;
+  price:         number;
+}
+
+/**
+ * Fetch all shipment proofs across all deals.
+ * Calls GET /api/admin/shipment-proofs — requires admin auth.
+ * Returns an empty array when no proofs have been uploaded yet.
+ */
+export async function adminGetShipmentProofs(): Promise<AdminShipmentProof[]> {
+  const data = await adminFetch<{ proofs: AdminShipmentProof[] }>("/shipment-proofs");
+  return data.proofs ?? [];
+}
+
 // ─── Deploy ───────────────────────────────────────────────────────────────────
 
 export interface DeployResult {

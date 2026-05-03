@@ -6,7 +6,7 @@ import {
   Truck, StickyNote, Lock, Image, Video,
   CheckCircle2, Bell, PartyPopper, AlertCircle,
   Loader2, UserX, RefreshCw, User, UserCheck, PencilLine,
-  ScrollText, Send, Star, Upload, X,
+  ScrollText, Send, Star, Upload, X, Link2,
 } from "lucide-react";
 import {
   isPlayBillingAvailable,
@@ -23,7 +23,8 @@ import {
   submitSellerConditions, getSellerConditions,
   submitDealRating, getDealRatings,
   uploadPaymentProof, getPaymentProof,
-  Transaction, DealCondition, SellerCondition, DealRating, PaymentProof,
+  uploadShipmentProof, getShipmentProof,
+  Transaction, DealCondition, SellerCondition, DealRating, PaymentProof, ShipmentProof,
 } from "@/lib/transactions";
 
 // ── Deal UI status (derived from DB payment_status + shipment_status) ──────
@@ -268,6 +269,15 @@ export default function SecureDealPayPage() {
   const [proofSuccess, setProofSuccess]         = useState(false);
   const [existingProof, setExistingProof]       = useState<PaymentProof | null>(null);
 
+  // ── Shipment Proof state (Part #5) ──────────────────────────────────────────
+  const shipFileRef                                           = useRef<HTMLInputElement>(null);
+  const [shipFile,        setShipFile]                       = useState<File | null>(null);
+  const [shipUploading,   setShipUploading]                  = useState(false);
+  const [shipError,       setShipError]                      = useState<string | null>(null);
+  const [shipSuccess,     setShipSuccess]                    = useState(false);
+  const [shipTrackingLink, setShipTrackingLink]              = useState("");
+  const [existingShipmentProof, setExistingShipmentProof]   = useState<ShipmentProof | null>(null);
+
   // ── Load transaction ─────────────────────────────────────────────────────
   const loadTx = useCallback(async () => {
     if (!dealId) return;
@@ -447,6 +457,42 @@ export default function SecureDealPayPage() {
       setProofError(ar ? `فشل الرفع: ${msg}` : `Upload failed: ${msg}`);
     } finally {
       setProofUploading(false);
+    }
+  }
+
+  // ── Shipment Proof load + submit (Part #5) ───────────────────────────────
+
+  const loadShipmentProof = useCallback(async () => {
+    if (!dealId || !user) return;
+    try {
+      const found = await getShipmentProof(dealId);
+      if (found) {
+        setExistingShipmentProof(found);
+        setShipTrackingLink(found.tracking_link ?? "");
+      }
+    } catch {
+      // non-fatal — proof just won't appear
+    }
+  }, [dealId, user]);
+
+  useEffect(() => { loadShipmentProof(); }, [loadShipmentProof]);
+
+  async function handleUploadShipmentProof() {
+    if (!user || !tx || !shipFile || shipUploading) return;
+    setShipUploading(true);
+    setShipError(null);
+    setShipSuccess(false);
+    try {
+      const saved = await uploadShipmentProof(tx.deal_id, shipFile, shipTrackingLink);
+      setExistingShipmentProof(saved);
+      setShipFile(null);
+      setShipSuccess(true);
+      if (shipFileRef.current) shipFileRef.current.value = "";
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setShipError(ar ? `فشل الرفع: ${msg}` : `Upload failed: ${msg}`);
+    } finally {
+      setShipUploading(false);
     }
   }
 
@@ -1564,7 +1610,234 @@ export default function SecureDealPayPage() {
             </div>
           </motion.div>
 
-          {/* ═══ 6. DEAL RATING CARD ══════════════════════════════════════════
+          {/* ═══ 6. SHIPMENT PROOF CARD ════════════════════════════════════
+               Seller uploads a shipping receipt + optional tracking link.
+               • Visible to seller during payment_secured (upload form).
+               • Visible to both parties once a proof has been uploaded (read-only for buyer).
+               • Seller can re-upload at any time while deal is payment_secured.  */}
+          {((isSeller && dealStatus === "payment_secured") || !!existingShipmentProof) && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+              className="rounded-3xl bg-white/4 border border-white/8 overflow-hidden"
+            >
+              {/* Card header */}
+              <div className="bg-gradient-to-r from-indigo-600/15 to-transparent px-5 pt-4 pb-3 border-b border-white/6">
+                <div className="flex items-center gap-2">
+                  <Truck size={12} className="text-indigo-400" />
+                  <p className="text-[10px] font-bold text-indigo-400/80 uppercase tracking-widest">
+                    {ar ? "إثبات الشحن" : "Shipment Proof"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="px-5 py-5 space-y-4">
+
+                {/* ── Existing proof (both roles) ── */}
+                {existingShipmentProof && (
+                  <div className="rounded-2xl bg-indigo-600/8 border border-indigo-500/20 px-4 py-3.5 space-y-3">
+                    <p className="text-[11px] font-bold text-white/50">
+                      {ar ? "آخر إثبات شحن مرفوع" : "Last uploaded shipment proof"}
+                    </p>
+
+                    {/* File link */}
+                    <a
+                      href={existingShipmentProof.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-indigo-300 text-sm hover:underline break-all"
+                    >
+                      <FileText size={14} className="shrink-0" />
+                      <span>
+                        {existingShipmentProof.file_url.split("/").pop() ?? ar ? "ملف الشحن" : "Shipment file"}
+                      </span>
+                    </a>
+
+                    {/* Tracking link */}
+                    {existingShipmentProof.tracking_link ? (
+                      <div className="flex items-start gap-2">
+                        <Link2 size={13} className="text-white/30 shrink-0 mt-0.5" />
+                        <a
+                          href={existingShipmentProof.tracking_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-indigo-300 text-[12px] hover:underline break-all"
+                        >
+                          {existingShipmentProof.tracking_link}
+                        </a>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-white/25 flex items-center gap-1.5">
+                        <Link2 size={11} />
+                        {ar ? "لا يوجد رابط تتبع" : "No tracking link provided"}
+                      </p>
+                    )}
+
+                    {/* Upload date */}
+                    <p className="text-[10px] text-white/25">
+                      {ar ? "رُفع في: " : "Uploaded: "}
+                      {new Date(existingShipmentProof.uploaded_at).toLocaleString(
+                        ar ? "ar-SA" : "en-US",
+                        { dateStyle: "medium", timeStyle: "short" },
+                      )}
+                    </p>
+                  </div>
+                )}
+
+                {/* ── Upload form (seller, payment_secured only) ── */}
+                {isSeller && dealStatus === "payment_secured" && (
+                  <div className="space-y-3.5">
+
+                    {/* Help text */}
+                    {!existingShipmentProof && (
+                      <p className="text-[12px] text-white/50 leading-relaxed">
+                        {ar
+                          ? "ارفع صورة وصل الشحن أو أي وثيقة تثبت إرسال المنتج للمشتري، مع رابط تتبع الشحنة إن وُجد."
+                          : "Upload your shipping receipt or any document proving the item was shipped. Include a tracking link if available."}
+                      </p>
+                    )}
+
+                    {/* Tracking link input */}
+                    <div className="space-y-1.5">
+                      <label className="flex items-center gap-1.5 text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                        <Link2 size={10} />
+                        {ar ? "رابط تتبع الشحنة (اختياري)" : "Tracking link (optional)"}
+                      </label>
+                      <input
+                        type="url"
+                        dir="ltr"
+                        placeholder="https://track.dhl.com/..."
+                        value={shipTrackingLink}
+                        onChange={e => setShipTrackingLink(e.target.value)}
+                        className="w-full bg-white/5 border border-white/12 rounded-2xl px-4 py-3 text-sm text-white placeholder-white/20 outline-none focus:border-indigo-500/50 focus:bg-white/7 transition-colors"
+                      />
+                    </div>
+
+                    {/* File picker */}
+                    <div className="space-y-1.5">
+                      <label className="flex items-center gap-1.5 text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                        <Upload size={10} />
+                        {ar ? "ملف الشحن" : "Shipment file"}
+                      </label>
+                      <input
+                        ref={shipFileRef}
+                        type="file"
+                        accept="application/pdf,image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={e => {
+                          const f = e.target.files?.[0] ?? null;
+                          setShipFile(f);
+                          setShipError(null);
+                          setShipSuccess(false);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => shipFileRef.current?.click()}
+                        className="w-full rounded-2xl border-2 border-dashed border-white/12 hover:border-indigo-500/40 bg-white/3 hover:bg-indigo-600/5 transition-colors px-4 py-4 flex flex-col items-center gap-2"
+                      >
+                        {shipFile ? (
+                          <div className="flex items-center gap-2 text-indigo-300 text-sm font-medium">
+                            <FileText size={16} />
+                            <span className="truncate max-w-[200px]">{shipFile.name}</span>
+                            <span className="text-white/30 text-[11px]">
+                              ({(shipFile.size / 1024).toFixed(0)} KB)
+                            </span>
+                          </div>
+                        ) : (
+                          <>
+                            <Upload size={18} className="text-white/20" />
+                            <span className="text-[12px] text-white/35">
+                              {ar
+                                ? "اضغط لاختيار ملف (PDF / صورة — حتى 10 MB)"
+                                : "Tap to choose file (PDF / Image — up to 10 MB)"}
+                            </span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Upload button */}
+                    <motion.button
+                      type="button"
+                      onClick={handleUploadShipmentProof}
+                      disabled={!shipFile || shipUploading}
+                      whileTap={{ scale: 0.97 }}
+                      className={`w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                        !shipFile || shipUploading
+                          ? "bg-white/6 text-white/25 cursor-not-allowed border border-white/8"
+                          : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/30"
+                      }`}
+                    >
+                      {shipUploading ? (
+                        <>
+                          <Loader2 size={15} className="animate-spin" />
+                          {ar ? "جارٍ الرفع…" : "Uploading…"}
+                        </>
+                      ) : (
+                        <>
+                          <Truck size={15} />
+                          {ar
+                            ? (existingShipmentProof ? "تحديث إثبات الشحن" : "رفع إثبات الشحن")
+                            : (existingShipmentProof ? "Update Shipment Proof" : "Upload Shipment Proof")}
+                        </>
+                      )}
+                    </motion.button>
+
+                    {/* Success banner */}
+                    <AnimatePresence>
+                      {shipSuccess && (
+                        <motion.div
+                          key="ship-ok"
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          className="rounded-xl bg-indigo-600/12 border border-indigo-500/25 px-3.5 py-2.5 flex items-center gap-2"
+                        >
+                          <CheckCircle2 size={13} className="text-indigo-400 shrink-0" />
+                          <p className="text-[12px] text-indigo-300 font-medium">
+                            {ar
+                              ? "✓ تم رفع إثبات الشحن — أُبلغ المشتري."
+                              : "✓ Shipment proof uploaded — buyer has been notified."}
+                          </p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Error banner */}
+                    <AnimatePresence>
+                      {shipError && (
+                        <motion.div
+                          key="ship-err"
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          className="rounded-xl bg-red-500/10 border border-red-500/25 px-3.5 py-2.5 flex items-center gap-2"
+                        >
+                          <AlertCircle size={13} className="text-red-400 shrink-0" />
+                          <p className="text-[12px] text-red-300 font-medium">{shipError}</p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                  </div>
+                )}
+
+                {/* ── Buyer read-only message when seller hasn't uploaded yet ── */}
+                {!isSeller && !existingShipmentProof && dealStatus === "payment_secured" && (
+                  <p className="text-[12px] text-white/40 text-center py-2">
+                    {ar
+                      ? "في انتظار رفع البائع لإثبات الشحن…"
+                      : "Waiting for the seller to upload shipment proof…"}
+                  </p>
+                )}
+
+              </div>
+            </motion.div>
+          )}
+
+          {/* ═══ 7. DEAL RATING CARD ══════════════════════════════════════════
                Visible only once the deal reaches the 'delivered' terminal state.
                Both buyer and seller can each rate the other party exactly once.
                • myRating exists    → read-only star panel

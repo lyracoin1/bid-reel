@@ -6,7 +6,10 @@ import {
   AlertCircle, FileText, Search, Banknote, Info, ExternalLink,
 } from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { adminGetPaymentProofs, type AdminPaymentProof } from "@/services/admin-api";
+import {
+  adminGetPaymentProofs, type AdminPaymentProof,
+  adminGetShipmentProofs, type AdminShipmentProof,
+} from "@/services/admin-api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -306,6 +309,12 @@ export default function SecureDeals() {
   const [proofsError, setProofsError]     = useState<string | null>(null);
   const [proofsExpanded, setProofsExpanded] = useState(true);
 
+  // Shipment proofs — real data from API (Part #5)
+  const [shipmentProofs, setShipmentProofs]                   = useState<AdminShipmentProof[]>([]);
+  const [shipmentProofsLoading, setShipmentProofsLoading]     = useState(false);
+  const [shipmentProofsError, setShipmentProofsError]         = useState<string | null>(null);
+  const [shipmentProofsExpanded, setShipmentProofsExpanded]   = useState(true);
+
   const filtered = deals.filter(d => {
     const q = search.toLowerCase();
     const matchQ    = !q || d.id.toLowerCase().includes(q) || d.product.toLowerCase().includes(q) || d.buyerName.toLowerCase().includes(q) || d.sellerName.toLowerCase().includes(q);
@@ -343,6 +352,15 @@ export default function SecureDeals() {
       .then(data => { setProofs(data); setProofsError(null); })
       .catch(err  => { setProofsError((err as Error).message ?? "فشل تحميل الإثباتات"); })
       .finally(()  => setProofsLoading(false));
+  }, []);
+
+  // Fetch real shipment proofs on mount
+  useEffect(() => {
+    setShipmentProofsLoading(true);
+    adminGetShipmentProofs()
+      .then(data => { setShipmentProofs(data); setShipmentProofsError(null); })
+      .catch(err  => { setShipmentProofsError((err as Error).message ?? "فشل تحميل إثباتات الشحن"); })
+      .finally(()  => setShipmentProofsLoading(false));
   }, []);
 
   const summaryStats = {
@@ -489,6 +507,129 @@ export default function SecureDeals() {
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-500/15 border border-sky-500/25 text-sky-300 text-[11px] font-bold hover:brightness-110 transition whitespace-nowrap"
                               >
                                 <ExternalLink size={11} /> عرض
+                              </a>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* ── Shipment Proofs panel (orange/amber) ── Part #5 ──────────────── */}
+        <div className="rounded-2xl bg-white/3 border border-white/8 overflow-hidden">
+          <button
+            onClick={() => setShipmentProofsExpanded(p => !p)}
+            className="w-full flex items-center justify-between px-5 py-4 bg-white/3 hover:bg-white/5 transition-colors"
+          >
+            <div className="flex items-center gap-2.5">
+              <Truck size={14} className="text-orange-400" />
+              <span className="text-sm font-bold text-white/80">إثباتات الشحن</span>
+              {!shipmentProofsLoading && shipmentProofs.length > 0 && (
+                <span className="bg-orange-500/20 border border-orange-500/30 text-orange-300 text-[10px] font-bold px-1.5 py-0.5 rounded-lg">
+                  {shipmentProofs.length}
+                </span>
+              )}
+            </div>
+            {shipmentProofsExpanded
+              ? <ChevronUp   size={14} className="text-white/30" />
+              : <ChevronDown size={14} className="text-white/30" />}
+          </button>
+
+          <AnimatePresence>
+            {shipmentProofsExpanded && (
+              <motion.div
+                key="shipment-proofs-panel"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                style={{ overflow: "hidden" }}
+              >
+                {shipmentProofsLoading ? (
+                  <div className="px-5 py-8 text-center text-white/25 text-sm">جارٍ التحميل…</div>
+                ) : shipmentProofsError ? (
+                  <div className="px-5 py-6 flex items-center gap-2 text-red-400 text-sm">
+                    <AlertCircle size={14} className="shrink-0" />
+                    {shipmentProofsError}
+                  </div>
+                ) : shipmentProofs.length === 0 ? (
+                  <div className="px-5 py-8 text-center text-white/25 text-sm">لم يُرفع أي إثبات شحن بعد.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-white/6 text-right bg-white/2">
+                          {["رقم الصفقة", "المنتج", "السعر", "رابط التتبع", "تاريخ الرفع", "", ""].map((h, i) => (
+                            <th
+                              key={i}
+                              className="px-4 py-2.5 text-[10px] font-bold text-white/30 uppercase tracking-widest whitespace-nowrap"
+                            >
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {shipmentProofs.map((sp, i) => (
+                          <tr
+                            key={sp.id}
+                            className={`border-b border-white/5 hover:bg-white/3 transition-colors ${i % 2 === 0 ? "" : "bg-white/1"}`}
+                            dir="rtl"
+                          >
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="font-mono text-[11px] font-bold text-white/60 bg-white/5 border border-white/8 rounded-lg px-2 py-0.5">
+                                {sp.deal_id}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 max-w-[180px]">
+                              <span className="text-white/75 text-[12px] truncate block">{sp.product_name ?? "—"}</span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-white font-bold text-[12px]">{Number(sp.price).toLocaleString()}</span>
+                              <span className="text-white/40 text-[11px] ms-1">{sp.currency}</span>
+                            </td>
+                            <td className="px-4 py-3 max-w-[200px]">
+                              {sp.tracking_link ? (
+                                <a
+                                  href={sp.tracking_link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 text-orange-300 text-[12px] hover:underline truncate"
+                                >
+                                  <Link2 size={11} className="shrink-0" />
+                                  <span className="truncate">{sp.tracking_link}</span>
+                                </a>
+                              ) : (
+                                <span className="text-white/25 text-[11px]">لا يوجد</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-white/50 text-[11px]">
+                                {new Date(sp.uploaded_at).toLocaleDateString("ar-SA", { dateStyle: "short" })}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <a
+                                href={sp.file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-orange-500/15 border border-orange-500/25 text-orange-300 text-[11px] font-bold hover:brightness-110 transition whitespace-nowrap"
+                              >
+                                <ExternalLink size={11} /> عرض
+                              </a>
+                            </td>
+                            <td className="px-4 py-3">
+                              <a
+                                href={sp.file_url}
+                                download
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/6 border border-white/10 text-white/50 text-[11px] font-bold hover:brightness-110 transition whitespace-nowrap"
+                              >
+                                <Upload size={11} /> تنزيل
                               </a>
                             </td>
                           </tr>

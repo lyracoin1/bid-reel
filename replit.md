@@ -48,7 +48,8 @@ A peer-to-peer escrow-style feature for off-auction sales.
 - **Payment Gateway:** Placeholder in `artifacts/api-server/src/routes/secure-deals.ts` to be replaced with Google Play Billing / Stripe.
 - **Notifications:** Placeholders for FCM or Email.
 - **Bootstrapping:** `transactions` table is automatically bootstrapped on API server startup.
-- **Parts:** Includes features for buyer conditions, seller conditions, deal ratings, buyer payment proof upload, seller shipment proof upload + tracking link, seller penalty system, and shipping fee dispute system. All these features involve specific API endpoints, database migrations, and UI components for both users and admins, with relevant notifications.
+- **Parts:** Includes features for buyer conditions, seller conditions, deal ratings, buyer payment proof upload, seller shipment proof upload + tracking link, seller penalty system, shipping fee dispute system, escrow logic (Part #12), external payment warning (Part #13), platform fee 3% (Part #14), and product media upload (Part #15). All these features involve specific API endpoints, database migrations, and UI components for both users and admins, with relevant notifications.
+- **Part #15 — Product Media Upload:** Sellers can upload product images (JPEG/PNG/WebP, max 10 MB) and videos (MP4, max 50 MB) for any deal. Stored in R2 under `product-media/{sellerId}/{uuid}.{ext}`. Upserted on (deal_id, file_name). Both buyer and seller see a gallery on the deal page with a lightbox viewer. Admins see the media grid in the SecureDeals expanded row. A `product_media_uploaded` notification is sent to all admins on each upload.
 
 ## System Design Choices
 

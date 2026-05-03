@@ -6,7 +6,7 @@ import {
   Truck, StickyNote, Lock, Image, Video,
   CheckCircle2, Bell, PartyPopper, AlertCircle, AlertTriangle,
   Loader2, UserX, RefreshCw, User, UserCheck, PencilLine,
-  ScrollText, Send, Star, Upload, X, Link2, Scale,
+  ScrollText, Send, Star, Upload, X, Link2, Scale, ExternalLink,
 } from "lucide-react";
 import {
   isPlayBillingAvailable,
@@ -30,7 +30,8 @@ import {
   getMyPenalties,
   getEscrow, openEscrowDispute,
   reportExternalPayment,
-  Transaction, DealCondition, SellerCondition, DealRating, PaymentProof, ShipmentProof, DeliveryProof, ShippingFeeDispute, SellerPenalty, EscrowRow,
+  uploadProductMedia, getProductMedia,
+  Transaction, DealCondition, SellerCondition, DealRating, PaymentProof, ShipmentProof, DeliveryProof, ShippingFeeDispute, SellerPenalty, EscrowRow, ProductMedia,
 } from "@/lib/transactions";
 
 // ── Deal UI status (derived from DB payment_status + shipment_status) ──────
@@ -59,6 +60,194 @@ const ALL_STEPS: { key: DealStatus; en: string; ar: string }[] = [
 
 function stepIndex(status: DealStatus): number {
   return ALL_STEPS.findIndex(s => s.key === status);
+}
+
+// ─── ProductMediaPanel ────────────────────────────────────────────────────────
+// Shown on the deal page for both buyer and seller.
+// Seller can upload product images/videos. Both parties see the gallery.
+
+function ProductMediaPanel({
+  dealId,
+  isSeller,
+  ar,
+}: {
+  dealId:   string;
+  isSeller: boolean;
+  ar:       boolean;
+}) {
+  const fileRef                                     = useRef<HTMLInputElement>(null);
+  const [media,      setMedia]                      = useState<ProductMedia[]>([]);
+  const [loading,    setLoading]                    = useState(true);
+  const [uploading,  setUploading]                  = useState(false);
+  const [uploadErr,  setUploadErr]                  = useState<string | null>(null);
+  const [uploadOk,   setUploadOk]                   = useState(false);
+  const [lightbox,   setLightbox]                   = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    getProductMedia(dealId)
+      .then(items => setMedia(items))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [dealId]);
+
+  async function handleUpload(file: File) {
+    if (uploading) return;
+    setUploading(true);
+    setUploadErr(null);
+    setUploadOk(false);
+    try {
+      const saved = await uploadProductMedia(dealId, file);
+      setMedia(prev => [saved, ...prev.filter(m => m.file_name !== saved.file_name)]);
+      setUploadOk(true);
+      if (fileRef.current) fileRef.current.value = "";
+    } catch (err) {
+      setUploadErr(err instanceof Error ? err.message : (ar ? "فشل الرفع" : "Upload failed"));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: 0.1 }}
+      className="rounded-3xl bg-white/4 border border-white/8 overflow-hidden"
+    >
+      {/* Header */}
+      <div className="bg-gradient-to-r from-sky-600/12 to-transparent px-5 pt-4 pb-3 border-b border-white/6">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Image size={12} className="text-sky-400" />
+            <p className="text-[10px] font-bold text-sky-400/90 uppercase tracking-widest">
+              {ar ? "وسائط المنتج" : "Product Media"}
+            </p>
+            {media.length > 0 && (
+              <span className="text-[10px] text-white/30 font-medium">({media.length})</span>
+            )}
+          </div>
+          {/* Seller upload button */}
+          {isSeller && (
+            <label
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition ${
+                uploading
+                  ? "bg-white/5 text-white/25 pointer-events-none"
+                  : "bg-sky-500/15 border border-sky-500/25 text-sky-300 hover:brightness-110"
+              }`}
+            >
+              {uploading ? (
+                <><Loader2 size={9} className="animate-spin" />{ar ? "جارٍ الرفع…" : "Uploading…"}</>
+              ) : (
+                <><Upload size={9} />{ar ? "رفع وسائط" : "Upload Media"}</>
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,video/mp4"
+                className="hidden"
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) handleUpload(file);
+                }}
+              />
+            </label>
+          )}
+        </div>
+        {/* Error / success banners */}
+        {uploadErr && (
+          <p className="text-[10px] text-red-400 mt-1.5 flex items-center gap-1">
+            <AlertCircle size={9} />{uploadErr}
+          </p>
+        )}
+        {uploadOk && (
+          <p className="text-[10px] text-emerald-400 mt-1.5 flex items-center gap-1">
+            <CheckCircle2 size={9} />{ar ? "تم رفع الملف بنجاح." : "Uploaded successfully."}
+          </p>
+        )}
+      </div>
+
+      {/* Gallery */}
+      <div className="px-5 py-4">
+        {loading ? (
+          <div className="flex justify-center py-4">
+            <Loader2 size={18} className="animate-spin text-white/20" />
+          </div>
+        ) : media.length === 0 ? (
+          <p className="text-[11px] text-white/25 italic text-center py-2">
+            {ar ? "لم يتم رفع وسائط بعد." : "No media uploaded yet."}
+          </p>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {media.map(m => (
+              <div
+                key={m.id}
+                className="relative rounded-xl overflow-hidden aspect-square bg-white/5 border border-white/8 cursor-pointer hover:brightness-110 transition group"
+                onClick={() => setLightbox(m.file_url)}
+              >
+                {m.media_type === "image" ? (
+                  <img
+                    src={m.file_url}
+                    alt={m.file_name}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-1">
+                    <Video size={22} className="text-sky-400" />
+                    <span className="text-[9px] text-white/30 text-center px-1 truncate max-w-full">
+                      {m.file_name}
+                    </span>
+                  </div>
+                )}
+                {/* Hover overlay */}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <ExternalLink size={14} className="text-white/80" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Lightbox */}
+      <AnimatePresence>
+        {lightbox && (
+          <motion.div
+            key="lb"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+            onClick={() => setLightbox(null)}
+          >
+            <button
+              className="absolute top-4 end-4 text-white/60 hover:text-white transition"
+              onClick={() => setLightbox(null)}
+            >
+              <X size={24} />
+            </button>
+            {lightbox.match(/\.mp4(\?|$)/i) ? (
+              <video
+                src={lightbox}
+                controls
+                autoPlay
+                className="max-w-full max-h-full rounded-xl"
+                onClick={e => e.stopPropagation()}
+              />
+            ) : (
+              <img
+                src={lightbox}
+                alt="preview"
+                className="max-w-full max-h-full rounded-xl object-contain"
+                onClick={e => e.stopPropagation()}
+              />
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
 }
 
 // ─── EscrowPanel ──────────────────────────────────────────────────────────────
@@ -3082,6 +3271,9 @@ export default function SecureDealPayPage() {
               </div>
             </motion.div>
           )}
+
+          {/* ── Product Media Panel (Part #15) ── */}
+          <ProductMediaPanel dealId={tx.deal_id} isSeller={isSeller} ar={ar} />
 
           {/* ── Escrow Panel ── */}
           <EscrowPanel dealId={tx.deal_id} paymentStatus={tx.payment_status} ar={ar} />

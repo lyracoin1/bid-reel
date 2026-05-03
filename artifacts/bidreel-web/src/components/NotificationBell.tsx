@@ -14,7 +14,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Bell, X, ShoppingBag, Gavel, Trophy, Tag, UserPlus,
   Heart, Bookmark, MessageCircle, AtSign, ShieldAlert, Megaphone, XCircle,
-  Share2, FileText, Star, CreditCard, Truck, Package, CheckCircle2, AlertTriangle,
+  Share2, FileText, Star, CreditCard, Truck, Package, CheckCircle2, AlertTriangle, Image,
 } from "lucide-react";
 import { useNotifications, type AppNotification, type NotificationType } from "@/hooks/use-notifications";
 import { useLang } from "@/contexts/LanguageContext";
@@ -56,6 +56,8 @@ const TYPE_CONFIG: Record<
   escrow_released:          { icon: CheckCircle2,  colour: "text-emerald-400", label: "Escrow Released",          labelAr: "تحرير الضمان" },
   escrow_disputed:          { icon: AlertTriangle, colour: "text-orange-400",  label: "Escrow Dispute",           labelAr: "نزاع الضمان" },
   escrow_released_with_fee: { icon: CheckCircle2,  colour: "text-emerald-400", label: "Funds Released (3% Fee)", labelAr: "تحرير الأموال (عمولة 3%)" },
+  // ── Product Media Upload (Part #15) ──────────────────────────────────────────
+  product_media_uploaded: { icon: Image, colour: "text-sky-400", label: "Product Media", labelAr: "وسائط المنتج" },
   // ── External Payment Warning (Part #13) ──────────────────────────────────────
   external_payment_warning: { icon: AlertTriangle, colour: "text-red-400", label: "Ext. Payment", labelAr: "دفع خارجي" },
   // ── Legacy aliases (still emitted by old rows) ──────────────────────────────
@@ -133,6 +135,7 @@ function getDeepLink(n: AppNotification): string | null {
     case "escrow_released":
     case "escrow_disputed":
     case "escrow_released_with_fee":
+    case "product_media_uploaded":
     case "external_payment_warning": {
       const dealId =
         (n.metadata?.["dealId"] as string | undefined) ??

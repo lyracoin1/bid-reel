@@ -823,6 +823,65 @@ export async function openEscrowDispute(dealId: string): Promise<EscrowRow> {
   return data.escrow;
 }
 
+// ─── Product Media (Part #15) ─────────────────────────────────────────────────
+
+export interface ProductMedia {
+  id:          string;
+  deal_id:     string;
+  seller_id:   string;
+  media_type:  "image" | "video";
+  file_url:    string;
+  file_name:   string;
+  file_size:   number | null;
+  uploaded_at: string;
+}
+
+/**
+ * Upload a product image or video for a deal (seller only).
+ * Calls POST /api/product-media with raw binary body.
+ */
+export async function uploadProductMedia(
+  dealId: string,
+  file:   File,
+): Promise<ProductMedia> {
+  const buffer = await file.arrayBuffer();
+  const res = await apiFetch(
+    `/product-media?dealId=${encodeURIComponent(dealId)}&mimeType=${encodeURIComponent(file.type)}&fileName=${encodeURIComponent(file.name)}`,
+    {
+      method:  "POST",
+      headers: { "Content-Type": file.type },
+      body:    buffer,
+    },
+    true,
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).message ?? `Upload failed (${res.status})`);
+  }
+  const { media } = await res.json();
+  return media as ProductMedia;
+}
+
+/**
+ * Fetch all product media items for a deal.
+ * Calls GET /api/product-media/:dealId — requires auth.
+ * Returns empty array on 403/404.
+ */
+export async function getProductMedia(dealId: string): Promise<ProductMedia[]> {
+  const res = await apiFetch(
+    `/product-media/${encodeURIComponent(dealId)}`,
+    {},
+    true,
+  );
+  if (res.status === 403 || res.status === 404) return [];
+  if (!res.ok) {
+    console.warn("[transactions] getProductMedia error:", res.status);
+    return [];
+  }
+  const { media } = await res.json();
+  return (media ?? []) as ProductMedia[];
+}
+
 /**
  * Report an external payment warning for a deal (Part #13).
  * Can be called by buyer or seller. Idempotent — 409 if already flagged.

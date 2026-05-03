@@ -29,6 +29,7 @@ import sellerPenaltyRouter from "./seller-penalty";
 import adminDealsRouter from "./admin-deals";
 import escrowRouter from "./escrow";
 import externalPaymentWarningRouter from "./external-payment-warning";
+import productMediaRouter from "./product-media";
 
 const router: IRouter = Router();
 
@@ -65,6 +66,9 @@ router.use(adminDealsRouter);
 // and BEFORE notificationRouter (which applies router-level requireAuth).
 router.use(escrowRouter);
 router.use(externalPaymentWarningRouter);
+// productMediaRouter registered before adminRouter because it defines
+// GET /admin/product-media which would otherwise be swallowed by /admin subrouter.
+router.use(productMediaRouter);
 router.use("/admin", adminRouter);
 router.use(auctionRouter);
 router.use(billingRouter);

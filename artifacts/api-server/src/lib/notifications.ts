@@ -66,6 +66,8 @@ export type NotificationType =
   | "escrow_disputed"
   // Platform Fee / Commission (Part #14)
   | "escrow_released_with_fee"
+  // Product Media Upload (Part #15)
+  | "product_media_uploaded"
   // External Payment Warning (Part #13)
   | "external_payment_warning"
   // legacy aliases (kept so older inserts and existing rows still parse)
@@ -106,6 +108,8 @@ const PUSH_ENABLED: ReadonlySet<NotificationType> = new Set<NotificationType>([
   "escrow_disputed",
   // Platform Fee / Commission (Part #14)
   "escrow_released_with_fee",
+  // Product Media Upload (Part #15)
+  "product_media_uploaded",
   // External Payment Warning (Part #13)
   "external_payment_warning",
 ]);

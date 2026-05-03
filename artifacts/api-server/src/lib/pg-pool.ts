@@ -313,8 +313,29 @@ export async function bootstrapTransactionsTable(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_escrow_status    ON escrow (status);
     `);
 
+    // ── product_media (Part #15: Product Media Upload) ───────────────────────
+    // Multiple media items per deal (images + videos uploaded by the seller).
+    // UNIQUE (deal_id, file_name) enables upsert — same filename re-uploads replace.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS product_media (
+        id          UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+        deal_id     TEXT          NOT NULL,
+        seller_id   UUID          NOT NULL,
+        media_type  TEXT          NOT NULL DEFAULT 'image'
+                      CHECK (media_type IN ('image', 'video')),
+        file_url    TEXT          NOT NULL,
+        file_name   TEXT          NOT NULL DEFAULT '',
+        file_size   INTEGER,
+        uploaded_at TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+        CONSTRAINT product_media_unique_deal_file UNIQUE (deal_id, file_name)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_product_media_deal_id   ON product_media (deal_id);
+      CREATE INDEX IF NOT EXISTS idx_product_media_seller_id ON product_media (seller_id);
+    `);
+
     _bootstrapped = true;
-    logger.info("pg-pool: transactions, payment_proofs, shipment_proofs, delivery_proofs, shipping_fee_disputes, seller_penalties, escrow bootstrapped");
+    logger.info("pg-pool: transactions, payment_proofs, shipment_proofs, delivery_proofs, shipping_fee_disputes, seller_penalties, escrow, product_media bootstrapped");
   } catch (err) {
     logger.error({ err }, "pg-pool: failed to bootstrap transactions table");
   } finally {

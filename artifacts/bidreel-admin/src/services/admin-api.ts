@@ -656,6 +656,33 @@ async function rootFetch<T>(path: string, options: RequestInit = {}): Promise<T>
   return res.json() as Promise<T>;
 }
 
+// ─── Product Media (Part #15) ─────────────────────────────────────────────────
+
+export interface AdminProductMedia {
+  id:           string;
+  deal_id:      string;
+  seller_id:    string;
+  media_type:   "image" | "video";
+  file_url:     string;
+  file_name:    string;
+  file_size:    number | null;
+  uploaded_at:  string;
+  product_name: string | null;
+  buyer_id:     string | null;
+  currency:     string | null;
+  price:        number | null;
+}
+
+export async function adminGetProductMedia(): Promise<AdminProductMedia[]> {
+  const data = await adminFetch<{ media: AdminProductMedia[] }>("/product-media");
+  return data.media ?? [];
+}
+
+export async function adminGetDealProductMedia(dealId: string): Promise<AdminProductMedia[]> {
+  const data = await rootFetch<{ media: AdminProductMedia[] }>(`/product-media/${encodeURIComponent(dealId)}`);
+  return data.media ?? [];
+}
+
 export async function adminGetEscrow(dealId: string): Promise<EscrowRow | null> {
   const data = await rootFetch<{ escrow: EscrowRow | null }>(`/escrow/${encodeURIComponent(dealId)}`);
   return data.escrow;

@@ -5,7 +5,7 @@ import {
   Truck, Link2, ChevronDown, ChevronUp, X,
   AlertCircle, AlertTriangle, FileText, Search, Banknote, Info, ExternalLink,
   Star, Phone, MapPin, RefreshCw, User, Loader2, ScrollText, MessageSquare,
-  Scale, ShieldAlert, Gavel, CheckSquare, PlusCircle,
+  Scale, ShieldAlert, Gavel, CheckSquare, PlusCircle, Image, Video,
 } from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import {
@@ -17,6 +17,7 @@ import {
   adminCreateSellerPenalty,
   adminResolveSellerPenalty,
   adminReleaseEscrow,
+  adminGetDealProductMedia,      type AdminProductMedia,
   type FullDealSellerPenalty,
 } from "@/services/admin-api";
 
@@ -168,6 +169,17 @@ function FullDealExpandedRow({ deal }: { deal: FullDeal }) {
   const [released,      setReleased]      = useState(deal.funds_released);
   const [releaseError,  setReleaseError]  = useState<string | null>(null);
   const [escrowData,    setEscrowData]    = useState<import("../services/admin-api").EscrowRow | null>(null);
+  const [productMedia,  setProductMedia]  = useState<AdminProductMedia[]>([]);
+  const [mediaLoading,  setMediaLoading]  = useState(false);
+  const [lightbox,      setLightbox]      = useState<string | null>(null);
+
+  useEffect(() => {
+    setMediaLoading(true);
+    adminGetDealProductMedia(deal.deal_id)
+      .then(items => setProductMedia(items))
+      .catch(() => {})
+      .finally(() => setMediaLoading(false));
+  }, [deal.deal_id]);
 
   const ps         = payStatus(deal);
   const ss         = shipStatus(deal);
@@ -494,6 +506,91 @@ function FullDealExpandedRow({ deal }: { deal: FullDeal }) {
               </div>
             </SubSection>
           )}
+
+          {/* Product Media (Part #15) */}
+          <SubSection
+            title="وسائط المنتج"
+            icon={<Image size={12} className="text-sky-400" />}
+            count={productMedia.length || undefined}
+            defaultOpen={productMedia.length > 0}
+          >
+            {mediaLoading ? (
+              <div className="flex justify-center py-3">
+                <Loader2 size={16} className="animate-spin text-white/20" />
+              </div>
+            ) : productMedia.length === 0 ? (
+              <p className="text-[11px] text-white/25 italic text-center py-2">لم يتم رفع وسائط بعد.</p>
+            ) : (
+              <div className="grid grid-cols-4 gap-2">
+                {productMedia.map(m => (
+                  <div
+                    key={m.id}
+                    className="relative rounded-xl overflow-hidden aspect-square bg-white/5 border border-white/8 cursor-pointer hover:brightness-110 transition group"
+                    onClick={() => setLightbox(m.file_url)}
+                  >
+                    {m.media_type === "image" ? (
+                      <img
+                        src={m.file_url}
+                        alt={m.file_name}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center gap-1">
+                        <Video size={20} className="text-sky-400" />
+                        <span className="text-[9px] text-white/30 text-center px-1 truncate max-w-full">{m.file_name}</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <ExternalLink size={12} className="text-white/80" />
+                    </div>
+                    <div className="absolute bottom-1 start-1">
+                      <span className="text-[8px] text-white/40 bg-black/60 px-1 py-0.5 rounded">
+                        {m.media_type === "video" ? "فيديو" : "صورة"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </SubSection>
+
+          {/* Lightbox */}
+          <AnimatePresence>
+            {lightbox && (
+              <motion.div
+                key="lb-admin"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+                onClick={() => setLightbox(null)}
+              >
+                <button
+                  className="absolute top-4 end-4 text-white/60 hover:text-white transition"
+                  onClick={() => setLightbox(null)}
+                >
+                  <X size={24} />
+                </button>
+                {lightbox.match(/\.mp4(\?|$)/i) ? (
+                  <video
+                    src={lightbox}
+                    controls
+                    autoPlay
+                    className="max-w-full max-h-full rounded-xl"
+                    onClick={e => e.stopPropagation()}
+                  />
+                ) : (
+                  <img
+                    src={lightbox}
+                    alt="preview"
+                    className="max-w-full max-h-full rounded-xl object-contain"
+                    onClick={e => e.stopPropagation()}
+                  />
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {deal.shipping_fee_disputes && deal.shipping_fee_disputes.length > 0 && (
             <SubSection

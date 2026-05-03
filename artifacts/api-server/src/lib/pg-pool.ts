@@ -135,8 +135,49 @@ export async function bootstrapTransactionsTable(): Promise<void> {
         ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(14,2);
     `);
 
+    // ── payment_proofs (Part #4: Buyer Payment Proof Upload) ─────────────────
+    // Stored in Replit Postgres alongside transactions so pool.query() can
+    // access it directly. No Supabase RLS needed — the API enforces auth.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS payment_proofs (
+        id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        deal_id     TEXT         NOT NULL,
+        buyer_id    UUID         NOT NULL,
+        file_url    TEXT         NOT NULL,
+        file_name   TEXT         NOT NULL,
+        file_type   TEXT         NOT NULL,
+        file_size   INTEGER,
+        uploaded_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        CONSTRAINT payment_proofs_unique_deal UNIQUE (deal_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_payment_proofs_deal_id
+        ON payment_proofs (deal_id);
+      CREATE INDEX IF NOT EXISTS idx_payment_proofs_buyer_id
+        ON payment_proofs (buyer_id);
+    `);
+
+    // ── shipment_proofs (Part #5: Seller Shipment Proof Upload) ──────────────
+    // Same database, same reasoning as payment_proofs above.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS shipment_proofs (
+        id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        deal_id       TEXT         NOT NULL,
+        seller_id     UUID         NOT NULL,
+        file_url      TEXT         NOT NULL,
+        tracking_link TEXT         NOT NULL DEFAULT '',
+        uploaded_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        CONSTRAINT shipment_proofs_unique_deal_seller UNIQUE (deal_id, seller_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_shipment_proofs_deal_id
+        ON shipment_proofs (deal_id);
+      CREATE INDEX IF NOT EXISTS idx_shipment_proofs_seller_id
+        ON shipment_proofs (seller_id);
+    `);
+
     _bootstrapped = true;
-    logger.info("pg-pool: transactions table bootstrapped");
+    logger.info("pg-pool: transactions, payment_proofs, shipment_proofs bootstrapped");
   } catch (err) {
     logger.error({ err }, "pg-pool: failed to bootstrap transactions table");
   } finally {

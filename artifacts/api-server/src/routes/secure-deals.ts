@@ -71,8 +71,13 @@ const createDealSchema = z.object({
   delivery_method: z.string().min(1),
   media_urls:      z.array(z.string().url()).optional().default([]),
   terms:           z.string().optional(),
-  payment_link:    z.string().url(),
+  payment_link:    z.string().url().optional(),
 });
+
+function buildFallbackPaymentLink(dealId: string): string {
+  const baseUrl = process.env["PUBLIC_BASE_URL"] ?? process.env["APP_URL"] ?? "";
+  return baseUrl ? `${baseUrl.replace(/\/$/, "")}/secure-deals/pay/${dealId}` : `/secure-deals/pay/${dealId}`;
+}
 
 const payNowSchema = z.object({
   deal_id:        z.string().min(1),
@@ -139,6 +144,7 @@ router.post("/secure-deals", requireAuth, async (req, res) => {
   const d = body.data;
 
   try {
+    const paymentLink = d.payment_link ?? buildFallbackPaymentLink(d.deal_id);
     const { rows } = await pool.query(
       `INSERT INTO transactions
          (deal_id, seller_id, product_name, price, currency, description,
@@ -148,7 +154,7 @@ router.post("/secure-deals", requireAuth, async (req, res) => {
       [
         d.deal_id, sellerId, d.product_name, d.price, d.currency,
         d.description ?? null, d.delivery_method,
-        d.media_urls ?? [], d.terms ?? null, d.payment_link,
+        d.media_urls ?? [], d.terms ?? null, paymentLink,
       ],
     );
 

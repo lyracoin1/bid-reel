@@ -161,8 +161,14 @@ export async function bootstrapTransactionsTable(): Promise<void> {
         FOR EACH ROW EXECUTE FUNCTION update_transactions_updated_at();
     `);
 
-    // Idempotent column additions for tables that already exist.
+    // Idempotent column additions and constraint fixes for tables that already exist.
     // ADD COLUMN IF NOT EXISTS is safe to run on every startup.
+    // DROP NOT NULL is idempotent — no-ops if the column is already nullable.
+    await client.query(`
+      ALTER TABLE transactions
+        ALTER COLUMN payment_link DROP NOT NULL;
+    `).catch(() => { /* already nullable — ignore */ });
+
     await client.query(`
       ALTER TABLE transactions
         ADD COLUMN IF NOT EXISTS paid_amount   NUMERIC(14,2);

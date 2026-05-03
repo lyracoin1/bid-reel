@@ -108,6 +108,13 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   const albumSwiped = useRef(false);
   const [albumIdx, setAlbumIdx] = useState(0);
   const [videoError, setVideoError] = useState(false);
+
+  // Reset video-error state whenever this card displays a different auction.
+  // Guards against stale error state if the component is reused without remounting.
+  useEffect(() => {
+    setVideoError(false);
+  }, [auction.id]);
+
   const { user: currentUser } = useCurrentUser();
   const isOwner = !!currentUser && auction.seller.id === currentUser.id;
   const viewerLoc = useViewerLocation();

@@ -213,6 +213,27 @@ export async function bootstrapTransactionsTable(): Promise<void> {
         ON shipment_proofs (seller_id);
     `);
 
+    // ── seller_penalties (Part #10: Seller Penalty System) ───────────────────
+    // Admin-imposed penalties on a deal's seller (warning, fee, suspension, etc.)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS seller_penalties (
+        id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        deal_id      TEXT         NOT NULL,
+        seller_id    UUID         NOT NULL,
+        reason       TEXT         NOT NULL,
+        penalty_type TEXT         NOT NULL
+                       CHECK (penalty_type IN ('warning', 'fee', 'suspension', 'other')),
+        amount       NUMERIC(12,2),
+        resolved     BOOLEAN      NOT NULL DEFAULT FALSE,
+        created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_seller_penalties_deal_id
+        ON seller_penalties (deal_id);
+      CREATE INDEX IF NOT EXISTS idx_seller_penalties_seller_id
+        ON seller_penalties (seller_id);
+    `);
+
     // ── shipping_fee_disputes (Part #9: Shipping Fee Dispute) ─────────────────
     // Either party can open a dispute about who should pay the shipping fee.
     // UNIQUE (deal_id, submitted_by) prevents duplicate disputes per user.
@@ -256,7 +277,7 @@ export async function bootstrapTransactionsTable(): Promise<void> {
     `);
 
     _bootstrapped = true;
-    logger.info("pg-pool: transactions, payment_proofs, shipment_proofs, delivery_proofs, shipping_fee_disputes bootstrapped");
+    logger.info("pg-pool: transactions, payment_proofs, shipment_proofs, delivery_proofs, shipping_fee_disputes, seller_penalties bootstrapped");
   } catch (err) {
     logger.error({ err }, "pg-pool: failed to bootstrap transactions table");
   } finally {

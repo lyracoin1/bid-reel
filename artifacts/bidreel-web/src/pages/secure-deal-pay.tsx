@@ -27,7 +27,8 @@ import {
   uploadDeliveryProof, getDeliveryProof,
   confirmReceipt,
   createShippingFeeDispute, getShippingFeeDisputes,
-  Transaction, DealCondition, SellerCondition, DealRating, PaymentProof, ShipmentProof, DeliveryProof, ShippingFeeDispute,
+  getMyPenalties,
+  Transaction, DealCondition, SellerCondition, DealRating, PaymentProof, ShipmentProof, DeliveryProof, ShippingFeeDispute, SellerPenalty,
 } from "@/lib/transactions";
 
 // ── Deal UI status (derived from DB payment_status + shipment_status) ──────
@@ -302,6 +303,9 @@ export default function SecureDealPayPage() {
   const [disputeError,       setDisputeError]       = useState<string | null>(null);
   const [disputeSuccess,     setDisputeSuccess]     = useState(false);
 
+  // ── Seller Penalty state (Part #10) ──────────────────────────────────────────
+  const [penalties,          setPenalties]          = useState<SellerPenalty[]>([]);
+
   // ── Load transaction ─────────────────────────────────────────────────────
   const loadTx = useCallback(async () => {
     if (!dealId) return;
@@ -528,6 +532,21 @@ export default function SecureDealPayPage() {
   }, [dealId, user]);
 
   useEffect(() => { loadDisputes(); }, [loadDisputes]);
+
+  // ── Seller Penalties load (Part #10) — seller-only, best-effort ───────────
+
+  const loadPenalties = useCallback(async () => {
+    if (!tx || !user) return;
+    if (tx.seller_id !== user.id) return;
+    try {
+      const found = await getMyPenalties(tx.seller_id, tx.deal_id);
+      setPenalties(found);
+    } catch {
+      // non-fatal — penalty card just shows empty
+    }
+  }, [tx, user]);
+
+  useEffect(() => { loadPenalties(); }, [loadPenalties]);
 
   async function handleSubmitDispute() {
     if (!user || !tx || disputeSubmitting) return;
@@ -2438,6 +2457,87 @@ export default function SecureDealPayPage() {
                   </AnimatePresence>
 
                 </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ═══ 10. SELLER PENALTY CARD ════════════════════════════════════
+               Visible only to the seller (tx.seller_id === user.id).
+               Read-only warning panel that lists all admin-imposed penalties
+               for this deal. Fetched via GET /api/seller-penalties/:sellerId
+               with ?dealId= query param.  Non-fatal — empty if no penalties. */}
+          {tx && user && tx.seller_id === user.id && penalties.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.17 }}
+              className="rounded-3xl bg-white/4 border border-red-500/20 overflow-hidden"
+            >
+              {/* Card header */}
+              <div className="bg-gradient-to-r from-red-600/15 to-transparent px-5 pt-4 pb-3 border-b border-white/6">
+                <div className="flex items-center gap-2">
+                  <AlertCircle size={12} className="text-red-400" />
+                  <p className="text-[10px] font-bold text-red-400/90 uppercase tracking-widest">
+                    {ar ? "عقوبات الصفقة" : "Deal Penalties"}
+                  </p>
+                </div>
+                <p className="text-[11px] text-white/40 mt-1 leading-relaxed" dir={ar ? "rtl" : "ltr"}>
+                  {ar
+                    ? "تم تطبيق هذه العقوبات على صفقتك من قِبل الإدارة."
+                    : "The following penalties were applied to your deal by administration."}
+                </p>
+              </div>
+
+              <div className="px-5 py-4 space-y-3">
+                {penalties.map(p => {
+                  const typeLabel: Record<string, { ar: string; en: string }> = {
+                    warning:    { ar: "تحذير",  en: "Warning" },
+                    fee:        { ar: "غرامة",  en: "Fee" },
+                    suspension: { ar: "إيقاف",  en: "Suspension" },
+                    other:      { ar: "أخرى",   en: "Other" },
+                  };
+                  const typeColor: Record<string, string> = {
+                    warning:    "bg-amber-500/12 text-amber-300 border-amber-500/25",
+                    fee:        "bg-red-500/12 text-red-300 border-red-500/25",
+                    suspension: "bg-orange-500/12 text-orange-300 border-orange-500/25",
+                    other:      "bg-white/8 text-white/50 border-white/12",
+                  };
+                  const label = typeLabel[p.penalty_type] ?? { ar: p.penalty_type, en: p.penalty_type };
+                  return (
+                    <div
+                      key={p.id}
+                      className={`rounded-2xl border px-4 py-3 space-y-2 ${p.resolved ? "bg-white/3 border-white/8 opacity-60" : "bg-red-600/8 border-red-500/18"}`}
+                      dir={ar ? "rtl" : "ltr"}
+                    >
+                      {/* Header row */}
+                      <div className="flex items-center justify-between flex-wrap gap-1.5">
+                        <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-lg border ${typeColor[p.penalty_type] ?? typeColor.other}`}>
+                          {ar ? label.ar : label.en}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {p.amount != null && (
+                            <span className="text-[11px] font-bold text-amber-300">
+                              {ar ? "المبلغ:" : "Amount:"} {Number(p.amount).toLocaleString()}
+                            </span>
+                          )}
+                          <span className={`text-[10px] font-medium ${p.resolved ? "text-emerald-400" : "text-red-400"}`}>
+                            {p.resolved
+                              ? (ar ? "✓ محلول" : "✓ Resolved")
+                              : (ar ? "● نشط"   : "● Active")}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Reason */}
+                      <p className="text-[12px] text-white/65 leading-relaxed">{p.reason}</p>
+
+                      {/* Date */}
+                      <p className="text-[10px] text-white/25">
+                        {new Date(p.created_at).toLocaleDateString(ar ? "ar-SA" : "en-US", { dateStyle: "medium" })}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             </motion.div>
           )}

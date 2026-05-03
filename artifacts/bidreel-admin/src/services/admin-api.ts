@@ -445,6 +445,17 @@ export interface FullDealShippingFeeDispute {
   created_at:   string;
 }
 
+export interface FullDealSellerPenalty {
+  id:           string;
+  deal_id:      string;
+  seller_id:    string;
+  reason:       string;
+  penalty_type: string;
+  amount:       number | null;
+  resolved:     boolean;
+  created_at:   string;
+}
+
 export interface FullDeal {
   deal_id:         string;
   seller_id:       string;
@@ -474,6 +485,7 @@ export interface FullDeal {
   seller_conditions:     FullDealCondition | null;
   ratings:               FullDealRating[];
   shipping_fee_disputes: FullDealShippingFeeDispute[];
+  seller_penalties:      FullDealSellerPenalty[];
 }
 
 export interface FullDealsResponse {
@@ -528,6 +540,70 @@ export interface AdminShippingFeeDisputesResponse {
 export async function adminGetShippingFeeDisputes(): Promise<AdminShippingFeeDispute[]> {
   const { disputes } = await adminFetch<AdminShippingFeeDisputesResponse>("/shipping-fee-disputes");
   return disputes;
+}
+
+// ─── Seller Penalties (Admin Dashboard Part #10) ─────────────────────────────
+
+export interface AdminSellerPenalty {
+  id:           string;
+  deal_id:      string;
+  seller_id:    string;
+  reason:       string;
+  penalty_type: string;
+  amount:       number | null;
+  resolved:     boolean;
+  created_at:   string;
+  product_name: string | null;
+  currency:     string | null;
+  price:        number | null;
+}
+
+export interface AdminSellerPenaltiesResponse {
+  penalties: AdminSellerPenalty[];
+}
+
+/**
+ * Fetch all seller penalties across all deals.
+ * Calls GET /api/admin/seller-penalties — requires admin auth.
+ */
+export async function adminGetSellerPenalties(): Promise<AdminSellerPenalty[]> {
+  const { penalties } = await adminFetch<AdminSellerPenaltiesResponse>("/seller-penalties");
+  return penalties;
+}
+
+export interface CreateSellerPenaltyParams {
+  deal_id:      string;
+  seller_id:    string;
+  reason:       string;
+  penalty_type: string;
+  amount?:      number | null;
+}
+
+/**
+ * Create a new seller penalty (admin only).
+ * Calls POST /api/seller-penalty — requires admin auth.
+ */
+export async function adminCreateSellerPenalty(
+  params: CreateSellerPenaltyParams,
+): Promise<AdminSellerPenalty> {
+  const { penalty } = await adminFetch<{ penalty: AdminSellerPenalty }>("/seller-penalty", {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify(params),
+  });
+  return penalty;
+}
+
+/**
+ * Mark a seller penalty as resolved (admin only).
+ * Calls PATCH /api/seller-penalty/:id/resolve — requires admin auth.
+ */
+export async function adminResolveSellerPenalty(id: string): Promise<AdminSellerPenalty> {
+  const { penalty } = await adminFetch<{ penalty: AdminSellerPenalty }>(
+    `/seller-penalty/${encodeURIComponent(id)}/resolve`,
+    { method: "PATCH" },
+  );
+  return penalty;
 }
 
 // ─── Deploy ───────────────────────────────────────────────────────────────────

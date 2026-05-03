@@ -5,7 +5,7 @@ import {
   Truck, Link2, ChevronDown, ChevronUp, X,
   AlertCircle, FileText, Search, Banknote, Info, ExternalLink,
   Star, Phone, MapPin, RefreshCw, User, Loader2, ScrollText, MessageSquare,
-  Scale,
+  Scale, ShieldAlert, Gavel, CheckSquare, PlusCircle,
 } from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import {
@@ -13,6 +13,10 @@ import {
   adminGetShipmentProofs,        type AdminShipmentProof,
   adminGetFullDeals,             type FullDeal, type FullDealUser, type FullDealRating,
   adminGetShippingFeeDisputes,   type AdminShippingFeeDispute,
+  adminGetSellerPenalties,       type AdminSellerPenalty,
+  adminCreateSellerPenalty,
+  adminResolveSellerPenalty,
+  type FullDealSellerPenalty,
 } from "@/services/admin-api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -402,6 +406,44 @@ function FullDealExpandedRow({ deal }: { deal: FullDeal }) {
           )}
 
           {/* Shipping Fee Disputes (Part #9) */}
+          {deal.seller_penalties && deal.seller_penalties.length > 0 && (
+            <SubSection
+              title="عقوبات البائع"
+              icon={<ShieldAlert size={12} className="text-red-400" />}
+              count={deal.seller_penalties.length}
+              defaultOpen
+            >
+              <div className="space-y-2.5">
+                {deal.seller_penalties.map((p: FullDealSellerPenalty) => {
+                  const typeLabel: Record<string, string> = { warning: "تحذير", fee: "غرامة", suspension: "إيقاف", other: "أخرى" };
+                  const typeColor: Record<string, string> = {
+                    warning:    "bg-amber-500/12 text-amber-300 border-amber-500/25",
+                    fee:        "bg-red-500/12 text-red-300 border-red-500/25",
+                    suspension: "bg-orange-500/12 text-orange-300 border-orange-500/25",
+                    other:      "bg-white/8 text-white/50 border-white/12",
+                  };
+                  return (
+                    <div key={p.id} className={`rounded-xl border px-3 py-2.5 space-y-1.5 ${p.resolved ? "bg-white/3 border-white/8 opacity-60" : "bg-red-600/8 border-red-500/20"}`}>
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${typeColor[p.penalty_type] ?? typeColor.other}`}>
+                          {typeLabel[p.penalty_type] ?? p.penalty_type}
+                        </span>
+                        {p.resolved
+                          ? <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-0.5"><CheckSquare size={10} /> محلول</span>
+                          : <span className="text-[10px] text-red-400 font-medium">غير محلول</span>}
+                      </div>
+                      <p className="text-xs text-white/65 leading-relaxed">{p.reason}</p>
+                      {p.amount != null && (
+                        <p className="text-[10px] text-amber-300 font-bold">المبلغ: {Number(p.amount).toLocaleString()}</p>
+                      )}
+                      <p className="text-[10px] text-white/20">{new Date(p.created_at).toLocaleDateString("ar-SA", { dateStyle: "short" })}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </SubSection>
+          )}
+
           {deal.shipping_fee_disputes && deal.shipping_fee_disputes.length > 0 && (
             <SubSection
               title="نزاعات رسوم الشحن"
@@ -483,6 +525,24 @@ export default function SecureDeals() {
   const [feeDisputesError,    setFeeDisputesError]    = useState<string | null>(null);
   const [feeDisputesExpanded, setFeeDisputesExpanded] = useState(true);
 
+  // Seller penalties — real data from API (Part #10)
+  const [penalties,           setPenalties]           = useState<AdminSellerPenalty[]>([]);
+  const [penaltiesLoading,    setPenaltiesLoading]    = useState(false);
+  const [penaltiesError,      setPenaltiesError]      = useState<string | null>(null);
+  const [penaltiesExpanded,   setPenaltiesExpanded]   = useState(true);
+  const [resolvingId,         setResolvingId]         = useState<string | null>(null);
+
+  // Create penalty form state
+  const [createFormOpen,      setCreateFormOpen]      = useState(false);
+  const [cpDealId,            setCpDealId]            = useState("");
+  const [cpSellerId,          setCpSellerId]          = useState("");
+  const [cpReason,            setCpReason]            = useState("");
+  const [cpType,              setCpType]              = useState<string>("warning");
+  const [cpAmount,            setCpAmount]            = useState("");
+  const [cpSubmitting,        setCpSubmitting]        = useState(false);
+  const [cpError,             setCpError]             = useState<string | null>(null);
+  const [cpSuccess,           setCpSuccess]           = useState(false);
+
   // ── Fetch full deals ────────────────────────────────────────────────────────
   useEffect(() => {
     setDealsLoading(true);
@@ -521,6 +581,15 @@ export default function SecureDeals() {
       .then(data => { setFeeDisputes(data); setFeeDisputesError(null); })
       .catch(err  => setFeeDisputesError((err as Error).message ?? "فشل تحميل نزاعات رسوم الشحن"))
       .finally(()  => setFeeDisputesLoading(false));
+  }, [refreshTick]);
+
+  // ── Fetch seller penalties ───────────────────────────────────────────────────
+  useEffect(() => {
+    setPenaltiesLoading(true);
+    adminGetSellerPenalties()
+      .then(data => { setPenalties(data); setPenaltiesError(null); })
+      .catch(err  => setPenaltiesError((err as Error).message ?? "فشل تحميل عقوبات البائعين"))
+      .finally(()  => setPenaltiesLoading(false));
   }, [refreshTick]);
 
   // ── Filtering ───────────────────────────────────────────────────────────────
@@ -873,6 +942,291 @@ export default function SecureDeals() {
                             </td>
                           </tr>
                         ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* ── Seller Penalties Panel (Part #10) ── */}
+        <div className="rounded-2xl bg-white/3 border border-white/8 overflow-hidden">
+          {/* Panel header */}
+          <button
+            onClick={() => setPenaltiesExpanded(v => !v)}
+            className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-white/3 transition"
+          >
+            <div className="flex items-center gap-2.5" dir="rtl">
+              <div className="w-7 h-7 rounded-lg bg-red-500/15 border border-red-500/25 flex items-center justify-center shrink-0">
+                <ShieldAlert size={13} className="text-red-400" />
+              </div>
+              <div className="text-right">
+                <p className="text-[12px] font-bold text-white/80">عقوبات البائعين</p>
+                <p className="text-[10px] text-white/30">
+                  {penaltiesLoading ? "جارٍ التحميل…" : `${penalties.length} عقوبة`}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {penalties.filter(p => !p.resolved).length > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 text-red-300 text-[10px] font-bold">
+                  {penalties.filter(p => !p.resolved).length} نشط
+                </span>
+              )}
+              {penaltiesExpanded ? <ChevronUp size={14} className="text-white/30" /> : <ChevronDown size={14} className="text-white/30" />}
+            </div>
+          </button>
+
+          <AnimatePresence initial={false}>
+            {penaltiesExpanded && (
+              <motion.div
+                key="penalties-panel"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.22 }}
+                className="overflow-hidden border-t border-white/6"
+              >
+                {/* Create penalty form */}
+                <div className="px-5 py-3 border-b border-white/6">
+                  <button
+                    onClick={() => { setCreateFormOpen(v => !v); setCpError(null); setCpSuccess(false); }}
+                    className="flex items-center gap-1.5 text-[11px] font-medium text-red-400 hover:text-red-300 transition"
+                    dir="rtl"
+                  >
+                    <PlusCircle size={13} />
+                    {createFormOpen ? "إغلاق النموذج" : "إضافة عقوبة جديدة"}
+                  </button>
+
+                  <AnimatePresence initial={false}>
+                    {createFormOpen && (
+                      <motion.div
+                        key="cp-form"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.18 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-3 space-y-2.5" dir="rtl">
+                          {/* Deal selector */}
+                          <div>
+                            <label className="text-[10px] text-white/40 mb-1 block">الصفقة</label>
+                            <select
+                              value={cpDealId}
+                              onChange={e => {
+                                const did = e.target.value;
+                                setCpDealId(did);
+                                const deal = fullDeals.find(d => d.deal_id === did);
+                                setCpSellerId(deal?.seller_id ?? "");
+                              }}
+                              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[12px] text-white focus:outline-none focus:border-red-500/40 transition"
+                            >
+                              <option value="">— اختر صفقة —</option>
+                              {fullDeals.map(d => (
+                                <option key={d.deal_id} value={d.deal_id}>
+                                  {d.deal_id} — {d.product_name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Seller (auto-filled) */}
+                          {cpSellerId && (
+                            <p className="text-[10px] text-white/35">
+                              البائع: <span className="text-white/60 font-mono">{cpSellerId}</span>
+                            </p>
+                          )}
+
+                          {/* Penalty type */}
+                          <div>
+                            <label className="text-[10px] text-white/40 mb-1 block">نوع العقوبة</label>
+                            <select
+                              value={cpType}
+                              onChange={e => setCpType(e.target.value)}
+                              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[12px] text-white focus:outline-none focus:border-red-500/40 transition"
+                            >
+                              <option value="warning">تحذير</option>
+                              <option value="fee">غرامة مالية</option>
+                              <option value="suspension">إيقاف</option>
+                              <option value="other">أخرى</option>
+                            </select>
+                          </div>
+
+                          {/* Amount (only for fee) */}
+                          {cpType === "fee" && (
+                            <div>
+                              <label className="text-[10px] text-white/40 mb-1 block">المبلغ (اختياري)</label>
+                              <input
+                                type="number"
+                                value={cpAmount}
+                                onChange={e => setCpAmount(e.target.value)}
+                                placeholder="0.00"
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[12px] text-white placeholder-white/20 focus:outline-none focus:border-red-500/40 transition"
+                                dir="ltr"
+                              />
+                            </div>
+                          )}
+
+                          {/* Reason */}
+                          <div>
+                            <label className="text-[10px] text-white/40 mb-1 block">السبب</label>
+                            <textarea
+                              value={cpReason}
+                              onChange={e => setCpReason(e.target.value)}
+                              rows={3}
+                              placeholder="اشرح سبب تطبيق العقوبة…"
+                              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[12px] text-white/70 placeholder-white/20 focus:outline-none focus:border-red-500/40 transition resize-none"
+                            />
+                          </div>
+
+                          {/* Submit */}
+                          <button
+                            onClick={async () => {
+                              if (!cpDealId || !cpSellerId || !cpReason.trim()) {
+                                setCpError("يرجى تعبئة جميع الحقول المطلوبة.");
+                                return;
+                              }
+                              setCpSubmitting(true);
+                              setCpError(null);
+                              setCpSuccess(false);
+                              try {
+                                const created = await adminCreateSellerPenalty({
+                                  deal_id:      cpDealId,
+                                  seller_id:    cpSellerId,
+                                  reason:       cpReason.trim(),
+                                  penalty_type: cpType,
+                                  amount:       cpType === "fee" && cpAmount ? Number(cpAmount) : null,
+                                });
+                                setPenalties(prev => [created, ...prev]);
+                                setCpDealId(""); setCpSellerId(""); setCpReason(""); setCpAmount(""); setCpType("warning");
+                                setCpSuccess(true);
+                                setCreateFormOpen(false);
+                              } catch (err) {
+                                setCpError((err as Error).message ?? "فشل إنشاء العقوبة.");
+                              } finally {
+                                setCpSubmitting(false);
+                              }
+                            }}
+                            disabled={cpSubmitting}
+                            className={`w-full py-2.5 rounded-xl text-[12px] font-bold flex items-center justify-center gap-2 transition ${
+                              cpSubmitting
+                                ? "bg-white/6 text-white/25 cursor-not-allowed border border-white/8"
+                                : "bg-red-600 hover:bg-red-500 text-white"
+                            }`}
+                          >
+                            {cpSubmitting ? <><Loader2 size={13} className="animate-spin" /> جارٍ الحفظ…</> : <><Gavel size={13} /> تطبيق العقوبة</>}
+                          </button>
+
+                          {cpError   && <p className="text-[11px] text-red-400 text-center">{cpError}</p>}
+                          {cpSuccess && <p className="text-[11px] text-emerald-400 text-center">✓ تم تطبيق العقوبة بنجاح.</p>}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Penalties table */}
+                {penaltiesLoading ? (
+                  <div className="flex items-center justify-center py-8 gap-2 text-white/30">
+                    <Loader2 size={15} className="animate-spin" />
+                    <span className="text-[12px]">جارٍ تحميل العقوبات…</span>
+                  </div>
+                ) : penaltiesError ? (
+                  <div className="flex items-center gap-2 px-5 py-4 text-red-400 text-[12px]">
+                    <AlertCircle size={13} /> {penaltiesError}
+                  </div>
+                ) : penalties.length === 0 ? (
+                  <p className="text-center text-[12px] text-white/20 py-8">لا توجد عقوبات بعد.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-right min-w-[700px]">
+                      <thead>
+                        <tr className="border-b border-white/6" dir="rtl">
+                          {["رقم الصفقة", "المنتج", "السعر", "نوع العقوبة", "السبب", "التاريخ", "الحالة", ""].map(h => (
+                            <th key={h} className="px-4 py-2.5 text-[10px] font-semibold text-white/30 whitespace-nowrap">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {penalties.map((p, i) => {
+                          const typeLabel: Record<string, string> = { warning: "تحذير", fee: "غرامة", suspension: "إيقاف", other: "أخرى" };
+                          const typeColor: Record<string, string> = {
+                            warning:    "bg-amber-500/12 text-amber-300 border-amber-500/25",
+                            fee:        "bg-red-500/12 text-red-300 border-red-500/25",
+                            suspension: "bg-orange-500/12 text-orange-300 border-orange-500/25",
+                            other:      "bg-white/8 text-white/50 border-white/12",
+                          };
+                          return (
+                            <tr key={p.id} className={`border-b border-white/5 hover:bg-white/3 transition-colors ${i % 2 === 0 ? "" : "bg-white/1"}`} dir="rtl">
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className="font-mono text-[11px] font-bold text-white/60 bg-white/5 border border-white/8 rounded-lg px-2 py-0.5">{p.deal_id}</span>
+                              </td>
+                              <td className="px-4 py-3 max-w-[150px]">
+                                <span className="text-white/75 text-[12px] truncate block">{p.product_name ?? "—"}</span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                {p.price != null ? (
+                                  <><span className="text-white font-bold text-[12px]">{Number(p.price).toLocaleString()}</span>
+                                  <span className="text-white/40 text-[11px] ms-1">{p.currency}</span></>
+                                ) : <span className="text-white/20">—</span>}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold border ${typeColor[p.penalty_type] ?? typeColor.other}`}>
+                                  {typeLabel[p.penalty_type] ?? p.penalty_type}
+                                </span>
+                                {p.amount != null && (
+                                  <span className="ms-1 text-[10px] text-amber-300 font-bold">{Number(p.amount).toLocaleString()}</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 max-w-[200px]">
+                                <p className="text-white/55 text-[12px] line-clamp-2 leading-snug">{p.reason}</p>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className="text-white/50 text-[11px]">
+                                  {new Date(p.created_at).toLocaleDateString("ar-SA", { dateStyle: "short" })}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                {p.resolved ? (
+                                  <span className="flex items-center gap-1 text-emerald-400 text-[11px] font-bold">
+                                    <CheckSquare size={11} /> محلول
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1 text-red-400 text-[11px]">
+                                    <AlertCircle size={11} /> نشط
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                {!p.resolved && (
+                                  <button
+                                    onClick={async () => {
+                                      setResolvingId(p.id);
+                                      try {
+                                        const updated = await adminResolveSellerPenalty(p.id);
+                                        setPenalties(prev => prev.map(x => x.id === p.id ? { ...x, ...updated } : x));
+                                      } catch {
+                                        // silent
+                                      } finally {
+                                        setResolvingId(null);
+                                      }
+                                    }}
+                                    disabled={resolvingId === p.id}
+                                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/12 border border-emerald-500/22 text-emerald-300 text-[11px] font-bold hover:brightness-110 transition disabled:opacity-40 whitespace-nowrap"
+                                  >
+                                    {resolvingId === p.id
+                                      ? <Loader2 size={11} className="animate-spin" />
+                                      : <CheckSquare size={11} />}
+                                    حل
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

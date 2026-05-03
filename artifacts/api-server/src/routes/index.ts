@@ -25,6 +25,7 @@ import shipmentProofRouter from "./shipment-proof";
 import confirmReceiptRouter from "./confirm-receipt";
 import deliveryProofRouter from "./delivery-proof";
 import shippingFeeDisputeRouter from "./shipping-fee-dispute";
+import sellerPenaltyRouter from "./seller-penalty";
 import adminDealsRouter from "./admin-deals";
 
 const router: IRouter = Router();
@@ -54,6 +55,9 @@ router.use(deliveryProofRouter);
 // shippingFeeDisputeRouter registered before adminRouter because it defines
 // GET /api/admin/shipping-fee-disputes which would otherwise be swallowed.
 router.use(shippingFeeDisputeRouter);
+// sellerPenaltyRouter registered before adminRouter because it defines
+// GET /api/admin/seller-penalties which would otherwise be swallowed.
+router.use(sellerPenaltyRouter);
 router.use(adminDealsRouter);
 router.use("/admin", adminRouter);
 router.use(auctionRouter);

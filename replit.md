@@ -118,6 +118,39 @@ A peer-to-peer escrow-style "Secure Deal" feature for off-auction sales:
 - Admin: collapsible orange-accented "إثباتات الشحن" panel in `SecureDeals.tsx` after the payment proofs panel, with deal ID, product, price, tracking link (clickable), upload date, View and Download buttons.
 - Client helpers: `uploadShipmentProof(dealId, File, trackingLink)` and `getShipmentProof(dealId)` in `transactions.ts`.
 
+**Part #10 — Seller Penalty System** (migration 050, `seller_penalties` table)
+- `seller_penalties` table in Replit Postgres (pg-pool.ts bootstrap), auto-created at startup:
+  - `id UUID PK DEFAULT gen_random_uuid()`, `deal_id TEXT NOT NULL`, `seller_id UUID NOT NULL`, `reason TEXT NOT NULL`
+  - `penalty_type TEXT CHECK ('warning'|'fee'|'suspension'|'other')`, `amount NUMERIC(12,2)` (optional), `resolved BOOLEAN DEFAULT false`, `created_at TIMESTAMPTZ DEFAULT now()`
+  - Indexes on `deal_id` and `seller_id`.
+- `POST /api/seller-penalty` — admin-only JSON: `{deal_id, seller_id, reason, penalty_type, amount?}`:
+  - Validates deal exists. Validates `seller_id === deal.seller_id` (422 `SELLER_MISMATCH` if wrong).
+  - Inserts penalty, notifies seller via `seller_penalty_applied` push + in-app notification (non-fatal).
+  - Returns `{penalty}` (201).
+- `GET /api/seller-penalties/:sellerId?dealId=` — seller reads own (403 if not own); admin reads any. Optional `?dealId=` filter.
+- `PATCH /api/seller-penalty/:id/resolve` — admin only; sets `resolved = TRUE`, returns updated row.
+- `GET /api/admin/seller-penalties` — admin list all penalties joined with transactions (`product_name`, `currency`, `price`).
+- Notification type `"seller_penalty_applied"` added to `NotificationType` union + `PUSH_ENABLED` set in `notifications.ts`.
+- Migration `050_seller_penalties.sql` extends Supabase `notifications.type` CHECK constraint (run in Supabase SQL Editor).
+- Admin Dashboard (`SecureDeals.tsx`):
+  - Collapsible red-accented "عقوبات البائعين" panel after the Shipping Fee Disputes panel.
+  - Active-count badge in panel header. "إضافة عقوبة جديدة" expand/collapse inline form:
+    - Deal selector (dropdown from loaded fullDeals, auto-fills seller_id).
+    - Penalty type select (`warning`/`fee`/`suspension`/`other`). Amount input shown only for `fee` type.
+    - Reason textarea. Gavel submit button — on success prepends penalty to list.
+  - Penalties table: deal ID, product name, price, penalty type badge + amount, reason (2-line clamp), date, resolved status badge.
+  - "حل" (Resolve) button per unresolved row — calls PATCH, updates local state in place.
+  - Inside `FullDealExpandedRow`: "عقوبات البائع" SubSection (shown only when `deal.seller_penalties.length > 0`) with per-penalty cards showing type badge, reason, amount, date, resolved status.
+- Seller UI (`secure-deal-pay.tsx`):
+  - Penalty card (#10) inserted after the Shipping Fee Dispute card and before the Deal Rating card.
+  - Visible only when `tx.seller_id === user.id && penalties.length > 0`.
+  - Red-accented read-only list of all penalties for this specific deal.
+  - Each row: penalty type badge, amount (if any), reason, date, resolved/active indicator.
+  - `loadPenalties` callback via `getMyPenalties(tx.seller_id, tx.deal_id)` — non-fatal (empty card if error).
+- Client helpers: `SellerPenalty` interface + `getMyPenalties(sellerId, dealId?)` in `transactions.ts`.
+- Admin helpers: `AdminSellerPenalty`, `FullDealSellerPenalty`, `adminGetSellerPenalties()`, `adminCreateSellerPenalty()`, `adminResolveSellerPenalty()` in `admin-api.ts`.
+- `FullDeal` interface extended with `seller_penalties: FullDealSellerPenalty[]`; both `GET /admin/full-deals` and `GET /admin/full-deal/:dealId` now fetch and join penalties from Replit Postgres (6th parallel query alongside disputes).
+
 **Part #9 — Shipping Fee in Dispute** (bootstrap only — `shipping_fee_disputes` table)
 - `shipping_fee_disputes` table in Replit Postgres (pg-pool.ts bootstrap), auto-created at startup:
   - `id UUID PK`, `deal_id TEXT`, `submitted_by UUID`, `party TEXT CHECK IN ('buyer','seller')`, `proof_url TEXT`, `comment TEXT`, `created_at TIMESTAMPTZ`

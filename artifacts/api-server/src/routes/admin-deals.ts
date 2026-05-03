@@ -79,6 +79,7 @@ function shapeRow(
   sellCondMap:  Map<string, any>,
   ratingsMap:   Map<string, any[]>,
   disputesMap:  Map<string, any[]>,
+  penaltiesMap: Map<string, any[]>,
 ) {
   return {
     deal_id:         row.deal_id,
@@ -123,6 +124,7 @@ function shapeRow(
     seller_conditions:     sellCondMap.get(row.deal_id) ?? null,
     ratings:               ratingsMap.get(row.deal_id) ?? [],
     shipping_fee_disputes: disputesMap.get(row.deal_id) ?? [],
+    seller_penalties:      penaltiesMap.get(row.deal_id) ?? [],
   };
 }
 
@@ -153,8 +155,8 @@ router.get("/admin/full-deals", requireAuth, requireAdmin, async (req, res) => {
     const dealIds  = rows.map((r: any) => r.deal_id);
     const userIds  = [...new Set(rows.flatMap((r: any) => [r.seller_id, r.buyer_id].filter(Boolean)))] as string[];
 
-    // 2. Batch-fetch Supabase data + disputes in parallel
-    const [profilesRes, condRes, sellCondRes, ratingsRes, { rows: disputeRows }] = await Promise.all([
+    // 2. Batch-fetch Supabase data + disputes + penalties in parallel
+    const [profilesRes, condRes, sellCondRes, ratingsRes, { rows: disputeRows }, { rows: penaltyRows }] = await Promise.all([
       supabaseAdmin
         .from("profiles")
         .select("id, username, display_name, phone, avatar_url, location, country")
@@ -176,6 +178,13 @@ router.get("/admin/full-deals", requireAuth, requireAdmin, async (req, res) => {
          FROM shipping_fee_disputes
          WHERE deal_id = ANY($1::text[])
          ORDER BY created_at ASC`,
+        [dealIds],
+      ),
+      pool.query(
+        `SELECT id, deal_id, seller_id, reason, penalty_type, amount, resolved, created_at
+         FROM seller_penalties
+         WHERE deal_id = ANY($1::text[])
+         ORDER BY created_at DESC`,
         [dealIds],
       ),
     ]);
@@ -204,8 +213,15 @@ router.get("/admin/full-deals", requireAuth, requireAdmin, async (req, res) => {
       disputesMap.set(d.deal_id, arr);
     }
 
+    const penaltiesMap = new Map<string, any[]>();
+    for (const p of penaltyRows) {
+      const arr = penaltiesMap.get(p.deal_id) ?? [];
+      arr.push(p);
+      penaltiesMap.set(p.deal_id, arr);
+    }
+
     // 4. Merge
-    const deals = rows.map((row: any) => shapeRow(row, profileMap, condMap, sellCondMap, ratingsMap, disputesMap));
+    const deals = rows.map((row: any) => shapeRow(row, profileMap, condMap, sellCondMap, ratingsMap, disputesMap, penaltiesMap));
 
     res.json({ deals, total, page, limit });
   } catch (err) {
@@ -236,7 +252,7 @@ router.get("/admin/full-deal/:dealId", requireAuth, requireAdmin, async (req, re
     const row     = rows[0];
     const userIds = [row.seller_id, row.buyer_id].filter(Boolean) as string[];
 
-    const [profilesRes, condRes, sellCondRes, ratingsRes, { rows: disputeRows }] = await Promise.all([
+    const [profilesRes, condRes, sellCondRes, ratingsRes, { rows: disputeRows }, { rows: penaltyRows }] = await Promise.all([
       supabaseAdmin
         .from("profiles")
         .select("id, username, display_name, phone, avatar_url, location, country")
@@ -258,6 +274,13 @@ router.get("/admin/full-deal/:dealId", requireAuth, requireAdmin, async (req, re
          FROM shipping_fee_disputes
          WHERE deal_id = $1
          ORDER BY created_at ASC`,
+        [dealId],
+      ),
+      pool.query(
+        `SELECT id, deal_id, seller_id, reason, penalty_type, amount, resolved, created_at
+         FROM seller_penalties
+         WHERE deal_id = $1
+         ORDER BY created_at DESC`,
         [dealId],
       ),
     ]);
@@ -287,7 +310,14 @@ router.get("/admin/full-deal/:dealId", requireAuth, requireAdmin, async (req, re
       disputesMap.set(d.deal_id, arr);
     }
 
-    const deal = shapeRow(row, profileMap, condMap, sellCondMap, ratingsMap, disputesMap);
+    const penaltiesMap = new Map<string, any[]>();
+    for (const p of penaltyRows) {
+      const arr = penaltiesMap.get(p.deal_id) ?? [];
+      arr.push(p);
+      penaltiesMap.set(p.deal_id, arr);
+    }
+
+    const deal = shapeRow(row, profileMap, condMap, sellCondMap, ratingsMap, disputesMap, penaltiesMap);
     res.json({ deal });
   } catch (err) {
     logger.error({ err, dealId }, "GET /admin/full-deal/:dealId failed");

@@ -664,6 +664,46 @@ export async function getShippingFeeDisputes(dealId: string): Promise<ShippingFe
   return (disputes ?? []) as ShippingFeeDispute[];
 }
 
+// ── Seller Penalties (Part #10) ───────────────────────────────────────────────
+
+export interface SellerPenalty {
+  id:           string;
+  deal_id:      string;
+  seller_id:    string;
+  reason:       string;
+  penalty_type: "warning" | "fee" | "suspension" | "other";
+  amount:       number | null;
+  resolved:     boolean;
+  created_at:   string;
+}
+
+/**
+ * Fetch all penalties for the authenticated seller, optionally filtered to
+ * a single deal.
+ * Calls GET /api/seller-penalties/:sellerId — requires auth.
+ * Returns [] if the caller is not allowed or there are no penalties.
+ */
+export async function getMyPenalties(
+  sellerId: string,
+  dealId?:  string,
+): Promise<SellerPenalty[]> {
+  const qs  = dealId ? `?dealId=${encodeURIComponent(dealId)}` : "";
+  const res = await apiFetch(
+    `/seller-penalties/${encodeURIComponent(sellerId)}${qs}`,
+    {},
+    true,
+  );
+
+  if (res.status === 403 || res.status === 404) return [];
+  if (!res.ok) {
+    console.warn("[transactions] getMyPenalties error:", res.status);
+    return [];
+  }
+
+  const { penalties } = await res.json();
+  return (penalties ?? []) as SellerPenalty[];
+}
+
 // ── Confirm Receipt (Part #7) ─────────────────────────────────────────────────
 
 export interface ConfirmReceiptResult {

@@ -4,20 +4,28 @@
  * Lightweight PostgreSQL connection pool used exclusively for the
  * `transactions` (Secure Deals) feature. The rest of the api-server
  * uses Supabase cloud; this pool talks to the Replit-managed PostgreSQL
- * instance (DATABASE_URL).
+ * instance.
  *
- * The transactions table schema lives in migration:
+ * ── Connection priority ──────────────────────────────────────────────────────
+ * Replit injects native PostgreSQL credentials as individual env vars:
+ *   PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE
+ * These always point to the local Replit-managed Postgres and are always
+ * reachable.  DATABASE_URL may be set to a Supabase direct-connection URL
+ * (db.*.supabase.co:5432) which is NOT reachable from Replit's network and
+ * causes ENOTFOUND errors at bootstrap time.
+ *
+ * Strategy:
+ *   1. If PGHOST is present and is NOT a Supabase host → use native PG* vars.
+ *      The pg library auto-discovers PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE
+ *      when no connectionString is passed — no SSL required for localhost.
+ *   2. Else if DATABASE_URL is set → use it as connectionString (with SSL).
+ *      This covers deployments where only DATABASE_URL is configured and it
+ *      actually points to a reachable database (e.g. Neon, Railway, Render).
+ *   3. Otherwise → unavailable proxy (all pool calls reject with a clear error).
+ *
+ * The transactions table schema lives in:
  *   artifacts/api-server/src/migrations/041_secure_deals_transactions.sql
- *
- * This module also runs a one-time idempotent table-creation on first use
- * so the table is always present without manual migration steps.
- *
- * RESILIENCE: When DATABASE_URL is not set (e.g. Vercel without the env var),
- * this module does NOT throw at import time. Instead, pool.query() and
- * pool.connect() reject with a clear error message. This allows all
- * Supabase-backed routes (auctions, bids, users, etc.) to load and serve
- * normally. Only the Secure Deals routes (which actually use this pool)
- * will fail — all other mobile app functionality is unaffected.
+ * Tables are also created idempotently at server startup via bootstrapTransactionsTable().
  */
 
 import pg from "pg";
@@ -25,35 +33,62 @@ import { logger } from "./logger";
 
 const { Pool } = pg;
 
+const PGHOST       = process.env["PGHOST"]       ?? null;
 const DATABASE_URL = process.env["DATABASE_URL"] ?? null;
 
-const _missingDbError = DATABASE_URL
+// Replit native Postgres: PGHOST is set and does NOT contain "supabase"
+const useNativePg =
+  !!PGHOST && !PGHOST.toLowerCase().includes("supabase");
+
+const hasConnection = useNativePg || !!DATABASE_URL;
+
+const _missingDbError = hasConnection
   ? null
   : new Error(
-      "DATABASE_URL is not configured in this deployment — " +
-        "Secure Deals (transactions) are unavailable. " +
-        "Set DATABASE_URL in Vercel → Settings → Environment Variables " +
-        "pointing to an externally-accessible PostgreSQL database, then redeploy.",
+      "No PostgreSQL connection available — Secure Deals (transactions) are unavailable. " +
+        "Set PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE (Replit native Postgres) or " +
+        "DATABASE_URL pointing to an accessible PostgreSQL database.",
     );
 
 if (_missingDbError) {
   logger.warn(
-    "pg-pool: DATABASE_URL is not set — Secure Deals will be unavailable. " +
+    "pg-pool: no PostgreSQL connection configured — Secure Deals will be unavailable. " +
       "All other API routes (auctions, bids, users) are unaffected.",
+  );
+} else {
+  logger.info(
+    { mode: useNativePg ? "native-pg-vars" : "database-url", host: PGHOST ?? "(from DATABASE_URL)" },
+    "pg-pool: connecting to PostgreSQL",
   );
 }
 
-export const pool: pg.Pool = DATABASE_URL
+function createPool(): pg.Pool {
+  if (useNativePg) {
+    // Native Replit Postgres — pg lib reads PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE
+    // automatically.  No SSL needed for the local socket/loopback connection.
+    return new Pool({
+      ssl:                    false,
+      max:                    5,
+      idleTimeoutMillis:      30_000,
+      connectionTimeoutMillis: 5_000,
+    });
+  }
+
+  // DATABASE_URL fallback (Neon, Railway, Render, etc.)
+  return new Pool({
+    connectionString:        DATABASE_URL!,
+    ssl: DATABASE_URL!.includes("sslmode=disable")
+      ? false
+      : { rejectUnauthorized: false },
+    max:                     5,
+    idleTimeoutMillis:       30_000,
+    connectionTimeoutMillis: 5_000,
+  });
+}
+
+export const pool: pg.Pool = hasConnection
   ? (() => {
-      const p = new Pool({
-        connectionString: DATABASE_URL,
-        ssl: DATABASE_URL.includes("sslmode=disable")
-          ? false
-          : { rejectUnauthorized: false },
-        max: 5,
-        idleTimeoutMillis: 30_000,
-        connectionTimeoutMillis: 5_000,
-      });
+      const p = createPool();
       p.on("error", (err) => {
         logger.error({ err: err.message }, "pg-pool: unexpected idle client error");
       });

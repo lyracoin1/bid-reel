@@ -389,6 +389,106 @@ export async function adminGetShipmentProofs(): Promise<AdminShipmentProof[]> {
   return data.proofs ?? [];
 }
 
+// ─── Full Deal View (Admin Dashboard Part #6) ────────────────────────────────
+
+export interface FullDealUser {
+  id:           string;
+  username:     string | null;
+  display_name: string | null;
+  phone:        string | null;
+  avatar_url:   string | null;
+  location:     string | null;
+  country:      string | null;
+}
+
+export interface FullDealPaymentProof {
+  id:          string;
+  file_url:    string;
+  file_name:   string;
+  file_type:   string;
+  file_size:   number | null;
+  uploaded_at: string;
+}
+
+export interface FullDealShipmentProof {
+  id:            string;
+  file_url:      string;
+  tracking_link: string;
+  uploaded_at:   string;
+}
+
+export interface FullDealCondition {
+  id:         string;
+  deal_id:    string;
+  conditions: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FullDealRating {
+  id:         string;
+  deal_id:    string;
+  rater_id:   string;
+  ratee_id:   string;
+  stars:      number;
+  comment:    string | null;
+  created_at: string;
+}
+
+export interface FullDeal {
+  deal_id:         string;
+  seller_id:       string;
+  buyer_id:        string | null;
+  product_name:    string;
+  price:           number;
+  currency:        string;
+  description:     string | null;
+  delivery_method: string;
+  payment_status:  string;
+  payment_date:    string | null;
+  paid_amount:     number | null;
+  shipment_status: string;
+  funds_released:  boolean;
+  payment_link:    string | null;
+  terms:           string | null;
+  media_urls:      string[];
+  created_at:      string;
+  updated_at:      string;
+
+  seller: FullDealUser | null;
+  buyer:  FullDealUser | null;
+
+  payment_proof:    FullDealPaymentProof | null;
+  shipment_proof:   FullDealShipmentProof | null;
+  buyer_conditions: FullDealCondition | null;
+  seller_conditions: FullDealCondition | null;
+  ratings:          FullDealRating[];
+}
+
+export interface FullDealsResponse {
+  deals: FullDeal[];
+  total: number;
+  page:  number;
+  limit: number;
+}
+
+/**
+ * Fetch all deals with full joined data (paginated).
+ * Calls GET /api/admin/full-deals — requires admin auth.
+ */
+export async function adminGetFullDeals(page = 1, limit = 50): Promise<FullDealsResponse> {
+  return adminFetch<FullDealsResponse>(`/full-deals?page=${page}&limit=${limit}`);
+}
+
+/**
+ * Fetch a single deal with all linked data.
+ * Calls GET /api/admin/full-deal/:dealId — requires admin auth.
+ */
+export async function adminGetFullDeal(dealId: string): Promise<FullDeal> {
+  const { deal } = await adminFetch<{ deal: FullDeal }>(`/full-deal/${encodeURIComponent(dealId)}`);
+  return deal;
+}
+
 // ─── Deploy ───────────────────────────────────────────────────────────────────
 
 export interface DeployResult {

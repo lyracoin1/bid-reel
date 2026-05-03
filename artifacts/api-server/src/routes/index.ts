@@ -22,6 +22,7 @@ import sellerConditionsRouter from "./seller-conditions";
 import dealRatingsRouter from "./deal-ratings";
 import paymentProofRouter from "./payment-proof";
 import shipmentProofRouter from "./shipment-proof";
+import adminDealsRouter from "./admin-deals";
 
 const router: IRouter = Router();
 
@@ -41,9 +42,11 @@ router.use(mediaRouter);
 // GET /admin/payment-proofs — if adminRouter is checked first it would intercept
 // all /admin/* paths and return 404 before this route is ever reached.
 router.use(paymentProofRouter);
-// shipmentProofRouter registered before adminRouter for the same reason as
-// paymentProofRouter — it defines GET /admin/shipment-proofs.
+// shipmentProofRouter + adminDealsRouter registered before adminRouter for the
+// same reason as paymentProofRouter — they define /admin/* paths that would
+// otherwise be swallowed by the /admin subrouter.
 router.use(shipmentProofRouter);
+router.use(adminDealsRouter);
 router.use("/admin", adminRouter);
 router.use(auctionRouter);
 router.use(billingRouter);

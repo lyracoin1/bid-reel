@@ -140,8 +140,13 @@ export function useFcmToken(): void {
         onToken: async (token) => {
           await tryRegister(token, platform, "onToken");
         },
-        onForegroundNotification: ({ title, body }) => {
-          showBannerRef.current({ name: title, message: body });
+        onForegroundNotification: ({ title, body, data }) => {
+          const route = resolveDeepLinkRoute(data);
+          showBannerRef.current({
+            name: title,
+            message: body,
+            onTap: () => navigateRef.current(route),
+          });
         },
         onNotificationTap: (data) => {
           const route = resolveDeepLinkRoute(data);
@@ -183,7 +188,16 @@ export function useFcmToken(): void {
       return;
     }
 
-    void initWebFcm((token, _platform, trigger) => tryRegister(token, "web", trigger));
+    void initWebFcm(
+      (token, _platform, trigger) => tryRegister(token, "web", trigger),
+      (title, body, route) => {
+        showBannerRef.current({
+          name: title,
+          message: body,
+          onTap: () => navigateRef.current(route),
+        });
+      },
+    );
 
     // Same SIGNED_IN retry on web.
     let unsubAuth: (() => void) | undefined;
@@ -207,6 +221,7 @@ export function useFcmToken(): void {
 
 async function initWebFcm(
   onToken: (token: string, platform: "web", trigger: string) => Promise<void> | void,
+  onForeground: (title: string, body: string, route: string) => void,
 ): Promise<void> {
   try {
     // 1. Request notification permission
@@ -242,8 +257,8 @@ async function initWebFcm(
     const messaging = await getFirebaseMessaging();
     if (!messaging) return;
 
-    // Dynamic import keeps `getToken` out of the initial bundle entirely.
-    const { getToken } = await import("firebase/messaging");
+    // Dynamic import keeps `getToken` and `onMessage` out of the initial bundle.
+    const { getToken, onMessage } = await import("firebase/messaging");
     const token = await getToken(messaging, {
       vapidKey,
       serviceWorkerRegistration: swReg,
@@ -259,6 +274,19 @@ async function initWebFcm(
     // 5. Register token with the backend (platform: "web")
     await onToken(token, "web", "initWebFcm");
     console.info("[fcm] Device token registered successfully");
+
+    // 6. Foreground notification handler — the service worker only receives
+    //    messages when the app tab is in the background. When it is in the
+    //    foreground, FCM delivers the payload here instead of to the SW.
+    //    We surface it as an in-app banner so the user isn't left wondering.
+    onMessage(messaging, (payload) => {
+      const title = payload.notification?.title ?? "BidReel";
+      const body  = payload.notification?.body  ?? "";
+      const data  = (payload.data ?? {}) as Record<string, string>;
+      const route = resolveDeepLinkRoute(data);
+      console.debug("[fcm] Foreground message:", { title, body, data, route });
+      onForeground(title, body, route);
+    });
   } catch (err) {
     console.error("[fcm] Initialisation error:", err);
   }

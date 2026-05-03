@@ -15,10 +15,12 @@ interface BannerItem {
   avatar?: string | null;
   name: string;
   message: string;
+  /** Called when the user taps the banner — use to navigate to the relevant page. */
+  onTap?: () => void;
 }
 
 interface NotificationBannerCtx {
-  showBanner: (opts: { avatar?: string | null; name: string; message: string }) => void;
+  showBanner: (opts: { avatar?: string | null; name: string; message: string; onTap?: () => void }) => void;
 }
 
 const Ctx = createContext<NotificationBannerCtx>({
@@ -39,7 +41,7 @@ export function NotificationBannerProvider({ children }: { children: ReactNode }
   }, []);
 
   const showBanner = useCallback(
-    (opts: { avatar?: string | null; name: string; message: string }) => {
+    (opts: { avatar?: string | null; name: string; message: string; onTap?: () => void }) => {
       const id = `${Date.now()}-${Math.random()}`;
       const item: BannerItem = { id, ...opts };
       setBanners((prev) => [...prev.slice(-2), item]);
@@ -67,7 +69,7 @@ export function NotificationBannerProvider({ children }: { children: ReactNode }
                 exit={{ opacity: 0, y: -24, scale: 0.94 }}
                 transition={{ type: "spring", damping: 22, stiffness: 320 }}
                 className="w-full max-w-sm bg-[#111118]/95 backdrop-blur-xl border border-white/10 rounded-2xl px-3.5 py-2.5 flex items-center gap-3 shadow-xl shadow-black/60 pointer-events-auto"
-                onClick={() => dismiss(b.id)}
+                onClick={() => { dismiss(b.id); b.onTap?.(); }}
               >
                 <UserAvatar src={b.avatar ?? null} name={b.name} size={34} />
                 <div className="flex-1 min-w-0">

@@ -82,7 +82,7 @@ function getDeepLink(n: AppNotification): string | null {
       const actorId = n.actorId
         ?? (n.metadata?.["actorId"] as string | undefined)
         ?? (n.metadata?.["userId"] as string | undefined);
-      return actorId ? `/profile/${actorId}` : null;
+      return actorId ? `/users/${actorId}` : null;
     }
 
     case "liked_your_auction":
@@ -97,14 +97,14 @@ function getDeepLink(n: AppNotification): string | null {
     case "auction_ending_soon":
     case "auction_started":
     case "auction_removed":
-      return n.auctionId ? `/auctions/${n.auctionId}` : null;
+      return n.auctionId ? `/auction/${n.auctionId}` : null;
 
     case "commented_on_your_auction":
     case "replied_to_your_comment":
     case "mentioned_you": {
       const commentId = (n.metadata?.["commentId"] as string | undefined);
-      if (n.auctionId && commentId) return `/auctions/${n.auctionId}?comment=${commentId}`;
-      return n.auctionId ? `/auctions/${n.auctionId}` : null;
+      if (n.auctionId && commentId) return `/auction/${n.auctionId}?comment=${commentId}`;
+      return n.auctionId ? `/auction/${n.auctionId}` : null;
     }
 
     case "admin_message":

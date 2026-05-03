@@ -178,8 +178,27 @@ export async function bootstrapTransactionsTable(): Promise<void> {
         ON shipment_proofs (seller_id);
     `);
 
+    // ── delivery_proofs (Part #8: Buyer Delivery Proof Upload) ───────────────
+    // Buyer uploads a receipt/photo proving they received the item.
+    // Same Replit Postgres DB as payment_proofs and shipment_proofs.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS delivery_proofs (
+        id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        deal_id     TEXT         NOT NULL,
+        buyer_id    UUID         NOT NULL,
+        file_url    TEXT         NOT NULL,
+        uploaded_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        CONSTRAINT delivery_proofs_unique_deal_buyer UNIQUE (deal_id, buyer_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_delivery_proofs_deal_id
+        ON delivery_proofs (deal_id);
+      CREATE INDEX IF NOT EXISTS idx_delivery_proofs_buyer_id
+        ON delivery_proofs (buyer_id);
+    `);
+
     _bootstrapped = true;
-    logger.info("pg-pool: transactions, payment_proofs, shipment_proofs bootstrapped");
+    logger.info("pg-pool: transactions, payment_proofs, shipment_proofs, delivery_proofs bootstrapped");
   } catch (err) {
     logger.error({ err }, "pg-pool: failed to bootstrap transactions table");
   } finally {

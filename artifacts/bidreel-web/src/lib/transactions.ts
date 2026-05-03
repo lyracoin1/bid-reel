@@ -539,6 +539,69 @@ export async function getShipmentProof(dealId: string): Promise<ShipmentProof | 
   return proof as ShipmentProof | null;
 }
 
+// ── Delivery Proof (Part #8) ─────────────────────────────────────────────────
+
+export interface DeliveryProof {
+  id:          string;
+  deal_id:     string;
+  buyer_id:    string;
+  file_url:    string;
+  uploaded_at: string;
+}
+
+/**
+ * Upload a delivery proof file for a deal (buyer only).
+ * Sends the file as a raw binary body to POST /api/delivery-proof.
+ * Accepted formats: PDF, JPEG, PNG, WebP. Max 10 MB.
+ * A re-upload upserts the DB row (old R2 file is orphaned).
+ */
+export async function uploadDeliveryProof(
+  dealId: string,
+  file:   File,
+): Promise<DeliveryProof> {
+  const buffer = await file.arrayBuffer();
+  const res = await apiFetch(
+    `/delivery-proof?dealId=${encodeURIComponent(dealId)}&mimeType=${encodeURIComponent(file.type)}&fileName=${encodeURIComponent(file.name)}`,
+    {
+      method:  "POST",
+      headers: { "Content-Type": file.type },
+      body:    buffer,
+    },
+    true,
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).message ?? `Upload failed (${res.status})`);
+  }
+
+  const { proof } = await res.json();
+  return proof as DeliveryProof;
+}
+
+/**
+ * Fetch the current delivery proof for a deal.
+ * Calls GET /api/delivery-proof/:dealId — requires auth.
+ * Returns null when no proof has been uploaded yet, or on 403/404.
+ */
+export async function getDeliveryProof(dealId: string): Promise<DeliveryProof | null> {
+  const res = await apiFetch(
+    `/delivery-proof/${encodeURIComponent(dealId)}`,
+    {},
+    true,
+  );
+
+  if (res.status === 403 || res.status === 404) return null;
+
+  if (!res.ok) {
+    console.warn("[transactions] getDeliveryProof error:", res.status);
+    return null;
+  }
+
+  const { proof } = await res.json();
+  return proof as DeliveryProof | null;
+}
+
 // ── Confirm Receipt (Part #7) ─────────────────────────────────────────────────
 
 export interface ConfirmReceiptResult {

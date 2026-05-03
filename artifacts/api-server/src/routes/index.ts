@@ -23,6 +23,7 @@ import dealRatingsRouter from "./deal-ratings";
 import paymentProofRouter from "./payment-proof";
 import shipmentProofRouter from "./shipment-proof";
 import confirmReceiptRouter from "./confirm-receipt";
+import deliveryProofRouter from "./delivery-proof";
 import adminDealsRouter from "./admin-deals";
 
 const router: IRouter = Router();
@@ -48,6 +49,7 @@ router.use(paymentProofRouter);
 // otherwise be swallowed by the /admin subrouter.
 router.use(shipmentProofRouter);
 router.use(confirmReceiptRouter);
+router.use(deliveryProofRouter);
 router.use(adminDealsRouter);
 router.use("/admin", adminRouter);
 router.use(auctionRouter);

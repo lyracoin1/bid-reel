@@ -1,0 +1,60 @@
+You are implementing Part #8 of Secure Deals / Pay Now in BidReel: Buyer Delivery Proof Upload.
+
+Important Note:
+- The previous issue is that the `transactions` table does not exist yet.
+- Any attempt to store delivery proofs (or payment/shipment proofs) will fail if transactions table is missing.
+- Ensure that the transactions table exists before implementing this feature.
+
+Requirements:
+
+1. Database:
+   - Create a new table `delivery_proofs`:
+     - id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+     - deal_id TEXT NOT NULL REFERENCES transactions(deal_id)
+     - buyer_id UUID NOT NULL
+     - file_url TEXT NOT NULL
+     - uploaded_at TIMESTAMPTZ DEFAULT now()
+     - UNIQUE(deal_id, buyer_id)
+   - RLS policies:
+     - SELECT: buyer of the deal, seller of the deal, admin
+     - INSERT/UPDATE: only buyer_id = auth.uid()
+
+2. API Endpoints:
+   - POST /api/delivery-proof
+     - Auth required (JWT)
+     - Accept file upload (PDF/JPEG/PNG/WebP)
+     - Store file in R2 / cloud storage
+     - Upsert DB row
+     - Notify seller: "Buyer uploaded delivery proof"
+   - GET /api/delivery-proof/:dealId
+     - Returns proof to buyer, seller, or admin
+
+3. Frontend – secure-deal-pay.tsx:
+   - Add "Delivery Proof" card after Shipment Proof
+   - Show file picker + upload button
+   - Success / error banners
+   - Read-only view for seller and admin
+   - Panel visible for historical reference on delivered deals
+
+4. Notifications:
+   - createNotification() type: "buyer_delivery_proof_uploaded"
+   - FCM push + Supabase in-app
+   - Non-fatal failures do not block DB write
+
+5. Security:
+   - Only buyer of the deal can upload
+   - Validate deal exists in transactions table
+   - File size/type validation
+
+6. Activation:
+   - Ensure `transactions` table exists
+   - Then run migration for delivery_proofs table
+   - API + UI ready once DB is live
+
+Output:
+- Migration SQL for `delivery_proofs`
+- API handler Node/Express + PostgreSQL/Supabase
+- Frontend UI snippet
+- Notifications integration
+- Fully real implementation, no placeholders
+- Include note about missing transactions table and why  previous attempts failed

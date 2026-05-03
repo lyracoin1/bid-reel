@@ -24,8 +24,9 @@ import {
   submitDealRating, getDealRatings,
   uploadPaymentProof, getPaymentProof,
   uploadShipmentProof, getShipmentProof,
+  uploadDeliveryProof, getDeliveryProof,
   confirmReceipt,
-  Transaction, DealCondition, SellerCondition, DealRating, PaymentProof, ShipmentProof,
+  Transaction, DealCondition, SellerCondition, DealRating, PaymentProof, ShipmentProof, DeliveryProof,
 } from "@/lib/transactions";
 
 // ── Deal UI status (derived from DB payment_status + shipment_status) ──────
@@ -283,6 +284,14 @@ export default function SecureDealPayPage() {
   const [shipTrackingLink, setShipTrackingLink]              = useState("");
   const [existingShipmentProof, setExistingShipmentProof]   = useState<ShipmentProof | null>(null);
 
+  // ── Delivery Proof state (Part #8) ───────────────────────────────────────────
+  const delivFileRef                                            = useRef<HTMLInputElement>(null);
+  const [delivFile,        setDelivFile]                       = useState<File | null>(null);
+  const [delivUploading,   setDelivUploading]                  = useState(false);
+  const [delivError,       setDelivError]                      = useState<string | null>(null);
+  const [delivSuccess,     setDelivSuccess]                    = useState(false);
+  const [existingDeliveryProof, setExistingDeliveryProof]      = useState<DeliveryProof | null>(null);
+
   // ── Load transaction ─────────────────────────────────────────────────────
   const loadTx = useCallback(async () => {
     if (!dealId) return;
@@ -481,6 +490,39 @@ export default function SecureDealPayPage() {
   }, [dealId, user]);
 
   useEffect(() => { loadShipmentProof(); }, [loadShipmentProof]);
+
+  // ── Delivery Proof load + submit (Part #8) ───────────────────────────────
+
+  const loadDeliveryProof = useCallback(async () => {
+    if (!dealId || !user) return;
+    try {
+      const found = await getDeliveryProof(dealId);
+      if (found) setExistingDeliveryProof(found);
+    } catch {
+      // non-fatal — proof just won't appear
+    }
+  }, [dealId, user]);
+
+  useEffect(() => { loadDeliveryProof(); }, [loadDeliveryProof]);
+
+  async function handleUploadDeliveryProof() {
+    if (!user || !tx || !delivFile || delivUploading) return;
+    setDelivUploading(true);
+    setDelivError(null);
+    setDelivSuccess(false);
+    try {
+      const saved = await uploadDeliveryProof(tx.deal_id, delivFile);
+      setExistingDeliveryProof(saved);
+      setDelivFile(null);
+      setDelivSuccess(true);
+      if (delivFileRef.current) delivFileRef.current.value = "";
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setDelivError(ar ? `فشل الرفع: ${msg}` : `Upload failed: ${msg}`);
+    } finally {
+      setDelivUploading(false);
+    }
+  }
 
   async function handleUploadShipmentProof() {
     if (!user || !tx || !shipFile || shipUploading) return;
@@ -1942,7 +1984,198 @@ export default function SecureDealPayPage() {
             </motion.div>
           )}
 
-          {/* ═══ 7. DEAL RATING CARD ══════════════════════════════════════════
+          {/* ═══ 7. DELIVERY PROOF CARD (Part #8) ════════════════════════════
+               Buyer uploads a photo/receipt proving they received the item.
+               • Visible to buyer when deal is 'delivered' (upload form + read-only).
+               • Visible to seller when proof has been uploaded (read-only).
+               • Historical reference once proof exists for either party. */}
+          {((!isSeller && dealStatus === "delivered") || !!existingDeliveryProof) && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.12 }}
+              className="rounded-3xl bg-white/4 border border-white/8 overflow-hidden"
+            >
+              {/* Card header */}
+              <div className="bg-gradient-to-r from-teal-600/15 to-transparent px-5 pt-4 pb-3 border-b border-white/6">
+                <div className="flex items-center gap-2">
+                  <Package size={12} className="text-teal-400" />
+                  <p className="text-[10px] font-bold text-teal-400/80 uppercase tracking-widest">
+                    {ar ? "إثبات الاستلام" : "Delivery Proof"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="px-5 py-5 space-y-4">
+
+                {/* ── Existing proof (both roles, historical) ── */}
+                {existingDeliveryProof && (
+                  <div className="rounded-2xl bg-teal-600/8 border border-teal-500/20 px-4 py-3.5 space-y-3">
+                    <p className="text-[11px] font-bold text-white/50">
+                      {ar ? "آخر إثبات استلام مرفوع" : "Last uploaded delivery proof"}
+                    </p>
+
+                    {/* File link */}
+                    <a
+                      href={existingDeliveryProof.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-teal-300 text-sm hover:underline break-all"
+                    >
+                      <FileText size={14} className="shrink-0" />
+                      <span>
+                        {existingDeliveryProof.file_url.split("/").pop() || (ar ? "ملف الاستلام" : "Delivery file")}
+                      </span>
+                    </a>
+
+                    {/* Upload date */}
+                    <p className="text-[10px] text-white/25">
+                      {ar ? "رُفع في: " : "Uploaded: "}
+                      {new Date(existingDeliveryProof.uploaded_at).toLocaleString(
+                        ar ? "ar-SA" : "en-US",
+                        { dateStyle: "medium", timeStyle: "short" },
+                      )}
+                    </p>
+                  </div>
+                )}
+
+                {/* ── Upload form (buyer, delivered state only) ── */}
+                {!isSeller && dealStatus === "delivered" && (
+                  <div className="space-y-3.5">
+
+                    {/* Help text — only shown before first upload */}
+                    {!existingDeliveryProof && (
+                      <p className="text-[12px] text-white/50 leading-relaxed">
+                        {ar
+                          ? "ارفع صورة أو وثيقة تثبت استلامك للمنتج. يمكنك تحديثها في أي وقت."
+                          : "Upload a photo or document confirming you received the item. You can update it any time."}
+                      </p>
+                    )}
+
+                    {/* File picker */}
+                    <div className="space-y-1.5">
+                      <label className="flex items-center gap-1.5 text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                        <Upload size={10} />
+                        {ar ? "ملف الاستلام" : "Delivery file"}
+                      </label>
+                      <input
+                        ref={delivFileRef}
+                        type="file"
+                        accept="application/pdf,image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={e => {
+                          const f = e.target.files?.[0] ?? null;
+                          setDelivFile(f);
+                          setDelivError(null);
+                          setDelivSuccess(false);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => delivFileRef.current?.click()}
+                        className="w-full rounded-2xl border-2 border-dashed border-white/12 hover:border-teal-500/40 bg-white/3 hover:bg-teal-600/5 transition-colors px-4 py-4 flex flex-col items-center gap-2"
+                      >
+                        {delivFile ? (
+                          <div className="flex items-center gap-2 text-teal-300 text-sm font-medium">
+                            <FileText size={16} />
+                            <span className="truncate max-w-[200px]">{delivFile.name}</span>
+                            <span className="text-white/30 text-[11px]">
+                              ({(delivFile.size / 1024).toFixed(0)} KB)
+                            </span>
+                          </div>
+                        ) : (
+                          <>
+                            <Upload size={18} className="text-white/20" />
+                            <span className="text-[12px] text-white/35">
+                              {ar
+                                ? "اضغط لاختيار ملف (PDF / صورة — حتى 10 MB)"
+                                : "Tap to choose file (PDF / Image — up to 10 MB)"}
+                            </span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Upload button */}
+                    <motion.button
+                      type="button"
+                      onClick={handleUploadDeliveryProof}
+                      disabled={!delivFile || delivUploading}
+                      whileTap={{ scale: 0.97 }}
+                      className={`w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                        !delivFile || delivUploading
+                          ? "bg-white/6 text-white/25 cursor-not-allowed border border-white/8"
+                          : "bg-teal-600 hover:bg-teal-500 text-white shadow-lg shadow-teal-900/30"
+                      }`}
+                    >
+                      {delivUploading ? (
+                        <>
+                          <Loader2 size={15} className="animate-spin" />
+                          {ar ? "جارٍ الرفع…" : "Uploading…"}
+                        </>
+                      ) : (
+                        <>
+                          <Package size={15} />
+                          {ar
+                            ? (existingDeliveryProof ? "تحديث إثبات الاستلام" : "رفع إثبات الاستلام")
+                            : (existingDeliveryProof ? "Update Delivery Proof" : "Upload Delivery Proof")}
+                        </>
+                      )}
+                    </motion.button>
+
+                    {/* Success banner */}
+                    <AnimatePresence>
+                      {delivSuccess && (
+                        <motion.div
+                          key="deliv-ok"
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          className="rounded-xl bg-teal-600/12 border border-teal-500/25 px-3.5 py-2.5 flex items-center gap-2"
+                        >
+                          <CheckCircle2 size={13} className="text-teal-400 shrink-0" />
+                          <p className="text-[12px] text-teal-300 font-medium">
+                            {ar
+                              ? "✓ تم رفع إثبات الاستلام — أُبلغ البائع."
+                              : "✓ Delivery proof uploaded — seller has been notified."}
+                          </p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Error banner */}
+                    <AnimatePresence>
+                      {delivError && (
+                        <motion.div
+                          key="deliv-err"
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          className="rounded-xl bg-red-500/10 border border-red-500/25 px-3.5 py-2.5 flex items-center gap-2"
+                        >
+                          <AlertCircle size={13} className="text-red-400 shrink-0" />
+                          <p className="text-[12px] text-red-300 font-medium">{delivError}</p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                  </div>
+                )}
+
+                {/* ── Seller read-only placeholder when no proof yet ── */}
+                {isSeller && !existingDeliveryProof && (
+                  <p className="text-[12px] text-white/40 text-center py-2">
+                    {ar
+                      ? "لم يرفع المشتري إثبات الاستلام بعد."
+                      : "The buyer has not uploaded a delivery proof yet."}
+                  </p>
+                )}
+
+              </div>
+            </motion.div>
+          )}
+
+          {/* ═══ 8. DEAL RATING CARD ══════════════════════════════════════════
                Visible only once the deal reaches the 'delivered' terminal state.
                Both buyer and seller can each rate the other party exactly once.
                • myRating exists    → read-only star panel

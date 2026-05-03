@@ -165,6 +165,7 @@ export type TKey =
   | "notif_label_payment" | "notif_label_shipped"
   | "notif_label_delivery_proof" | "notif_label_confirmed"
   | "notif_label_dispute" | "notif_label_penalty"
+  | "notif_label_escrow_released" | "notif_label_escrow_disputed"
   // Profile — delete account warning
   | "delete_irreversible" | "delete_account_body" | "delete_account_irreversible_emphasis"
   // Aria-labels (screen-reader strings on touch buttons)
@@ -381,6 +382,7 @@ const en: Translations = {
   notif_label_payment: "Payment", notif_label_shipped: "Shipped",
   notif_label_delivery_proof: "Delivery Proof", notif_label_confirmed: "Confirmed",
   notif_label_dispute: "Dispute", notif_label_penalty: "Penalty",
+  notif_label_escrow_released: "Escrow Released", notif_label_escrow_disputed: "Escrow Dispute",
   delete_irreversible: "This cannot be undone",
   delete_account_body: "This will permanently delete your account, profile, bids, follows, and saved auctions. Your auction listings will be anonymised.",
   delete_account_irreversible_emphasis: "This action is irreversible.",
@@ -596,6 +598,7 @@ const ar: Translations = {
   notif_label_payment: "إثبات الدفع", notif_label_shipped: "تم الشحن",
   notif_label_delivery_proof: "إثبات الاستلام", notif_label_confirmed: "تأكيد",
   notif_label_dispute: "نزاع شحن", notif_label_penalty: "عقوبة",
+  notif_label_escrow_released: "تحرير الضمان", notif_label_escrow_disputed: "نزاع الضمان",
   delete_irreversible: "لا يمكن التراجع",
   delete_account_body: "سيؤدي ذلك إلى حذف حسابك وملفك الشخصي ومزايداتك ومتابعاتك ومحفوظاتك بشكل نهائي. سيتم إخفاء هوية إعلاناتك.",
   delete_account_irreversible_emphasis: "هذا الإجراء لا يمكن التراجع عنه.",
@@ -811,6 +814,7 @@ const ru: Translations = {
   notif_label_payment: "Оплата", notif_label_shipped: "Отправлено",
   notif_label_delivery_proof: "Подтверждение доставки", notif_label_confirmed: "Подтверждено",
   notif_label_dispute: "Спор о доставке", notif_label_penalty: "Штраф",
+  notif_label_escrow_released: "Средства освобождены", notif_label_escrow_disputed: "Спор по средствам",
   delete_irreversible: "Это действие необратимо",
   delete_account_body: "Это навсегда удалит ваш аккаунт, профиль, ставки, подписки и сохранённые аукционы. Ваши объявления будут анонимизированы.",
   delete_account_irreversible_emphasis: "Это действие необратимо.",
@@ -1026,6 +1030,7 @@ const es: Translations = {
   notif_label_payment: "Pago", notif_label_shipped: "Enviado",
   notif_label_delivery_proof: "Prueba de entrega", notif_label_confirmed: "Confirmado",
   notif_label_dispute: "Disputa de envío", notif_label_penalty: "Penalización",
+  notif_label_escrow_released: "Depósito liberado", notif_label_escrow_disputed: "Disputa de depósito",
   delete_irreversible: "Esto no se puede deshacer",
   delete_account_body: "Esto eliminará permanentemente tu cuenta, perfil, pujas, seguimientos y subastas guardadas. Tus anuncios serán anonimizados.",
   delete_account_irreversible_emphasis: "Esta acción es irreversible.",
@@ -1241,6 +1246,7 @@ const fr: Translations = {
   notif_label_payment: "Paiement", notif_label_shipped: "Expédié",
   notif_label_delivery_proof: "Preuve de livraison", notif_label_confirmed: "Confirmé",
   notif_label_dispute: "Litige de livraison", notif_label_penalty: "Pénalité",
+  notif_label_escrow_released: "Dépôt libéré", notif_label_escrow_disputed: "Litige de dépôt",
   delete_irreversible: "Action définitive",
   delete_account_body: "Cela supprimera définitivement votre compte, profil, enchères, abonnements et enchères enregistrées. Vos annonces seront anonymisées.",
   delete_account_irreversible_emphasis: "Cette action est irréversible.",
@@ -1456,6 +1462,7 @@ const tr: Translations = {
   notif_label_payment: "Ödeme", notif_label_shipped: "Gönderildi",
   notif_label_delivery_proof: "Teslim Kanıtı", notif_label_confirmed: "Onaylandı",
   notif_label_dispute: "Kargo Anlaşmazlığı", notif_label_penalty: "Ceza",
+  notif_label_escrow_released: "Tutar Serbest", notif_label_escrow_disputed: "Tutar Anlaşmazlığı",
   delete_irreversible: "Bu işlem geri alınamaz",
   delete_account_body: "Bu, hesabını, profilini, tekliflerini, takiplerini ve kaydedilen açık artırmaları kalıcı olarak siler. İlanların anonimleştirilir.",
   delete_account_irreversible_emphasis: "Bu işlem geri alınamaz.",

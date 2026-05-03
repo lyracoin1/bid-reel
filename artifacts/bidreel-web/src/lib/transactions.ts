@@ -766,3 +766,53 @@ export async function getDealConditions(
   const rows = conditions as DealCondition[];
   return rows.length > 0 ? rows[0] : null;
 }
+
+// ─── Escrow (Part #12) ────────────────────────────────────────────────────────
+
+export interface EscrowRow {
+  id:          string;
+  deal_id:     string;
+  buyer_id:    string;
+  seller_id:   string;
+  amount:      number;
+  status:      "pending" | "released" | "disputed";
+  released_at: string | null;
+  dispute_id:  string | null;
+  created_at:  string;
+}
+
+/**
+ * Fetch the escrow record for a deal.
+ * Returns null if no escrow row exists yet (payment not secured).
+ */
+export async function getEscrow(dealId: string): Promise<EscrowRow | null> {
+  const res = await apiFetch(
+    `/escrow/${encodeURIComponent(dealId)}`,
+    {},
+    true,
+  );
+  if (res.status === 404 || res.status === 403) return null;
+  if (!res.ok) {
+    console.warn("[transactions] getEscrow error:", res.status);
+    return null;
+  }
+  const data = await res.json() as { escrow: EscrowRow | null };
+  return data.escrow;
+}
+
+/**
+ * Open an escrow dispute for a deal.
+ * Can be called by buyer or seller when status is 'pending'.
+ */
+export async function openEscrowDispute(dealId: string): Promise<EscrowRow> {
+  const res = await apiFetch("/escrow/dispute", {
+    method: "POST",
+    body: JSON.stringify({ deal_id: dealId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { message?: string };
+    throw new Error(body.message ?? "Failed to open escrow dispute");
+  }
+  const data = await res.json() as { escrow: EscrowRow };
+  return data.escrow;
+}

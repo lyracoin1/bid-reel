@@ -51,6 +51,9 @@ export type NotificationType =
   | "buyer_delivery_proof_uploaded"
   | "shipping_fee_dispute_created"
   | "seller_penalty_applied"
+  // Escrow (Part #12)
+  | "escrow_released"
+  | "escrow_disputed"
   // legacy aliases (still emitted by older rows in production)
   | "new_follower"
   | "new_bid"

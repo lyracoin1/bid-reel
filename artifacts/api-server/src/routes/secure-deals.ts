@@ -294,6 +294,14 @@ router.post("/transactions/pay-now", requireAuth, async (req, res) => {
 
     const updatedDeal = updated[0];
 
+    // Lazy-create escrow row now that payment is secured (non-blocking)
+    void pool.query(
+      `INSERT INTO escrow (deal_id, buyer_id, seller_id, amount)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (deal_id) DO NOTHING`,
+      [String(dealId), authenticatedBuyerId, deal.seller_id, finalPaidAmount],
+    ).catch(err => logger.warn({ err, dealId }, "escrow: lazy-create on pay-now failed"));
+
     // 4. Placeholder notification
     sendNotificationPlaceholder({
       type:     "payment_secured",
@@ -371,6 +379,14 @@ router.post("/secure-deals/:dealId/pay", requireAuth, async (req, res) => {
       res.status(409).json({ error: "CONCURRENT_UPDATE", message: "Deal status changed concurrently." });
       return;
     }
+
+    // Lazy-create escrow row now that payment is secured (non-blocking)
+    void pool.query(
+      `INSERT INTO escrow (deal_id, buyer_id, seller_id, amount)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (deal_id) DO NOTHING`,
+      [String(dealId), buyerId, deal.seller_id, deal.price],
+    ).catch(err => logger.warn({ err, dealId }, "escrow: lazy-create on /:id/pay failed"));
 
     sendNotificationPlaceholder({
       type:     "payment_secured",

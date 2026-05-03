@@ -616,3 +616,48 @@ export interface DeployResult {
 export async function adminTriggerDeploy(): Promise<DeployResult> {
   return adminFetch<DeployResult>("/deploy", { method: "POST" });
 }
+
+// ─── Escrow (Part #12) ────────────────────────────────────────────────────────
+
+export interface EscrowRow {
+  id:          string;
+  deal_id:     string;
+  buyer_id:    string;
+  seller_id:   string;
+  amount:      number;
+  status:      "pending" | "released" | "disputed";
+  released_at: string | null;
+  dispute_id:  string | null;
+  created_at:  string;
+}
+
+/**
+ * Root-level fetch (not /admin/*).
+ * Used for escrow endpoints which are auth-protected but not /admin/-prefixed.
+ */
+async function rootFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers = await adminHeaders();
+  const url = `${API_BASE}${path}`;
+  const res = await fetch(url, {
+    ...options,
+    headers: { ...headers, ...((options.headers as Record<string, string>) ?? {}) },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { message?: string; error?: string };
+    throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+export async function adminGetEscrow(dealId: string): Promise<EscrowRow | null> {
+  const data = await rootFetch<{ escrow: EscrowRow | null }>(`/escrow/${encodeURIComponent(dealId)}`);
+  return data.escrow;
+}
+
+export async function adminReleaseEscrow(dealId: string): Promise<EscrowRow> {
+  const data = await rootFetch<{ escrow: EscrowRow }>("/escrow/release", {
+    method: "POST",
+    body: JSON.stringify({ deal_id: dealId }),
+  });
+  return data.escrow;
+}

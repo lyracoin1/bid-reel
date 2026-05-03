@@ -28,7 +28,8 @@ import {
   confirmReceipt,
   createShippingFeeDispute, getShippingFeeDisputes,
   getMyPenalties,
-  Transaction, DealCondition, SellerCondition, DealRating, PaymentProof, ShipmentProof, DeliveryProof, ShippingFeeDispute, SellerPenalty,
+  getEscrow, openEscrowDispute,
+  Transaction, DealCondition, SellerCondition, DealRating, PaymentProof, ShipmentProof, DeliveryProof, ShippingFeeDispute, SellerPenalty, EscrowRow,
 } from "@/lib/transactions";
 
 // ── Deal UI status (derived from DB payment_status + shipment_status) ──────
@@ -57,6 +58,136 @@ const ALL_STEPS: { key: DealStatus; en: string; ar: string }[] = [
 
 function stepIndex(status: DealStatus): number {
   return ALL_STEPS.findIndex(s => s.key === status);
+}
+
+// ─── EscrowPanel ──────────────────────────────────────────────────────────────
+// Shown at the bottom of the secure deal page when payment is secured.
+// Displays escrow status and lets buyer/seller open a dispute.
+
+function EscrowPanel({
+  dealId,
+  paymentStatus,
+  ar,
+}: {
+  dealId: string;
+  paymentStatus: string;
+  ar: boolean;
+}) {
+  const [escrow,    setEscrow]    = useState<EscrowRow | null>(null);
+  const [loading,   setLoading]   = useState(false);
+  const [disputing, setDisputing] = useState(false);
+  const [error,     setError]     = useState<string | null>(null);
+
+  useEffect(() => {
+    if (paymentStatus !== "secured") return;
+    setLoading(true);
+    getEscrow(dealId)
+      .then(row => setEscrow(row))
+      .catch(() => {/* silent — show fallback */})
+      .finally(() => setLoading(false));
+  }, [dealId, paymentStatus]);
+
+  async function handleDispute() {
+    if (disputing || !escrow || escrow.status !== "pending") return;
+    setDisputing(true);
+    setError(null);
+    try {
+      const updated = await openEscrowDispute(dealId);
+      setEscrow(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : (ar ? "حدث خطأ" : "Something went wrong"));
+    } finally {
+      setDisputing(false);
+    }
+  }
+
+  // Before payment is secured just show the static safety note
+  if (paymentStatus !== "secured") {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, delay: 0.2 }}
+        className="rounded-2xl bg-white/3 border border-white/6 px-4 py-3.5 flex items-start gap-3"
+      >
+        <ShieldCheck size={13} className="text-white/20 shrink-0 mt-0.5" />
+        <p className="text-[11px] text-white/30 leading-relaxed">
+          {ar
+            ? "ستُحفظ أموالك في الضمان وتُحرَّر للبائع فقط بعد تأكيد الاستلام."
+            : "Your funds will be held in escrow and only released to the seller after you confirm receipt."}
+        </p>
+      </motion.div>
+    );
+  }
+
+  const statusLabel = escrow?.status === "released"
+    ? (ar ? "تم تحرير الأموال" : "Funds Released")
+    : escrow?.status === "disputed"
+    ? (ar ? "نزاع مفتوح — جارٍ المراجعة" : "Dispute Open — Under Review")
+    : (ar ? "الأموال محفوظة في الضمان" : "Funds Held in Escrow");
+
+  const statusColour = escrow?.status === "released"
+    ? "text-emerald-400"
+    : escrow?.status === "disputed"
+    ? "text-orange-400"
+    : "text-sky-400";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3, delay: 0.2 }}
+      className="rounded-2xl bg-white/3 border border-white/6 px-4 py-3.5 space-y-3"
+    >
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <ShieldCheck size={13} className={loading ? "text-white/20" : statusColour} />
+        <span className={`text-[11px] font-semibold ${loading ? "text-white/30" : statusColour}`}>
+          {loading ? (ar ? "جارٍ التحقق…" : "Checking escrow…") : statusLabel}
+        </span>
+        {escrow && (
+          <span className="ms-auto text-[10px] text-white/30">
+            {escrow.amount.toLocaleString()} {/* currency shown at deal level */}
+          </span>
+        )}
+      </div>
+
+      {/* Dispute button — only when status is pending */}
+      {escrow?.status === "pending" && (
+        <div className="space-y-1.5">
+          <button
+            onClick={handleDispute}
+            disabled={disputing}
+            className="w-full py-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 bg-orange-500/15 border border-orange-500/25 text-orange-400 hover:brightness-110 transition disabled:opacity-50"
+          >
+            {disputing
+              ? <><Loader2 size={11} className="animate-spin" />{ar ? "جارٍ الإرسال…" : "Submitting…"}</>
+              : <><AlertCircle size={11} />{ar ? "فتح نزاع" : "Open Dispute"}</>}
+          </button>
+          {error && <p className="text-[10px] text-red-400 text-center">{error}</p>}
+          <p className="text-[10px] text-white/25 text-center leading-relaxed">
+            {ar
+              ? "سيراجع فريق بيدريل النزاع ويتخذ القرار المناسب."
+              : "BidReel team will review your dispute and arbitrate."}
+          </p>
+        </div>
+      )}
+
+      {/* Released confirmation */}
+      {escrow?.status === "released" && (
+        <p className="text-[10px] text-emerald-400/70 text-center">
+          {ar ? "تم تحرير الأموال للبائع بنجاح." : "Funds have been released to the seller."}
+        </p>
+      )}
+
+      {/* Disputed confirmation */}
+      {escrow?.status === "disputed" && (
+        <p className="text-[10px] text-orange-400/70 text-center">
+          {ar ? "نزاعك قيد المراجعة. سيتواصل معك الفريق قريباً." : "Your dispute is under review. Our team will reach out soon."}
+        </p>
+      )}
+    </motion.div>
+  );
 }
 
 function DealStepper({ status, ar }: { status: DealStatus; ar: boolean }) {
@@ -2780,20 +2911,8 @@ export default function SecureDealPayPage() {
             </motion.div>
           )}
 
-          {/* ── Dispute / safety note ── */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-            className="rounded-2xl bg-white/3 border border-white/6 px-4 py-3.5 flex items-start gap-3"
-          >
-            <ShieldCheck size={13} className="text-white/20 shrink-0 mt-0.5" />
-            <p className="text-[11px] text-white/30 leading-relaxed">
-              {ar
-                ? "هل لديك مشكلة؟ يمكنك فتح نزاع خلال 7 أيام من تاريخ الدفع. ستقوم إدارة بيدريل بمراجعة الصفقة والفصل بها."
-                : "Having an issue? You can open a dispute within 7 days of payment. BidReel admin will review and arbitrate."}
-            </p>
-          </motion.div>
+          {/* ── Escrow Panel ── */}
+          <EscrowPanel dealId={tx.deal_id} paymentStatus={tx.payment_status} ar={ar} />
 
         </div>
       </div>

@@ -52,6 +52,9 @@ const TYPE_CONFIG: Record<
   buyer_confirmed_receipt:       { icon: CheckCircle2,   colour: "text-green-400",   label: "Confirmed",      labelAr: "تأكيد الاستلام" },
   shipping_fee_dispute_created:  { icon: AlertTriangle,  colour: "text-orange-400",  label: "Dispute",        labelAr: "نزاع شحن" },
   seller_penalty_applied:        { icon: ShieldAlert,    colour: "text-red-500",     label: "Penalty",        labelAr: "عقوبة" },
+  // ── Escrow (Part #12) ────────────────────────────────────────────────────────
+  escrow_released: { icon: CheckCircle2,  colour: "text-emerald-400", label: "Escrow Released", labelAr: "تحرير الضمان" },
+  escrow_disputed: { icon: AlertTriangle, colour: "text-orange-400",  label: "Escrow Dispute",  labelAr: "نزاع الضمان" },
   // ── Legacy aliases (still emitted by old rows) ──────────────────────────────
   new_follower:     { icon: UserPlus,    colour: "text-blue-400",    label: "Follower", labelAr: "متابع" },
   new_bid:          { icon: ShoppingBag, colour: "text-emerald-400", label: "New Bid",  labelAr: "مزايدة" },
@@ -122,6 +125,14 @@ function getDeepLink(n: AppNotification): string | null {
         (n.metadata?.["dealId"] as string | undefined) ??
         (n.metadata?.["deal_id"] as string | undefined);
       return dealId ? `/deals/${dealId}` : "/deals";
+    }
+
+    case "escrow_released":
+    case "escrow_disputed": {
+      const dealId =
+        (n.metadata?.["dealId"] as string | undefined) ??
+        (n.metadata?.["deal_id"] as string | undefined);
+      return dealId ? `/secure-deals/pay/${dealId}` : null;
     }
 
     case "auction_shared":

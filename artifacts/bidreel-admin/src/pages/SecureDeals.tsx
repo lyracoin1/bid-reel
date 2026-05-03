@@ -16,6 +16,7 @@ import {
   adminGetSellerPenalties,       type AdminSellerPenalty,
   adminCreateSellerPenalty,
   adminResolveSellerPenalty,
+  adminReleaseEscrow,
   type FullDealSellerPenalty,
 } from "@/services/admin-api";
 
@@ -163,8 +164,9 @@ function UserCard({ label, user, userId }: { label: string; user: FullDealUser |
 // ── Full Deal Expanded Row ────────────────────────────────────────────────────
 
 function FullDealExpandedRow({ deal }: { deal: FullDeal }) {
-  const [releasing, setReleasing] = useState(false);
-  const [released,  setReleased]  = useState(deal.funds_released);
+  const [releasing,     setReleasing]     = useState(false);
+  const [released,      setReleased]      = useState(deal.funds_released);
+  const [releaseError,  setReleaseError]  = useState<string | null>(null);
 
   const ps         = payStatus(deal);
   const ss         = shipStatus(deal);
@@ -172,10 +174,18 @@ function FullDealExpandedRow({ deal }: { deal: FullDeal }) {
   const sellerAmount = deal.price - commission;
   const canRelease   = ps === "secured" && ss !== "pending" && !released;
 
-  function handleReleaseFunds() {
+  async function handleReleaseFunds() {
     if (releasing || released) return;
     setReleasing(true);
-    setTimeout(() => { setReleased(true); setReleasing(false); }, 1200);
+    setReleaseError(null);
+    try {
+      await adminReleaseEscrow(deal.deal_id);
+      setReleased(true);
+    } catch (err) {
+      setReleaseError(err instanceof Error ? err.message : "حدث خطأ — حاول مجدداً");
+    } finally {
+      setReleasing(false);
+    }
   }
 
   return (
@@ -317,6 +327,9 @@ function FullDealExpandedRow({ deal }: { deal: FullDeal }) {
                           ? <><div className="w-3 h-3 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />جارٍ التحرير...</>
                           : <><Banknote size={12} />تحرير الأموال للبائع</>}
                       </button>
+                      {releaseError && (
+                        <p className="text-[10px] text-red-400 text-center">{releaseError}</p>
+                      )}
                       {!canRelease && (
                         <p className="text-[10px] text-white/25 text-center leading-snug">
                           {ps !== "secured" ? "يجب تأمين الدفع أولاً" : "يجب التحقق من الشحن أولاً"}

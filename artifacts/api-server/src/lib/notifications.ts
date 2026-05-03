@@ -61,6 +61,9 @@ export type NotificationType =
   | "buyer_delivery_proof_uploaded"
   | "shipping_fee_dispute_created"
   | "seller_penalty_applied"
+  // Escrow (Part #12)
+  | "escrow_released"
+  | "escrow_disputed"
   // legacy aliases (kept so older inserts and existing rows still parse)
   | "new_follower"
   | "new_bid"
@@ -94,6 +97,9 @@ const PUSH_ENABLED: ReadonlySet<NotificationType> = new Set<NotificationType>([
   "buyer_delivery_proof_uploaded",
   "shipping_fee_dispute_created",
   "seller_penalty_applied",
+  // Escrow (Part #12)
+  "escrow_released",
+  "escrow_disputed",
 ]);
 
 /**

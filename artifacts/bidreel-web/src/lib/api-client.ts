@@ -292,7 +292,7 @@ export async function uploadMediaApi(
 // For videos (which exceed the ~4.5 MB Vercel serverless body limit) the
 // client asks the API for a short-lived signed PUT URL and uploads the file
 // body straight to Cloudflare R2. This path only hits our API for the small
-// JSON sign request, so it scales to the full 20 MB compressed-video cap.
+// JSON sign request, so it scales to the full 30 MB compressed-video cap.
 //
 // Required R2 bucket CORS policy (paste into the Cloudflare dashboard exactly
 // — R2 rejects OPTIONS in AllowedMethods because it manages preflight itself):

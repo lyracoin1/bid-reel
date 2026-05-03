@@ -48,7 +48,7 @@ export { PresignedUploadError };
 const PROXY_FALLBACK_CAP_BYTES = 4 * 1024 * 1024;
 
 /** Post-compression size cap enforced by both backend routes. */
-export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+export const MAX_UPLOAD_BYTES = 30 * 1024 * 1024;
 
 // ─── Canvas-based image compression ─────────────────────────────────────────
 

@@ -52,7 +52,7 @@ const ALLOWED_AUDIO_TYPES = new Set([
 ]);
 
 // Post-compression upload caps.
-const MAX_VIDEO_BYTES = 20 * 1024 * 1024; // 20 MB
+const MAX_VIDEO_BYTES = 30 * 1024 * 1024; // 30 MB
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20 MB
 const MAX_AUDIO_BYTES = 30 * 1024 * 1024; // 30 MB
 
@@ -94,7 +94,7 @@ router.post(
   "/media/upload",
   requireAuth,
   // express.raw() parses the raw binary body into req.body: Buffer
-  express.raw({ limit: "25mb", type: "*/*" }),
+  express.raw({ limit: "35mb", type: "*/*" }),
   async (req, res) => {
     const fileType = req.query["fileType"] as string | undefined;
     const rawMime  = req.query["mimeType"] as string | undefined;

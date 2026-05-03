@@ -50,7 +50,7 @@ const MAX_IMAGE_BYTES = 20 * 1024 * 1024;  // 20 MB — pre-compression raw limi
 const MAX_AUDIO_BYTES_CLIENT = 30 * 1024 * 1024; // 30 MB — matches server cap
 // Videos are compressed natively (Android Media3 Transformer) before upload,
 // so we accept large raw inputs (up to MAX_RAW_VIDEO_INPUT_BYTES) and let the
-// compressor shrink them to the 20 MB server cap. There is NO raw-video
+// compressor shrink them to the 30 MB server cap. There is NO raw-video
 // fallback: if compression fails, the upload fails.
 const MAX_VIDEO_INPUT_BYTES = MAX_RAW_VIDEO_INPUT_BYTES;
 
@@ -441,7 +441,7 @@ export default function CreateAuction() {
         break;
       }
       if (file.size > MAX_IMAGE_BYTES) {
-        errors.push(`${file.name}: ${(file.size / 1024 / 1024).toFixed(1)} MB exceeds 20 MB limit`);
+        errors.push(`${file.name}: ${(file.size / 1024 / 1024).toFixed(1)} MB exceeds 30 MB limit`);
         continue;
       }
       validFiles.push(file);

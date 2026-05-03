@@ -85,8 +85,8 @@ const VideoCompressor = registerPlugin<VideoCompressorPlugin>("VideoCompressor")
 // ─── Public API ───────────────────────────────────────────────────────────
 
 /** Server-enforced cap on uploaded video size. Hardcoded to match the
- *  20 MB limit checked by the api-server and presigned-URL signer. */
-export const MAX_COMPRESSED_VIDEO_BYTES = 20 * 1024 * 1024;
+ *  30 MB limit checked by the api-server and presigned-URL signer. */
+export const MAX_COMPRESSED_VIDEO_BYTES = 30 * 1024 * 1024;
 
 /** Hard ceiling on raw input — protects against pathological 4K source files
  *  that would take several minutes to compress on low-end devices. */

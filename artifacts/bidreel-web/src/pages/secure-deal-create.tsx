@@ -147,7 +147,6 @@ export default function SecureDealCreatePage() {
         delivery_method: delivery,
         media_urls:      [],           // media upload (R2) wired in next milestone
         terms:           terms.trim() || undefined,
-        payment_link:    link,
       });
 
       console.log("[SecureDeal] Deal saved to Supabase:", { id, link, sellerId: user.id });

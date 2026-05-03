@@ -83,7 +83,7 @@ export interface CreateTransactionInput {
   delivery_method: string;
   media_urls?:     string[];
   terms?:          string;
-  payment_link:    string;
+  payment_link?:   string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -2584,19 +2584,17 @@ export default function SecureDealPayPage() {
                       </span>
                     </a>
 
-                    {/* Tracking link */}
+                    {/* Tracking link — styled button for buyer, plain for seller */}
                     {existingShipmentProof.tracking_link ? (
-                      <div className="flex items-start gap-2">
-                        <Link2 size={13} className="text-white/30 shrink-0 mt-0.5" />
-                        <a
-                          href={existingShipmentProof.tracking_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-indigo-300 text-[12px] hover:underline break-all"
-                        >
-                          {existingShipmentProof.tracking_link}
-                        </a>
-                      </div>
+                      <a
+                        href={existingShipmentProof.tracking_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-sm font-bold hover:brightness-110 transition"
+                      >
+                        <ExternalLink size={13} />
+                        {ar ? "تتبع الشحنة" : "Track Shipment"}
+                      </a>
                     ) : (
                       <p className="text-[11px] text-white/25 flex items-center gap-1.5">
                         <Link2 size={11} />
@@ -2642,6 +2640,25 @@ export default function SecureDealPayPage() {
                         onChange={e => setShipTrackingLink(e.target.value)}
                         className="w-full bg-white/5 border border-white/12 rounded-2xl px-4 py-3 text-sm text-white placeholder-white/20 outline-none focus:border-indigo-500/50 focus:bg-white/7 transition-colors"
                       />
+                      {/* URL preview / validation */}
+                      {shipTrackingLink.length > 3 && (() => {
+                        try {
+                          const parsed = new URL(shipTrackingLink);
+                          return (
+                            <div className="flex items-center gap-1.5 mt-1 text-[10px] text-indigo-400/60">
+                              <ExternalLink size={9} className="shrink-0" />
+                              <span dir="ltr" className="truncate">{parsed.hostname}</span>
+                            </div>
+                          );
+                        } catch {
+                          return (
+                            <div className="flex items-center gap-1.5 mt-1 text-[10px] text-red-400/60">
+                              <AlertCircle size={9} className="shrink-0" />
+                              <span>{ar ? "رابط غير صالح" : "Invalid URL"}</span>
+                            </div>
+                          );
+                        }
+                      })()}
                     </div>
 
                     {/* File picker */}

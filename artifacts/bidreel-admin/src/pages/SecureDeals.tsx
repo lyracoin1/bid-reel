@@ -685,6 +685,7 @@ export default function SecureDeals() {
   const [shipmentProofsLoading,  setShipmentProofsLoading]  = useState(false);
   const [shipmentProofsError,    setShipmentProofsError]    = useState<string | null>(null);
   const [shipmentProofsExpanded, setShipmentProofsExpanded] = useState(true);
+  const [filterHasTracking,      setFilterHasTracking]      = useState(false);
 
   // Shipping fee disputes — real data from API (Part #9)
   const [feeDisputes,         setFeeDisputes]         = useState<AdminShippingFeeDispute[]>([]);
@@ -923,21 +924,40 @@ export default function SecureDeals() {
 
         {/* ── Shipment Proofs Panel ── */}
         <div className="rounded-2xl bg-white/3 border border-white/8 overflow-hidden">
-          <button
-            onClick={() => setShipmentProofsExpanded(p => !p)}
-            className="w-full flex items-center justify-between px-5 py-4 bg-white/3 hover:bg-white/5 transition-colors"
-          >
-            <div className="flex items-center gap-2.5">
+          <div className="w-full flex items-center justify-between px-5 py-4 bg-white/3">
+            <button
+              onClick={() => setShipmentProofsExpanded(p => !p)}
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
+            >
               <Truck size={14} className="text-orange-400" />
               <span className="text-sm font-bold text-white/80">إثباتات الشحن</span>
               {!shipmentProofsLoading && shipmentProofs.length > 0 && (
                 <span className="bg-orange-500/20 border border-orange-500/30 text-orange-300 text-[10px] font-bold px-1.5 py-0.5 rounded-lg">
-                  {shipmentProofs.length}
+                  {filterHasTracking
+                    ? `${shipmentProofs.filter(s => !!s.tracking_link).length} / ${shipmentProofs.length}`
+                    : shipmentProofs.length}
                 </span>
               )}
+            </button>
+            <div className="flex items-center gap-2">
+              {/* Filter: only with tracking link */}
+              <button
+                onClick={() => setFilterHasTracking(p => !p)}
+                title={filterHasTracking ? "إظهار الكل" : "فقط ذو رابط تتبع"}
+                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border transition ${
+                  filterHasTracking
+                    ? "bg-orange-500/20 border-orange-500/30 text-orange-300"
+                    : "bg-white/5 border-white/10 text-white/30 hover:text-white/50"
+                }`}
+              >
+                <Link2 size={10} />
+                {filterHasTracking ? "ذو روابط فقط" : "كل الإثباتات"}
+              </button>
+              <button onClick={() => setShipmentProofsExpanded(p => !p)} className="text-white/30 hover:text-white/50 transition">
+                {shipmentProofsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
             </div>
-            {shipmentProofsExpanded ? <ChevronUp size={14} className="text-white/30" /> : <ChevronDown size={14} className="text-white/30" />}
-          </button>
+          </div>
 
           <AnimatePresence>
             {shipmentProofsExpanded && (
@@ -968,7 +988,7 @@ export default function SecureDeals() {
                         </tr>
                       </thead>
                       <tbody>
-                        {shipmentProofs.map((sp, i) => (
+                        {(filterHasTracking ? shipmentProofs.filter(s => !!s.tracking_link) : shipmentProofs).map((sp, i) => (
                           <tr key={sp.id} className={`border-b border-white/5 hover:bg-white/3 transition-colors ${i % 2 === 0 ? "" : "bg-white/1"}`} dir="rtl">
                             <td className="px-4 py-3 whitespace-nowrap">
                               <span className="font-mono text-[11px] font-bold text-white/60 bg-white/5 border border-white/8 rounded-lg px-2 py-0.5">{sp.deal_id}</span>

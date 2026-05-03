@@ -105,11 +105,19 @@ router.post(
     }
 
     try {
-      // 1. Load deal — verify seller ownership
-      const { rows: dealRows } = await pool.query(
-        `SELECT deal_id, seller_id, buyer_id FROM transactions WHERE deal_id = $1`,
-        [dealId],
-      );
+      // 1. Load deal — verify seller ownership; also load previous proof to detect tracking changes
+      const [{ rows: dealRows }, { rows: prevProofRows }] = await Promise.all([
+        pool.query(
+          `SELECT deal_id, seller_id, buyer_id FROM transactions WHERE deal_id = $1`,
+          [dealId],
+        ),
+        pool.query(
+          `SELECT tracking_link FROM shipment_proofs WHERE deal_id = $1 LIMIT 1`,
+          [dealId],
+        ),
+      ]);
+      const prevTrackingLink: string = prevProofRows[0]?.tracking_link ?? "";
+
       if (!dealRows.length) {
         res.status(404).json({ error: "NOT_FOUND", message: "Deal not found." });
         return;
@@ -150,7 +158,9 @@ router.post(
         "shipment_proof: uploaded",
       );
 
-      // 4. Notify buyer (non-fatal)
+      // 4. Notify buyer (non-fatal): two distinct notifications
+      //    a) shipment_proof_uploaded — always when a proof is uploaded/re-uploaded
+      //    b) shipment_tracking_updated — only when tracking link is new or changed
       if (deal.buyer_id) {
         try {
           const [{ data: sellerProfile }, { data: buyerProfile }] = await Promise.all([
@@ -172,6 +182,7 @@ router.post(
           const lang = (buyerProfile as any)?.language ?? "en";
           const isAr = lang === "ar";
 
+          // a) General shipment proof notification
           await createNotification({
             userId:   deal.buyer_id,
             type:     "shipment_proof_uploaded",
@@ -182,6 +193,21 @@ router.post(
             actorId:  callerId,
             metadata: { dealId, proofId: proof.id, trackingLink },
           });
+
+          // b) Separate tracking link notification when link is new or changed
+          const trackingChanged = trackingLink && trackingLink !== prevTrackingLink;
+          if (trackingChanged) {
+            await createNotification({
+              userId:   deal.buyer_id,
+              type:     "shipment_tracking_updated",
+              title:    isAr ? "📦 رابط تتبع الشحنة متاح!" : "📦 Tracking Link Available!",
+              body:     isAr
+                ? `${sellerName} أضاف رابط تتبع لشحنتك: ${trackingLink}`
+                : `${sellerName} added a tracking link for your shipment: ${trackingLink}`,
+              actorId:  callerId,
+              metadata: { dealId, proofId: proof.id, trackingLink },
+            });
+          }
         } catch (notifyErr) {
           logger.warn(
             { err: notifyErr, dealId, buyerId: deal.buyer_id },

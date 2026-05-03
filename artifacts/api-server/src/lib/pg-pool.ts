@@ -170,6 +170,13 @@ export async function bootstrapTransactionsTable(): Promise<void> {
         ADD COLUMN IF NOT EXISTS paid_amount   NUMERIC(14,2);
       ALTER TABLE transactions
         ADD COLUMN IF NOT EXISTS confirmed_at  TIMESTAMPTZ;
+      -- Part #13: External Payment Warning
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS external_payment_warning         BOOLEAN     NOT NULL DEFAULT FALSE;
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS external_payment_confirmed_at    TIMESTAMPTZ;
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS external_payment_warning_reason  TEXT;
     `);
 
     // ── payment_proofs (Part #4: Buyer Payment Proof Upload) ─────────────────

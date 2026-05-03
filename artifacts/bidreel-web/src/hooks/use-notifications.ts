@@ -54,6 +54,8 @@ export type NotificationType =
   // Escrow (Part #12)
   | "escrow_released"
   | "escrow_disputed"
+  // External Payment Warning (Part #13)
+  | "external_payment_warning"
   // legacy aliases (still emitted by older rows in production)
   | "new_follower"
   | "new_bid"

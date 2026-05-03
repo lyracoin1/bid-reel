@@ -64,6 +64,8 @@ export type NotificationType =
   // Escrow (Part #12)
   | "escrow_released"
   | "escrow_disputed"
+  // External Payment Warning (Part #13)
+  | "external_payment_warning"
   // legacy aliases (kept so older inserts and existing rows still parse)
   | "new_follower"
   | "new_bid"
@@ -100,6 +102,8 @@ const PUSH_ENABLED: ReadonlySet<NotificationType> = new Set<NotificationType>([
   // Escrow (Part #12)
   "escrow_released",
   "escrow_disputed",
+  // External Payment Warning (Part #13)
+  "external_payment_warning",
 ]);
 
 /**

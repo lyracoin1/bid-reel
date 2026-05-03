@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, ShieldCheck, Package, FileText, DollarSign,
   Truck, StickyNote, Lock, Image, Video,
-  CheckCircle2, Bell, PartyPopper, AlertCircle,
+  CheckCircle2, Bell, PartyPopper, AlertCircle, AlertTriangle,
   Loader2, UserX, RefreshCw, User, UserCheck, PencilLine,
   ScrollText, Send, Star, Upload, X, Link2, Scale,
 } from "lucide-react";
@@ -29,6 +29,7 @@ import {
   createShippingFeeDispute, getShippingFeeDisputes,
   getMyPenalties,
   getEscrow, openEscrowDispute,
+  reportExternalPayment,
   Transaction, DealCondition, SellerCondition, DealRating, PaymentProof, ShipmentProof, DeliveryProof, ShippingFeeDispute, SellerPenalty, EscrowRow,
 } from "@/lib/transactions";
 
@@ -436,6 +437,13 @@ export default function SecureDealPayPage() {
 
   // ── Seller Penalty state (Part #10) ──────────────────────────────────────────
   const [penalties,          setPenalties]          = useState<SellerPenalty[]>([]);
+
+  // ── External Payment Warning state (Part #13) ─────────────────────────────
+  const [extReportExpanded,  setExtReportExpanded]  = useState(false);
+  const [extReportReason,    setExtReportReason]    = useState("");
+  const [extReporting,       setExtReporting]       = useState(false);
+  const [extReportError,     setExtReportError]     = useState<string | null>(null);
+  const [extReportSuccess,   setExtReportSuccess]   = useState(false);
 
   // ── Load transaction ─────────────────────────────────────────────────────
   const loadTx = useCallback(async () => {
@@ -1751,8 +1759,41 @@ export default function SecureDealPayPage() {
 
             <div className="px-5 py-5 space-y-4">
 
+              {/* ── External Payment Warning Banner (Part #13) ── */}
+              {tx?.external_payment_warning && (
+                <div className="rounded-xl bg-red-500/10 border border-red-500/25 px-3.5 py-3.5 space-y-2">
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle size={14} className="text-red-400 shrink-0 mt-0.5" />
+                    <div className="space-y-1 flex-1">
+                      <p className="text-[11px] font-bold text-red-300">
+                        {ar ? "⚠️ تحذير: تم الإبلاغ عن دفع خارج التطبيق" : "⚠️ Warning: External Payment Reported"}
+                      </p>
+                      <p className="text-[10px] text-red-300/70 leading-relaxed">
+                        {ar
+                          ? "BidReel غير مسؤول عن المدفوعات التي تتم خارج التطبيق. تم تعطيل الدفع الداخلي لهذه الصفقة."
+                          : "BidReel is not responsible for payments outside the app. In-app payment has been disabled for this deal."}
+                      </p>
+                      {tx.external_payment_warning_reason && (
+                        <p className="text-[10px] text-red-300/60 leading-snug">
+                          {ar ? "السبب: " : "Reason: "}{tx.external_payment_warning_reason}
+                        </p>
+                      )}
+                      {tx.external_payment_confirmed_at && (
+                        <p className="text-[10px] text-red-300/40">
+                          {ar ? "تاريخ الإبلاغ: " : "Flagged: "}
+                          {new Date(tx.external_payment_confirmed_at).toLocaleString(
+                            ar ? "ar-SA" : "en-US",
+                            { dateStyle: "medium", timeStyle: "short" },
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* ── Open-price amount input (buyer chooses the amount) ── */}
-              {dealStatus === "awaiting_payment" && (
+              {dealStatus === "awaiting_payment" && !tx?.external_payment_warning && (
                 <div className="space-y-1.5">
                   <label className="flex items-center gap-1.5 text-[10px] font-bold text-white/40 uppercase tracking-widest">
                     <PencilLine size={10} />
@@ -1861,15 +1902,20 @@ export default function SecureDealPayPage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    whileTap={{ scale: (paying || !amountValid) ? 1 : 0.97 }}
+                    whileTap={{ scale: (paying || !amountValid || !!tx?.external_payment_warning) ? 1 : 0.97 }}
                     onClick={handlePayNow}
-                    disabled={paying || !amountValid}
+                    disabled={paying || !amountValid || !!tx?.external_payment_warning}
                     className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-700/30 hover:brightness-110 transition disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {paying ? (
                       <>
                         <Loader2 size={16} className="animate-spin" />
                         {ar ? "جارٍ المعالجة…" : "Processing…"}
+                      </>
+                    ) : tx?.external_payment_warning ? (
+                      <>
+                        <AlertTriangle size={16} />
+                        {ar ? "تم الإبلاغ عن دفع خارجي" : "External Payment Flagged"}
                       </>
                     ) : (
                       <>
@@ -1955,6 +2001,114 @@ export default function SecureDealPayPage() {
                   ? "الدفع الحقيقي غير مفعّل حالياً — جاهز للربط بـ Google Play Billing أو أي بوابة دفع."
                   : "Real payment not active — ready for Google Play Billing or any gateway integration."}
               </p>
+
+              {/* ── Report External Payment (Part #13) ── */}
+              {/* Visible to buyer or seller when deal is pending + not yet flagged */}
+              {dealStatus === "awaiting_payment" && !tx.external_payment_warning && (
+                <div className="space-y-2">
+                  <AnimatePresence mode="wait">
+                    {!extReportExpanded ? (
+                      <motion.button
+                        key="ext-report-toggle"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setExtReportExpanded(true)}
+                        className="w-full py-2.5 rounded-xl bg-white/3 border border-white/8 text-white/25 text-[11px] font-medium hover:text-red-400/70 hover:bg-red-500/5 hover:border-red-500/15 transition flex items-center justify-center gap-1.5"
+                      >
+                        <AlertTriangle size={11} />
+                        {ar ? "الإبلاغ عن دفع خارج التطبيق" : "Report External Payment"}
+                      </motion.button>
+                    ) : (
+                      <motion.div
+                        key="ext-report-form"
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="rounded-xl bg-red-500/5 border border-red-500/18 px-3.5 py-3 space-y-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <AlertTriangle size={12} className="text-red-400" />
+                            <p className="text-[11px] font-bold text-red-300">
+                              {ar ? "الإبلاغ عن دفع خارج التطبيق" : "Report External Payment"}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => { setExtReportExpanded(false); setExtReportError(null); }}
+                            className="text-white/25 hover:text-white/50 transition"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+
+                        <p className="text-[10px] text-white/35 leading-relaxed">
+                          {ar
+                            ? "إذا طُلب منك الدفع خارج BidReel، أبلغنا فوراً. BidReel غير مسؤول عن المدفوعات الخارجية."
+                            : "If you were asked to pay outside BidReel, report it immediately. BidReel is not responsible for external payments."}
+                        </p>
+
+                        <textarea
+                          rows={2}
+                          value={extReportReason}
+                          onChange={e => setExtReportReason(e.target.value)}
+                          placeholder={ar ? "السبب (اختياري)…" : "Reason (optional)…"}
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-[12px] text-white placeholder-white/20 focus:outline-none focus:border-red-500/30 transition resize-none"
+                        />
+
+                        <AnimatePresence>
+                          {extReportError && (
+                            <motion.p
+                              initial={{ opacity: 0, y: -3 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0 }}
+                              className="text-[11px] text-red-400 flex items-center gap-1"
+                            >
+                              <AlertCircle size={11} /> {extReportError}
+                            </motion.p>
+                          )}
+                        </AnimatePresence>
+
+                        {extReportSuccess ? (
+                          <p className="text-[11px] text-emerald-400 text-center font-medium">
+                            ✓ {ar ? "تم الإبلاغ بنجاح — سيراجع الفريق هذه الصفقة." : "Reported — the team will review this deal."}
+                          </p>
+                        ) : (
+                          <button
+                            onClick={async () => {
+                              if (!dealId) return;
+                              setExtReporting(true);
+                              setExtReportError(null);
+                              try {
+                                const updated = await reportExternalPayment(
+                                  dealId,
+                                  extReportReason.trim() || undefined,
+                                );
+                                setTx(updated);
+                                setExtReportSuccess(true);
+                                setExtReportExpanded(false);
+                              } catch (err) {
+                                setExtReportError((err as Error).message ?? (ar ? "فشل الإبلاغ، حاول مجدداً." : "Report failed. Please try again."));
+                              } finally {
+                                setExtReporting(false);
+                              }
+                            }}
+                            disabled={extReporting}
+                            className="w-full py-2.5 rounded-xl bg-red-600/20 border border-red-500/30 text-red-300 text-[11px] font-bold hover:brightness-110 transition disabled:opacity-50 flex items-center justify-center gap-1.5"
+                          >
+                            {extReporting ? (
+                              <><Loader2 size={12} className="animate-spin" />{ar ? "جارٍ الإبلاغ…" : "Reporting…"}</>
+                            ) : (
+                              <><AlertTriangle size={12} />{ar ? "تأكيد الإبلاغ" : "Confirm Report"}</>
+                            )}
+                          </button>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+
             </div>
           </motion.div>
 

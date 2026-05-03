@@ -479,6 +479,11 @@ export interface FullDeal {
   seller: FullDealUser | null;
   buyer:  FullDealUser | null;
 
+  // External Payment Warning (Part #13)
+  external_payment_warning:        boolean;
+  external_payment_confirmed_at:   string | null;
+  external_payment_warning_reason: string | null;
+
   payment_proof:    FullDealPaymentProof | null;
   shipment_proof:   FullDealShipmentProof | null;
   buyer_conditions:      FullDealCondition | null;

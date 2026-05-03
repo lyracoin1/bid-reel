@@ -59,6 +59,7 @@ A peer-to-peer escrow-style feature for off-auction sales.
 -   **Validation:** Zod.
 -   **Media Storage:** Cloudflare R2 for processed media.
 -   **Scheduled Jobs:** Background jobs for media lifecycle and profile cleanup.
+-   **Part #13 — External Payment Warning:** `POST /api/deal/external-payment-warning` route (buyer or seller flags a deal); 3 new idempotent columns on transactions (`external_payment_warning BOOLEAN`, `external_payment_confirmed_at TIMESTAMPTZ`, `external_payment_warning_reason TEXT`); admin notifications via `createNotification`; warning banner + disabled Pay Now button + "Report External Payment" inline form in `secure-deal-pay.tsx`; ⚠️ badge + filter dropdown + summary card + detail subsection in admin SecureDeals.tsx; `external_payment_warning` NotificationType in all notification registries + i18n for 6 languages.
 
 # External Dependencies
 

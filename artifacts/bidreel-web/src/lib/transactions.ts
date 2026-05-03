@@ -45,6 +45,10 @@ export interface Transaction {
   /** Set when buyer calls POST /api/confirm-receipt (Part #7). */
   confirmed_at:    string | null;
   funds_released:  boolean;
+  // External Payment Warning (Part #13)
+  external_payment_warning:        boolean;
+  external_payment_confirmed_at:   string | null;
+  external_payment_warning_reason: string | null;
   payment_link:    string | null;
   release_date:    string | null;
   created_at:      string;
@@ -815,4 +819,25 @@ export async function openEscrowDispute(dealId: string): Promise<EscrowRow> {
   }
   const data = await res.json() as { escrow: EscrowRow };
   return data.escrow;
+}
+
+/**
+ * Report an external payment warning for a deal (Part #13).
+ * Can be called by buyer or seller. Idempotent — 409 if already flagged.
+ * Returns the updated Transaction row.
+ */
+export async function reportExternalPayment(dealId: string, reason?: string): Promise<Transaction> {
+  const res = await apiFetch("/deal/external-payment-warning", {
+    method: "POST",
+    body: JSON.stringify({ deal_id: dealId, reason }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { message?: string; error?: string };
+    if (res.status === 409) {
+      throw new Error(body.message ?? "Deal already flagged for external payment");
+    }
+    throw new Error(body.message ?? "Failed to report external payment");
+  }
+  const data = await res.json() as { deal: Transaction };
+  return data.deal;
 }

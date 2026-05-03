@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ShieldCheck, Package, DollarSign, Clock, CheckCircle2,
   Truck, Link2, ChevronDown, ChevronUp, X,
-  AlertCircle, FileText, Search, Banknote, Info, ExternalLink,
+  AlertCircle, AlertTriangle, FileText, Search, Banknote, Info, ExternalLink,
   Star, Phone, MapPin, RefreshCw, User, Loader2, ScrollText, MessageSquare,
   Scale, ShieldAlert, Gavel, CheckSquare, PlusCircle,
 } from "lucide-react";
@@ -457,6 +457,39 @@ function FullDealExpandedRow({ deal }: { deal: FullDeal }) {
             </SubSection>
           )}
 
+          {/* External Payment Warning (Part #13) */}
+          {deal.external_payment_warning && (
+            <SubSection
+              title="تحذير دفع خارجي"
+              icon={<AlertTriangle size={12} className="text-red-400" />}
+              defaultOpen
+            >
+              <div className="rounded-xl bg-red-500/8 border border-red-500/20 px-3 py-3 space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle size={12} className="text-red-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1.5 flex-1">
+                    <p className="text-[11px] font-bold text-red-300">
+                      تم الإبلاغ عن دفع خارج التطبيق
+                    </p>
+                    <p className="text-[10px] text-red-300/65 leading-relaxed">
+                      BidReel غير مسؤول عن المدفوعات التي تتم خارج التطبيق. تم تعطيل الدفع الداخلي لهذه الصفقة.
+                    </p>
+                    {deal.external_payment_warning_reason && (
+                      <p className="text-[10px] text-white/50">
+                        <span className="text-white/30">السبب: </span>{deal.external_payment_warning_reason}
+                      </p>
+                    )}
+                    {deal.external_payment_confirmed_at && (
+                      <p className="text-[10px] text-white/25">
+                        {fmtDate(deal.external_payment_confirmed_at)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </SubSection>
+          )}
+
           {deal.shipping_fee_disputes && deal.shipping_fee_disputes.length > 0 && (
             <SubSection
               title="نزاعات رسوم الشحن"
@@ -519,6 +552,7 @@ export default function SecureDeals() {
   const [search,   setSearch]   = useState("");
   const [filterPay,  setFilterPay]  = useState<PayStatus | "all">("all");
   const [filterShip, setFilterShip] = useState<ShipStatus | "all">("all");
+  const [filterExtWarning, setFilterExtWarning] = useState<boolean | "all">("all");
 
   // Payment proofs — real data from API (Part #4)
   const [proofs,           setProofs]           = useState<AdminPaymentProof[]>([]);
@@ -617,7 +651,8 @@ export default function SecureDeals() {
       || (d.buyer?.username      ?? "").toLowerCase().includes(q);
     const matchPay  = filterPay  === "all" || payStatus(d)  === filterPay;
     const matchShip = filterShip === "all" || shipStatus(d) === filterShip;
-    return matchQ && matchPay && matchShip;
+    const matchExt  = filterExtWarning === "all" || d.external_payment_warning === filterExtWarning;
+    return matchQ && matchPay && matchShip && matchExt;
   });
 
   const summaryStats = {
@@ -626,6 +661,7 @@ export default function SecureDeals() {
     pending:       fullDeals.filter(d => shipStatus(d) === "pending").length,
     verified:      fullDeals.filter(d => shipStatus(d) === "verified").length,
     fundsReleased: fullDeals.filter(d => d.funds_released).length,
+    extWarnings:   fullDeals.filter(d => d.external_payment_warning).length,
   };
 
   return (
@@ -664,6 +700,7 @@ export default function SecureDeals() {
             { label: "شحن معلّق",       value: summaryStats.pending,       icon: <Clock       size={15} />, cls: "text-amber-400  bg-amber-500/10   border-amber-500/20" },
             { label: "تم التحقق",       value: summaryStats.verified,      icon: <Truck       size={15} />, cls: "text-blue-400   bg-blue-500/10    border-blue-500/20" },
             { label: "أموال محرَّرة",   value: summaryStats.fundsReleased, icon: <Banknote    size={15} />, cls: "text-violet-400 bg-violet-500/10  border-violet-500/20" },
+            { label: "دفع خارجي",       value: summaryStats.extWarnings,   icon: <AlertTriangle size={15} />, cls: summaryStats.extWarnings > 0 ? "text-red-400 bg-red-500/10 border-red-500/20" : "text-white/40 bg-white/5 border-white/10" },
           ].map(s => (
             <div key={s.label} className={`rounded-xl border px-4 py-3.5 flex items-center gap-3 ${s.cls}`}>
               {s.icon}
@@ -1289,6 +1326,20 @@ export default function SecureDeals() {
             <option value="verified"  className="bg-[#0c0c14]">تم التحقق</option>
             <option value="delivered" className="bg-[#0c0c14]">تم التسليم</option>
           </select>
+
+          <select
+            value={String(filterExtWarning)}
+            onChange={e => {
+              const v = e.target.value;
+              setFilterExtWarning(v === "all" ? "all" : v === "true");
+            }}
+            className={`bg-white/5 border rounded-xl px-3 py-2.5 text-sm text-white/70 focus:outline-none focus:border-primary/40 transition cursor-pointer ${filterExtWarning !== "all" ? "border-red-500/30 text-red-400" : "border-white/10"}`}
+            dir="rtl"
+          >
+            <option value="all"   className="bg-[#0c0c14]">كل الصفقات</option>
+            <option value="true"  className="bg-[#0c0c14]">⚠️ دفع خارجي فقط</option>
+            <option value="false" className="bg-[#0c0c14]">بدون تحذير</option>
+          </select>
         </div>
 
         {/* ── Deals Table ── */}
@@ -1348,7 +1399,15 @@ export default function SecureDeals() {
                               <div className="w-6 h-6 rounded-lg bg-white/6 border border-white/10 flex items-center justify-center shrink-0">
                                 <Package size={11} className="text-white/40" />
                               </div>
-                              <span className="text-white/85 font-medium leading-snug line-clamp-1">{deal.product_name}</span>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-white/85 font-medium leading-snug line-clamp-1">{deal.product_name}</span>
+                                {deal.external_payment_warning && (
+                                  <span title="تحذير دفع خارجي" className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold border bg-red-500/15 text-red-400 border-red-500/25">
+                                    <AlertTriangle size={8} />
+                                    خارجي
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </td>
 

@@ -48,6 +48,8 @@ const TYPE_CONFIG: Record<
   // Escrow (Part #12)
   escrow_released: { icon: CheckCircle2,  colour: "text-emerald-400", labelKey: "notif_label_escrow_released" },
   escrow_disputed: { icon: AlertTriangle, colour: "text-orange-400",  labelKey: "notif_label_escrow_disputed" },
+  // External Payment Warning (Part #13)
+  external_payment_warning: { icon: AlertTriangle, colour: "text-red-400", labelKey: "notif_label_ext_payment" },
   // legacy aliases
   new_follower:     { icon: UserPlus,    colour: "text-blue-400",    labelKey: "notif_label_followed_you" },
   new_bid:          { icon: ShoppingBag, colour: "text-emerald-400", labelKey: "notif_label_bid_received" },

@@ -28,6 +28,7 @@ import shippingFeeDisputeRouter from "./shipping-fee-dispute";
 import sellerPenaltyRouter from "./seller-penalty";
 import adminDealsRouter from "./admin-deals";
 import escrowRouter from "./escrow";
+import externalPaymentWarningRouter from "./external-payment-warning";
 
 const router: IRouter = Router();
 
@@ -63,6 +64,7 @@ router.use(adminDealsRouter);
 // escrowRouter must be registered BEFORE adminRouter (defines /admin/* paths)
 // and BEFORE notificationRouter (which applies router-level requireAuth).
 router.use(escrowRouter);
+router.use(externalPaymentWarningRouter);
 router.use("/admin", adminRouter);
 router.use(auctionRouter);
 router.use(billingRouter);

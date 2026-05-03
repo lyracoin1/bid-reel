@@ -63,20 +63,52 @@ async function resolveSellerName(sellerId: string): Promise<string | null> {
 // ── Validation schemas ────────────────────────────────────────────────────────
 
 const createDealSchema = z.object({
-  deal_id:         z.string().min(1),
-  product_name:    z.string().min(1),
+  deal_id:         z.string().min(1).max(32),
+  product_name:    z.string().min(1).max(200),
   price:           z.number().positive(),
   currency:        z.string().min(2).max(5).default("USD"),
-  description:     z.string().optional(),
-  delivery_method: z.string().min(1),
-  media_urls:      z.array(z.string().url()).optional().default([]),
-  terms:           z.string().optional(),
+  description:     z.string().max(2000).optional(),
+  delivery_method: z.string().min(1).max(200),
+  media_urls:      z.array(z.string().url()).max(10).optional().default([]),
+  terms:           z.string().max(2000).optional(),
   payment_link:    z.string().url().optional(),
 });
 
 function buildFallbackPaymentLink(dealId: string): string {
   const baseUrl = process.env["PUBLIC_BASE_URL"] ?? process.env["APP_URL"] ?? "";
   return baseUrl ? `${baseUrl.replace(/\/$/, "")}/secure-deals/pay/${dealId}` : `/secure-deals/pay/${dealId}`;
+}
+
+/**
+ * Check whether a seller has the minimum profile fields needed to create a deal.
+ * Returns { ok: true } on pass, or { ok: false, missing: string[] } listing gaps.
+ */
+async function checkSellerProfile(
+  sellerId: string,
+): Promise<{ ok: true } | { ok: false; missing: string[] }> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("profiles")
+      .select("username, display_name, phone")
+      .eq("id", sellerId)
+      .maybeSingle();
+
+    if (error || !data) {
+      // Could not fetch profile — treat as incomplete to be safe
+      return { ok: false, missing: ["profile"] };
+    }
+
+    const row = data as { username?: string | null; display_name?: string | null; phone?: string | null };
+    const missing: string[] = [];
+    if (!row.username?.trim())     missing.push("username");
+    if (!row.display_name?.trim()) missing.push("display_name");
+    if (!row.phone?.trim())        missing.push("phone");
+
+    return missing.length ? { ok: false, missing } : { ok: true };
+  } catch {
+    // Best-effort — don't block deal creation on a network hiccup
+    return { ok: true };
+  }
 }
 
 const payNowSchema = z.object({
@@ -143,8 +175,33 @@ router.post("/secure-deals", requireAuth, async (req, res) => {
 
   const d = body.data;
 
+  // ── Seller profile completeness gate ─────────────────────────────────────
+  const profileCheck = await checkSellerProfile(sellerId);
+  if (!profileCheck.ok) {
+    logger.warn({ sellerId, missing: profileCheck.missing }, "POST /secure-deals blocked: seller profile incomplete");
+    res.status(400).json({
+      error:   "SELLER_PROFILE_INCOMPLETE",
+      message: "Your profile is incomplete. Please add your username, display name, and phone number before creating a deal.",
+      missing: profileCheck.missing,
+    });
+    return;
+  }
+
   try {
     const paymentLink = d.payment_link ?? buildFallbackPaymentLink(d.deal_id);
+
+    logger.info({
+      dealId:          d.deal_id,
+      sellerId,
+      productName:     d.product_name,
+      price:           d.price,
+      currency:        d.currency,
+      deliveryMethod:  d.delivery_method,
+      hasDescription:  !!d.description,
+      hasTerms:        !!d.terms,
+      mediaCount:      (d.media_urls ?? []).length,
+    }, "POST /secure-deals: attempting insert");
+
     const { rows } = await pool.query(
       `INSERT INTO transactions
          (deal_id, seller_id, product_name, price, currency, description,
@@ -162,11 +219,22 @@ router.post("/secure-deals", requireAuth, async (req, res) => {
     res.status(201).json({ deal: rows[0] });
   } catch (err: any) {
     if (err?.code === "23505") {
-      res.status(409).json({ error: "DUPLICATE_DEAL_ID", message: "Deal ID already exists." });
+      res.status(409).json({ error: "DUPLICATE_DEAL_ID", message: "Deal ID already exists. Please try again." });
       return;
     }
-    logger.error({ err, sellerId }, "POST /secure-deals failed");
-    res.status(500).json({ error: "CREATE_FAILED", message: "Could not create deal." });
+    logger.error(
+      {
+        err,
+        sellerId,
+        dealId:     d.deal_id,
+        pgCode:     err?.code,
+        pgDetail:   err?.detail,
+        pgConstraint: err?.constraint,
+        pgColumn:   err?.column,
+      },
+      "POST /secure-deals INSERT failed",
+    );
+    res.status(500).json({ error: "CREATE_FAILED", message: "Could not create deal. Please try again." });
   }
 });
 

@@ -150,8 +150,11 @@ export async function createTransaction(input: CreateTransactionInput): Promise<
   }, true);
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as any).message ?? `Failed to create deal (${res.status})`);
+    const err = await res.json().catch(() => ({} as any));
+    const e = new Error((err as any).message ?? `Failed to create deal (${res.status})`);
+    (e as any).code    = (err as any).error  ?? null;
+    (e as any).missing = (err as any).missing ?? null;
+    throw e;
   }
 
   const { deal } = await res.json();

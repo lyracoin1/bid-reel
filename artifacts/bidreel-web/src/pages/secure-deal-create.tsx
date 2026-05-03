@@ -4,13 +4,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, ShieldCheck, Package, FileText, DollarSign,
   Truck, StickyNote, ImagePlus, Video, Link2, Copy, Check,
-  ChevronDown, AlertCircle, Loader2, UserX, UserCheck,
+  ChevronDown, AlertCircle, Loader2, UserX, UserCheck, Upload,
 } from "lucide-react";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { useLang } from "@/contexts/LanguageContext";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
-  generateDealId, buildPaymentLink, createTransaction,
+  generateDealId, buildPaymentLink, createTransaction, uploadProductMedia,
 } from "@/lib/transactions";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -34,6 +34,28 @@ const DELIVERY_OPTIONS_AR = [
 
 const INPUT_CLS =
   "w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-primary/50 focus:bg-white/7 transition";
+
+// ── Media validation ──────────────────────────────────────────────────────────
+
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+const ALLOWED_VIDEO_TYPES = new Set(["video/mp4"]);
+const ALLOWED_MEDIA_TYPES = new Set([...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES]);
+const MAX_IMAGE_BYTES      = 10 * 1024 * 1024;  // 10 MB
+const MAX_VIDEO_BYTES      = 50 * 1024 * 1024;  // 50 MB
+
+function validateMediaFile(file: File): string | null {
+  if (!ALLOWED_MEDIA_TYPES.has(file.type)) {
+    return "Only JPEG, PNG, WebP images or MP4 videos are accepted.";
+  }
+  const isVideo = ALLOWED_VIDEO_TYPES.has(file.type);
+  if (isVideo && file.size > MAX_VIDEO_BYTES) {
+    return `Video must be smaller than ${MAX_VIDEO_BYTES / (1024 * 1024)} MB.`;
+  }
+  if (!isVideo && file.size > MAX_IMAGE_BYTES) {
+    return `Image must be smaller than ${MAX_IMAGE_BYTES / (1024 * 1024)} MB.`;
+  }
+  return null;
+}
 
 // ── Profile completeness check ────────────────────────────────────────────────
 
@@ -100,11 +122,13 @@ export default function SecureDealCreatePage() {
   const [mediaFile, setMediaFile]         = useState<File | null>(null);
   const [mediaPreview, setMediaPreview]   = useState<string | null>(null);
   const [mediaType, setMediaType]         = useState<"image" | "video" | null>(null);
+  const [mediaError, setMediaError]       = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Submit state
   const [errors, setErrors]               = useState<Record<string, string>>({});
   const [submitting, setSubmitting]       = useState(false);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
   const [submitError, setSubmitError]     = useState<string | null>(null);
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
   const [dealId, setDealId]               = useState<string | null>(null);
@@ -125,31 +149,77 @@ export default function SecureDealCreatePage() {
   }
 
   async function handleGenerate() {
-    if (!user || !gate.ready || submitting) return;
+    if (!user || !gate.ready || submitting || uploadingMedia) return;
 
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
+    if (mediaError) return;
+
     setErrors({});
     setSubmitError(null);
     setSubmitting(true);
 
     try {
-      const id   = generateDealId();
+      let id   = generateDealId();
       const link = buildPaymentLink(id);
 
-      await createTransaction({
-        deal_id:         id,
-        seller_id:       user.id,
-        product_name:    itemName.trim(),
-        price:           Number(price),
-        currency,
-        description:     description.trim() || undefined,
-        delivery_method: delivery,
-        media_urls:      [],           // media upload (R2) wired in next milestone
-        terms:           terms.trim() || undefined,
-      });
+      // Attempt deal creation; auto-retry once on DUPLICATE_DEAL_ID
+      let created = false;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          await createTransaction({
+            deal_id:         id,
+            seller_id:       user.id,
+            product_name:    itemName.trim(),
+            price:           Number(price),
+            currency,
+            description:     description.trim() || undefined,
+            delivery_method: delivery,
+            media_urls:      [],
+            terms:           terms.trim() || undefined,
+          });
+          created = true;
+          break;
+        } catch (err: any) {
+          if (err?.code === "DUPLICATE_DEAL_ID" && attempt === 0) {
+            // Generate a fresh ID and retry once
+            id = generateDealId();
+            continue;
+          }
+          // SELLER_PROFILE_INCOMPLETE — surface as profile gate
+          if (err?.code === "SELLER_PROFILE_INCOMPLETE") {
+            setSubmitError(
+              ar
+                ? "ملفك الشخصي غير مكتمل. يرجى إضافة اسم المستخدم والاسم الظاهر ورقم الهاتف."
+                : "Your profile is incomplete. Please add your username, display name, and phone number.",
+            );
+            setSubmitting(false);
+            return;
+          }
+          throw err;
+        }
+      }
+      if (!created) {
+        throw new Error(ar ? "فشل إنشاء الصفقة. حاول مجدداً." : "Could not create deal. Please try again.");
+      }
 
-      console.log("[SecureDeal] Deal saved to Supabase:", { id, link, sellerId: user.id });
+      // Upload media file if one was chosen
+      if (mediaFile) {
+        setSubmitting(false);
+        setUploadingMedia(true);
+        try {
+          await uploadProductMedia(id, mediaFile);
+          console.log("[SecureDeal] Media uploaded for deal:", id);
+        } catch (uploadErr) {
+          const msg = uploadErr instanceof Error ? uploadErr.message : "Unknown upload error";
+          console.warn("[SecureDeal] Media upload failed (non-fatal):", msg);
+          // Non-fatal — deal is already created; buyer can still see it without the photo
+        } finally {
+          setUploadingMedia(false);
+        }
+      }
+
+      console.log("[SecureDeal] Deal saved:", { id, link, sellerId: user.id });
       setDealId(id);
       setGeneratedLink(link);
     } catch (err) {
@@ -160,13 +230,13 @@ export default function SecureDealCreatePage() {
         : `Failed to save deal: ${msg}`);
     } finally {
       setSubmitting(false);
+      setUploadingMedia(false);
     }
   }
 
   function handleCopy() {
     if (!generatedLink) return;
     navigator.clipboard?.writeText(generatedLink).catch(() => {
-      // Fallback for browsers without clipboard API
       const el = document.createElement("textarea");
       el.value = generatedLink;
       document.body.appendChild(el);
@@ -182,12 +252,35 @@ export default function SecureDealCreatePage() {
   function handleMediaPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const validationError = validateMediaFile(file);
+    if (validationError) {
+      setMediaError(ar
+        ? validationError
+            .replace("Only JPEG, PNG, WebP images or MP4 videos are accepted.", "يُقبل فقط JPEG أو PNG أو WebP (صور) أو MP4 (فيديو).")
+            .replace(/must be smaller than (\d+) MB\./, "يجب أن يكون الحجم أقل من $1 ميجابايت.")
+        : validationError);
+      // Don't clear the existing preview
+      e.target.value = "";
+      return;
+    }
+
+    setMediaError(null);
     if (mediaPreview) URL.revokeObjectURL(mediaPreview);
     const url = URL.createObjectURL(file);
     setMediaFile(file);
     setMediaPreview(url);
     setMediaType(file.type.startsWith("video") ? "video" : "image");
   }
+
+  // ── Derived submit label ──
+  const submitLabel = (() => {
+    if (uploadingMedia) return ar ? "جارٍ رفع الصورة..." : "Uploading media…";
+    if (submitting)     return ar ? "جارٍ الحفظ..." : "Saving…";
+    return ar ? "إنشاء رابط الدفع" : "Generate Payment Link";
+  })();
+
+  const isWorking = submitting || uploadingMedia;
 
   // ── Auth loading state ──
   if (authLoading) {
@@ -357,6 +450,7 @@ export default function SecureDealCreatePage() {
                     onChange={e => setDescription(e.target.value)}
                     placeholder={ar ? "وصف تفصيلي للمنتج..." : "Detailed description of the item..."}
                     rows={3}
+                    maxLength={2000}
                     className={`${INPUT_CLS} ${ar ? "pr-10" : "pl-10"} resize-none`}
                   />
                 </div>
@@ -398,12 +492,19 @@ export default function SecureDealCreatePage() {
               {/* Media upload */}
               <Field
                 label={ar ? "صورة أو فيديو (اختياري)" : "Photo or Video (optional)"}
-                hint={ar ? "أضف مرئياً يساعد المشتري على الثقة بالمنتج" : "Add a visual to help the buyer trust the item"}
+                hint={
+                  mediaError
+                    ? undefined
+                    : (ar
+                        ? "JPEG / PNG / WebP (حتى 10 ميجا) أو MP4 (حتى 50 ميجا)"
+                        : "JPEG / PNG / WebP up to 10 MB — MP4 up to 50 MB")
+                }
+                error={mediaError ?? undefined}
               >
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*,video/*"
+                  accept="image/jpeg,image/jpg,image/png,image/webp,video/mp4"
                   className="hidden"
                   onChange={handleMediaPick}
                 />
@@ -415,7 +516,12 @@ export default function SecureDealCreatePage() {
                     }
                     <button
                       type="button"
-                      onClick={() => { setMediaFile(null); setMediaPreview(null); setMediaType(null); }}
+                      onClick={() => {
+                        setMediaFile(null);
+                        setMediaPreview(null);
+                        setMediaType(null);
+                        setMediaError(null);
+                      }}
                       className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white/70 flex items-center justify-center text-xs font-bold hover:bg-black/80 transition"
                     >✕</button>
                   </div>
@@ -424,7 +530,11 @@ export default function SecureDealCreatePage() {
                     whileTap={{ scale: 0.98 }}
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-6 rounded-xl border border-dashed border-white/15 text-white/30 flex flex-col items-center gap-2 hover:border-white/25 hover:text-white/50 transition"
+                    className={`w-full py-6 rounded-xl border border-dashed text-white/30 flex flex-col items-center gap-2 transition ${
+                      mediaError
+                        ? "border-red-500/30 bg-red-500/5 text-red-400/60 hover:border-red-500/50"
+                        : "border-white/15 hover:border-white/25 hover:text-white/50"
+                    }`}
                   >
                     <div className="flex gap-3">
                       <ImagePlus size={18} />
@@ -492,6 +602,7 @@ export default function SecureDealCreatePage() {
                     onChange={e => setTerms(e.target.value)}
                     placeholder={ar ? "مثال: السلعة بدون ضمان، التسليم خلال ٣ أيام..." : "e.g. Item has no warranty, delivery within 3 days..."}
                     rows={3}
+                    maxLength={2000}
                     className={`${INPUT_CLS} ${ar ? "pr-10" : "pl-10"} resize-none`}
                   />
                 </div>
@@ -511,7 +622,19 @@ export default function SecureDealCreatePage() {
                 className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 flex items-start gap-2.5"
               >
                 <AlertCircle size={14} className="text-red-400 shrink-0 mt-0.5" />
-                <p className="text-sm text-red-300 leading-snug">{submitError}</p>
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm text-red-300 leading-snug">{submitError}</p>
+                  {submitError && (
+                    submitError.includes("profile") || submitError.includes("ملف") ? (
+                      <button
+                        onClick={() => setLocation("/profile")}
+                        className="text-xs font-semibold text-amber-400 underline underline-offset-2 hover:text-amber-300 transition"
+                      >
+                        {ar ? "إكمال الملف الشخصي ←" : "Complete Profile →"}
+                      </button>
+                    ) : null
+                  )}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -521,21 +644,24 @@ export default function SecureDealCreatePage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.12 }}
-            whileTap={{ scale: submitting ? 1 : 0.97 }}
+            whileTap={{ scale: isWorking ? 1 : 0.97 }}
             type="button"
             onClick={handleGenerate}
-            disabled={submitting || !!generatedLink}
+            disabled={isWorking || !!generatedLink}
             className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-700/30 hover:brightness-110 transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {submitting ? (
+            {isWorking ? (
               <>
-                <Loader2 size={17} className="animate-spin" />
-                {ar ? "جارٍ الحفظ..." : "Saving..."}
+                {uploadingMedia
+                  ? <Upload size={17} className="animate-bounce" />
+                  : <Loader2 size={17} className="animate-spin" />
+                }
+                {submitLabel}
               </>
             ) : (
               <>
                 <Link2 size={17} />
-                {ar ? "إنشاء رابط الدفع" : "Generate Payment Link"}
+                {submitLabel}
               </>
             )}
           </motion.button>

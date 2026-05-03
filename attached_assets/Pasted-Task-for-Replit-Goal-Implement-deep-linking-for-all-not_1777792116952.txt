@@ -1,0 +1,53 @@
+Task for Replit:
+
+Goal: Implement deep linking for all notifications in the BidReel app so that when a user taps on a notification, they are taken directly to the relevant screen or item in the app.
+
+Requirements:
+
+1. Notifications to handle:
+   - New follower → opens follower's profile
+   - Outbid / New bid on auction → opens the specific auction detail
+   - Payment Proof uploaded → opens the relevant secure deal page
+   - Shipment Proof uploaded → opens the relevant secure deal page
+   - Delivery Proof uploaded → opens the relevant secure deal page
+   - Buyer Info revealed → opens the relevant secure deal page
+   - Seller Penalty applied → opens the relevant secure deal page
+   - Shipping Fee Dispute → opens the relevant dispute section
+   - Receipt uploaded → opens the relevant receipt section
+   - Escrow released → opens the escrow panel
+
+2. Implementation:
+
+Frontend (bidreel-web):
+- Use existing NotificationBell.tsx component
+- Each notification type should have a `deepLink` property pointing to the route
+  - Example: `/profile/:userId`, `/auction/:auctionId`, `/secure-deals/pay/:dealId`
+- Update the onClick handler of each notification:
+  - Navigate programmatically to the `deepLink` route using the router
+  - Close the notification popup if open
+- Make sure it works for both mobile (Capacitor WebView) and web
+
+Backend / API:
+- Ensure notifications table includes necessary metadata to construct deepLink
+  - For follower notifications: follower userId
+  - For bids: auctionId / dealId
+  - For proof uploads / escrow / receipts: dealId
+- Notifications sent via push / in-app carry deepLink info
+
+3. Expected Behavior:
+- When user taps any notification, they are taken **directly** to the correct page
+- Works for all types of notifications in the app
+- No placeholder notifications
+- Fully real implementation, no broken links
+
+4. Testing:
+- Test tapping notifications from in-app notification panel
+- Test push notifications on mobile
+- Verify all notification types navigate to correct route
+
+Expected Output:
+- Deep linking for all notifications implemented
+- Each notification navigates to its relevant page
+- Respond only with: "Notification deep linking implemented successfully ✅"
+
+Do not modify unrelated logic. Focus only on deep linking for notifications.

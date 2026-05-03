@@ -213,6 +213,29 @@ export async function bootstrapTransactionsTable(): Promise<void> {
         ON shipment_proofs (seller_id);
     `);
 
+    // ── shipping_fee_disputes (Part #9: Shipping Fee Dispute) ─────────────────
+    // Either party can open a dispute about who should pay the shipping fee.
+    // UNIQUE (deal_id, submitted_by) prevents duplicate disputes per user.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS shipping_fee_disputes (
+        id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        deal_id      TEXT         NOT NULL,
+        submitted_by UUID         NOT NULL,
+        party        TEXT         NOT NULL
+                       CHECK (party IN ('buyer', 'seller')),
+        proof_url    TEXT,
+        comment      TEXT,
+        created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        CONSTRAINT shipping_fee_disputes_unique_deal_submitter
+          UNIQUE (deal_id, submitted_by)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_shipping_fee_disputes_deal_id
+        ON shipping_fee_disputes (deal_id);
+      CREATE INDEX IF NOT EXISTS idx_shipping_fee_disputes_submitted_by
+        ON shipping_fee_disputes (submitted_by);
+    `);
+
     // ── delivery_proofs (Part #8: Buyer Delivery Proof Upload) ───────────────
     // Buyer uploads a receipt/photo proving they received the item.
     // Same Replit Postgres DB as payment_proofs and shipment_proofs.
@@ -233,7 +256,7 @@ export async function bootstrapTransactionsTable(): Promise<void> {
     `);
 
     _bootstrapped = true;
-    logger.info("pg-pool: transactions, payment_proofs, shipment_proofs, delivery_proofs bootstrapped");
+    logger.info("pg-pool: transactions, payment_proofs, shipment_proofs, delivery_proofs, shipping_fee_disputes bootstrapped");
   } catch (err) {
     logger.error({ err }, "pg-pool: failed to bootstrap transactions table");
   } finally {

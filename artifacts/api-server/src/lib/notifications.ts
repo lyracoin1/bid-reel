@@ -59,6 +59,7 @@ export type NotificationType =
   | "shipment_proof_uploaded"
   | "buyer_confirmed_receipt"
   | "buyer_delivery_proof_uploaded"
+  | "shipping_fee_dispute_created"
   // legacy aliases (kept so older inserts and existing rows still parse)
   | "new_follower"
   | "new_bid"
@@ -90,6 +91,7 @@ const PUSH_ENABLED: ReadonlySet<NotificationType> = new Set<NotificationType>([
   "shipment_proof_uploaded",
   "buyer_confirmed_receipt",
   "buyer_delivery_proof_uploaded",
+  "shipping_fee_dispute_created",
 ]);
 
 /**

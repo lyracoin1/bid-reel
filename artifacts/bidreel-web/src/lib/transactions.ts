@@ -602,6 +602,68 @@ export async function getDeliveryProof(dealId: string): Promise<DeliveryProof | 
   return proof as DeliveryProof | null;
 }
 
+// ── Shipping Fee Dispute (Part #9) ───────────────────────────────────────────
+
+export interface ShippingFeeDispute {
+  id:           string;
+  deal_id:      string;
+  submitted_by: string;
+  /** Who the submitter claims should pay the shipping fee. */
+  party:        "buyer" | "seller";
+  proof_url:    string | null;
+  comment:      string | null;
+  created_at:   string;
+}
+
+/**
+ * Create or update a shipping fee dispute for a deal.
+ * Calls POST /api/shipping-fee-dispute — requires auth.
+ * Re-submitting for the same deal_id + user upserts the existing row.
+ * Throws if the server rejects the request (not participant, payment not secured, etc.).
+ */
+export async function createShippingFeeDispute(
+  dealId:    string,
+  party:     "buyer" | "seller",
+  comment?:  string,
+  proofUrl?: string,
+): Promise<ShippingFeeDispute> {
+  const res = await apiFetch("/shipping-fee-dispute", {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ deal_id: dealId, party, comment, proof_url: proofUrl }),
+  }, true);
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).message ?? `Failed to create dispute (${res.status})`);
+  }
+
+  const { dispute } = await res.json();
+  return dispute as ShippingFeeDispute;
+}
+
+/**
+ * Fetch all shipping fee disputes for a deal.
+ * Calls GET /api/shipping-fee-dispute/:dealId — requires auth.
+ * Returns [] if the caller is not a participant or the deal is not found.
+ */
+export async function getShippingFeeDisputes(dealId: string): Promise<ShippingFeeDispute[]> {
+  const res = await apiFetch(
+    `/shipping-fee-dispute/${encodeURIComponent(dealId)}`,
+    {},
+    true,
+  );
+
+  if (res.status === 403 || res.status === 404) return [];
+  if (!res.ok) {
+    console.warn("[transactions] getShippingFeeDisputes error:", res.status);
+    return [];
+  }
+
+  const { disputes } = await res.json();
+  return (disputes ?? []) as ShippingFeeDispute[];
+}
+
 // ── Confirm Receipt (Part #7) ─────────────────────────────────────────────────
 
 export interface ConfirmReceiptResult {

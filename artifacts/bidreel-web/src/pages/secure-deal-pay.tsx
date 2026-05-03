@@ -6,7 +6,7 @@ import {
   Truck, StickyNote, Lock, Image, Video,
   CheckCircle2, Bell, PartyPopper, AlertCircle,
   Loader2, UserX, RefreshCw, User, UserCheck, PencilLine,
-  ScrollText, Send, Star, Upload, X, Link2,
+  ScrollText, Send, Star, Upload, X, Link2, Scale,
 } from "lucide-react";
 import {
   isPlayBillingAvailable,
@@ -26,7 +26,8 @@ import {
   uploadShipmentProof, getShipmentProof,
   uploadDeliveryProof, getDeliveryProof,
   confirmReceipt,
-  Transaction, DealCondition, SellerCondition, DealRating, PaymentProof, ShipmentProof, DeliveryProof,
+  createShippingFeeDispute, getShippingFeeDisputes,
+  Transaction, DealCondition, SellerCondition, DealRating, PaymentProof, ShipmentProof, DeliveryProof, ShippingFeeDispute,
 } from "@/lib/transactions";
 
 // ── Deal UI status (derived from DB payment_status + shipment_status) ──────
@@ -292,6 +293,15 @@ export default function SecureDealPayPage() {
   const [delivSuccess,     setDelivSuccess]                    = useState(false);
   const [existingDeliveryProof, setExistingDeliveryProof]      = useState<DeliveryProof | null>(null);
 
+  // ── Shipping Fee Dispute state (Part #9) ─────────────────────────────────────
+  const [disputes,           setDisputes]           = useState<ShippingFeeDispute[]>([]);
+  const [disputeParty,       setDisputeParty]       = useState<"buyer" | "seller">("seller");
+  const [disputeComment,     setDisputeComment]     = useState("");
+  const [disputeProofUrl,    setDisputeProofUrl]    = useState("");
+  const [disputeSubmitting,  setDisputeSubmitting]  = useState(false);
+  const [disputeError,       setDisputeError]       = useState<string | null>(null);
+  const [disputeSuccess,     setDisputeSuccess]     = useState(false);
+
   // ── Load transaction ─────────────────────────────────────────────────────
   const loadTx = useCallback(async () => {
     if (!dealId) return;
@@ -504,6 +514,47 @@ export default function SecureDealPayPage() {
   }, [dealId, user]);
 
   useEffect(() => { loadDeliveryProof(); }, [loadDeliveryProof]);
+
+  // ── Shipping Fee Dispute load + submit (Part #9) ──────────────────────────
+
+  const loadDisputes = useCallback(async () => {
+    if (!dealId || !user) return;
+    try {
+      const found = await getShippingFeeDisputes(dealId);
+      setDisputes(found);
+    } catch {
+      // non-fatal
+    }
+  }, [dealId, user]);
+
+  useEffect(() => { loadDisputes(); }, [loadDisputes]);
+
+  async function handleSubmitDispute() {
+    if (!user || !tx || disputeSubmitting) return;
+    setDisputeSubmitting(true);
+    setDisputeError(null);
+    setDisputeSuccess(false);
+    try {
+      const saved = await createShippingFeeDispute(
+        tx.deal_id,
+        disputeParty,
+        disputeComment.trim() || undefined,
+        disputeProofUrl.trim() || undefined,
+      );
+      setDisputes(prev => [
+        ...prev.filter(d => d.submitted_by !== user.id),
+        saved,
+      ]);
+      setDisputeSuccess(true);
+      setDisputeComment("");
+      setDisputeProofUrl("");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setDisputeError(ar ? `فشل: ${msg}` : `Failed: ${msg}`);
+    } finally {
+      setDisputeSubmitting(false);
+    }
+  }
 
   async function handleUploadDeliveryProof() {
     if (!user || !tx || !delivFile || delivUploading) return;
@@ -2171,6 +2222,222 @@ export default function SecureDealPayPage() {
                   </p>
                 )}
 
+              </div>
+            </motion.div>
+          )}
+
+          {/* ═══ 9. SHIPPING FEE DISPUTE CARD ═════════════════════════════════
+               Visible to both parties once payment is secured.
+               Either party can open a dispute about who should pay shipping.
+               Re-submitting updates the previous dispute row (upsert). */}
+          {dealStatus !== "awaiting_payment" && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.16 }}
+              className="rounded-3xl bg-white/4 border border-white/8 overflow-hidden"
+            >
+              {/* Card header */}
+              <div className="bg-gradient-to-r from-orange-600/15 to-transparent px-5 pt-4 pb-3 border-b border-white/6">
+                <div className="flex items-center gap-2">
+                  <Scale size={12} className="text-orange-400" />
+                  <p className="text-[10px] font-bold text-orange-400/80 uppercase tracking-widest">
+                    {ar ? "نزاع رسوم الشحن" : "Shipping Fee Dispute"}
+                  </p>
+                </div>
+                <p className="text-[11px] text-white/40 mt-1 leading-snug">
+                  {ar
+                    ? "إذا كان هناك خلاف حول من يتحمل رسوم الشحن، يمكن لكلٍّ من المشتري والبائع تقديم موقفه هنا."
+                    : "If there is a disagreement about who covers the shipping fee, either party can submit their position here."}
+                </p>
+              </div>
+
+              <div className="px-5 py-4 space-y-4">
+
+                {/* ── Existing disputes (read-only list for both parties) ── */}
+                {disputes.length > 0 && (
+                  <div className="space-y-2.5">
+                    <p className="text-[10px] font-bold text-white/35 uppercase tracking-widest">
+                      {ar ? "النزاعات المقدَّمة" : "Submitted Disputes"}
+                    </p>
+                    {disputes.map(d => {
+                      const isMe = d.submitted_by === user?.id;
+                      const partyLabel = ar
+                        ? (d.party === "buyer" ? "المشتري" : "البائع")
+                        : (d.party === "buyer" ? "Buyer"   : "Seller");
+                      return (
+                        <div
+                          key={d.id}
+                          className={`rounded-2xl border px-3.5 py-3 space-y-1.5 ${
+                            isMe
+                              ? "bg-orange-600/8 border-orange-500/25"
+                              : "bg-white/3 border-white/8"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between flex-wrap gap-1">
+                            <span className="text-[10px] font-bold text-white/40">
+                              {isMe
+                                ? (ar ? "موقفك" : "Your position")
+                                : (isSeller
+                                    ? (ar ? "موقف المشتري" : "Buyer's position")
+                                    : (ar ? "موقف البائع"  : "Seller's position"))}
+                            </span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
+                              d.party === "buyer"
+                                ? "bg-sky-500/12 text-sky-300 border-sky-500/25"
+                                : "bg-violet-500/12 text-violet-300 border-violet-500/25"
+                            }`}>
+                              {ar ? "المسؤول: " : "Responsible: "}{partyLabel}
+                            </span>
+                          </div>
+                          {d.comment && (
+                            <p className="text-[12px] text-white/65 leading-relaxed">
+                              {d.comment}
+                            </p>
+                          )}
+                          {d.proof_url && (
+                            <a
+                              href={d.proof_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 text-[11px] text-orange-300 hover:text-orange-200 transition truncate"
+                            >
+                              <Link2 size={10} className="shrink-0" />
+                              <span className="truncate">{d.proof_url}</span>
+                            </a>
+                          )}
+                          <p className="text-[10px] text-white/20">
+                            {new Date(d.created_at).toLocaleDateString(ar ? "ar-SA" : "en-US", { dateStyle: "medium" })}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* ── Submit / update dispute form ── */}
+                <div className="space-y-3">
+                  <p className="text-[11px] font-bold text-white/50">
+                    {disputes.some(d => d.submitted_by === user?.id)
+                      ? (ar ? "تحديث موقفك" : "Update your position")
+                      : (ar ? "تقديم نزاع" : "Submit a dispute")}
+                  </p>
+
+                  {/* Party selector */}
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] text-white/35">
+                      {ar ? "من يجب أن يدفع رسوم الشحن؟" : "Who should pay the shipping fee?"}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(["buyer", "seller"] as const).map(opt => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => setDisputeParty(opt)}
+                          className={`py-2.5 rounded-xl text-[12px] font-bold border transition-all ${
+                            disputeParty === opt
+                              ? opt === "buyer"
+                                ? "bg-sky-600/20 border-sky-500/50 text-sky-300"
+                                : "bg-violet-600/20 border-violet-500/50 text-violet-300"
+                              : "bg-white/4 border-white/10 text-white/40 hover:bg-white/8"
+                          }`}
+                        >
+                          {ar
+                            ? (opt === "buyer" ? "المشتري" : "البائع")
+                            : (opt === "buyer" ? "Buyer"   : "Seller")}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Comment */}
+                  <textarea
+                    value={disputeComment}
+                    onChange={e => setDisputeComment(e.target.value)}
+                    maxLength={2000}
+                    rows={3}
+                    placeholder={ar ? "شرح موقفك (اختياري)…" : "Explain your position (optional)…"}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-3.5 py-2.5 text-sm text-white/80 placeholder-white/20 focus:outline-none focus:border-orange-500/40 resize-none transition"
+                    dir={ar ? "rtl" : "ltr"}
+                  />
+
+                  {/* Optional proof URL */}
+                  <div className="relative">
+                    <Link2 size={12} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/20 pointer-events-none" />
+                    <input
+                      type="url"
+                      value={disputeProofUrl}
+                      onChange={e => setDisputeProofUrl(e.target.value)}
+                      placeholder={ar ? "رابط الإثبات (اختياري)…" : "Proof URL (optional)…"}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl pr-9 pl-3.5 py-2.5 text-[13px] text-white/70 placeholder-white/20 focus:outline-none focus:border-orange-500/40 transition"
+                      dir="ltr"
+                    />
+                  </div>
+
+                  {/* Submit button */}
+                  <motion.button
+                    type="button"
+                    onClick={handleSubmitDispute}
+                    disabled={disputeSubmitting}
+                    whileTap={{ scale: 0.97 }}
+                    className={`w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                      disputeSubmitting
+                        ? "bg-white/6 text-white/25 cursor-not-allowed border border-white/8"
+                        : "bg-orange-600 hover:bg-orange-500 text-white shadow-lg shadow-orange-900/30"
+                    }`}
+                  >
+                    {disputeSubmitting ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin" />
+                        {ar ? "جارٍ الإرسال…" : "Submitting…"}
+                      </>
+                    ) : (
+                      <>
+                        <Scale size={15} />
+                        {disputes.some(d => d.submitted_by === user?.id)
+                          ? (ar ? "تحديث النزاع" : "Update Dispute")
+                          : (ar ? "تقديم النزاع" : "Submit Dispute")}
+                      </>
+                    )}
+                  </motion.button>
+
+                  {/* Success banner */}
+                  <AnimatePresence>
+                    {disputeSuccess && (
+                      <motion.div
+                        key="dispute-ok"
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="rounded-xl bg-orange-600/12 border border-orange-500/25 px-3.5 py-2.5 flex items-center gap-2"
+                      >
+                        <CheckCircle2 size={13} className="text-orange-400 shrink-0" />
+                        <p className="text-[12px] text-orange-300 font-medium">
+                          {ar
+                            ? "✓ تم تقديم النزاع — أُبلغ الطرف الآخر."
+                            : "✓ Dispute submitted — the other party has been notified."}
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Error banner */}
+                  <AnimatePresence>
+                    {disputeError && (
+                      <motion.div
+                        key="dispute-err"
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="rounded-xl bg-red-500/10 border border-red-500/25 px-3.5 py-2.5 flex items-center gap-2"
+                      >
+                        <AlertCircle size={13} className="text-red-400 shrink-0" />
+                        <p className="text-[12px] text-red-300 font-medium">{disputeError}</p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                </div>
               </div>
             </motion.div>
           )}

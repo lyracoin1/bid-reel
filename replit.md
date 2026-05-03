@@ -118,6 +118,31 @@ A peer-to-peer escrow-style "Secure Deal" feature for off-auction sales:
 - Admin: collapsible orange-accented "إثباتات الشحن" panel in `SecureDeals.tsx` after the payment proofs panel, with deal ID, product, price, tracking link (clickable), upload date, View and Download buttons.
 - Client helpers: `uploadShipmentProof(dealId, File, trackingLink)` and `getShipmentProof(dealId)` in `transactions.ts`.
 
+**Part #9 — Shipping Fee in Dispute** (bootstrap only — `shipping_fee_disputes` table)
+- `shipping_fee_disputes` table in Replit Postgres (pg-pool.ts bootstrap), auto-created at startup:
+  - `id UUID PK`, `deal_id TEXT`, `submitted_by UUID`, `party TEXT CHECK IN ('buyer','seller')`, `proof_url TEXT`, `comment TEXT`, `created_at TIMESTAMPTZ`
+  - UNIQUE constraint on `(deal_id, submitted_by)` — one dispute per participant per deal.
+  - Indexes on `deal_id` and `submitted_by`.
+- `POST /api/shipping-fee-dispute` — JSON body `{deal_id, party, comment?, proof_url?}`:
+  - Requires `payment_status = 'secured'`. Only buyer or seller of the deal may create.
+  - Upserts on conflict (re-submit updates existing row). Returns `{dispute}`.
+  - Notifies other party via `shipping_fee_dispute_created` push + in-app notification (non-fatal).
+- `GET /api/shipping-fee-dispute/:dealId` — returns all disputes for the deal (buyer, seller, or admin).
+- `GET /api/admin/shipping-fee-disputes` — lists all disputes with joined transaction metadata (admin-only).
+- Notification type `"shipping_fee_dispute_created"` added to `NotificationType` union + `PUSH_ENABLED` set in `notifications.ts`.
+- Migration `049_shipping_fee_disputes.sql` extends the Supabase `notifications.type` CHECK constraint.
+- UI (buyer + seller): orange-accented "نزاع رسوم الشحن" card in `secure-deal-pay.tsx` between delivery proof and rating cards.
+  - Visible when `dealStatus !== "awaiting_payment"` (payment secured or later).
+  - Party selector (buyer/seller responsible), optional comment textarea, optional proof URL input.
+  - Shows read-only list of all disputes submitted for the deal by either party.
+  - Re-submitting updates existing dispute (upsert). Notified via success/error banners.
+- UI (admin): collapsible orange-accented "نزاعات رسوم الشحن" panel in `SecureDeals.tsx` after the shipment proofs panel.
+  - Table showing deal ID, product, price, responsible party badge, comment, proof URL link, date.
+  - Also rendered inside `FullDealExpandedRow` as a `SubSection` (only when disputes exist for that deal).
+- Client helpers: `createShippingFeeDispute()` and `getShippingFeeDisputes()` in `transactions.ts`.
+- Admin helpers: `adminGetShippingFeeDisputes()` + `AdminShippingFeeDispute` / `FullDealShippingFeeDispute` types in `admin-api.ts`.
+- `FullDeal` interface extended with `shipping_fee_disputes: FullDealShippingFeeDispute[]`; both `GET /admin/full-deals` and `GET /admin/full-deal/:dealId` now fetch and join disputes from Replit Postgres.
+
 ## System Design Choices
 
 -   **API Server:** Express 5 handles all API requests.

@@ -435,6 +435,16 @@ export interface FullDealRating {
   created_at: string;
 }
 
+export interface FullDealShippingFeeDispute {
+  id:           string;
+  deal_id:      string;
+  submitted_by: string;
+  party:        string;
+  proof_url:    string | null;
+  comment:      string | null;
+  created_at:   string;
+}
+
 export interface FullDeal {
   deal_id:         string;
   seller_id:       string;
@@ -460,9 +470,10 @@ export interface FullDeal {
 
   payment_proof:    FullDealPaymentProof | null;
   shipment_proof:   FullDealShipmentProof | null;
-  buyer_conditions: FullDealCondition | null;
-  seller_conditions: FullDealCondition | null;
-  ratings:          FullDealRating[];
+  buyer_conditions:      FullDealCondition | null;
+  seller_conditions:     FullDealCondition | null;
+  ratings:               FullDealRating[];
+  shipping_fee_disputes: FullDealShippingFeeDispute[];
 }
 
 export interface FullDealsResponse {
@@ -487,6 +498,36 @@ export async function adminGetFullDeals(page = 1, limit = 50): Promise<FullDeals
 export async function adminGetFullDeal(dealId: string): Promise<FullDeal> {
   const { deal } = await adminFetch<{ deal: FullDeal }>(`/full-deal/${encodeURIComponent(dealId)}`);
   return deal;
+}
+
+// ─── Shipping Fee Disputes (Admin Dashboard Part #9) ─────────────────────────
+
+export interface AdminShippingFeeDispute {
+  id:           string;
+  deal_id:      string;
+  submitted_by: string;
+  party:        string;
+  proof_url:    string | null;
+  comment:      string | null;
+  created_at:   string;
+  product_name: string | null;
+  seller_id:    string | null;
+  buyer_id:     string | null;
+  currency:     string | null;
+  price:        number | null;
+}
+
+export interface AdminShippingFeeDisputesResponse {
+  disputes: AdminShippingFeeDispute[];
+}
+
+/**
+ * Fetch all shipping fee disputes across all deals.
+ * Calls GET /api/admin/shipping-fee-disputes — requires admin auth.
+ */
+export async function adminGetShippingFeeDisputes(): Promise<AdminShippingFeeDispute[]> {
+  const { disputes } = await adminFetch<AdminShippingFeeDisputesResponse>("/shipping-fee-disputes");
+  return disputes;
 }
 
 // ─── Deploy ───────────────────────────────────────────────────────────────────

@@ -72,7 +72,14 @@ const FULL_DEAL_SQL = `
 
 // ── Helper: row → FullDeal shape ──────────────────────────────────────────────
 
-function shapeRow(row: any, profileMap: Map<string, any>, condMap: Map<string, any>, sellCondMap: Map<string, any>, ratingsMap: Map<string, any[]>) {
+function shapeRow(
+  row: any,
+  profileMap:   Map<string, any>,
+  condMap:      Map<string, any>,
+  sellCondMap:  Map<string, any>,
+  ratingsMap:   Map<string, any[]>,
+  disputesMap:  Map<string, any[]>,
+) {
   return {
     deal_id:         row.deal_id,
     seller_id:       row.seller_id,
@@ -112,9 +119,10 @@ function shapeRow(row: any, profileMap: Map<string, any>, condMap: Map<string, a
       uploaded_at:   row.shipment_proof_uploaded_at,
     } : null,
 
-    buyer_conditions:  condMap.get(row.deal_id) ?? null,
-    seller_conditions: sellCondMap.get(row.deal_id) ?? null,
-    ratings:           ratingsMap.get(row.deal_id) ?? [],
+    buyer_conditions:      condMap.get(row.deal_id) ?? null,
+    seller_conditions:     sellCondMap.get(row.deal_id) ?? null,
+    ratings:               ratingsMap.get(row.deal_id) ?? [],
+    shipping_fee_disputes: disputesMap.get(row.deal_id) ?? [],
   };
 }
 
@@ -145,8 +153,8 @@ router.get("/admin/full-deals", requireAuth, requireAdmin, async (req, res) => {
     const dealIds  = rows.map((r: any) => r.deal_id);
     const userIds  = [...new Set(rows.flatMap((r: any) => [r.seller_id, r.buyer_id].filter(Boolean)))] as string[];
 
-    // 2. Batch-fetch Supabase data in parallel
-    const [profilesRes, condRes, sellCondRes, ratingsRes] = await Promise.all([
+    // 2. Batch-fetch Supabase data + disputes in parallel
+    const [profilesRes, condRes, sellCondRes, ratingsRes, { rows: disputeRows }] = await Promise.all([
       supabaseAdmin
         .from("profiles")
         .select("id, username, display_name, phone, avatar_url, location, country")
@@ -163,6 +171,13 @@ router.get("/admin/full-deals", requireAuth, requireAdmin, async (req, res) => {
         .from("deal_ratings")
         .select("id, deal_id, rater_id, ratee_id, stars, comment, created_at")
         .in("deal_id", dealIds),
+      pool.query(
+        `SELECT id, deal_id, submitted_by, party, proof_url, comment, created_at
+         FROM shipping_fee_disputes
+         WHERE deal_id = ANY($1::text[])
+         ORDER BY created_at ASC`,
+        [dealIds],
+      ),
     ]);
 
     // 3. Build lookup maps
@@ -182,8 +197,15 @@ router.get("/admin/full-deals", requireAuth, requireAdmin, async (req, res) => {
       ratingsMap.set(r.deal_id, arr);
     }
 
+    const disputesMap = new Map<string, any[]>();
+    for (const d of disputeRows) {
+      const arr = disputesMap.get(d.deal_id) ?? [];
+      arr.push(d);
+      disputesMap.set(d.deal_id, arr);
+    }
+
     // 4. Merge
-    const deals = rows.map((row: any) => shapeRow(row, profileMap, condMap, sellCondMap, ratingsMap));
+    const deals = rows.map((row: any) => shapeRow(row, profileMap, condMap, sellCondMap, ratingsMap, disputesMap));
 
     res.json({ deals, total, page, limit });
   } catch (err) {
@@ -214,7 +236,7 @@ router.get("/admin/full-deal/:dealId", requireAuth, requireAdmin, async (req, re
     const row     = rows[0];
     const userIds = [row.seller_id, row.buyer_id].filter(Boolean) as string[];
 
-    const [profilesRes, condRes, sellCondRes, ratingsRes] = await Promise.all([
+    const [profilesRes, condRes, sellCondRes, ratingsRes, { rows: disputeRows }] = await Promise.all([
       supabaseAdmin
         .from("profiles")
         .select("id, username, display_name, phone, avatar_url, location, country")
@@ -231,6 +253,13 @@ router.get("/admin/full-deal/:dealId", requireAuth, requireAdmin, async (req, re
         .from("deal_ratings")
         .select("id, deal_id, rater_id, ratee_id, stars, comment, created_at")
         .eq("deal_id", dealId),
+      pool.query(
+        `SELECT id, deal_id, submitted_by, party, proof_url, comment, created_at
+         FROM shipping_fee_disputes
+         WHERE deal_id = $1
+         ORDER BY created_at ASC`,
+        [dealId],
+      ),
     ]);
 
     const profileMap  = new Map<string, any>();
@@ -251,7 +280,14 @@ router.get("/admin/full-deal/:dealId", requireAuth, requireAdmin, async (req, re
       ratingsMap.set(r.deal_id, arr);
     }
 
-    const deal = shapeRow(row, profileMap, condMap, sellCondMap, ratingsMap);
+    const disputesMap = new Map<string, any[]>();
+    for (const d of disputeRows) {
+      const arr = disputesMap.get(d.deal_id) ?? [];
+      arr.push(d);
+      disputesMap.set(d.deal_id, arr);
+    }
+
+    const deal = shapeRow(row, profileMap, condMap, sellCondMap, ratingsMap, disputesMap);
     res.json({ deal });
   } catch (err) {
     logger.error({ err, dealId }, "GET /admin/full-deal/:dealId failed");

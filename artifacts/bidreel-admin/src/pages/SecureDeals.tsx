@@ -5,12 +5,14 @@ import {
   Truck, Link2, ChevronDown, ChevronUp, X,
   AlertCircle, FileText, Search, Banknote, Info, ExternalLink,
   Star, Phone, MapPin, RefreshCw, User, Loader2, ScrollText, MessageSquare,
+  Scale,
 } from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import {
-  adminGetPaymentProofs,  type AdminPaymentProof,
-  adminGetShipmentProofs, type AdminShipmentProof,
-  adminGetFullDeals,      type FullDeal, type FullDealUser, type FullDealRating,
+  adminGetPaymentProofs,         type AdminPaymentProof,
+  adminGetShipmentProofs,        type AdminShipmentProof,
+  adminGetFullDeals,             type FullDeal, type FullDealUser, type FullDealRating,
+  adminGetShippingFeeDisputes,   type AdminShippingFeeDispute,
 } from "@/services/admin-api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -399,6 +401,50 @@ function FullDealExpandedRow({ deal }: { deal: FullDeal }) {
             </SubSection>
           )}
 
+          {/* Shipping Fee Disputes (Part #9) */}
+          {deal.shipping_fee_disputes && deal.shipping_fee_disputes.length > 0 && (
+            <SubSection
+              title="نزاعات رسوم الشحن"
+              icon={<Scale size={12} className="text-orange-400" />}
+              count={deal.shipping_fee_disputes.length}
+              defaultOpen
+            >
+              <div className="space-y-2.5">
+                {deal.shipping_fee_disputes.map(d => {
+                  const partyLabel = d.party === "buyer" ? "المشتري" : "البائع";
+                  const submittedByBuyer = d.submitted_by === deal.buyer_id;
+                  return (
+                    <div key={d.id} className="rounded-xl bg-orange-600/8 border border-orange-500/20 px-3 py-2.5 space-y-1.5">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <span className="text-[10px] text-white/35">
+                          {submittedByBuyer ? "المشتري" : "البائع"}
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
+                          d.party === "buyer"
+                            ? "bg-sky-500/12 text-sky-300 border-sky-500/25"
+                            : "bg-violet-500/12 text-violet-300 border-violet-500/25"
+                        }`}>
+                          المسؤول: {partyLabel}
+                        </span>
+                      </div>
+                      {d.comment && (
+                        <p className="text-xs text-white/60 leading-relaxed">{d.comment}</p>
+                      )}
+                      {d.proof_url && (
+                        <a href={d.proof_url} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-orange-300 text-[11px] hover:underline truncate">
+                          <ExternalLink size={10} className="shrink-0" />
+                          <span className="truncate">{d.proof_url}</span>
+                        </a>
+                      )}
+                      <p className="text-[10px] text-white/20">{fmtDate(d.created_at)}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </SubSection>
+          )}
+
         </div>
       </td>
     </motion.tr>
@@ -431,6 +477,12 @@ export default function SecureDeals() {
   const [shipmentProofsError,    setShipmentProofsError]    = useState<string | null>(null);
   const [shipmentProofsExpanded, setShipmentProofsExpanded] = useState(true);
 
+  // Shipping fee disputes — real data from API (Part #9)
+  const [feeDisputes,         setFeeDisputes]         = useState<AdminShippingFeeDispute[]>([]);
+  const [feeDisputesLoading,  setFeeDisputesLoading]  = useState(false);
+  const [feeDisputesError,    setFeeDisputesError]    = useState<string | null>(null);
+  const [feeDisputesExpanded, setFeeDisputesExpanded] = useState(true);
+
   // ── Fetch full deals ────────────────────────────────────────────────────────
   useEffect(() => {
     setDealsLoading(true);
@@ -460,6 +512,15 @@ export default function SecureDeals() {
       .then(data => { setShipmentProofs(data); setShipmentProofsError(null); })
       .catch(err  => setShipmentProofsError((err as Error).message ?? "فشل تحميل إثباتات الشحن"))
       .finally(()  => setShipmentProofsLoading(false));
+  }, [refreshTick]);
+
+  // ── Fetch shipping fee disputes ─────────────────────────────────────────────
+  useEffect(() => {
+    setFeeDisputesLoading(true);
+    adminGetShippingFeeDisputes()
+      .then(data => { setFeeDisputes(data); setFeeDisputesError(null); })
+      .catch(err  => setFeeDisputesError((err as Error).message ?? "فشل تحميل نزاعات رسوم الشحن"))
+      .finally(()  => setFeeDisputesLoading(false));
   }, [refreshTick]);
 
   // ── Filtering ───────────────────────────────────────────────────────────────
@@ -703,6 +764,112 @@ export default function SecureDeals() {
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/6 border border-white/10 text-white/50 text-[11px] font-bold hover:brightness-110 transition whitespace-nowrap">
                                 تنزيل
                               </a>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* ── Shipping Fee Disputes Panel ── */}
+        <div className="rounded-2xl border border-white/8 overflow-hidden" dir="rtl">
+          <button
+            onClick={() => setFeeDisputesExpanded(p => !p)}
+            className="w-full flex items-center justify-between px-5 py-4 bg-white/3 hover:bg-white/5 transition-colors"
+          >
+            <div className="flex items-center gap-2.5">
+              <Scale size={14} className="text-orange-400" />
+              <span className="text-sm font-bold text-white/80">نزاعات رسوم الشحن</span>
+              {!feeDisputesLoading && feeDisputes.length > 0 && (
+                <span className="bg-orange-500/20 border border-orange-500/30 text-orange-300 text-[10px] font-bold px-1.5 py-0.5 rounded-lg">
+                  {feeDisputes.length}
+                </span>
+              )}
+            </div>
+            {feeDisputesExpanded ? <ChevronUp size={14} className="text-white/30" /> : <ChevronDown size={14} className="text-white/30" />}
+          </button>
+
+          <AnimatePresence>
+            {feeDisputesExpanded && (
+              <motion.div
+                key="fee-disputes-panel"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                style={{ overflow: "hidden" }}
+              >
+                {feeDisputesLoading ? (
+                  <div className="px-5 py-8 text-center text-white/25 text-sm">جارٍ التحميل…</div>
+                ) : feeDisputesError ? (
+                  <div className="px-5 py-6 flex items-center gap-2 text-red-400 text-sm">
+                    <AlertCircle size={14} className="shrink-0" /> {feeDisputesError}
+                  </div>
+                ) : feeDisputes.length === 0 ? (
+                  <div className="px-5 py-8 text-center text-white/25 text-sm">لا توجد نزاعات رسوم شحن بعد.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-white/6 text-right bg-white/2">
+                          {["رقم الصفقة","المنتج","السعر","المسؤول عن الرسوم","التعليق","الإثبات","التاريخ"].map((h, i) => (
+                            <th key={i} className="px-4 py-2.5 text-[10px] font-bold text-white/30 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {feeDisputes.map((d, i) => (
+                          <tr key={d.id} className={`border-b border-white/5 hover:bg-white/3 transition-colors ${i % 2 === 0 ? "" : "bg-white/1"}`} dir="rtl">
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="font-mono text-[11px] font-bold text-white/60 bg-white/5 border border-white/8 rounded-lg px-2 py-0.5">{d.deal_id.slice(0, 8)}…</span>
+                            </td>
+                            <td className="px-4 py-3 max-w-[160px]">
+                              <span className="text-white/75 text-[12px] truncate block">{d.product_name ?? "—"}</span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {d.price != null ? (
+                                <>
+                                  <span className="text-white font-bold text-[12px]">{Number(d.price).toLocaleString()}</span>
+                                  <span className="text-white/40 text-[11px] ms-1">{d.currency}</span>
+                                </>
+                              ) : <span className="text-white/25 text-[11px]">—</span>}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold border ${
+                                d.party === "buyer"
+                                  ? "bg-sky-500/12 text-sky-300 border-sky-500/25"
+                                  : "bg-violet-500/12 text-violet-300 border-violet-500/25"
+                              }`}>
+                                {d.party === "buyer" ? "المشتري" : "البائع"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 max-w-[220px]">
+                              {d.comment ? (
+                                <p className="text-white/55 text-[12px] line-clamp-2 leading-snug">{d.comment}</p>
+                              ) : (
+                                <span className="text-white/20 text-[11px] italic">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 max-w-[160px]">
+                              {d.proof_url ? (
+                                <a href={d.proof_url} target="_blank" rel="noopener noreferrer"
+                                  className="flex items-center gap-1 text-orange-300 text-[11px] hover:underline truncate">
+                                  <ExternalLink size={10} className="shrink-0" />
+                                  <span className="truncate">رابط الإثبات</span>
+                                </a>
+                              ) : (
+                                <span className="text-white/20 text-[11px] italic">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className="text-white/50 text-[11px]">
+                                {new Date(d.created_at).toLocaleDateString("ar-SA", { dateStyle: "short" })}
+                              </span>
                             </td>
                           </tr>
                         ))}

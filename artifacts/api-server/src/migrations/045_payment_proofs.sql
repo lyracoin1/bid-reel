@@ -18,7 +18,9 @@
 
 CREATE TABLE IF NOT EXISTS payment_proofs (
   id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-  deal_id     TEXT         NOT NULL REFERENCES transactions(deal_id) ON DELETE CASCADE,
+  -- No FK to transactions — that table lives in Replit Postgres (pg pool), not Supabase.
+  -- Referential integrity is enforced in the API route (404 if deal not found).
+  deal_id     TEXT         NOT NULL,
   buyer_id    UUID         NOT NULL,
   file_url    TEXT         NOT NULL,
   file_name   TEXT         NOT NULL,   -- original filename for display

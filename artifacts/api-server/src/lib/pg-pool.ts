@@ -132,7 +132,9 @@ export async function bootstrapTransactionsTable(): Promise<void> {
     // ADD COLUMN IF NOT EXISTS is safe to run on every startup.
     await client.query(`
       ALTER TABLE transactions
-        ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(14,2);
+        ADD COLUMN IF NOT EXISTS paid_amount   NUMERIC(14,2);
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS confirmed_at  TIMESTAMPTZ;
     `);
 
     // ── payment_proofs (Part #4: Buyer Payment Proof Upload) ─────────────────

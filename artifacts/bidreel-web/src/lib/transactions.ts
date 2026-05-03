@@ -42,6 +42,8 @@ export interface Transaction {
   /** Buyer-chosen open-price amount stored at payment time. May differ from price. */
   paid_amount:     number | null;
   shipment_status: ShipmentStatus;
+  /** Set when buyer calls POST /api/confirm-receipt (Part #7). */
+  confirmed_at:    string | null;
   funds_released:  boolean;
   payment_link:    string | null;
   release_date:    string | null;
@@ -535,6 +537,42 @@ export async function getShipmentProof(dealId: string): Promise<ShipmentProof | 
 
   const { proof } = await res.json();
   return proof as ShipmentProof | null;
+}
+
+// ── Confirm Receipt (Part #7) ─────────────────────────────────────────────────
+
+export interface ConfirmReceiptResult {
+  deal_id:           string;
+  shipment_status:   string;
+  confirmed_at:      string;
+  already_confirmed: boolean;
+}
+
+/**
+ * Buyer confirms they received the item, releasing funds to the seller.
+ * Calls POST /api/confirm-receipt — requires auth.
+ *
+ * Idempotent: calling multiple times is safe.
+ * Throws if the server responds with an error (not buyer, shipment not
+ * verified, deal not found, etc.).
+ */
+export async function confirmReceipt(dealId: string): Promise<ConfirmReceiptResult> {
+  const res = await apiFetch(
+    `/confirm-receipt`,
+    {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ deal_id: dealId }),
+    },
+    true,
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).message ?? `Confirm receipt failed (${res.status})`);
+  }
+
+  return res.json() as Promise<ConfirmReceiptResult>;
 }
 
 /**

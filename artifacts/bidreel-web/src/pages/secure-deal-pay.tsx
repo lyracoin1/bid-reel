@@ -24,6 +24,7 @@ import {
   submitDealRating, getDealRatings,
   uploadPaymentProof, getPaymentProof,
   uploadShipmentProof, getShipmentProof,
+  confirmReceipt,
   Transaction, DealCondition, SellerCondition, DealRating, PaymentProof, ShipmentProof,
 } from "@/lib/transactions";
 
@@ -235,6 +236,10 @@ export default function SecureDealPayPage() {
   const [paySuccess, setPaySuccess] = useState(false);
   const [paidAmount, setPaidAmount] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
+
+  // ── Receipt confirmation modal state (Part #7) ────────────────────────────
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [receiptError,     setReceiptError]     = useState<string | null>(null);
 
   // Buyer conditions state
   const [conditionsText, setConditionsText]         = useState("");
@@ -595,12 +600,26 @@ export default function SecureDealPayPage() {
 
   function handleConfirmReceipt() {
     if (confirming || dealStatus !== "shipment_verified") return;
+    setReceiptError(null);
+    setReceiptModalOpen(true);
+  }
+
+  async function executeConfirmReceipt() {
+    if (!user || !tx || confirming) return;
     setConfirming(true);
-    setTimeout(() => {
+    setReceiptError(null);
+    try {
+      await confirmReceipt(tx.deal_id);
+      setReceiptModalOpen(false);
       setDealStatus("delivered");
+      setTx(prev => prev ? { ...prev, shipment_status: "delivered" as const } : prev);
+      console.log("[SecureDeal] ✓ Receipt confirmed for deal:", tx.deal_id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setReceiptError(ar ? `فشل التأكيد: ${msg}` : `Confirmation failed: ${msg}`);
+    } finally {
       setConfirming(false);
-      console.log("[SecureDeal] Demo: status → delivered (placeholder)");
-    }, 1200);
+    }
   }
 
   // ── Loading state ────────────────────────────────────────────────────────
@@ -694,6 +713,92 @@ export default function SecureDealPayPage() {
   return (
     <MobileLayout>
       <div className="min-h-full bg-background" dir={ar ? "rtl" : "ltr"}>
+
+        {/* ── Receipt Confirmation Modal (Part #7) ─────────────────────────── */}
+        <AnimatePresence>
+          {receiptModalOpen && (
+            <motion.div
+              key="receipt-modal-bg"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center px-4 pb-8 sm:pb-0"
+              onClick={() => !confirming && setReceiptModalOpen(false)}
+            >
+              <motion.div
+                key="receipt-modal"
+                initial={{ opacity: 0, y: 48 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 48 }}
+                transition={{ type: "spring", stiffness: 300, damping: 28 }}
+                className="w-full max-w-sm rounded-3xl bg-[#141420] border border-white/12 p-6 space-y-5 shadow-2xl"
+                onClick={e => e.stopPropagation()}
+                dir={ar ? "rtl" : "ltr"}
+              >
+                {/* Icon + heading */}
+                <div className="flex flex-col items-center gap-3 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-blue-500/15 border border-blue-500/25 flex items-center justify-center">
+                    <CheckCircle2 size={26} className="text-blue-400" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-base font-bold text-white">
+                      {ar ? "تأكيد استلام المنتج" : "Confirm Receipt"}
+                    </p>
+                    <p className="text-[12px] text-white/45 leading-relaxed max-w-[260px] mx-auto">
+                      {ar
+                        ? "هل تؤكد أنك استلمت المنتج بشكل صحيح؟ سيتم تحرير الأموال للبائع فور التأكيد ولا يمكن التراجع."
+                        : "Are you sure you received the item in good condition? Funds will be released to the seller immediately and this cannot be undone."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Error banner */}
+                <AnimatePresence>
+                  {receiptError && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="flex items-start gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-3 py-2.5 text-red-400 text-xs"
+                    >
+                      <AlertCircle size={13} className="shrink-0 mt-0.5" />
+                      <span>{receiptError}</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Action buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => { if (!confirming) { setReceiptModalOpen(false); setReceiptError(null); } }}
+                    disabled={confirming}
+                    className="flex-1 py-3.5 rounded-2xl bg-white/6 border border-white/10 text-white/70 font-bold text-sm hover:bg-white/10 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {ar ? "إلغاء" : "Cancel"}
+                  </button>
+                  <button
+                    onClick={executeConfirmReceipt}
+                    disabled={confirming}
+                    className="flex-1 py-3.5 rounded-2xl bg-blue-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-blue-700/25"
+                  >
+                    {confirming ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        {ar ? "جارٍ التأكيد…" : "Confirming…"}
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={14} />
+                        {ar ? "نعم، تأكيد الاستلام" : "Yes, Confirm Receipt"}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── Sticky header ── */}
         <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-white/6 px-4 py-4 flex items-center gap-3">

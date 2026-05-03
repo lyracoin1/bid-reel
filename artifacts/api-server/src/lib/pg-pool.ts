@@ -16,11 +16,9 @@
  *
  * Strategy:
  *   1. If PGHOST is present and is NOT a Supabase host → use native PG* vars.
- *      The pg library auto-discovers PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE
- *      when no connectionString is passed — no SSL required for localhost.
+ *      The pg library auto-discovers PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE.
  *   2. Else if DATABASE_URL is set → use it as connectionString (with SSL).
- *      This covers deployments where only DATABASE_URL is configured and it
- *      actually points to a reachable database (e.g. Neon, Railway, Render).
+ *      This is a fallback for external deployments only.
  *   3. Otherwise → unavailable proxy (all pool calls reject with a clear error).
  *
  * The transactions table schema lives in:
@@ -113,7 +111,7 @@ let _bootstrapped = false;
 export async function bootstrapTransactionsTable(): Promise<void> {
   if (_bootstrapped) return;
   if (_missingDbError) {
-    logger.warn("pg-pool: skipping bootstrapTransactionsTable — DATABASE_URL not set");
+    logger.warn("pg-pool: skipping bootstrapTransactionsTable — no PostgreSQL connection configured");
     return;
   }
 

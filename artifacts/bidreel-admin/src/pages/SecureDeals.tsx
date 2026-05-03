@@ -5,7 +5,7 @@ import {
   Truck, Link2, ChevronDown, ChevronUp, X,
   AlertCircle, AlertTriangle, FileText, Search, Banknote, Info, ExternalLink,
   Star, Phone, MapPin, RefreshCw, User, Loader2, ScrollText, MessageSquare,
-  Scale, ShieldAlert, Gavel, CheckSquare, PlusCircle, Image, Video,
+  Scale, ShieldAlert, Gavel, CheckSquare, PlusCircle, Image, Video, Eye, EyeOff,
 } from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import {
@@ -220,6 +220,24 @@ function FullDealExpandedRow({ deal }: { deal: FullDeal }) {
             <div className="grid grid-cols-2 gap-6">
               <UserCard label="البائع" user={deal.seller} userId={deal.seller_id} />
               <UserCard label="المشتري" user={deal.buyer}  userId={deal.buyer_id} />
+            </div>
+            {/* Buyer Info Visibility indicator */}
+            <div className="mt-3 flex items-center gap-1.5">
+              {deal.buyer_info_visible ? (
+                <>
+                  <Eye size={10} className="text-emerald-400 shrink-0" />
+                  <span className="text-[10px] text-emerald-400/80 font-medium">
+                    معلومات المشتري مكشوفة للبائع
+                  </span>
+                </>
+              ) : (
+                <>
+                  <EyeOff size={10} className="text-white/25 shrink-0" />
+                  <span className="text-[10px] text-white/25">
+                    معلومات المشتري مخفية (لم يكشفها البائع بعد)
+                  </span>
+                </>
+              )}
             </div>
           </SubSection>
 

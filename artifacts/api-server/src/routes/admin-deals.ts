@@ -54,6 +54,7 @@ const FULL_DEAL_SQL = `
     t.external_payment_warning,
     t.external_payment_confirmed_at,
     t.external_payment_warning_reason,
+    t.buyer_info_visible,
 
     pp.id          AS payment_proof_id,
     pp.file_url    AS payment_proof_url,
@@ -106,6 +107,7 @@ function shapeRow(
     external_payment_warning:       Boolean(row.external_payment_warning),
     external_payment_confirmed_at:  row.external_payment_confirmed_at ?? null,
     external_payment_warning_reason: row.external_payment_warning_reason ?? null,
+    buyer_info_visible:             Boolean(row.buyer_info_visible),
 
     seller: profileMap.get(row.seller_id) ?? null,
     buyer:  row.buyer_id ? (profileMap.get(row.buyer_id) ?? null) : null,

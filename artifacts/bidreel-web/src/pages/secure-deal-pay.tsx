@@ -7,6 +7,7 @@ import {
   CheckCircle2, Bell, PartyPopper, AlertCircle, AlertTriangle,
   Loader2, UserX, RefreshCw, User, UserCheck, PencilLine,
   ScrollText, Send, Star, Upload, X, Link2, Scale, ExternalLink,
+  Eye, EyeOff, Phone, MapPin,
 } from "lucide-react";
 import {
   isPlayBillingAvailable,
@@ -30,8 +31,9 @@ import {
   getMyPenalties,
   getEscrow, openEscrowDispute,
   reportExternalPayment,
+  showBuyerInfo, getBuyerInfo,
   uploadProductMedia, getProductMedia,
-  Transaction, DealCondition, SellerCondition, DealRating, PaymentProof, ShipmentProof, DeliveryProof, ShippingFeeDispute, SellerPenalty, EscrowRow, ProductMedia,
+  Transaction, DealCondition, SellerCondition, DealRating, PaymentProof, ShipmentProof, DeliveryProof, ShippingFeeDispute, SellerPenalty, EscrowRow, ProductMedia, BuyerRevealedInfo,
 } from "@/lib/transactions";
 
 // ── Deal UI status (derived from DB payment_status + shipment_status) ──────
@@ -60,6 +62,225 @@ const ALL_STEPS: { key: DealStatus; en: string; ar: string }[] = [
 
 function stepIndex(status: DealStatus): number {
   return ALL_STEPS.findIndex(s => s.key === status);
+}
+
+// ─── BuyerInfoPanel ──────────────────────────────────────────────────────────
+// Shown to the seller only.
+// Seller reveals buyer contact info after payment is confirmed (secured).
+// Locked display before payment; "Reveal" button when payment secured;
+// full contact card after reveal.
+
+function BuyerInfoPanel({
+  dealId,
+  paymentStatus,
+  buyerInfoVisible: initialVisible,
+  ar,
+}: {
+  dealId:           string;
+  paymentStatus:    string;
+  buyerInfoVisible: boolean;
+  ar:               boolean;
+}) {
+  const [visible,   setVisible]   = useState(initialVisible);
+  const [profile,   setProfile]   = useState<BuyerRevealedInfo | null>(null);
+  const [loading,   setLoading]   = useState(false);
+  const [revealing, setRevealing] = useState(false);
+  const [revealErr, setRevealErr] = useState<string | null>(null);
+
+  // Auto-fetch if already revealed on mount
+  useEffect(() => {
+    if (!initialVisible) return;
+    setLoading(true);
+    getBuyerInfo(dealId)
+      .then(p  => setProfile(p))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [dealId, initialVisible]);
+
+  const canReveal = paymentStatus === "secured";
+
+  async function handleReveal() {
+    if (revealing || visible) return;
+    setRevealing(true);
+    setRevealErr(null);
+    try {
+      await showBuyerInfo(dealId);
+      setVisible(true);
+      const p = await getBuyerInfo(dealId);
+      setProfile(p);
+    } catch (err) {
+      setRevealErr(
+        err instanceof Error ? err.message : (ar ? "حدث خطأ" : "An error occurred"),
+      );
+    } finally {
+      setRevealing(false);
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: 0.08 }}
+      className="rounded-3xl bg-white/4 border border-white/8 overflow-hidden"
+    >
+      {/* ── Card header ── */}
+      <div
+        className={`bg-gradient-to-r ${
+          visible ? "from-emerald-600/12" : "from-white/4"
+        } to-transparent px-5 pt-4 pb-3 border-b border-white/6`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            {visible ? (
+              <Eye size={12} className="text-emerald-400" />
+            ) : (
+              <EyeOff size={12} className="text-white/25" />
+            )}
+            <p
+              className={`text-[10px] font-bold uppercase tracking-widest ${
+                visible ? "text-emerald-400/90" : "text-white/30"
+              }`}
+            >
+              {ar ? "معلومات المشتري" : "Buyer Info"}
+            </p>
+            {visible && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 font-bold">
+                {ar ? "مكشوفة" : "Revealed"}
+              </span>
+            )}
+          </div>
+
+          {/* Reveal button — seller only, payment confirmed, not yet revealed */}
+          {!visible && canReveal && (
+            <motion.button
+              whileTap={{ scale: revealing ? 1 : 0.96 }}
+              onClick={handleReveal}
+              disabled={revealing}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-500/15 border border-emerald-500/25 text-emerald-300 hover:brightness-110 transition disabled:opacity-50"
+            >
+              {revealing ? (
+                <>
+                  <Loader2 size={9} className="animate-spin" />
+                  {ar ? "جارٍ الكشف…" : "Revealing…"}
+                </>
+              ) : (
+                <>
+                  <Eye size={9} />
+                  {ar ? "كشف معلومات المشتري" : "Reveal Buyer Info"}
+                </>
+              )}
+            </motion.button>
+          )}
+        </div>
+
+        {/* Reveal error */}
+        {revealErr && (
+          <p className="text-[10px] text-red-400 mt-1.5 flex items-center gap-1">
+            <AlertCircle size={9} />
+            {revealErr}
+          </p>
+        )}
+      </div>
+
+      {/* ── Card body ── */}
+      <div className="px-5 py-4">
+
+        {/* Locked — payment not yet confirmed */}
+        {!visible && !canReveal && (
+          <div className="flex items-start gap-2.5 text-white/25">
+            <Lock size={14} className="shrink-0 mt-0.5" />
+            <p className="text-[11px] leading-relaxed">
+              {ar
+                ? "ستتمكن من الاطلاع على معلومات المشتري (الاسم والهاتف) بعد تأكيد الدفع."
+                : "Buyer contact info (name & phone) will be unlocked after payment is confirmed."}
+            </p>
+          </div>
+        )}
+
+        {/* Locked — payment confirmed but not yet revealed */}
+        {!visible && canReveal && (
+          <div className="flex items-start gap-2.5 text-white/35">
+            <Lock size={14} className="shrink-0 mt-0.5 text-amber-400/50" />
+            <p className="text-[11px] leading-relaxed">
+              {ar
+                ? "تم تأكيد الدفع. اضغط على «كشف معلومات المشتري» للاطلاع على بيانات التواصل."
+                : "Payment confirmed. Press \"Reveal Buyer Info\" to view the buyer's contact details."}
+            </p>
+          </div>
+        )}
+
+        {/* Loading spinner */}
+        {visible && loading && (
+          <div className="flex justify-center py-3">
+            <Loader2 size={18} className="animate-spin text-white/20" />
+          </div>
+        )}
+
+        {/* Profile not found */}
+        {visible && !loading && !profile && (
+          <p className="text-[11px] text-white/25 italic text-center py-2">
+            {ar ? "لم يتم العثور على الملف الشخصي." : "Profile not found."}
+          </p>
+        )}
+
+        {/* Revealed profile card */}
+        {visible && !loading && profile && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-3"
+          >
+            {/* Avatar + name */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0 overflow-hidden">
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <User size={16} className="text-emerald-400/60" />
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white/90 leading-tight">
+                  {profile.display_name || profile.username || (ar ? "مستخدم" : "User")}
+                </p>
+                {profile.username && (
+                  <p className="text-[11px] text-white/30">@{profile.username}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Contact details */}
+            <div className="space-y-1.5">
+              {profile.phone ? (
+                <div className="flex items-center gap-2 text-white/70">
+                  <Phone size={11} className="text-emerald-400/60 shrink-0" />
+                  <span className="text-sm font-mono tracking-wide" dir="ltr">{profile.phone}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-white/20">
+                  <Phone size={11} className="shrink-0" />
+                  <span className="text-[11px] italic">
+                    {ar ? "لم يتم إدخال رقم هاتف" : "No phone number on file"}
+                  </span>
+                </div>
+              )}
+
+              {profile.location && (
+                <div className="flex items-center gap-2 text-white/55">
+                  <MapPin size={11} className="text-emerald-400/60 shrink-0" />
+                  <span className="text-sm">{profile.location}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Buyer UUID — for reference */}
+            <p className="text-[9px] text-white/15 font-mono pt-1 truncate">{profile.id}</p>
+          </motion.div>
+        )}
+      </div>
+    </motion.div>
+  );
 }
 
 // ─── ProductMediaPanel ────────────────────────────────────────────────────────
@@ -3270,6 +3491,16 @@ export default function SecureDealPayPage() {
 
               </div>
             </motion.div>
+          )}
+
+          {/* ── Buyer Info Panel (seller only) ── */}
+          {isSeller && (
+            <BuyerInfoPanel
+              dealId={tx.deal_id}
+              paymentStatus={tx.payment_status}
+              buyerInfoVisible={tx.buyer_info_visible}
+              ar={ar}
+            />
           )}
 
           {/* ── Product Media Panel (Part #15) ── */}

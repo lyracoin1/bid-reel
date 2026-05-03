@@ -177,6 +177,9 @@ export async function bootstrapTransactionsTable(): Promise<void> {
         ADD COLUMN IF NOT EXISTS external_payment_confirmed_at    TIMESTAMPTZ;
       ALTER TABLE transactions
         ADD COLUMN IF NOT EXISTS external_payment_warning_reason  TEXT;
+      -- Hide Buyer Info Until Payment Confirmed
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS buyer_info_visible  BOOLEAN NOT NULL DEFAULT FALSE;
     `);
 
     // ── payment_proofs (Part #4: Buyer Payment Proof Upload) ─────────────────

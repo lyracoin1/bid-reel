@@ -103,7 +103,7 @@ router.get("/secure-deals/:dealId", async (req, res) => {
               payment_status, payment_date, paid_amount, shipment_status,
               funds_released, payment_link, release_date, created_at, updated_at,
               external_payment_warning, external_payment_confirmed_at,
-              external_payment_warning_reason
+              external_payment_warning_reason, buyer_info_visible
        FROM transactions WHERE deal_id = $1`,
       [dealId],
     );

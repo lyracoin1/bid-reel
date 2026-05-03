@@ -483,6 +483,8 @@ export interface FullDeal {
   external_payment_warning:        boolean;
   external_payment_confirmed_at:   string | null;
   external_payment_warning_reason: string | null;
+  // Buyer Info Visibility
+  buyer_info_visible: boolean;
 
   payment_proof:    FullDealPaymentProof | null;
   shipment_proof:   FullDealShipmentProof | null;

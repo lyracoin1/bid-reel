@@ -49,6 +49,8 @@ export interface Transaction {
   external_payment_warning:        boolean;
   external_payment_confirmed_at:   string | null;
   external_payment_warning_reason: string | null;
+  // Buyer Info Visibility
+  buyer_info_visible: boolean;
   payment_link:    string | null;
   release_date:    string | null;
   created_at:      string;
@@ -821,6 +823,55 @@ export async function openEscrowDispute(dealId: string): Promise<EscrowRow> {
   }
   const data = await res.json() as { escrow: EscrowRow };
   return data.escrow;
+}
+
+// ─── Buyer Info Reveal ────────────────────────────────────────────────────────
+
+export interface BuyerRevealedInfo {
+  id:           string;
+  display_name: string | null;
+  username:     string | null;
+  phone:        string | null;
+  avatar_url:   string | null;
+  location:     string | null;
+}
+
+/**
+ * Seller calls this to reveal the buyer's contact info.
+ * Only allowed when payment_status = 'secured'.
+ * Idempotent — calling again returns success without error.
+ */
+export async function showBuyerInfo(dealId: string): Promise<void> {
+  const res = await apiFetch("/deal/show-buyer-info", {
+    method: "POST",
+    body: JSON.stringify({ deal_id: dealId }),
+  }, true);
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).message ?? `Failed to reveal buyer info (${res.status})`);
+  }
+}
+
+/**
+ * Fetch the buyer's contact profile for a deal.
+ * Seller: only after buyer_info_visible = true.
+ * Buyer: always (their own profile).
+ * Returns null if hidden or not found.
+ */
+export async function getBuyerInfo(dealId: string): Promise<BuyerRevealedInfo | null> {
+  const res = await apiFetch(
+    `/deal/buyer-info/${encodeURIComponent(dealId)}`,
+    {},
+    true,
+  );
+  if (res.status === 403 || res.status === 404) return null;
+  if (!res.ok) {
+    console.warn("[transactions] getBuyerInfo error:", res.status);
+    return null;
+  }
+  const { buyer_profile } = await res.json();
+  return (buyer_profile ?? null) as BuyerRevealedInfo | null;
 }
 
 // ─── Product Media (Part #15) ─────────────────────────────────────────────────

@@ -110,6 +110,18 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
     ? r.image_urls as string[]
     : [];
   const isVideoUrl = (url: string) => /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
+  const isAudioUrl = (url: string) => /\.(mp3|m4a|aac|ogg|opus)(\?|$)/i.test(url);
+  const isAudio = videoUrl ? isAudioUrl(videoUrl) : false;
+
+  // For audio auctions:
+  //   mediaUrl  = the audio file URL (for <audio src={mediaUrl}>)
+  //   images    = cover image(s) from image_urls; fall back to thumbnail_url on
+  //               legacy rows created before image_urls was populated for audio.
+  // For other types mediaUrl and images work as before.
+  const audioImages: string[] | undefined = isAudio
+    ? (imageUrls.length > 0 ? imageUrls : (thumbUrl && thumbUrl !== videoUrl ? [thumbUrl] : undefined))
+    : undefined;
+
   const mediaUrl = videoUrl ?? thumbUrl ?? '';
 
   return {
@@ -125,8 +137,11 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
     // For video auctions: thumbUrl is the thumbnail image.
     // For image auctions: thumbUrl may equal mediaUrl — fine as a poster fallback.
     thumbnailUrl: thumbUrl ?? null,
-    images: imageUrls.length > 0 ? imageUrls : undefined,
-    type: imageUrls.length > 0
+    audioUrl: isAudio ? (videoUrl ?? undefined) : undefined,
+    images: isAudio ? audioImages : (imageUrls.length > 0 ? imageUrls : undefined),
+    type: isAudio
+      ? 'audio'
+      : imageUrls.length > 0
       ? 'album'
       : (videoUrl && isVideoUrl(videoUrl) ? 'video' : 'album'),
     seller: apiProfileToUser(raw.seller, raw.seller_id),

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { useLocation } from "wouter";
-import { Gavel, Bell, MapPin, Volume2, VolumeX, Bookmark, ThumbsUp, ThumbsDown, Eye, ShoppingBag, CheckCircle2, Users, X, Link2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Gavel, Bell, MapPin, Volume2, VolumeX, Bookmark, ThumbsUp, ThumbsDown, Eye, ShoppingBag, CheckCircle2, Users, X, Link2, ChevronLeft, ChevronRight, Music } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type Auction } from "@/lib/mock-data";
 import { cn, getPublicBaseUrl } from "@/lib/utils";
@@ -103,6 +103,7 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   const { isSaved, toggle: toggleSave } = useSaveAuction();
   const { t, lang } = useLang();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const albumStartX = useRef<number | null>(null);
   const albumSwiped = useRef(false);
   const [albumIdx, setAlbumIdx] = useState(0);
@@ -160,6 +161,7 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   const watching = isWatching(auction.id);
   const saved = isSaved(auction.id);
   const isVideo = auction.type === "video";
+  const isAudio = auction.type === "audio";
 
   // ── Content signal (Interested / Not Interested) ──────────────────────────
   // Initialise from the server-returned userSignal so the button state is
@@ -188,10 +190,10 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   // Global mute — shared across all videos, persisted to localStorage.
   const [isMuted, setMuted] = useGlobalMute();
 
-  // Keep the video element's muted property in sync with global state.
+  // Keep the video/audio element's muted property in sync with global state.
   useEffect(() => {
-    if (!videoRef.current) return;
-    videoRef.current.muted = isMuted;
+    if (videoRef.current) videoRef.current.muted = isMuted;
+    if (audioRef.current) audioRef.current.muted = isMuted;
   }, [isMuted]);
 
   // Play / pause based on active state. Read latest mute via `getGlobalMuted()`
@@ -241,6 +243,28 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
       el.load();
     }
   }, [isNear, isVideo]);
+
+  // Audio — play/pause based on active state.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!isAudio || !el) return;
+    if (isActive) {
+      el.muted = getGlobalMuted();
+      el.play().catch(() => {});
+    } else {
+      el.pause();
+    }
+  }, [isActive, isAudio]);
+
+  // Audio — release buffer when card is far from viewport.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!isAudio || !el) return;
+    if (!isNear) {
+      el.pause();
+      el.load();
+    }
+  }, [isNear, isAudio]);
 
   const handleShare = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -378,6 +402,31 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent via-35% to-black/90 pointer-events-none" />
           {state !== "active" && <div className="absolute inset-0 bg-black/25 pointer-events-none" />}
         </div>
+      ) : isAudio ? (
+        /* ── Audio auction ────────────────────────────────────────────────── */
+        /* Show cover image(s) with ImageSlider; play audio separately.       */
+        <div className="absolute inset-0" onClick={() => setLocation(`/auction/${auction.id}`)}>
+          <div className={cn("absolute inset-0 transition-transform duration-700", isActive ? "scale-100" : "scale-105")}>
+            {(auction.images?.length ?? 0) > 0 ? (
+              <ImageSlider images={auction.images!} alt={auction.title} className="w-full h-full" />
+            ) : (
+              /* No cover image — dark placeholder with music note */
+              <div className="w-full h-full bg-gradient-to-br from-purple-950/80 via-background to-background flex items-center justify-center">
+                <Music size={72} className="text-primary/30" />
+              </div>
+            )}
+          </div>
+          {/* Hidden audio element — controlled by play/pause effects above */}
+          <audio
+            ref={audioRef}
+            src={isNear ? (auction.audioUrl ?? auction.mediaUrl) : undefined}
+            loop
+            playsInline
+            preload="none"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent via-35% to-black/90 pointer-events-none" />
+          {state !== "active" && <div className="absolute inset-0 bg-black/25 pointer-events-none" />}
+        </div>
       ) : auction.type === "album" && (auction.images?.length ?? 0) > 1 ? (
         <div className="absolute inset-0" onClick={() => setLocation(`/auction/${auction.id}`)}>
           <div className={cn("absolute inset-0 transition-transform duration-700", isActive ? "scale-100" : "scale-105")}>
@@ -423,12 +472,18 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
       >
         {/* Album badge: show only for single-image albums (multi-image gets an
             inline count badge from the carousel, making this icon redundant). */}
-        {!isVideo && auction.type === "album" && (auction.images?.length ?? 0) === 1 && (
+        {!isVideo && !isAudio && auction.type === "album" && (auction.images?.length ?? 0) === 1 && (
           <div className="w-8 h-8 rounded-lg bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white pointer-events-none">
             <AlbumIcon size={16} />
           </div>
         )}
-        {isVideo && (
+        {/* Music badge — identifies audio auctions that have no cover image count */}
+        {isAudio && (auction.images?.length ?? 0) <= 1 && (
+          <div className="w-8 h-8 rounded-lg bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-primary/90 pointer-events-none">
+            <Music size={15} />
+          </div>
+        )}
+        {(isVideo || isAudio) && (
           /* Mute — 44dp touch target, 18dp icon */
           <button
             onClick={(e) => { e.stopPropagation(); setMuted(!isMuted); }}

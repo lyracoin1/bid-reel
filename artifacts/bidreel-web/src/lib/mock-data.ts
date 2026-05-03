@@ -25,7 +25,9 @@ export interface Auction {
   /** Thumbnail/poster URL. For video auctions this is the separate thumbnail;
    *  for image auctions it's the same as mediaUrl. Used as video poster. */
   thumbnailUrl?: string | null;
-  type: "video" | "album";
+  type: "video" | "album" | "audio";
+  /** URL of the audio file — only present when type === "audio". */
+  audioUrl?: string;
   images?: string[];
   seller: User;
   likes: number;

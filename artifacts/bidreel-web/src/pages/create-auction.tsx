@@ -733,20 +733,27 @@ export default function CreateAuction() {
           return;
         }
 
-        // ── 2. Upload cover image, or signal "no cover" to the backend ───────
-        // When thumbnailUrl === videoUrl, the backend uses the BidReel logo fallback.
+        // ── 2. Upload cover image(s) ─────────────────────────────────────────
+        // Cover images are stored in image_urls so the frontend can render them
+        // directly via ImageSlider without generating a video.
+        // When coverFile is absent we leave thumbnailUrl === videoUrl as the
+        // "no cover" sentinel; image_urls stays empty and the frontend shows
+        // a default placeholder.
         if (coverFile) {
           setUploadProgress(lang === "ar" ? "جارٍ رفع صورة الغلاف…" : "Uploading cover image…");
           try {
             const compressedCover = await compressListingThumbnail(coverFile);
             thumbnailUrl = await uploadMedia(compressedCover, "image");
+            // Also store in image_urls so backendToAuction maps type → "audio"
+            // and ImageSlider has images to display.
+            allImageUrls = [thumbnailUrl];
           } catch (err) {
             setUploadProgress(null);
             setSubmitError(describeSubmitError(err, "upload_image", lang));
             return;
           }
         } else {
-          thumbnailUrl = videoUrl; // backend detects equality → uses logo fallback
+          thumbnailUrl = videoUrl; // backend detects equality → no cover
         }
       } else {
         if (photoFiles.length === 0) {

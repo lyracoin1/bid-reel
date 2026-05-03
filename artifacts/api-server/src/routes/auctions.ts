@@ -899,10 +899,10 @@ router.post("/auctions", requireAuth, async (req, res) => {
   const isVideoUpload = !isAudioUpload && /\.(mp4|mov|webm|avi)(\?|$)/i.test(videoUrl);
 
   if (isAudioUpload) {
-    // When thumbnailUrl equals videoUrl the frontend signalled "no cover" — use logo fallback.
-    const coverImageUrl = thumbnailUrl !== videoUrl ? thumbnailUrl : null;
-    void processAudioReelAsync(auction.id, videoUrl, coverImageUrl, sellerId)
-      .catch(err => logger.error({ err: String(err), auctionId: auction.id }, "audio-reel: unhandled crash"));
+    // Audio auctions display their cover images directly — no MP4 generation.
+    // Cover image(s) are stored in image_urls and rendered via ImageSlider on the
+    // frontend.  processAudioReelAsync is intentionally NOT called here.
+    logger.info({ auctionId: auction.id }, "audio upload: skipping video generation, images served directly");
   } else if (isVideoUpload) {
     void processVideoAsync(auction.id, videoUrl, sellerId)
       .catch(err => logger.error({ err: String(err), auctionId: auction.id }, "video-processing: unhandled crash"));

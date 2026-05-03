@@ -3,7 +3,7 @@ import { useParams, useLocation } from "wouter";
 import {
   ArrowLeft, ArrowDown, Clock, TrendingUp, Gavel,
   Bell, Trophy, RefreshCw, ChevronDown, MapPin, Volume2, VolumeX, Eye,
-  ShieldAlert, CheckCircle2,
+  ShieldAlert, CheckCircle2, Music,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MobileLayout } from "@/components/layout/MobileLayout";
@@ -172,6 +172,7 @@ export default function AuctionDetail() {
   const viewerLoc = useViewerLocation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   // True once the video element fires onLoadedData — used to hide the
   // thumbnail overlay. Reset to false whenever the auction changes so
   // the thumbnail shows again while the new video is fetching its first frame.
@@ -189,8 +190,9 @@ export default function AuctionDetail() {
 
   useEffect(() => {
     const el = videoRef.current;
-    if (!el) return;
-    el.muted = isMuted;
+    if (el) el.muted = isMuted;
+    const aEl = audioRef.current;
+    if (aEl) aEl.muted = isMuted;
   }, [isMuted]);
 
   useEffect(() => {
@@ -207,6 +209,16 @@ export default function AuctionDetail() {
       console.error(`[AuctionDetail] Video error for "${auction.id}":`, el.error);
     el.addEventListener("error", handleError);
     return () => el.removeEventListener("error", handleError);
+  }, [auction?.id, auction?.type]);
+
+  // Audio: auto-play when detail page mounts or auction changes.
+  useEffect(() => {
+    if (!auction || auction.type !== "audio") return;
+    const el = audioRef.current;
+    if (!el) return;
+    el.muted = getGlobalMuted();
+    el.play().catch(() => {});
+    return () => { el.pause(); };
   }, [auction?.id, auction?.type]);
 
   // Pause video when the media stage scrolls off-screen; resume when it
@@ -294,6 +306,7 @@ export default function AuctionDetail() {
   const winner = state === "ended" && highestBid ? highestBid : null;
   const isAlbum = auction.type === "album" && (auction.images?.length ?? 0) > 1;
   const isVideo = auction.type === "video";
+  const isAudio = auction.type === "audio";
   const isSeller = !!currentUser && auction.seller.id === currentUser.id;
   const topBidUserId = highestBid?.user.id;
   const bidStatus = getUserBidStatus(auction.id, topBidUserId);
@@ -504,6 +517,35 @@ export default function AuctionDetail() {
         <div className="w-full h-[55vh] relative bg-black flex items-center justify-center overflow-hidden">
           {isAlbum ? (
             <ImageSlider images={auction.images!} alt={auction.title} className="w-full h-full" />
+          ) : isAudio ? (
+            /* ── Audio auction ─────────────────────────────────────────────── */
+            /* Cover image(s) displayed via ImageSlider; audio plays separately. */
+            <>
+              {(auction.images?.length ?? 0) > 0 ? (
+                <ImageSlider images={auction.images!} alt={auction.title} className="w-full h-full" />
+              ) : (
+                /* No cover — placeholder with music note */
+                <div className="w-full h-full bg-gradient-to-br from-purple-950/80 via-background to-background flex items-center justify-center">
+                  <Music size={80} className="text-primary/30" />
+                </div>
+              )}
+              {/* Hidden audio element — autoplay effect above controls playback */}
+              <audio
+                ref={audioRef}
+                src={auction.audioUrl ?? auction.mediaUrl}
+                loop
+                playsInline
+                preload="auto"
+              />
+              {/* Mute / unmute control */}
+              <button
+                onClick={() => setMuted(!isMuted)}
+                className="absolute bottom-4 right-4 z-30 w-10 h-10 rounded-full bg-black/55 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white active:scale-90 transition-transform"
+                aria-label={isMuted ? "Unmute" : "Mute"}
+              >
+                {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+              </button>
+            </>
           ) : isVideo ? (
             <>
               {/* Thumbnail overlay — visible until the video fires onLoadedData.

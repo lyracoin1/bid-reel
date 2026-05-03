@@ -53,6 +53,8 @@ const TYPE_CONFIG: Record<
   product_media_uploaded: { icon: Image, colour: "text-sky-400", labelKey: "notif_label_product_media" },
   // External Payment Warning (Part #13)
   external_payment_warning: { icon: AlertTriangle, colour: "text-red-400", labelKey: "notif_label_ext_payment" },
+  // Receipt / Order ID (Part #17)
+  receipt_uploaded: { icon: FileText, colour: "text-emerald-400", labelKey: "notif_label_receipt" },
   // legacy aliases
   new_follower:     { icon: UserPlus,    colour: "text-blue-400",    labelKey: "notif_label_followed_you" },
   new_bid:          { icon: ShoppingBag, colour: "text-emerald-400", labelKey: "notif_label_bid_received" },

@@ -169,6 +169,7 @@ export type TKey =
   | "notif_label_escrow_released_with_fee"
   | "notif_label_product_media"
   | "notif_label_ext_payment"
+  | "notif_label_receipt"
   // Profile — delete account warning
   | "delete_irreversible" | "delete_account_body" | "delete_account_irreversible_emphasis"
   // Aria-labels (screen-reader strings on touch buttons)
@@ -389,6 +390,7 @@ const en: Translations = {
   notif_label_escrow_released_with_fee: "Funds Released (3% Fee)",
   notif_label_product_media: "Product Media",
   notif_label_ext_payment: "Ext. Payment Warning",
+  notif_label_receipt: "Receipt",
   delete_irreversible: "This cannot be undone",
   delete_account_body: "This will permanently delete your account, profile, bids, follows, and saved auctions. Your auction listings will be anonymised.",
   delete_account_irreversible_emphasis: "This action is irreversible.",
@@ -608,6 +610,7 @@ const ar: Translations = {
   notif_label_escrow_released_with_fee: "تحرير الأموال (عمولة 3%)",
   notif_label_product_media: "وسائط المنتج",
   notif_label_ext_payment: "تحذير دفع خارجي",
+  notif_label_receipt: "إيصال",
   delete_irreversible: "لا يمكن التراجع",
   delete_account_body: "سيؤدي ذلك إلى حذف حسابك وملفك الشخصي ومزايداتك ومتابعاتك ومحفوظاتك بشكل نهائي. سيتم إخفاء هوية إعلاناتك.",
   delete_account_irreversible_emphasis: "هذا الإجراء لا يمكن التراجع عنه.",
@@ -827,6 +830,7 @@ const ru: Translations = {
   notif_label_escrow_released_with_fee: "Средства освобождены (комиссия 3%)",
   notif_label_product_media: "Медиа товара",
   notif_label_ext_payment: "Предупреждение о внешней оплате",
+  notif_label_receipt: "Квитанция",
   delete_irreversible: "Это действие необратимо",
   delete_account_body: "Это навсегда удалит ваш аккаунт, профиль, ставки, подписки и сохранённые аукционы. Ваши объявления будут анонимизированы.",
   delete_account_irreversible_emphasis: "Это действие необратимо.",
@@ -1046,6 +1050,7 @@ const es: Translations = {
   notif_label_escrow_released_with_fee: "Fondos liberados (comisión 3%)",
   notif_label_product_media: "Multimedia del producto",
   notif_label_ext_payment: "Advertencia de pago externo",
+  notif_label_receipt: "Recibo",
   delete_irreversible: "Esto no se puede deshacer",
   delete_account_body: "Esto eliminará permanentemente tu cuenta, perfil, pujas, seguimientos y subastas guardadas. Tus anuncios serán anonimizados.",
   delete_account_irreversible_emphasis: "Esta acción es irreversible.",
@@ -1265,6 +1270,7 @@ const fr: Translations = {
   notif_label_escrow_released_with_fee: "Fonds libérés (commission 3%)",
   notif_label_product_media: "Médias du produit",
   notif_label_ext_payment: "Avertissement de paiement externe",
+  notif_label_receipt: "Reçu",
   delete_irreversible: "Action définitive",
   delete_account_body: "Cela supprimera définitivement votre compte, profil, enchères, abonnements et enchères enregistrées. Vos annonces seront anonymisées.",
   delete_account_irreversible_emphasis: "Cette action est irréversible.",
@@ -1484,6 +1490,7 @@ const tr: Translations = {
   notif_label_escrow_released_with_fee: "Tutar Serbest Bırakıldı (%3 Komisyon)",
   notif_label_product_media: "Ürün Medyası",
   notif_label_ext_payment: "Harici Ödeme Uyarısı",
+  notif_label_receipt: "Makbuz",
   delete_irreversible: "Bu işlem geri alınamaz",
   delete_account_body: "Bu, hesabını, profilini, tekliflerini, takiplerini ve kaydedilen açık artırmaları kalıcı olarak siler. İlanların anonimleştirilir.",
   delete_account_irreversible_emphasis: "Bu işlem geri alınamaz.",

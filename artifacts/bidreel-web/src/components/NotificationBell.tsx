@@ -60,6 +60,8 @@ const TYPE_CONFIG: Record<
   product_media_uploaded: { icon: Image, colour: "text-sky-400", label: "Product Media", labelAr: "وسائط المنتج" },
   // ── External Payment Warning (Part #13) ──────────────────────────────────────
   external_payment_warning: { icon: AlertTriangle, colour: "text-red-400", label: "Ext. Payment", labelAr: "دفع خارجي" },
+  // ── Receipt / Order ID (Part #17) ────────────────────────────────────────────
+  receipt_uploaded: { icon: FileText, colour: "text-emerald-400", label: "Receipt", labelAr: "إيصال" },
   // ── Legacy aliases (still emitted by old rows) ──────────────────────────────
   new_follower:     { icon: UserPlus,    colour: "text-blue-400",    label: "Follower", labelAr: "متابع" },
   new_bid:          { icon: ShoppingBag, colour: "text-emerald-400", label: "New Bid",  labelAr: "مزايدة" },
@@ -116,7 +118,7 @@ function getDeepLink(n: AppNotification): string | null {
       return link;
     }
 
-    // ── Secure Deals — all route to the deal detail page ─────────────────
+    // ── Secure Deals — all route to the deal detail/activity page ────────
     case "payment_proof_uploaded":
     case "shipment_proof_uploaded":
     case "buyer_delivery_proof_uploaded":
@@ -125,13 +127,8 @@ function getDeepLink(n: AppNotification): string | null {
     case "seller_penalty_applied":
     case "buyer_conditions_submitted":
     case "seller_conditions_submitted":
-    case "deal_rated": {
-      const dealId =
-        (n.metadata?.["dealId"] as string | undefined) ??
-        (n.metadata?.["deal_id"] as string | undefined);
-      return dealId ? `/deals/${dealId}` : "/deals";
-    }
-
+    case "deal_rated":
+    case "receipt_uploaded":
     case "escrow_released":
     case "escrow_disputed":
     case "escrow_released_with_fee":
@@ -140,7 +137,7 @@ function getDeepLink(n: AppNotification): string | null {
       const dealId =
         (n.metadata?.["dealId"] as string | undefined) ??
         (n.metadata?.["deal_id"] as string | undefined);
-      return dealId ? `/secure-deals/pay/${dealId}` : null;
+      return dealId ? `/secure-deals/pay/${dealId}` : "/deals";
     }
 
     case "auction_shared":

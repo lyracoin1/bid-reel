@@ -36,6 +36,57 @@ import { initNativeFcm } from "@/lib/native-fcm";
 import { useNotificationBanner } from "@/contexts/NotificationBannerContext";
 import { supabase } from "@/lib/supabase";
 
+// ── Deep-link resolver ────────────────────────────────────────────────────────
+// Maps FCM push data payload to an in-app route. Covers all notification types.
+
+const DEAL_TYPES = new Set([
+  "payment_proof_uploaded",
+  "shipment_proof_uploaded",
+  "buyer_delivery_proof_uploaded",
+  "buyer_confirmed_receipt",
+  "shipping_fee_dispute_created",
+  "seller_penalty_applied",
+  "buyer_conditions_submitted",
+  "seller_conditions_submitted",
+  "deal_rated",
+  "receipt_uploaded",
+  "escrow_released",
+  "escrow_disputed",
+  "escrow_released_with_fee",
+  "product_media_uploaded",
+  "external_payment_warning",
+]);
+
+export function resolveDeepLinkRoute(data: Record<string, string>): string {
+  const type     = data["type"] ?? "";
+  const dealId   = data["dealId"] ?? data["deal_id"] ?? "";
+  const auctionId = data["auctionId"] ?? "";
+  const actorId  = data["actorId"] ?? "";
+
+  // Secure-deal notification → deal activity page
+  if (DEAL_TYPES.has(type) && dealId) {
+    return `/secure-deals/pay/${dealId}`;
+  }
+  if (DEAL_TYPES.has(type)) {
+    return "/deals";
+  }
+
+  // Auction notification
+  if (auctionId) {
+    return `/auction/${auctionId}`;
+  }
+
+  // Follower notification
+  if ((type === "followed_you" || type === "new_follower") && actorId) {
+    return `/users/${actorId}`;
+  }
+  if (actorId && !type) {
+    return `/users/${actorId}`;
+  }
+
+  return "/feed";
+}
+
 // Module-level cache so we can re-send the same FCM token to the backend on
 // SIGNED_IN without re-running the (heavy) native plugin init.
 let lastFcmToken: string | null = null;
@@ -93,13 +144,8 @@ export function useFcmToken(): void {
           showBannerRef.current({ name: title, message: body });
         },
         onNotificationTap: (data) => {
-          if (data["auctionId"]) {
-            navigateRef.current(`/auction/${data["auctionId"]}`);
-          } else if (data["actorId"]) {
-            navigateRef.current(`/users/${data["actorId"]}`);
-          } else {
-            navigateRef.current("/feed");
-          }
+          const route = resolveDeepLinkRoute(data);
+          navigateRef.current(route);
         },
       });
 

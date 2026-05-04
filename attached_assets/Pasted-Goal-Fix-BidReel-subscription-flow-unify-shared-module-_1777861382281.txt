@@ -1,0 +1,68 @@
+Goal: Fix BidReel subscription flow, unify shared module, resolve all conflicts, and ensure GitHub push works. Include handling Google Play subscription flow in auction-detail.
+
+Files involved:
+1. src/lib/subscription-billing.ts
+2. src/pages/subscription.tsx
+3. src/pages/auction-detail.tsx
+
+Step-by-step instructions:
+
+1. subscription-billing.ts
+   - Remove all conflict markers (<<<<<<<, =======, >>>>>>>).
+   - Standardize SubscriptionResult type as:
+     interface SubscriptionResult { success: boolean; error?: string }
+   - Ensure functions:
+     - startSubscription(userId: string): querySkuDetails → launchBillingFlow → backend verify → sendAck
+     - restoreSubscription(userId: string): call backend restore endpoint
+     - isSubscriptionAvailable(): true only on Android
+   - Keep debug logs for testing on mobile.
+   - Clean duplicate imports (Capacitor, BillingPlugin, API_BASE, getToken).
+   - Save file and test locally on Replit.
+   - Git add: git add src/lib/subscription-billing.ts
+
+2. subscription.tsx
+   - Remove all conflict markers.
+   - Standardize user variable (`currentUser`).
+   - Unify feedback state:
+     const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null)
+   - Update Subscribe Now button:
+     - onClick calls startSubscription(currentUser?.id)
+     - disabled={subscribing || !isSubscriptionAvailable() || currentUser.isPremium}
+   - Update Restore button:
+     - onClick calls restoreSubscription(currentUser?.id)
+   - Update JSX with Loader2 spinner and feedback banners.
+   - Test on mobile device.
+   - Git add: git add src/pages/subscription.tsx
+
+3. auction-detail.tsx
+   - Remove conflict markers and delete old inline startSubscription.
+   - Import shared module:
+     import { startSubscription, restoreSubscription, isSubscriptionAvailable } from "@/lib/subscription-billing";
+   - Update Subscribe button under PREMIUM_REQUIRED:
+     onClick={() => startSubscription(currentUser?.id ?? "")}
+   - Ensure canSeeWhatsApp and premium gate logic still works correctly.
+   - Test subscription flow on mobile device.
+   - Git add: git add src/pages/auction-detail.tsx
+
+4. Testing
+   - Verify on mobile that:
+     - Subscribe Now and Restore Subscription work.
+     - Google Play flow completes, purchase acknowledged.
+     - Feedback messages display correctly.
+     - WhatsApp button visibility respects premium and free bids logic.
+
+5. Git workflow
+   - Commit all changes with descriptive message:
+     git commit -m "Fix subscription module, unify state, clean conflicts, wire pages to shared module, fix Google Play flow"
+   - Push changes to GitHub:
+     git push origin main
+   - If push is rejected due to remote changes:
+     git pull --rebase origin main
+     resolve any remaining conflicts
+     git push origin main
+
+End result:
+- subscription-billing.ts is clean and fully functional.
+- subscription.tsx and auction-detail.tsx use shared module correctly.
+- Google Play subscription works on mobile.
+- Changes safely pushed to GitHub without breaking flow.

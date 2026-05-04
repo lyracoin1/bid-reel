@@ -114,14 +114,14 @@ export async function compressAvatar(file: File): Promise<File> {
   return compressImage(file, { maxPx: 512, quality: 0.85 });
 }
 
-/** Preset for listing display images — 1920 px long edge, quality 0.85. */
+/** Preset for listing display images — 1080 px long edge, quality 0.82. */
 export async function compressListingImage(file: File): Promise<File> {
-  return compressImage(file, { maxPx: 1920, quality: 0.85 });
+  return compressImage(file, { maxPx: 1080, quality: 0.82 });
 }
 
-/** Preset for auction cover thumbnails — 640 px long edge, quality 0.80. */
+/** Preset for auction cover thumbnails — 480 px long edge, quality 0.78. */
 export async function compressListingThumbnail(file: File): Promise<File> {
-  return compressImage(file, { maxPx: 640, quality: 0.80 });
+  return compressImage(file, { maxPx: 480, quality: 0.78 });
 }
 
 // ─── Unified uploadMedia() ──────────────────────────────────────────────────

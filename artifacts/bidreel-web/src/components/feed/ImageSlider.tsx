@@ -66,14 +66,20 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
       <div className="flex h-full transition-transform duration-300 ease-in-out" style={{ transform: `translateX(-${current * 100}%)` }}>
         {images.map((src, i) => (
           <div key={i} className="w-full h-full shrink-0 flex items-center justify-center">
-            <img
-              src={src}
-              alt={`${alt} ${i + 1}`}
-              loading="lazy"
-              decoding="async"
-              className="max-w-full max-h-full w-auto h-auto object-contain"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-            />
+            {/* Only load current slide and its immediate neighbours; blank the rest
+                to avoid the browser eagerly fetching every album image upfront. */}
+            {Math.abs(i - current) <= 1 ? (
+              <img
+                src={src}
+                alt={`${alt} ${i + 1}`}
+                loading={i === current ? "eager" : "lazy"}
+                decoding="async"
+                className="max-w-full max-h-full w-auto h-auto object-contain"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              />
+            ) : (
+              <div className="w-full h-full bg-black" />
+            )}
           </div>
         ))}
       </div>

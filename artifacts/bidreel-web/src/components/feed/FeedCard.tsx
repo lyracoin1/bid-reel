@@ -395,6 +395,7 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
             <img
               src={auction.thumbnailUrl}
               aria-hidden
+              decoding="async"
               className="absolute inset-0 w-full h-full object-cover"
             />
           )}

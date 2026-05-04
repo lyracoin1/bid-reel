@@ -148,6 +148,7 @@ export async function processVideoAsync(
       `ffmpeg -y -i "${origPath}" ` +
       `-vf "scale=-2:${safeHeight}" ` +
       `-c:v libx264 -crf 28 -preset veryfast ` +
+      `-maxrate 2000k -bufsize 4000k ` +
       `-c:a aac -b:a 96k ` +
       `-movflags +faststart ` +
       `"${compPath}"`,

@@ -117,53 +117,62 @@ export default function PaymentProtectionPage() {
             </div>
           </motion.div>
 
-          {/* Card 2 — Secure Deal */}
+          {/* Card 2 — Secure Deal (Coming Soon) */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.08 }}
-            className="rounded-3xl bg-gradient-to-b from-white/8 to-white/3 border border-white/10 overflow-hidden"
+            className="rounded-3xl bg-gradient-to-b from-white/5 to-white/2 border border-white/8 overflow-hidden opacity-70"
           >
             {/* Card header band */}
-            <div className="bg-gradient-to-r from-emerald-600/20 to-teal-600/10 px-5 pt-5 pb-4 border-b border-white/8">
+            <div className="bg-gradient-to-r from-emerald-600/12 to-teal-600/6 px-5 pt-5 pb-4 border-b border-white/6">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-7 h-7 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
-                  <ShieldCheck size={14} className="text-emerald-400" />
+                <div className="w-7 h-7 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
+                  <ShieldCheck size={14} className="text-emerald-400/60" />
                 </div>
-                <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">
+                <span className="text-xs font-bold text-emerald-400/60 uppercase tracking-widest">
                   {ar ? "الصفقة الآمنة" : "Secure Deal"}
                 </span>
+                {/* Coming Soon badge */}
+                <span className="ms-auto text-[10px] font-bold text-amber-400 bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  {ar ? "قريباً" : "Coming Soon"}
+                </span>
               </div>
-              <p className="text-sm text-white/60 leading-snug mt-1">
+              <p className="text-sm text-white/40 leading-snug mt-1">
                 {ar
                   ? "بيع وشراء محمي داخل المزادات وخارجها."
                   : "Protected buying and selling inside or outside auctions."}
               </p>
             </div>
 
-            {/* Features */}
-            <ul className="px-5 py-4 space-y-3">
+            {/* Features — dimmed */}
+            <ul className="px-5 py-4 space-y-3 opacity-60">
               {DEAL_FEATURES.map(({ icon: Icon, en, ar: arText }) => (
                 <li key={en} className="flex items-center gap-3">
-                  <div className="w-6 h-6 rounded-lg bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                    <Icon size={12} className="text-emerald-400" />
+                  <div className="w-6 h-6 rounded-lg bg-white/8 border border-white/10 flex items-center justify-center shrink-0">
+                    <Icon size={12} className="text-white/40" />
                   </div>
-                  <span className="text-sm text-white/80 font-medium">{ar ? arText : en}</span>
-                  <Check size={13} className="text-emerald-400 ms-auto shrink-0" />
+                  <span className="text-sm text-white/50 font-medium">{ar ? arText : en}</span>
+                  <Check size={13} className="text-white/25 ms-auto shrink-0" />
                 </li>
               ))}
             </ul>
 
-            {/* CTA */}
-            <div className="px-5 pb-5">
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={() => setLocation("/secure-deals/create")}
-                className="w-full py-3.5 rounded-2xl bg-emerald-600 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 hover:brightness-110 transition"
+            {/* CTA — disabled, no navigation */}
+            <div className="px-5 pb-5 space-y-2">
+              <button
+                disabled
+                aria-disabled="true"
+                className="w-full py-3.5 rounded-2xl bg-white/8 border border-white/10 text-white/30 font-bold text-sm flex items-center justify-center gap-2 cursor-not-allowed select-none"
               >
-                <ShieldCheck size={15} />
-                {ar ? "إنشاء صفقة آمنة" : "Create Secure Deal"}
-              </motion.button>
+                <ShieldCheck size={15} className="text-white/25" />
+                {ar ? "قريباً" : "Coming Soon"}
+              </button>
+              <p className="text-center text-[11px] text-white/25 leading-snug">
+                {ar
+                  ? "خدمة الدفع الآمن ستكون متاحة قريباً"
+                  : "Secure Deals will be available soon"}
+              </p>
             </div>
           </motion.div>
 

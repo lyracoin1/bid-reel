@@ -358,371 +358,51 @@ export default function SecureDealCreatePage() {
     );
   }
 
-  // ── Main form ──
+  // ── Coming Soon gate — remove this block when the feature launches ──
   return (
     <MobileLayout>
-      <div className="min-h-full bg-background" dir={ar ? "rtl" : "ltr"}>
-
+      <div className="min-h-full bg-background flex flex-col" dir={ar ? "rtl" : "ltr"}>
         {/* Header */}
-        <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-white/6 px-4 py-4 flex items-center gap-3">
+        <div className="flex items-center gap-3 px-4 pt-14 pb-4">
           <button
-            onClick={() => setLocation(-1 as any)}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/8 text-white/70 hover:text-white hover:bg-white/12 transition shrink-0"
-            aria-label="Back"
+            onClick={() => window.history.length > 1 ? window.history.back() : setLocation("/payment-protection")}
+            className="w-10 h-10 rounded-xl bg-white/8 border border-white/10 flex items-center justify-center active:scale-90 transition-transform shrink-0"
+            aria-label={ar ? "رجوع" : "Back"}
           >
-            <ArrowLeft size={18} className={ar ? "rotate-180" : ""} />
+            <ArrowLeft size={18} className={`text-white/70 ${ar ? "rotate-180" : ""}`} />
           </button>
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <ShieldCheck size={16} className="text-emerald-400 shrink-0" />
-            <h1 className="text-base font-bold text-white truncate">
-              {ar ? "إنشاء صفقة آمنة" : "Create Secure Deal"}
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={16} className="text-emerald-400/70" />
+            <h1 className="text-base font-bold text-white">
+              {ar ? "الصفقات الآمنة" : "Secure Deals"}
             </h1>
-          </div>
-          {/* Seller badge */}
-          <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2.5 py-1 shrink-0">
-            <UserCheck size={11} className="text-emerald-400" />
-            <span className="text-[10px] font-bold text-emerald-400 truncate max-w-[80px]">
-              {user.displayName ?? user.username ?? "Seller"}
-            </span>
           </div>
         </div>
 
-        <div className="px-4 py-5 max-w-lg mx-auto space-y-5 pb-14">
-
-          {/* Hero band */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="rounded-2xl bg-gradient-to-r from-emerald-600/20 to-teal-600/10 border border-emerald-500/20 px-4 py-3.5 flex items-start gap-3"
+        {/* Coming soon body */}
+        <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-6 pb-16">
+          <div className="w-24 h-24 rounded-3xl bg-emerald-500/8 border border-emerald-500/18 flex items-center justify-center">
+            <ShieldCheck size={40} className="text-emerald-400/40" />
+          </div>
+          <div className="space-y-2.5">
+            <p className="text-2xl font-bold text-white">
+              {ar ? "قريباً" : "Coming Soon"}
+            </p>
+            <p className="text-sm text-white/45 leading-relaxed max-w-[260px] mx-auto">
+              {ar
+                ? "خدمة الدفع الآمن ستكون متاحة قريباً"
+                : "Secure Deals will be available soon"}
+            </p>
+          </div>
+          <button
+            onClick={() => window.history.length > 1 ? window.history.back() : setLocation("/payment-protection")}
+            className="mt-2 px-6 py-3 rounded-2xl bg-white/8 border border-white/10 text-sm font-semibold text-white/60 hover:text-white hover:bg-white/12 transition-colors active:scale-95"
           >
-            <ShieldCheck size={18} className="text-emerald-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-emerald-300">
-                {ar ? "حماية كاملة للمشتري والبائع" : "Full buyer & seller protection"}
-              </p>
-              <p className="text-xs text-white/45 mt-0.5 leading-snug">
-                {ar
-                  ? "أنشئ رابط دفع آمن وأرسله للمشتري. الأموال محمية حتى اكتمال الصفقة."
-                  : "Generate a secure payment link and send it to your buyer. Funds are held safely until the deal is complete."}
-              </p>
-            </div>
-          </motion.div>
-
-          {/* Form card */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.06 }}
-            className="rounded-3xl bg-white/4 border border-white/8 overflow-hidden"
-          >
-            <div className="bg-gradient-to-r from-white/5 to-transparent px-5 pt-5 pb-4 border-b border-white/6">
-              <p className="text-xs font-bold text-white/50 uppercase tracking-widest">
-                {ar ? "تفاصيل الصفقة" : "Deal Details"}
-              </p>
-            </div>
-
-            <div className="px-5 py-5 space-y-5">
-
-              {/* Item name */}
-              <Field label={ar ? "اسم المنتج / السلعة" : "Product / Item Name"} required error={errors.itemName}>
-                <div className="relative">
-                  <Package size={14} className={`absolute top-1/2 -translate-y-1/2 text-white/25 pointer-events-none ${ar ? "right-4" : "left-4"}`} />
-                  <input
-                    type="text"
-                    value={itemName}
-                    onChange={e => { setItemName(e.target.value); setErrors(prev => ({ ...prev, itemName: "" })); }}
-                    placeholder={ar ? "مثال: ساعة رولكس أصلية" : "e.g. Authentic Rolex Watch"}
-                    className={`${INPUT_CLS} ${ar ? "pr-10" : "pl-10"} ${errors.itemName ? "border-red-500/40" : ""}`}
-                  />
-                </div>
-              </Field>
-
-              {/* Description */}
-              <Field
-                label={ar ? "الوصف" : "Description"}
-                hint={ar ? "صف المنتج بشكل واضح — الحالة، المواصفات، أي عيوب" : "Describe the item clearly — condition, specs, any defects"}
-              >
-                <div className="relative">
-                  <FileText size={14} className={`absolute top-3.5 text-white/25 pointer-events-none ${ar ? "right-4" : "left-4"}`} />
-                  <textarea
-                    value={description}
-                    onChange={e => setDescription(e.target.value)}
-                    placeholder={ar ? "وصف تفصيلي للمنتج..." : "Detailed description of the item..."}
-                    rows={3}
-                    maxLength={2000}
-                    className={`${INPUT_CLS} ${ar ? "pr-10" : "pl-10"} resize-none`}
-                  />
-                </div>
-              </Field>
-
-              {/* Price + currency */}
-              <Field
-                label={ar ? "السعر" : "Price"}
-                required
-                error={errors.price}
-                hint={ar ? "حدد السعر بالعملة التي تفضلها" : "Set the price in your preferred currency"}
-              >
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <DollarSign size={14} className={`absolute top-1/2 -translate-y-1/2 text-white/25 pointer-events-none ${ar ? "right-4" : "left-4"}`} />
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      min="0"
-                      step="any"
-                      value={price}
-                      onChange={e => { setPrice(e.target.value); setErrors(prev => ({ ...prev, price: "" })); }}
-                      placeholder="0.00"
-                      className={`${INPUT_CLS} ${ar ? "pr-10" : "pl-10"} ${errors.price ? "border-red-500/40" : ""}`}
-                    />
-                  </div>
-                  <select
-                    value={currency}
-                    onChange={e => setCurrency(e.target.value)}
-                    className="bg-white/5 border border-white/10 rounded-xl px-3 py-3 text-sm text-white focus:outline-none focus:border-primary/50 transition appearance-none cursor-pointer min-w-[80px] text-center"
-                  >
-                    {["USD", "SAR", "AED", "EUR", "GBP", "TRY", "RUB"].map(c => (
-                      <option key={c} value={c} className="bg-[#0c0c14]">{c}</option>
-                    ))}
-                  </select>
-                </div>
-              </Field>
-
-              {/* Media upload */}
-              <Field
-                label={ar ? "صورة أو فيديو (اختياري)" : "Photo or Video (optional)"}
-                hint={
-                  mediaError
-                    ? undefined
-                    : (ar
-                        ? "JPEG / PNG / WebP (حتى 10 ميجا) أو MP4 (حتى 50 ميجا)"
-                        : "JPEG / PNG / WebP up to 10 MB — MP4 up to 50 MB")
-                }
-                error={mediaError ?? undefined}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/webp,video/mp4"
-                  className="hidden"
-                  onChange={handleMediaPick}
-                />
-                {mediaPreview ? (
-                  <div className="relative rounded-xl overflow-hidden border border-white/10">
-                    {mediaType === "video"
-                      ? <video src={mediaPreview} className="w-full max-h-48 object-cover" controls />
-                      : <img src={mediaPreview} alt="Preview" className="w-full max-h-48 object-cover" />
-                    }
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMediaFile(null);
-                        setMediaPreview(null);
-                        setMediaType(null);
-                        setMediaError(null);
-                      }}
-                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white/70 flex items-center justify-center text-xs font-bold hover:bg-black/80 transition"
-                    >✕</button>
-                  </div>
-                ) : (
-                  <motion.button
-                    whileTap={{ scale: 0.98 }}
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`w-full py-6 rounded-xl border border-dashed text-white/30 flex flex-col items-center gap-2 transition ${
-                      mediaError
-                        ? "border-red-500/30 bg-red-500/5 text-red-400/60 hover:border-red-500/50"
-                        : "border-white/15 hover:border-white/25 hover:text-white/50"
-                    }`}
-                  >
-                    <div className="flex gap-3">
-                      <ImagePlus size={18} />
-                      <Video size={18} />
-                    </div>
-                    <span className="text-xs font-medium">
-                      {ar ? "اضغط لإضافة صورة أو فيديو" : "Tap to add photo or video"}
-                    </span>
-                  </motion.button>
-                )}
-              </Field>
-
-              {/* Delivery method */}
-              <Field label={ar ? "طريقة التسليم" : "Delivery Method"} required error={errors.delivery}>
-                <div className="relative">
-                  <Truck size={14} className={`absolute top-1/2 -translate-y-1/2 text-white/25 pointer-events-none ${ar ? "right-4" : "left-4"}`} />
-                  <button
-                    type="button"
-                    onClick={() => setDeliveryOpen(v => !v)}
-                    className={`${INPUT_CLS} ${ar ? "pr-10 text-right" : "pl-10 text-left"} flex items-center justify-between ${errors.delivery ? "border-red-500/40" : ""} ${!delivery ? "text-white/20" : "text-white"}`}
-                  >
-                    <span className="flex-1 truncate">
-                      {delivery || (ar ? "اختر طريقة التسليم..." : "Select delivery method...")}
-                    </span>
-                    <ChevronDown size={14} className={`shrink-0 text-white/30 transition-transform ${deliveryOpen ? "rotate-180" : ""} ${ar ? "mr-2" : "ml-2"}`} />
-                  </button>
-                  <AnimatePresence>
-                    {deliveryOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -4 }}
-                        transition={{ duration: 0.15 }}
-                        className="absolute left-0 right-0 top-full mt-1.5 z-30 rounded-xl bg-[#16161f] border border-white/10 overflow-hidden shadow-xl"
-                      >
-                        {deliveryOptions.map((opt, i) => (
-                          <button
-                            key={deliveryOptionsEn[i]}
-                            type="button"
-                            onClick={() => {
-                              setDelivery(opt);
-                              setDeliveryOpen(false);
-                              setErrors(prev => ({ ...prev, delivery: "" }));
-                            }}
-                            className={`w-full px-4 py-3 text-sm hover:bg-white/5 transition ${ar ? "text-right" : "text-left"} ${delivery === opt ? "text-emerald-400 font-semibold" : "text-white/70"}`}
-                          >
-                            {opt}
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </Field>
-
-              {/* Terms */}
-              <Field
-                label={ar ? "شروط إضافية / ملاحظات" : "Additional Terms / Notes"}
-                hint={ar ? "أي شروط خاصة بهذه الصفقة (اختياري)" : "Any special conditions for this deal (optional)"}
-              >
-                <div className="relative">
-                  <StickyNote size={14} className={`absolute top-3.5 text-white/25 pointer-events-none ${ar ? "right-4" : "left-4"}`} />
-                  <textarea
-                    value={terms}
-                    onChange={e => setTerms(e.target.value)}
-                    placeholder={ar ? "مثال: السلعة بدون ضمان، التسليم خلال ٣ أيام..." : "e.g. Item has no warranty, delivery within 3 days..."}
-                    rows={3}
-                    maxLength={2000}
-                    className={`${INPUT_CLS} ${ar ? "pr-10" : "pl-10"} resize-none`}
-                  />
-                </div>
-              </Field>
-
-            </div>
-          </motion.div>
-
-          {/* Submit error */}
-          <AnimatePresence>
-            {submitError && (
-              <motion.div
-                key="submit-err"
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 flex items-start gap-2.5"
-              >
-                <AlertCircle size={14} className="text-red-400 shrink-0 mt-0.5" />
-                <div className="flex-1 space-y-1">
-                  <p className="text-sm text-red-300 leading-snug">{submitError}</p>
-                  {submitError && (
-                    submitError.includes("profile") || submitError.includes("ملف") ? (
-                      <button
-                        onClick={() => setLocation("/profile")}
-                        className="text-xs font-semibold text-amber-400 underline underline-offset-2 hover:text-amber-300 transition"
-                      >
-                        {ar ? "إكمال الملف الشخصي ←" : "Complete Profile →"}
-                      </button>
-                    ) : null
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Generate button */}
-          <motion.button
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.12 }}
-            whileTap={{ scale: isWorking ? 1 : 0.97 }}
-            type="button"
-            onClick={handleGenerate}
-            disabled={isWorking || !!generatedLink}
-            className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-700/30 hover:brightness-110 transition disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {isWorking ? (
-              <>
-                {uploadingMedia
-                  ? <Upload size={17} className="animate-bounce" />
-                  : <Loader2 size={17} className="animate-spin" />
-                }
-                {submitLabel}
-              </>
-            ) : (
-              <>
-                <Link2 size={17} />
-                {submitLabel}
-              </>
-            )}
-          </motion.button>
-
-          {/* Generated link result */}
-          <AnimatePresence>
-            {generatedLink && (
-              <motion.div
-                key="link-result"
-                initial={{ opacity: 0, y: 12, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8 }}
-                transition={{ duration: 0.28 }}
-                className="rounded-3xl bg-emerald-900/20 border border-emerald-500/25 overflow-hidden"
-              >
-                <div className="px-5 pt-4 pb-3 border-b border-emerald-500/15">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck size={14} className="text-emerald-400" />
-                    <p className="text-xs font-bold text-emerald-300 uppercase tracking-widest">
-                      {ar ? "رابط الدفع جاهز" : "Payment Link Ready"}
-                    </p>
-                  </div>
-                  <p className="text-[10px] text-white/35 mt-1">
-                    {ar ? `رقم الصفقة: ${dealId}` : `Deal ID: ${dealId}`}
-                  </p>
-                  <p className="text-[10px] text-emerald-400/60 mt-0.5">
-                    {ar ? "✓ تم حفظ الصفقة في قاعدة البيانات" : "✓ Deal saved to database"}
-                  </p>
-                </div>
-                <div className="px-5 py-4 space-y-3">
-                  <div className="flex items-center gap-2 bg-black/30 rounded-xl px-3 py-2.5 border border-white/8">
-                    <Link2 size={12} className="text-white/30 shrink-0" />
-                    <span className="text-xs text-white/60 flex-1 truncate font-mono">{generatedLink}</span>
-                  </div>
-                  <motion.button
-                    whileTap={{ scale: 0.97 }}
-                    type="button"
-                    onClick={handleCopy}
-                    className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition ${
-                      copied
-                        ? "bg-emerald-600/30 text-emerald-300 border border-emerald-500/30"
-                        : "bg-emerald-600 text-white shadow-md shadow-emerald-700/25 hover:brightness-110"
-                    }`}
-                  >
-                    {copied ? <Check size={15} /> : <Copy size={15} />}
-                    {copied
-                      ? (ar ? "تم النسخ!" : "Copied!")
-                      : (ar ? "نسخ الرابط" : "Copy Link")}
-                  </motion.button>
-                  <p className="text-[10px] text-white/25 text-center leading-relaxed">
-                    {ar
-                      ? "أرسل هذا الرابط للمشتري. ستُحتجز الأموال بأمان حتى تأكيد الاستلام."
-                      : "Send this link to your buyer. Funds will be held securely until delivery is confirmed."}
-                  </p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
+            {ar ? "رجوع" : "Go Back"}
+          </button>
         </div>
       </div>
     </MobileLayout>
   );
+
 }

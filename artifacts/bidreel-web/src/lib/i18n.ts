@@ -417,6 +417,21 @@ const en: Translations = {
   aria_share_auction: "Share auction",
   aria_remind_me: "Remind me when live", aria_remove_reminder: "Remove reminder",
   aria_buy_now: "Buy now",
+  notif_title_followed_you: "New follower 🎉", notif_body_followed_you: "started following you",
+  notif_title_liked_your_auction: "New like ❤️", notif_body_liked_your_auction: "liked your auction",
+  notif_title_saved_your_auction: "Saved 🔖", notif_body_saved_your_auction: "saved your auction",
+  notif_title_commented_on_your_auction: "New comment 💬", notif_body_commented_on_your_auction: "commented on your auction",
+  notif_title_replied_to_your_comment: "New reply 💬", notif_body_replied_to_your_comment: "replied to your comment",
+  notif_title_mentioned_you: "You were mentioned 👋", notif_body_mentioned_you: "mentioned you",
+  notif_title_bid_received: "New bid 💰", notif_body_bid_received: "placed a bid on your auction",
+  notif_title_outbid: "You've been outbid 🔴", notif_body_outbid: "New high bid on your auction",
+  notif_title_auction_won: "You won! 🏆", notif_body_auction_won: "Congratulations — contact the seller to complete the deal",
+  notif_title_auction_ended: "Auction ended ✅", notif_body_auction_ended: "Your auction has ended",
+  notif_title_auction_unsold: "Auction ended — no bids", notif_body_auction_unsold: "Your auction ended without bids",
+  notif_title_auction_ending_soon: "⏳ Ending soon", notif_body_auction_ending_soon: "This auction is ending soon",
+  notif_title_auction_started: "🟢 Auction is live!", notif_body_auction_started: "An auction you watch just started",
+  notif_title_account_warning: "Account warning ⚠️", notif_body_account_warning: "Your account has received a warning",
+  notif_title_admin_message: "Message from BidReel", notif_body_admin_message: "You have a new message",
 };
 
 const ar: Translations = {
@@ -637,6 +652,21 @@ const ar: Translations = {
   aria_share_auction: "مشاركة المزاد",
   aria_remind_me: "ذكّرني عند البدء", aria_remove_reminder: "إلغاء التذكير",
   aria_buy_now: "سعر ثابت",
+  notif_title_followed_you: "متابع جديد 🎉", notif_body_followed_you: "بدأ بمتابعتك",
+  notif_title_liked_your_auction: "إعجاب جديد ❤️", notif_body_liked_your_auction: "أعجب بمزادك",
+  notif_title_saved_your_auction: "تم الحفظ 🔖", notif_body_saved_your_auction: "قام بحفظ مزادك",
+  notif_title_commented_on_your_auction: "تعليق جديد 💬", notif_body_commented_on_your_auction: "علّق على مزادك",
+  notif_title_replied_to_your_comment: "رد جديد 💬", notif_body_replied_to_your_comment: "ردّ على تعليقك",
+  notif_title_mentioned_you: "تم ذكرك 👋", notif_body_mentioned_you: "ذكرك في تعليق",
+  notif_title_bid_received: "مزايدة جديدة 💰", notif_body_bid_received: "وضع مزايدة على مزادك",
+  notif_title_outbid: "لقد تم المزايدة عليك 🔴", notif_body_outbid: "مزايدة جديدة أعلى من مزايدتك",
+  notif_title_auction_won: "لقد فزت! 🏆", notif_body_auction_won: "مبروك — تواصل مع البائع لإتمام الصفقة",
+  notif_title_auction_ended: "انتهى المزاد ✅", notif_body_auction_ended: "انتهى مزادك",
+  notif_title_auction_unsold: "انتهى المزاد — لا توجد مزايدات", notif_body_auction_unsold: "انتهى مزادك دون أي مزايدات",
+  notif_title_auction_ending_soon: "⏳ ينتهي قريباً", notif_body_auction_ending_soon: "هذا المزاد على وشك الانتهاء",
+  notif_title_auction_started: "🟢 المزاد مباشر!", notif_body_auction_started: "بدأ مزاد تتابعه",
+  notif_title_account_warning: "تحذير الحساب ⚠️", notif_body_account_warning: "تلقّى حسابك تحذيراً",
+  notif_title_admin_message: "رسالة من بيدريل", notif_body_admin_message: "لديك رسالة جديدة",
 };
 
 const ru: Translations = {
@@ -857,6 +887,21 @@ const ru: Translations = {
   aria_share_auction: "Поделиться аукционом",
   aria_remind_me: "Напомнить о начале", aria_remove_reminder: "Убрать напоминание",
   aria_buy_now: "Купить сейчас",
+  notif_title_followed_you: "Новый подписчик 🎉", notif_body_followed_you: "подписался на вас",
+  notif_title_liked_your_auction: "Новый лайк ❤️", notif_body_liked_your_auction: "поставил лайк вашему аукциону",
+  notif_title_saved_your_auction: "Сохранено 🔖", notif_body_saved_your_auction: "сохранил ваш аукцион",
+  notif_title_commented_on_your_auction: "Новый комментарий 💬", notif_body_commented_on_your_auction: "прокомментировал ваш аукцион",
+  notif_title_replied_to_your_comment: "Новый ответ 💬", notif_body_replied_to_your_comment: "ответил на ваш комментарий",
+  notif_title_mentioned_you: "Вас упомянули 👋", notif_body_mentioned_you: "упомянул вас",
+  notif_title_bid_received: "Новая ставка 💰", notif_body_bid_received: "сделал ставку на ваш аукцион",
+  notif_title_outbid: "Вас перебили 🔴", notif_body_outbid: "Новая ставка выше вашей",
+  notif_title_auction_won: "Вы выиграли! 🏆", notif_body_auction_won: "Поздравляем — свяжитесь с продавцом",
+  notif_title_auction_ended: "Аукцион завершён ✅", notif_body_auction_ended: "Ваш аукцион завершён",
+  notif_title_auction_unsold: "Аукцион завершён — ставок нет", notif_body_auction_unsold: "Аукцион завершился без ставок",
+  notif_title_auction_ending_soon: "⏳ Скоро завершится", notif_body_auction_ending_soon: "Этот аукцион скоро завершится",
+  notif_title_auction_started: "🟢 Аукцион начался!", notif_body_auction_started: "Аукцион, за которым вы следите, начался",
+  notif_title_account_warning: "Предупреждение аккаунта ⚠️", notif_body_account_warning: "Ваш аккаунт получил предупреждение",
+  notif_title_admin_message: "Сообщение от BidReel", notif_body_admin_message: "У вас новое сообщение",
 };
 
 const es: Translations = {
@@ -1077,6 +1122,21 @@ const es: Translations = {
   aria_share_auction: "Compartir subasta",
   aria_remind_me: "Recordármelo al iniciar", aria_remove_reminder: "Quitar recordatorio",
   aria_buy_now: "Comprar ya",
+  notif_title_followed_you: "Nuevo seguidor 🎉", notif_body_followed_you: "empezó a seguirte",
+  notif_title_liked_your_auction: "Nuevo me gusta ❤️", notif_body_liked_your_auction: "le gustó tu subasta",
+  notif_title_saved_your_auction: "Guardado 🔖", notif_body_saved_your_auction: "guardó tu subasta",
+  notif_title_commented_on_your_auction: "Nuevo comentario 💬", notif_body_commented_on_your_auction: "comentó en tu subasta",
+  notif_title_replied_to_your_comment: "Nueva respuesta 💬", notif_body_replied_to_your_comment: "respondió a tu comentario",
+  notif_title_mentioned_you: "Te mencionaron 👋", notif_body_mentioned_you: "te mencionó",
+  notif_title_bid_received: "Nueva puja 💰", notif_body_bid_received: "hizo una puja en tu subasta",
+  notif_title_outbid: "Te han superado 🔴", notif_body_outbid: "Nueva puja más alta que la tuya",
+  notif_title_auction_won: "¡Ganaste! 🏆", notif_body_auction_won: "Felicidades — contacta al vendedor",
+  notif_title_auction_ended: "Subasta finalizada ✅", notif_body_auction_ended: "Tu subasta ha finalizado",
+  notif_title_auction_unsold: "Subasta finalizada — sin pujas", notif_body_auction_unsold: "Tu subasta terminó sin pujas",
+  notif_title_auction_ending_soon: "⏳ Termina pronto", notif_body_auction_ending_soon: "Esta subasta termina pronto",
+  notif_title_auction_started: "🟢 ¡La subasta está en vivo!", notif_body_auction_started: "Empezó una subasta que sigues",
+  notif_title_account_warning: "Advertencia de cuenta ⚠️", notif_body_account_warning: "Tu cuenta recibió una advertencia",
+  notif_title_admin_message: "Mensaje de BidReel", notif_body_admin_message: "Tienes un nuevo mensaje",
 };
 
 const fr: Translations = {
@@ -1297,6 +1357,21 @@ const fr: Translations = {
   aria_share_auction: "Partager l'enchère",
   aria_remind_me: "Me rappeler au démarrage", aria_remove_reminder: "Retirer le rappel",
   aria_buy_now: "Acheter maintenant",
+  notif_title_followed_you: "Nouvel abonné 🎉", notif_body_followed_you: "a commencé à vous suivre",
+  notif_title_liked_your_auction: "Nouveau j'aime ❤️", notif_body_liked_your_auction: "a aimé votre enchère",
+  notif_title_saved_your_auction: "Enregistré 🔖", notif_body_saved_your_auction: "a enregistré votre enchère",
+  notif_title_commented_on_your_auction: "Nouveau commentaire 💬", notif_body_commented_on_your_auction: "a commenté votre enchère",
+  notif_title_replied_to_your_comment: "Nouvelle réponse 💬", notif_body_replied_to_your_comment: "a répondu à votre commentaire",
+  notif_title_mentioned_you: "Vous avez été mentionné 👋", notif_body_mentioned_you: "vous a mentionné",
+  notif_title_bid_received: "Nouvelle enchère 💰", notif_body_bid_received: "a placé une enchère sur votre vente",
+  notif_title_outbid: "Vous avez été surenchéri 🔴", notif_body_outbid: "Nouvelle enchère supérieure à la vôtre",
+  notif_title_auction_won: "Vous avez gagné ! 🏆", notif_body_auction_won: "Félicitations — contactez le vendeur",
+  notif_title_auction_ended: "Enchère terminée ✅", notif_body_auction_ended: "Votre enchère est terminée",
+  notif_title_auction_unsold: "Enchère terminée — aucune offre", notif_body_auction_unsold: "Votre enchère s'est terminée sans offre",
+  notif_title_auction_ending_soon: "⏳ Se termine bientôt", notif_body_auction_ending_soon: "Cette enchère se termine bientôt",
+  notif_title_auction_started: "🟢 L'enchère est en direct !", notif_body_auction_started: "Une enchère que vous suivez vient de commencer",
+  notif_title_account_warning: "Avertissement de compte ⚠️", notif_body_account_warning: "Votre compte a reçu un avertissement",
+  notif_title_admin_message: "Message de BidReel", notif_body_admin_message: "Vous avez un nouveau message",
 };
 
 const tr: Translations = {
@@ -1517,6 +1592,44 @@ const tr: Translations = {
   aria_share_auction: "Açık artırmayı paylaş",
   aria_remind_me: "Başladığında hatırlat", aria_remove_reminder: "Hatırlatmayı kaldır",
   aria_buy_now: "Şimdi satın al",
+  notif_title_followed_you: "Yeni takipçi 🎉", notif_body_followed_you: "seni takip etmeye başladı",
+  notif_title_liked_your_auction: "Yeni beğeni ❤️", notif_body_liked_your_auction: "açık artırmanı beğendi",
+  notif_title_saved_your_auction: "Kaydedildi 🔖", notif_body_saved_your_auction: "açık artırmanı kaydetti",
+  notif_title_commented_on_your_auction: "Yeni yorum 💬", notif_body_commented_on_your_auction: "açık artırmanı yorumladı",
+  notif_title_replied_to_your_comment: "Yeni yanıt 💬", notif_body_replied_to_your_comment: "yorumuna yanıt verdi",
+  notif_title_mentioned_you: "Senden bahsedildi 👋", notif_body_mentioned_you: "senden bahsetti",
+  notif_title_bid_received: "Yeni teklif 💰", notif_body_bid_received: "açık artırmanıza teklif verdi",
+  notif_title_outbid: "Teklifiniz geçildi 🔴", notif_body_outbid: "Yeni teklif sizinkinden yüksek",
+  notif_title_auction_won: "Kazandın! 🏆", notif_body_auction_won: "Tebrikler — satıcıyla iletişime geç",
+  notif_title_auction_ended: "Açık artırma bitti ✅", notif_body_auction_ended: "Açık artırman sona erdi",
+  notif_title_auction_unsold: "Açık artırma bitti — teklif yok", notif_body_auction_unsold: "Açık artırman teklifsiz sona erdi",
+  notif_title_auction_ending_soon: "⏳ Yakında bitiyor", notif_body_auction_ending_soon: "Bu açık artırma yakında bitiyor",
+  notif_title_auction_started: "🟢 Açık artırma başladı!", notif_body_auction_started: "Takip ettiğin bir açık artırma başladı",
+  notif_title_account_warning: "Hesap uyarısı ⚠️", notif_body_account_warning: "Hesabın bir uyarı aldı",
+  notif_title_admin_message: "BidReel'den mesaj", notif_body_admin_message: "Yeni bir mesajın var",
 };
 
 export const TRANSLATIONS: Record<Language, Translations> = { en, ar, ru, es, fr, tr };
+
+/**
+ * Lightweight localisation helper — mirrors the backend's `t()` in notifications.ts.
+ *
+ * Usage:  t(lang, "Arabic text", "English text")
+ *         t(lang, "Arabic text", "English text", { ru: "…", es: "…", fr: "…", tr: "…" })
+ */
+export function t(
+  lang: string,
+  ar: string,
+  en: string,
+  extra?: { ru?: string; es?: string; fr?: string; tr?: string },
+): string {
+  const l = (lang ?? "en").toLowerCase().split("-")[0];
+  if (l === "ar") return ar;
+  if (extra) {
+    if (l === "ru" && extra.ru) return extra.ru;
+    if (l === "es" && extra.es) return extra.es;
+    if (l === "fr" && extra.fr) return extra.fr;
+    if (l === "tr" && extra.tr) return extra.tr;
+  }
+  return en;
+}

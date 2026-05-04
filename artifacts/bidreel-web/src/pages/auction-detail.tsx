@@ -27,6 +27,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useViewerLocation } from "@/hooks/use-viewer-location";
 import { haversineDistance, formatDistance, formatAuctionPrice } from "@/lib/geo";
 import { useGlobalMute, getGlobalMuted } from "@/lib/global-mute";
+<<<<<<< HEAD
 // ─── Google Play subscription purchase flow ───────────────────────────────────
 // Re-exported from the shared lib. Triggered when the user taps "Subscribe now"
 // after hitting the premium gate. The full flow is documented in
@@ -41,6 +42,9 @@ async function startSubscription(userId: string): Promise<void> {
     console.error("Billing error", (err as Error).message);
   }
 }
+=======
+import { startSubscription } from "@/lib/subscription-billing";
+>>>>>>> 72e2340 (Add subscription functionality and fix translation and hook issues)
 
 // Minimum bid increment is read per-auction from `auction.minIncrement`,
 // which is mapped from the server's `min_increment` column in

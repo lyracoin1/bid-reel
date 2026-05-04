@@ -57,7 +57,33 @@ export async function startSubscription(userId: string): Promise<SubscriptionRes
       product: SUBSCRIPTION_PRODUCT_ID,
       type: "SUBS",
     });
-    console.log("[Billing] Step 1 OK: SKU details →", JSON.stringify(skuResult));
+
+    // The plugin returns more fields than its TypeScript definition declares.
+    const sku = skuResult as unknown as {
+      productId?: string;
+      title?: string;
+      price?: string;
+      currency_code?: string;
+      billing_period?: string;
+      offer_count?: number;
+      base_plan_id?: string;
+      offer_id?: string;
+      offer_token_present?: boolean;
+    };
+    console.log("[Billing] Step 1 OK: productId=" + (sku.productId ?? "?")
+      + " title=" + (sku.title ?? "?")
+      + " price=" + (sku.price ?? "?")
+      + " currency=" + (sku.currency_code ?? "?")
+      + " billing_period=" + (sku.billing_period ?? "?")
+      + " offer_count=" + (sku.offer_count ?? "?")
+      + " base_plan_id=" + (sku.base_plan_id ?? "?")
+      + " offer_id=" + (sku.offer_id ?? "?")
+      + " offer_token_present=" + (sku.offer_token_present ?? "?"));
+
+    if (!sku.offer_token_present) {
+      console.error("[Billing] ABORT: querySkuDetails returned no offer token — base plan may be inactive or not published");
+      return { success: false, error: "no_offer_token" };
+    }
 
     // 2. Launch the native Google Play purchase dialog.
     console.log("[Billing] Step 2: launchBillingFlow — product=" + SUBSCRIPTION_PRODUCT_ID + " type=SUBS");

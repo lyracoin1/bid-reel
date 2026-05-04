@@ -1,0 +1,68 @@
+Investigate ONLY Google Play Billing integration and the actual Android build uploaded to closed testing.
+
+Context:
+
+* Play Console subscription `bidreel_plus` is Active.
+* Base plan `monthly` is Active and available in 174 countries.
+* App is installed from Google Play closed testing, not sideloaded.
+* Multiple real payment methods show as unavailable in the Google Play payment sheet.
+* Merchant profile, tax setup, country, and payment profile were checked and appear valid.
+* The issue still happens after the Google Play billing sheet opens and shows the product/price.
+
+Do NOT scan the whole repo.
+Do NOT refactor unrelated code.
+Work only on:
+
+* Android billing config
+* Capacitor billing plugin usage
+* Subscription page/service
+* Build/version files used for Play closed testing
+
+Check these exact points:
+
+1. Android Manifest:
+
+* Confirm `<uses-permission android:name="com.android.vending.BILLING" />` exists in the final merged manifest.
+* Confirm package/applicationId is exactly `com.bidreel.android`.
+
+2. Gradle / Billing libraries:
+
+* Confirm BillingClient dependency is valid and not conflicting.
+* Confirm capacitor-billing plugin is included correctly.
+* Confirm no old or duplicate billing implementation breaks launchBillingFlow.
+
+3. Product query:
+
+* Confirm product ID is exactly `bidreel_plus`.
+* Confirm product type is `SUBS`.
+* Log the returned product title, price, productId, basePlanId, offerToken presence, and offer count.
+
+4. Billing flow:
+
+* Confirm launchBillingFlow passes the correct ProductDetails and offerToken.
+* Confirm it uses the active base plan offer, not an invalid/inactive offer.
+* Add safe logs for BillingResult response codes/messages from:
+
+  * product query
+  * launchBillingFlow
+  * purchasesUpdatedListener
+
+5. Purchase token handling:
+
+* Confirm successful purchases read `purchaseToken`, not `value`.
+* Confirm backend verification is called only after a valid purchaseToken exists.
+
+6. Actual Play build:
+
+* Confirm the versionCode/versionName currently installed from closed testing matches the latest build after billing fixes.
+* If needed, bump versionCode and versionName for a new closed testing AAB.
+* Make sure the built AAB contains the fixed billing code.
+
+7. Output:
+
+* Report exact files inspected.
+* Report whether the issue is likely code/build-side or Play/account-side.
+* If a code/build issue is found, make the minimal safe fix only.
+* Run frontend typecheck/build.
+* Run Android build verification if possible.
+* Do not touch unrelated features.

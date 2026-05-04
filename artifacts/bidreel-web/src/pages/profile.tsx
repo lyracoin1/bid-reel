@@ -681,6 +681,21 @@ export default function Profile() {
               <ChevronRight size={14} className="text-white/25" />
             </motion.button>
 
+            {/* Child Safety */}
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setLocation("/child-safety")}
+              className="w-full flex items-center gap-3 px-4 py-4 text-left hover:bg-white/5 active:bg-white/8 transition-colors"
+            >
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                <ShieldCheck size={15} className="text-emerald-400" />
+              </div>
+              <span className="text-sm text-white/70 font-medium flex-1">
+                {lang === "ar" ? "سياسة سلامة الأطفال" : "Child Safety"}
+              </span>
+              <ChevronRight size={14} className="text-white/25" />
+            </motion.button>
+
             {/* Log out */}
             <motion.button
               whileTap={{ scale: 0.98 }}

@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Crown, Check, Zap, MessageCircle, ShieldCheck,
   TrendingDown, HeadphonesIcon, Sparkles, RotateCcw, FileText,
-<<<<<<< HEAD
   Loader2, AlertCircle, CheckCircle2, Smartphone,
 } from "lucide-react";
 import { MobileLayout } from "@/components/layout/MobileLayout";
@@ -12,17 +11,6 @@ import { useLang } from "@/contexts/LanguageContext";
 import { useCurrentUser, refreshCurrentUser } from "@/hooks/use-current-user";
 import {
   startSubscription, restoreSubscription, isSubscriptionAvailable,
-=======
-  Loader2, AlertCircle, CheckCircle2,
-} from "lucide-react";
-import { MobileLayout } from "@/components/layout/MobileLayout";
-import { useLang } from "@/contexts/LanguageContext";
-import { useCurrentUser } from "@/hooks/use-current-user";
-import {
-  startSubscription,
-  restoreSubscription,
-  isSubscriptionAvailable,
->>>>>>> 72e2340 (Add subscription functionality and fix translation and hook issues)
 } from "@/lib/subscription-billing";
 
 const FEATURES = [
@@ -70,72 +58,47 @@ const FEATURES = [
   },
 ];
 
+const ERROR_LABELS: Record<string, { en: string; ar: string }> = {
+  not_authenticated: {
+    en: "Please sign in to subscribe.",
+    ar: "سجّل الدخول أولاً للاشتراك.",
+  },
+  no_purchase_token: {
+    en: "Purchase was not completed. Please try again.",
+    ar: "لم يكتمل الشراء. حاول مرة أخرى.",
+  },
+  no_auth_token: {
+    en: "Session expired. Please sign in again.",
+    ar: "انتهت الجلسة. سجّل الدخول مجدداً.",
+  },
+  no_active_subscription: {
+    en: "No active subscription found for this account.",
+    ar: "لم يتم العثور على اشتراك نشط لهذا الحساب.",
+  },
+};
+
 export default function SubscriptionPage() {
   const [, setLocation] = useLocation();
-<<<<<<< HEAD
   const { lang }        = useLang();
   const ar              = lang === "ar";
 
-  const { user, isLoading: userLoading } = useCurrentUser();
-  const isPremium   = user?.isPremium ?? false;
-  const isNative    = isSubscriptionAvailable();
-
-  // Subscribe button state
-  const [subscribing,    setSubscribing]    = useState(false);
-  const [subscribeError, setSubscribeError] = useState<string | null>(null);
-  const [subscribeOk,    setSubscribeOk]    = useState(false);
-
-  // Restore button state
-  const [restoring,    setRestoring]    = useState(false);
-  const [restoreMsg,   setRestoreMsg]   = useState<string | null>(null);
-  const [restoreError, setRestoreError] = useState<string | null>(null);
-
-  async function handleSubscribe() {
-    if (!user || isPremium || subscribing) return;
-    setSubscribeError(null);
-    setSubscribing(true);
-
-    try {
-      const result = await startSubscription(user.id);
-
-      if (result === "web") {
-        setSubscribeError(
-          ar
-            ? "الاشتراك متاح فقط عبر تطبيق BidReel على Android. حمّل التطبيق من Google Play."
-            : "Subscription is only available in the BidReel Android app. Download it from Google Play.",
-        );
-        return;
-      }
-
-      if (result === "cancelled") {
-        // User dismissed — no error needed, just stop loading
-        return;
-      }
-
-      // success — refresh user profile so isPremium updates
-      setSubscribeOk(true);
-      await refreshCurrentUser();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      console.error("[Subscription] subscribe failed:", msg);
-      setSubscribeError(
-        ar
-          ? `فشل الاشتراك: ${msg}`
-          : `Subscription failed: ${msg}`,
-      );
-=======
-  const { lang } = useLang();
-  const ar = lang === "ar";
   const { user: currentUser } = useCurrentUser();
+  const isPremium = currentUser?.isPremium ?? false;
+  const isNative  = isSubscriptionAvailable();
 
   const [subscribing, setSubscribing] = useState(false);
-  const [restoring, setRestoring] = useState(false);
+  const [restoring,   setRestoring]   = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
-  const nativeAvailable = isSubscriptionAvailable();
+  function mapError(errorKey: string | undefined, fallbackEn: string, fallbackAr: string): string {
+    if (errorKey && ERROR_LABELS[errorKey]) {
+      return ar ? ERROR_LABELS[errorKey].ar : ERROR_LABELS[errorKey].en;
+    }
+    return ar ? fallbackAr : fallbackEn;
+  }
 
   async function handleSubscribe() {
-    if (subscribing) return;
+    if (subscribing || isPremium) return;
     setFeedback(null);
     setSubscribing(true);
     try {
@@ -145,57 +108,21 @@ export default function SubscriptionPage() {
           type: "success",
           msg: ar ? "تم تفعيل اشتراكك بنجاح! 🎉" : "Subscription activated successfully! 🎉",
         });
+        await refreshCurrentUser();
+      } else if (result.error === "no_purchase_token") {
+        // User dismissed the Play sheet — no feedback needed
       } else {
-        const errorMap: Record<string, { en: string; ar: string }> = {
-          not_authenticated: { en: "Please sign in to subscribe.", ar: "سجّل الدخول أولاً للاشتراك." },
-          no_purchase_token: { en: "Purchase was not completed. Please try again.", ar: "لم يكتمل الشراء. حاول مرة أخرى." },
-          no_auth_token: { en: "Session expired. Please sign in again.", ar: "انتهت الجلسة. سجّل الدخول مجدداً." },
-        };
-        const mapped = result.error ? errorMap[result.error] : null;
         setFeedback({
           type: "error",
-          msg: mapped ? (ar ? mapped.ar : mapped.en)
-            : (ar ? "فشل الاشتراك. حاول مرة أخرى." : "Subscription failed. Please try again."),
+          msg: mapError(result.error, "Subscription failed. Please try again.", "فشل الاشتراك. حاول مرة أخرى."),
         });
       }
->>>>>>> 72e2340 (Add subscription functionality and fix translation and hook issues)
     } finally {
       setSubscribing(false);
     }
   }
 
   async function handleRestore() {
-<<<<<<< HEAD
-    if (!user || restoring) return;
-    setRestoreMsg(null);
-    setRestoreError(null);
-    setRestoring(true);
-
-    try {
-      if (!isNative) {
-        setRestoreMsg(
-          ar
-            ? "استعادة الاشتراك متاحة فقط عبر تطبيق Android. Google Play يستعيد اشتراكك تلقائياً عند تثبيت التطبيق."
-            : "Restore is only available in the Android app. Google Play automatically restores your subscription on install.",
-        );
-        return;
-      }
-
-      const restored = await restoreSubscription(user.id);
-      if (restored) {
-        setRestoreMsg(ar ? "✓ تم استعادة الاشتراك بنجاح." : "✓ Subscription restored successfully.");
-        await refreshCurrentUser();
-      } else {
-        setRestoreMsg(
-          ar
-            ? "لم يتم العثور على اشتراك نشط. إذا اشتركت مسبقاً، يتولى Google Play استعادته تلقائياً."
-            : "No active subscription found. If you subscribed before, Google Play restores it automatically.",
-        );
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setRestoreError(ar ? `فشل الاستعادة: ${msg}` : `Restore failed: ${msg}`);
-=======
     if (restoring) return;
     setFeedback(null);
     setRestoring(true);
@@ -206,34 +133,24 @@ export default function SubscriptionPage() {
           type: "success",
           msg: ar ? "تم استعادة الاشتراك بنجاح ✅" : "Subscription restored successfully ✅",
         });
-      } else if (result.error === "no_active_subscription") {
-        setFeedback({
-          type: "error",
-          msg: ar ? "لم يتم العثور على اشتراك نشط لهذا الحساب." : "No active subscription found for this account.",
-        });
+        await refreshCurrentUser();
       } else {
         setFeedback({
           type: "error",
-          msg: ar ? "فشل استعادة الاشتراك. حاول مرة أخرى." : "Could not restore subscription. Please try again.",
+          msg: mapError(result.error, "Could not restore subscription. Please try again.", "فشل استعادة الاشتراك. حاول مرة أخرى."),
         });
       }
->>>>>>> 72e2340 (Add subscription functionality and fix translation and hook issues)
     } finally {
       setRestoring(false);
     }
   }
-<<<<<<< HEAD
 
-  // Derive button label & state
-  const btnDisabled = subscribing || isPremium || userLoading;
+  const btnDisabled = subscribing || isPremium;
   const btnLabel = (() => {
-    if (userLoading) return ar ? "..." : "...";
     if (isPremium)   return ar ? "مشترك بالفعل ✓" : "Already Subscribed ✓";
     if (subscribing) return ar ? "جارٍ الاشتراك..." : "Subscribing…";
     return ar ? "اشترك الآن" : "Subscribe Now";
   })();
-=======
->>>>>>> 72e2340 (Add subscription functionality and fix translation and hook issues)
 
   return (
     <MobileLayout>
@@ -242,7 +159,7 @@ export default function SubscriptionPage() {
         {/* Sticky header */}
         <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-white/6 px-4 py-4 flex items-center gap-3">
           <button
-            onClick={() => setLocation(-1 as any)}
+            onClick={() => setLocation(-1 as unknown as string)}
             className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/8 text-white/70 hover:text-white hover:bg-white/12 transition shrink-0"
             aria-label="Back"
           >
@@ -278,15 +195,11 @@ export default function SubscriptionPage() {
             }`}
           >
             <div className="px-6 pt-8 pb-6 text-center">
-<<<<<<< HEAD
               <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg ${
                 isPremium
                   ? "bg-primary/30 border border-primary/50 shadow-primary/30"
                   : "bg-primary/20 border border-primary/30 shadow-primary/20"
               }`}>
-=======
-              <div className="w-16 h-16 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/20">
->>>>>>> 72e2340 (Add subscription functionality and fix translation and hook issues)
                 <Crown size={30} className="text-primary" />
               </div>
 
@@ -299,7 +212,6 @@ export default function SubscriptionPage() {
                   : (ar ? "أطلق العنان لقوة السوق المميزة" : "Unlock premium marketplace power")}
               </p>
 
-              {/* Pricing */}
               {!isPremium && (
                 <div className="mt-5 inline-flex flex-col items-center gap-0.5">
                   <div className="flex items-baseline gap-1.5">
@@ -328,7 +240,7 @@ export default function SubscriptionPage() {
             </div>
           </motion.div>
 
-          {/* Web-only notice (non-Android) */}
+          {/* Web-only notice */}
           {!isNative && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
@@ -345,7 +257,7 @@ export default function SubscriptionPage() {
             </motion.div>
           )}
 
-          {/* Features */}
+          {/* Features list */}
           <motion.div
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
@@ -381,90 +293,42 @@ export default function SubscriptionPage() {
           </motion.div>
 
           {/* Feedback banner */}
-          {feedback && (
-            <motion.div
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`rounded-2xl border px-4 py-3 flex items-start gap-2.5 ${
-                feedback.type === "success"
-                  ? "bg-emerald-500/10 border-emerald-500/25"
-                  : "bg-red-500/10 border-red-500/20"
-              }`}
-            >
-              {feedback.type === "success"
-                ? <CheckCircle2 size={14} className="text-emerald-400 shrink-0 mt-0.5" />
-                : <AlertCircle size={14} className="text-red-400 shrink-0 mt-0.5" />
-              }
-              <p className={`text-[12px] font-medium leading-snug ${
-                feedback.type === "success" ? "text-emerald-300" : "text-red-300"
-              }`}>
-                {feedback.msg}
-              </p>
-            </motion.div>
-          )}
+          <AnimatePresence>
+            {feedback && (
+              <motion.div
+                key="feedback"
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className={`rounded-2xl border px-4 py-3 flex items-start gap-2.5 ${
+                  feedback.type === "success"
+                    ? "bg-emerald-500/10 border-emerald-500/25"
+                    : "bg-red-500/10 border-red-500/20"
+                }`}
+              >
+                {feedback.type === "success"
+                  ? <CheckCircle2 size={14} className="text-emerald-400 shrink-0 mt-0.5" />
+                  : <AlertCircle size={14} className="text-red-400 shrink-0 mt-0.5" />
+                }
+                <p className={`text-[12px] font-medium leading-snug ${
+                  feedback.type === "success" ? "text-emerald-300" : "text-red-300"
+                }`}>
+                  {feedback.msg}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          {/* Web fallback notice */}
-          {!nativeAvailable && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="rounded-2xl bg-amber-500/8 border border-amber-500/20 px-4 py-3 flex items-start gap-2.5"
-            >
-              <AlertCircle size={13} className="text-amber-400 shrink-0 mt-0.5" />
-              <p className="text-[11px] text-amber-300/80 leading-relaxed">
-                {ar
-                  ? "الاشتراك متاح فقط عبر تطبيق BidReel للأندرويد. يرجى تثبيت التطبيق من متجر Play."
-                  : "Subscriptions are available only on the BidReel Android app. Please install it from the Play Store."}
-              </p>
-            </motion.div>
-          )}
-
-          {/* CTA */}
+          {/* CTA buttons */}
           <motion.div
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, delay: 0.18 }}
             className="space-y-3"
           >
-            {/* Subscribe error */}
-            <AnimatePresence>
-              {subscribeError && (
-                <motion.div
-                  key="sub-err"
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="rounded-xl bg-red-500/10 border border-red-500/20 px-3.5 py-3 flex items-start gap-2.5"
-                >
-                  <AlertCircle size={13} className="text-red-400 shrink-0 mt-0.5" />
-                  <p className="text-xs text-red-300 leading-snug">{subscribeError}</p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Subscribe success */}
-            <AnimatePresence>
-              {subscribeOk && !subscribeError && (
-                <motion.div
-                  key="sub-ok"
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-3 flex items-center gap-2.5"
-                >
-                  <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
-                  <p className="text-xs text-emerald-300 font-semibold">
-                    {ar ? "تم الاشتراك بنجاح! أنت الآن عضو مميز." : "Subscribed! You're now a Pro member."}
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Main CTA button */}
             <motion.button
-<<<<<<< HEAD
               whileTap={{ scale: btnDisabled ? 1 : 0.97 }}
-              onClick={handleSubscribe}
+              onClick={() => { void handleSubscribe(); }}
               disabled={btnDisabled}
               className={`w-full py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2.5 shadow-xl transition ${
                 isPremium
@@ -482,80 +346,22 @@ export default function SubscriptionPage() {
               {btnLabel}
             </motion.button>
 
-            {/* Restore button — only for free users */}
             {!isPremium && (
-              <>
-                <motion.button
-                  whileTap={{ scale: restoring ? 1 : 0.97 }}
-                  onClick={handleRestore}
-                  disabled={restoring}
-                  className="w-full py-3 rounded-2xl bg-white/5 border border-white/10 text-white/50 font-semibold text-sm flex items-center justify-center gap-2 hover:bg-white/8 transition disabled:opacity-60"
-                >
-                  {restoring
-                    ? <Loader2 size={14} className="animate-spin" />
-                    : <RotateCcw size={14} />
-                  }
-                  {restoring
-                    ? (ar ? "جارٍ الاستعادة..." : "Restoring…")
-                    : (ar ? "استعادة الاشتراك" : "Restore Subscription")}
-                </motion.button>
-
-                {/* Restore feedback */}
-                <AnimatePresence>
-                  {(restoreMsg || restoreError) && (
-                    <motion.div
-                      key="restore-msg"
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      className={`rounded-xl px-3.5 py-3 flex items-start gap-2.5 border ${
-                        restoreError
-                          ? "bg-red-500/10 border-red-500/20"
-                          : "bg-white/5 border-white/10"
-                      }`}
-                    >
-                      {restoreError
-                        ? <AlertCircle size={13} className="text-red-400 shrink-0 mt-0.5" />
-                        : <CheckCircle2 size={13} className="text-white/40 shrink-0 mt-0.5" />
-                      }
-                      <p className={`text-xs leading-snug ${restoreError ? "text-red-300" : "text-white/50"}`}>
-                        {restoreError ?? restoreMsg}
-                      </p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </>
+              <motion.button
+                whileTap={{ scale: restoring ? 1 : 0.97 }}
+                onClick={() => { void handleRestore(); }}
+                disabled={restoring}
+                className="w-full py-3 rounded-2xl bg-white/5 border border-white/10 text-white/50 font-semibold text-sm flex items-center justify-center gap-2 hover:bg-white/8 transition disabled:opacity-60"
+              >
+                {restoring
+                  ? <Loader2 size={14} className="animate-spin" />
+                  : <RotateCcw size={14} />
+                }
+                {restoring
+                  ? (ar ? "جارٍ الاستعادة..." : "Restoring…")
+                  : (ar ? "استعادة الاشتراك" : "Restore Subscription")}
+              </motion.button>
             )}
-=======
-              whileTap={{ scale: 0.97 }}
-              onClick={() => { void handleSubscribe(); }}
-              disabled={subscribing || !nativeAvailable}
-              className="w-full py-4 rounded-2xl bg-primary text-white font-bold text-base flex items-center justify-center gap-2.5 shadow-xl shadow-primary/30 hover:brightness-110 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {subscribing
-                ? <Loader2 size={17} className="animate-spin" />
-                : <Crown size={17} />
-              }
-              {subscribing
-                ? (ar ? "جارٍ الاشتراك..." : "Subscribing...")
-                : (ar ? "اشترك الآن" : "Subscribe Now")}
-            </motion.button>
-
-            <motion.button
-              whileTap={{ scale: 0.97 }}
-              onClick={() => { void handleRestore(); }}
-              disabled={restoring || !nativeAvailable}
-              className="w-full py-3 rounded-2xl bg-white/5 border border-white/10 text-white/50 font-semibold text-sm flex items-center justify-center gap-2 hover:bg-white/8 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {restoring
-                ? <Loader2 size={14} className="animate-spin" />
-                : <RotateCcw size={14} />
-              }
-              {restoring
-                ? (ar ? "جارٍ الاستعادة..." : "Restoring...")
-                : (ar ? "استعادة الاشتراك" : "Restore Subscription")}
-            </motion.button>
->>>>>>> 72e2340 (Add subscription functionality and fix translation and hook issues)
           </motion.div>
 
           {/* Legal */}

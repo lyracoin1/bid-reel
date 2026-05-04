@@ -1,0 +1,42 @@
+Goal: Clean and fix BidReel subscription module and related pages automatically.
+
+Files:
+1. artifacts/bidreel-web/src/lib/subscription-billing.ts
+2. artifacts/bidreel-web/src/pages/subscription.tsx
+3. artifacts/bidreel-web/src/pages/auction-detail.tsx
+
+Instructions for AI:
+
+1. subscription-billing.ts:
+   - Remove all conflict markers (<<<<<<<, =======, >>>>>>>)
+   - Standardize SubscriptionResult:
+     export interface SubscriptionResult { success: boolean; error?: string }
+   - Ensure functions:
+     - startSubscription(userId): querySkuDetails → launchBillingFlow → backend verify → sendAck
+     - restoreSubscription(userId): backend restore endpoint
+     - isSubscriptionAvailable(): true only on Android
+   - Keep debug logs for each step
+   - Clean duplicate imports (Capacitor, BillingPlugin, API_BASE, getToken)
+   - Return clean, ready-to-use file
+
+2. subscription.tsx:
+   - Remove conflict markers
+   - Use { user: currentUser } consistently
+   - Unified feedback state: const [feedback, setFeedback] = useState<{type: "success"|"error"; msg:string}|null>(null)
+   - Subscribe Now button: calls startSubscription(currentUser?.id), disabled={subscribing || !isSubscriptionAvailable() || currentUser.isPremium}
+   - Restore button: calls restoreSubscription(currentUser?.id)
+   - Update JSX to include Loader2 spinner and feedback banners
+   - Show premium-aware button ("Already Subscribed") if currentUser.isPremium
+   - Show notice on web/iOS where billing unavailable
+   - Return fully clean file
+
+3. auction-detail.tsx:
+   - Remove conflict markers
+   - Remove old inline startSubscription
+   - Import shared module: import { startSubscription, restoreSubscription, isSubscriptionAvailable } from "@/lib/subscription-billing"
+   - Subscribe button under PREMIUM_REQUIRED: onClick={() => startSubscription(currentUser?.id ?? "")}
+   - Ensure canSeeWhatsApp and premium logic works correctly
+   - Return clean, fully working file
+
+Final Step:
+- Make sure all three files are conflict-free, types and state unified, and ready for mobile Google Play subscription flow.

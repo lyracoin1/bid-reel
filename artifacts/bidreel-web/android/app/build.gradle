@@ -80,8 +80,9 @@ dependencies {
     implementation "androidx.media3:media3-common:$media3Version"
     implementation "androidx.media3:media3-exoplayer:$media3Version"
 
-    // Google Play Billing Library 7.x (Play Console requires 6.0.1+)
-    // Included as a native dependency only — no purchase flow is implemented yet.
+    // Google Play Billing Library 7.x — force 7.1.1 to override the 7.1.0
+    // pulled in transitively by the capacitor-billing plugin, ensuring a consistent
+    // BillingClient version across the whole build.
     implementation "com.android.billingclient:billing:7.1.1"
 
     implementation "com.google.guava:guava:33.0.0-android"

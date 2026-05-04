@@ -1,0 +1,64 @@
+Investigate ONLY the Google Play subscription payment failure in BidReel.
+
+Context:
+
+* The app is installed from the Google Play closed testing link, not sideloaded.
+* The tester account is valid and accepted.
+* The subscription product price and currency appear correctly in the Google Play billing sheet.
+* The subscription product is available for all countries.
+* The issue happens AFTER pressing Subscribe/Continue in Google Play Billing.
+* Google Play then says the Visa/payment method is unavailable.
+* The same Visa works normally for Replit, Google Play Console, and other payments.
+
+Do NOT scan the whole repo.
+Do NOT refactor unrelated code.
+Work only on the billing/subscription flow and Android billing config.
+
+Check only these likely areas:
+
+1. Product ID and type:
+
+   * Confirm productId is exactly `bidreel_plus`
+   * Confirm it is queried as `SUBS`, not `INAPP`
+
+2. Offer token / base plan:
+
+   * Confirm the Billing flow passes the correct `offerToken`
+   * Confirm the selected base plan offer is valid and active
+   * Log the ProductDetails / offer details safely without exposing secrets
+
+3. Billing plugin integration:
+
+   * Check `capacitor-billing` / BillingClient call sequence
+   * Confirm `querySkuDetails` or ProductDetails query result is used correctly
+   * Confirm `purchaseProduct` / launchBillingFlow receives the right product and offer info
+
+4. Android config:
+
+   * Confirm `com.android.vending.BILLING` exists in AndroidManifest
+   * Confirm release build uses the correct package `com.bidreel.android`
+   * Confirm version installed from Play matches the latest closed testing release
+
+5. Purchase callback handling:
+
+   * Confirm we are not prematurely failing/canceling the purchase from JS/native side
+   * Add precise logs around billing result codes:
+
+     * query product
+     * launch billing flow
+     * purchase updated
+     * user cancellation
+     * billing unavailable
+     * payment unavailable
+
+Goal:
+Identify whether this is:
+
+* Play Console/base plan/offer configuration issue
+* offerToken/product query issue
+* native billing integration issue
+* payment profile/account issue
+
+Make minimal safe fixes only if a real code issue is found.
+Run typecheck/build after changes.
+Report exactly what was checked and what evidence was found.

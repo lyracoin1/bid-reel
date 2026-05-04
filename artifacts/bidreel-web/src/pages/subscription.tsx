@@ -109,7 +109,7 @@ export default function SubscriptionPage() {
           msg: ar ? "تم تفعيل اشتراكك بنجاح! 🎉" : "Subscription activated successfully! 🎉",
         });
         await refreshCurrentUser();
-      } else if (result.error === "no_purchase_token") {
+      } else if (result.error === "Purchase canceled" || result.error === "no_purchase_token") {
         // User dismissed the Play sheet — no feedback needed
       } else {
         setFeedback({

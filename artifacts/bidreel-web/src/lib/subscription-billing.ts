@@ -67,9 +67,20 @@ export async function startSubscription(userId: string): Promise<SubscriptionRes
     });
     console.log("[Billing] Step 2 OK: launchBillingFlow result →", JSON.stringify(result));
 
-    const purchaseToken = result.value;
+    // The plugin's TypeScript definition incorrectly declares the resolved shape as
+    // { value: string }. The Java side resolves with `new JSObject(purchase.getOriginalJson())`
+    // whose fields are the standard Play Purchase JSON: orderId, purchaseToken, productIds, etc.
+    // Capacitor's bridge passes that object directly to JS, so the real field is `purchaseToken`.
+    const purchaseResult = result as unknown as {
+      purchaseToken?: string;
+      orderId?: string;
+      purchaseState?: number;
+    };
+    console.log("[Billing] Step 2 parsed — purchaseState:", purchaseResult.purchaseState, "orderId:", purchaseResult.orderId);
+
+    const purchaseToken = purchaseResult.purchaseToken;
     if (!purchaseToken) {
-      console.error("[Billing] ABORT: launchBillingFlow returned no purchase token");
+      console.error("[Billing] ABORT: launchBillingFlow resolved without a purchaseToken — raw result:", JSON.stringify(result));
       return { success: false, error: "no_purchase_token" };
     }
 

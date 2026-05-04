@@ -11,20 +11,23 @@
  *   5. setCachedCurrentUser(returned profile) — synchronous cache update
  *   6. navigate to /profile
  *
- * No avatar upload here. No second async step. No optimistic success.
- * No navigation before the response. No swallowing errors.
+ * Avatar upload is a separate instant-save step — picking a photo immediately
+ * compresses, uploads (R2 presigned), PATCHes avatarUrl, and refreshes the
+ * cache without requiring the user to tap Save. Removal clears avatarUrl via
+ * a separate PATCH.
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { ArrowLeft, Phone, User, MapPin, AtSign, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { ArrowLeft, Phone, User, MapPin, AtSign, Loader2, CheckCircle2, XCircle, Camera, X } from "lucide-react";
 import {
   updateProfileApi,
   checkUsernameApi,
   UsernameTakenError,
   getUserMeApi,
 } from "@/lib/api-client";
+import { uploadMedia, compressAvatar } from "@/lib/media-upload";
 import { setCachedCurrentUser, getCachedCurrentUser } from "@/hooks/use-current-user";
 import { useLang } from "@/contexts/LanguageContext";
 
@@ -85,6 +88,24 @@ export default function ProfileEdit() {
   const [isLoading, setIsLoading] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Avatar state ──
+  // `committedAvatarUrl` = last URL persisted to the server (or loaded from it).
+  // `avatarPreview`      = what the <img> shows (may be a temporary blob: URL).
+  const [committedAvatarUrl, setCommittedAvatarUrl] = useState<string | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarRemoving, setAvatarRemoving] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const blobUrlRef = useRef<string | null>(null);
+
+  // Revoke any outstanding blob URL on unmount.
+  useEffect(() => {
+    return () => {
+      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+    };
+  }, []);
+
   // ── Pre-load current profile from server (single source of truth). ──
   // We do NOT trust the cached user here because the user may have come from a
   // tab that mutated state elsewhere. Always GET /users/me on mount.
@@ -100,6 +121,10 @@ export default function ProfileEdit() {
           setLocation2(cached.location ?? "");
           setUsername(cached.username ?? "");
           setOriginalUsername(cached.username ?? "");
+          if (cached.avatarUrl) {
+            setCommittedAvatarUrl(cached.avatarUrl);
+            setAvatarPreview(cached.avatarUrl);
+          }
         }
 
         // Then refresh from server to make sure we're authoritative.
@@ -111,8 +136,10 @@ export default function ProfileEdit() {
         setLocation2(fresh.location ?? "");
         setUsername(fresh.username ?? "");
         setOriginalUsername(fresh.username ?? "");
+        setCommittedAvatarUrl(fresh.avatarUrl ?? null);
+        setAvatarPreview(fresh.avatarUrl ?? null);
         console.log(
-          `[profile-edit] preloaded: hasUsername=${!!fresh.username} hasName=${!!fresh.displayName} hasPhone=${!!fresh.phone} phoneLen=${fresh.phone?.length ?? 0} hasLocation=${!!fresh.location}`,
+          `[profile-edit] preloaded: hasUsername=${!!fresh.username} hasName=${!!fresh.displayName} hasPhone=${!!fresh.phone} phoneLen=${fresh.phone?.length ?? 0} hasLocation=${!!fresh.location} hasAvatar=${!!fresh.avatarUrl}`,
         );
       } catch (err) {
         console.error("[profile-edit] preload failed:", err);
@@ -149,6 +176,77 @@ export default function ProfileEdit() {
       }
     }, 500);
   }, [originalUsername]);
+
+  // ── Avatar: instant upload on file selection ──
+  const handleAvatarChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    if (!file) return;
+
+    setAvatarError(null);
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setAvatarError("Only JPG, PNG, or WebP images are allowed.");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      setAvatarError("Image must be smaller than 20 MB.");
+      e.target.value = "";
+      return;
+    }
+
+    // Show a local blob preview immediately so the user sees their pick.
+    if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+    const localUrl = URL.createObjectURL(file);
+    blobUrlRef.current = localUrl;
+    setAvatarPreview(localUrl);
+    setAvatarUploading(true);
+
+    try {
+      const compressed = await compressAvatar(file);
+      const uploadedUrl = await uploadMedia(compressed, "image");
+      const updated = await updateProfileApi({ avatarUrl: uploadedUrl });
+      setCachedCurrentUser(updated);
+
+      // Replace the temporary blob with the real CDN URL.
+      URL.revokeObjectURL(localUrl);
+      blobUrlRef.current = null;
+      setCommittedAvatarUrl(uploadedUrl);
+      setAvatarPreview(uploadedUrl);
+      console.log("[profile-edit] avatar uploaded + linked OK");
+    } catch (err) {
+      // Revert to whatever was committed before.
+      URL.revokeObjectURL(localUrl);
+      blobUrlRef.current = null;
+      setAvatarPreview(committedAvatarUrl);
+      const msg = err instanceof Error ? err.message : "Photo upload failed.";
+      setAvatarError(msg);
+      console.warn("[profile-edit] avatar upload failed:", msg);
+    } finally {
+      setAvatarUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }, [committedAvatarUrl]);
+
+  // ── Avatar: remove (clears the photo on the server) ──
+  const handleAvatarRemove = useCallback(async () => {
+    if (avatarRemoving || avatarUploading) return;
+    setAvatarError(null);
+    setAvatarRemoving(true);
+    try {
+      const updated = await updateProfileApi({ avatarUrl: "" });
+      setCachedCurrentUser(updated);
+      setCommittedAvatarUrl(null);
+      setAvatarPreview(null);
+      console.log("[profile-edit] avatar removed");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not remove photo.";
+      setAvatarError(msg);
+      console.warn("[profile-edit] avatar remove failed:", msg);
+    } finally {
+      setAvatarRemoving(false);
+    }
+  }, [avatarRemoving, avatarUploading]);
 
   // ── THE save handler. One PATCH. Awaited. Verified. Then navigate. ──
   const onSave = useCallback(async () => {
@@ -326,6 +424,81 @@ export default function ProfileEdit() {
           </div>
         ) : (
           <>
+            {/* ── Avatar picker (instant upload) ── */}
+            <div className="flex flex-col items-center pt-2 pb-2">
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => !avatarUploading && !avatarRemoving && fileInputRef.current?.click()}
+                  disabled={avatarUploading || avatarRemoving}
+                  aria-label={avatarPreview ? "Change profile photo" : "Add profile photo"}
+                  className="relative w-24 h-24 rounded-2xl overflow-hidden border-2 border-primary/30 bg-white/5 flex items-center justify-center group transition-colors hover:border-primary/60 disabled:cursor-wait"
+                >
+                  {avatarPreview ? (
+                    <img
+                      src={avatarPreview}
+                      alt="Profile photo"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Camera size={28} className="text-white/30 group-hover:text-white/60 transition-colors" />
+                  )}
+                  {/* Hover overlay with camera icon */}
+                  {!avatarUploading && !avatarRemoving && (
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                      <Camera size={20} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  )}
+                  {/* Upload / remove spinner overlay */}
+                  {(avatarUploading || avatarRemoving) && (
+                    <div className="absolute inset-0 bg-black/55 flex items-center justify-center">
+                      <Loader2 size={22} className="animate-spin text-white" />
+                    </div>
+                  )}
+                </button>
+
+                {/* Remove button — only shown when a photo is committed */}
+                {committedAvatarUrl && !avatarUploading && !avatarRemoving && (
+                  <button
+                    type="button"
+                    onClick={handleAvatarRemove}
+                    aria-label="Remove profile photo"
+                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500/90 border border-background flex items-center justify-center shadow-sm hover:bg-red-500 transition-colors"
+                  >
+                    <X size={12} className="text-white" />
+                  </button>
+                )}
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={handleAvatarChange}
+                aria-label="Profile photo upload"
+              />
+
+              <button
+                type="button"
+                onClick={() => !avatarUploading && !avatarRemoving && fileInputRef.current?.click()}
+                disabled={avatarUploading || avatarRemoving}
+                className="mt-2.5 text-xs font-semibold text-primary/80 hover:text-primary transition-colors disabled:opacity-40"
+              >
+                {avatarUploading
+                  ? "Uploading…"
+                  : avatarRemoving
+                  ? "Removing…"
+                  : avatarPreview
+                  ? "Change Photo"
+                  : "Add Photo"}
+              </button>
+
+              {avatarError && (
+                <p className="mt-1.5 text-xs text-red-400 text-center max-w-[260px]">{avatarError}</p>
+              )}
+            </div>
+
             {/* Display name */}
             <Field
               icon={<User size={16} className="text-white/40" />}

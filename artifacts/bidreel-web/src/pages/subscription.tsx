@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Crown, Check, Zap, MessageCircle, ShieldCheck,
@@ -77,9 +76,16 @@ const ERROR_LABELS: Record<string, { en: string; ar: string }> = {
   },
 };
 
+function goBack() {
+  if (window.history.length > 1) {
+    window.history.back();
+  } else {
+    window.location.replace("/");
+  }
+}
+
 export default function SubscriptionPage() {
-  const [, setLocation] = useLocation();
-  const { lang }        = useLang();
+  const { lang } = useLang();
   const ar              = lang === "ar";
 
   const { user: currentUser } = useCurrentUser();
@@ -159,7 +165,7 @@ export default function SubscriptionPage() {
         {/* Sticky header */}
         <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-white/6 px-4 py-4 flex items-center gap-3">
           <button
-            onClick={() => setLocation(-1 as unknown as string)}
+            onClick={goBack}
             className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/8 text-white/70 hover:text-white hover:bg-white/12 transition shrink-0"
             aria-label="Back"
           >

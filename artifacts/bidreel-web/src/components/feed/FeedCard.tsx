@@ -126,9 +126,6 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   const { t, lang } = useLang();
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const albumStartX = useRef<number | null>(null);
-  const albumSwiped = useRef(false);
-  const [albumIdx, setAlbumIdx] = useState(0);
   const [videoError, setVideoError] = useState(false);
 
   // Reset video-error state whenever this card displays a different auction.

@@ -115,12 +115,13 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
         </button>
       )}
 
-      {/* Dot indicators */}
+      {/* Dot indicators — stopPropagation prevents the parent container's
+          onClick (e.g. FeedCard navigate-to-detail) from firing on a dot tap. */}
       <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5 z-10">
         {images.map((_, i) => (
           <motion.button
             key={i}
-            onClick={() => setCurrent(i)}
+            onClick={(e) => { e.stopPropagation(); setCurrent(i); }}
             className={cn(
               "rounded-full transition-all duration-200",
               i === current ? "w-5 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/40"

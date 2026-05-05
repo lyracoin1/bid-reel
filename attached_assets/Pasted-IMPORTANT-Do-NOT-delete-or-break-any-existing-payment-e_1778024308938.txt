@@ -1,0 +1,166 @@
+IMPORTANT: Do NOT delete or break any existing payment, escrow, vault, or security logic. This task is to EXTEND the system safely.
+
+We want to implement a Manual Payout System where the platform (admin) receives buyer payments (via Google Play or future providers), takes a platform fee, and manually pays the seller using their preferred payout method.
+
+This must integrate with the existing escrow, vault, and dispute system.
+
+========================
+1. Seller Payout Methods (NEW)
+========================
+
+Create a new table: seller_payout_methods
+
+Fields:
+- id (UUID, PK)
+- user_id (UUID, FK → profiles.id)
+- method_type (TEXT)  // e.g. "bank_transfer", "paypal", "crypto", "vodafone_cash"
+- account_details_encrypted (TEXT) // MUST be encrypted using the same vault encryption system (AES-256-GCM)
+- is_default (BOOLEAN, default true)
+- created_at (timestamp)
+
+Rules:
+- Sellers can add/update/delete their own payout methods
+- Only one method can be default
+- NEVER return decrypted account details in public APIs
+- Decrypt only in admin-only endpoints when needed for payout
+
+========================
+2. Payouts Table (NEW)
+========================
+
+Create a new table: payouts
+
+Fields:
+- id (UUID, PK)
+- transaction_id (UUID, FK → transactions.id)
+- seller_id (UUID)
+- gross_amount (NUMERIC)
+- platform_fee (NUMERIC)
+- net_amount (NUMERIC)
+- payout_method_id (UUID, FK → seller_payout_methods.id)
+- status (TEXT) // 'pending', 'ready', 'processing', 'paid', 'cancelled'
+- admin_id (UUID, nullable)
+- admin_note (TEXT, nullable)
+- external_reference (TEXT, nullable) // transfer ID / receipt number
+- created_at (timestamp)
+- paid_at (timestamp, nullable)
+
+========================
+3. Payout Flow Integration
+========================
+
+Update escrow + transaction flow:
+
+After payment is secured:
+
+STEP 1:
+- Buyer reveals vault data
+
+STEP 2:
+- Buyer must either:
+  - ACK (accept product), OR
+  - Timeout (e.g., no dispute within a defined window)
+
+STEP 3:
+- Only after:
+  - vault_ack_status = 'accepted'
+  OR
+  - admin resolves dispute in favor of seller
+
+→ THEN:
+- Create a payout record with:
+  status = 'ready'
+
+IMPORTANT:
+- DO NOT release payout if:
+  - vault_ack_status = 'pending'
+  - vault_ack_status = 'disputed'
+  - escrow.status = 'disputed'
+  - transaction is refunded
+
+========================
+4. Admin Payout Processing (CRITICAL)
+========================
+
+Create admin-only endpoints:
+
+GET /admin/payouts
+- List all payouts with status filters
+
+GET /admin/payouts/:id
+- Full payout details
+- Decrypt seller payout method ONLY here
+- Require requireAdmin + audit log
+
+POST /admin/payouts/:id/process
+- Set status → 'processing'
+- Assign admin_id
+
+POST /admin/payouts/:id/complete
+- Requires:
+  - external_reference (transfer ID)
+  - admin_note (optional)
+- Set:
+  - status = 'paid'
+  - paid_at = now()
+  - admin_id = caller
+
+POST /admin/payouts/:id/cancel
+- Set status = 'cancelled'
+- Only allowed before 'paid'
+
+Security:
+- All admin actions must use requireAdmin
+- All sensitive reads must be audit logged
+
+========================
+5. Seller View (SAFE)
+========================
+
+Create seller endpoints:
+
+GET /my/payouts
+- Seller sees:
+  - amounts
+  - status
+  - timestamps
+- DO NOT expose decrypted payout method details
+
+========================
+6. Encryption Requirement
+========================
+
+- Use existing vault encryption (AES-256-GCM)
+- Reuse VAULT_ENCRYPTION_KEY
+- DO NOT create a new encryption system
+
+========================
+7. Safety Rules
+========================
+
+- DO NOT expose seller financial data publicly
+- DO NOT allow payout without completed deal
+- DO NOT bypass escrow or dispute system
+- DO NOT auto-send payouts (manual only)
+- DO NOT remove any existing payment verification
+
+========================
+8. Reporting
+========================
+
+After implementation, return a report including:
+- Files created/modified
+- DB schema changes
+- New endpoints
+- How payout is linked to escrow & disputes
+- Any TODOs (e.g., automation, notifications)
+
+========================
+GOAL
+========================
+
+Create a safe manual payout system where:
+- Platform holds funds
+- Platform takes commission
+- Platform manually pays sellers
+- All payouts are tracked, secure, and auditable

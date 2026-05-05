@@ -36,6 +36,7 @@ import { pool } from "../lib/pg-pool";
 import { supabaseAdmin } from "../lib/supabase";
 import { logger } from "../lib/logger";
 import { createNotification } from "../lib/notifications";
+import { createPayoutRecord } from "../services/payout.service";
 
 const router = Router();
 
@@ -128,6 +129,10 @@ async function applyEscrowRelease(opts: {
      WHERE deal_id = $2`,
     [now, dealId],
   );
+
+  // Escrow released — create payout record so admin can process seller payout.
+  // Idempotent (ON CONFLICT DO NOTHING) and non-fatal.
+  void createPayoutRecord(dealId);
 
   const currency = tx.currency ?? "SAR";
   const feeStr   = `${platformFee.toLocaleString()} ${currency}`;

@@ -44,7 +44,8 @@ import {
   decryptVault,
   isVaultKeyReady,
 } from "../lib/vault-crypto";
-import { vaultRevealLimiter } from "../middleware/rate-limit";
+import { vaultRevealLimiter }  from "../middleware/rate-limit";
+import { createPayoutRecord } from "../services/payout.service";
 
 const router = Router();
 router.use(json({ limit: "64kb" }));
@@ -338,6 +339,10 @@ router.post("/secure-deals/:dealId/ack", requireAuth, async (req, res) => {
       logger.warn({ notifyErr, dealId }, "digital-vault: seller ack notification failed (non-fatal)"),
     );
 
+    // Buyer confirmed receipt — create payout record (status='ready') so admin
+    // can process the seller's payout. Idempotent and non-fatal.
+    void createPayoutRecord(dealId);
+
     res.json({
       ok:              true,
       vault_ack_status: updated[0].vault_ack_status,
@@ -603,6 +608,12 @@ router.post(
         },
         "digital-vault: admin resolved dispute (transaction status synced)",
       );
+
+      // Admin ruled in seller's favour — deal is complete, create payout record.
+      // Idempotent (ON CONFLICT DO NOTHING) and non-fatal.
+      if (resolution === "resolved_seller") {
+        void createPayoutRecord(dealId);
+      }
 
       res.json({ dispute: updated[0] });
     } catch (err) {

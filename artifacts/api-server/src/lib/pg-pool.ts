@@ -465,6 +465,57 @@ export async function bootstrapTransactionsTable(): Promise<void> {
       logger.warn("pg-pool: could not update escrow status CHECK constraint (non-fatal — constraint may already be up to date)");
     });
 
+    // ── seller_payout_methods ─────────────────────────────────────────────────
+    // Sellers store their preferred payout bank/wallet/crypto details here.
+    // account_details are encrypted at rest with the same AES-256-GCM system
+    // used for the digital vault. Plaintext is NEVER stored.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS seller_payout_methods (
+        id                        UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id                   UUID         NOT NULL,
+        method_type               TEXT         NOT NULL,
+        account_details_encrypted TEXT         NOT NULL,
+        account_details_iv        TEXT         NOT NULL,
+        is_default                BOOLEAN      NOT NULL DEFAULT TRUE,
+        last_admin_view_at        TIMESTAMPTZ  NULL,
+        last_admin_view_by        UUID         NULL,
+        created_at                TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        updated_at                TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_payout_methods_user_id
+        ON seller_payout_methods (user_id);
+    `);
+
+    // ── payouts ───────────────────────────────────────────────────────────────
+    // One payout record per deal (UNIQUE on deal_id). Created automatically
+    // when the deal is confirmed (vault ACK, admin resolve, or escrow release).
+    // Admins process payouts manually through a dedicated admin UI.
+    // Status lifecycle: ready → processing → paid
+    //                                     ↘ cancelled (any status before 'paid')
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS payouts (
+        id                 UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+        deal_id            TEXT          NOT NULL,
+        seller_id          UUID          NOT NULL,
+        gross_amount       NUMERIC(14,2) NOT NULL,
+        platform_fee       NUMERIC(12,2) NOT NULL DEFAULT 0,
+        net_amount         NUMERIC(14,2) NOT NULL,
+        payout_method_id   UUID          NULL,
+        status             TEXT          NOT NULL DEFAULT 'ready'
+                             CHECK (status IN ('pending','ready','processing','paid','cancelled')),
+        admin_id           UUID          NULL,
+        admin_note         TEXT          NULL,
+        external_reference TEXT          NULL,
+        created_at         TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+        paid_at            TIMESTAMPTZ   NULL,
+        CONSTRAINT payouts_deal_id_unique UNIQUE (deal_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_payouts_seller_id ON payouts (seller_id);
+      CREATE INDEX IF NOT EXISTS idx_payouts_status    ON payouts (status);
+    `);
+
     _bootstrapped = true;
     logger.info(
       "pg-pool: transactions, payment_proofs, shipment_proofs, delivery_proofs, " +

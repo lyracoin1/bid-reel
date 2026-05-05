@@ -32,7 +32,9 @@ import externalPaymentWarningRouter from "./external-payment-warning";
 import productMediaRouter from "./product-media";
 import buyerInfoRouter from "./buyer-info";
 import receiptRouter from "./receipt";
-import digitalVaultRouter from "./digital-vault";
+import digitalVaultRouter    from "./digital-vault";
+import payoutsRouter         from "./payouts";
+import payoutMethodsRouter   from "./payout-methods";
 
 const router: IRouter = Router();
 
@@ -80,9 +82,15 @@ router.use(receiptRouter);
 // /admin/digital-disputes and /admin/secure-deals/:dealId/vault-review which
 // would otherwise be swallowed by the /admin subrouter.
 router.use(digitalVaultRouter);
+// payoutsRouter registered before adminRouter because it defines
+// /admin/payouts/* which would otherwise be swallowed by the /admin subrouter.
+router.use(payoutsRouter);
 router.use("/admin", adminRouter);
 router.use(auctionRouter);
 router.use(billingRouter);
+// payoutMethodsRouter defines /my/payout-methods* — must be before
+// notificationRouter which applies a router-level requireAuth.
+router.use(payoutMethodsRouter);
 // secureDealsRouter and dealConditionsRouter must be registered BEFORE
 // notificationRouter, because notificationRouter applies a router-level
 // requireAuth that intercepts every subsequent /api/* request.

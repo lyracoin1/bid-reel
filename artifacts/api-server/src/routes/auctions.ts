@@ -92,7 +92,7 @@ async function insertAuction(payload: {
   const {
     start_price_value, min_increment_value, media_purge_after,
     lat, lng, currency_code, currency_label,
-    sale_type, fixed_price, image_urls,
+    sale_type, fixed_price, image_urls, media_type,
     ...base
   } = payload;
 
@@ -102,7 +102,9 @@ async function insertAuction(payload: {
     currency_label: currency_label ?? "US Dollar",
   };
 
-  return supabaseAdmin
+  // Insert WITHOUT media_type — the column may not exist yet (migration pending).
+  // A best-effort UPDATE sets it immediately after insert succeeds.
+  const result = await supabaseAdmin
     .from("auctions")
     .insert({
       ...base,
@@ -117,6 +119,24 @@ async function insertAuction(payload: {
     })
     .select("*")
     .single();
+
+  if (!result.error && result.data && media_type) {
+    const auctionId = (result.data as { id: string }).id;
+    supabaseAdmin
+      .from("auctions")
+      .update({ media_type })
+      .eq("id", auctionId)
+      .then(({ error: mtErr }) => {
+        if (mtErr) {
+          logger.warn(
+            { auctionId, err: mtErr.message },
+            "insertAuction: media_type set skipped — run the add_media_type migration",
+          );
+        }
+      });
+  }
+
+  return result;
 }
 
 // ─── GET /api/auctions ────────────────────────────────────────────────────────

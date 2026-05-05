@@ -51,7 +51,7 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
     // mobile browsers and Capacitor's Android WebView.
     return (
       <div className={cn("flex items-center justify-center bg-black overflow-hidden", className)}>
-        <SlideImage src={images[0]} alt={alt} loading="lazy" />
+        <SlideImage src={images[0]} alt={alt} loading="eager" />
       </div>
     );
   }
@@ -84,7 +84,7 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
             {/* Only load current slide and its immediate neighbours; blank the rest
                 to avoid the browser eagerly fetching every album image upfront. */}
             {Math.abs(i - current) <= 1 ? (
-              <SlideImage src={src} alt={`${alt} ${i + 1}`} loading={i === current ? "eager" : "lazy"} />
+              <SlideImage src={src} alt={`${alt} ${i + 1}`} loading="eager" />
             ) : (
               <div className="w-full h-full bg-black" />
             )}

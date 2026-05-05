@@ -192,11 +192,24 @@ export async function processVideoAsync(
     ]);
 
     // ── 6. Update auction row with optimized URLs ─────────────────────────
+    // Critical: update video_url + thumbnail_url. This must not be blocked
+    // by the media_type column (which may not exist until migration is run).
     const { error: updateErr } = await supabaseAdmin
       .from("auctions")
-      .update({ video_url: vidUpload.publicUrl, thumbnail_url: thumbUpload.publicUrl, media_type: "video" })
+      .update({ video_url: vidUpload.publicUrl, thumbnail_url: thumbUpload.publicUrl })
       .eq("id", auctionId);
     if (updateErr) throw new Error(`DB update: ${updateErr.message}`);
+
+    // Best-effort: set media_type (column may not exist — migration pending).
+    await supabaseAdmin
+      .from("auctions")
+      .update({ media_type: "video" })
+      .eq("id", auctionId)
+      .then(({ error: mtErr }) => {
+        if (mtErr) {
+          logger.warn({ auctionId, err: mtErr.message }, "video-processing: media_type set skipped — run the add_media_type migration");
+        }
+      });
 
     logger.info(
       { auctionId, jobId, origKb: Math.round(origStat.size / 1024), compKb: Math.round(compStat.size / 1024), reductionPct },
@@ -392,18 +405,30 @@ export async function processAudioReelAsync(
     ]);
 
     // ── 8. Update auction row with generated MP4 URLs ─────────────────────
-    // Clear image_urls: the original cover images are deleted from R2 below,
-    // so keeping stale URLs in the DB would cause 404s on any cache miss.
+    // Critical: update URLs and clear image_urls (cover files are deleted from
+    // R2 below — stale URLs in the DB would cause 404s on cache miss).
+    // media_type is set in a separate best-effort call so a missing column
+    // (migration not yet run) does not block the URL update.
     const { error: updateErr } = await supabaseAdmin
       .from("auctions")
       .update({
         video_url: vidUpload.publicUrl,
         thumbnail_url: thumbUpload.publicUrl,
-        media_type: "video",
         image_urls: null,
       })
       .eq("id", auctionId);
     if (updateErr) throw new Error(`DB update: ${updateErr.message}`);
+
+    // Best-effort: set media_type (column may not exist — migration pending).
+    await supabaseAdmin
+      .from("auctions")
+      .update({ media_type: "video" })
+      .eq("id", auctionId)
+      .then(({ error: mtErr }) => {
+        if (mtErr) {
+          logger.warn({ auctionId, err: mtErr.message }, "audio-reel: media_type set skipped — run the add_media_type migration");
+        }
+      });
 
     logger.info({ auctionId, jobId }, "audio-reel: ✅ complete");
 

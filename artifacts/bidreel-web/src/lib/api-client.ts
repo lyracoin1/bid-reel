@@ -661,6 +661,30 @@ export async function markSoldApi(
   return data as { ok: true; alreadyMarked: boolean };
 }
 
+// ─── Password reset ───────────────────────────────────────────────────────────
+
+/**
+ * Requests a password-reset email via the BidReel backend.
+ *
+ * The backend enforces a 3-per-24h rate limit per email address and calls
+ * Supabase's resetPasswordForEmail with proper server-side error logging.
+ * This endpoint always returns HTTP 200 with a generic message — it never
+ * reveals whether the email is registered or the limit was reached.
+ *
+ * Throws only on network-level failures (fetch itself rejects).
+ */
+export async function requestPasswordResetApi(email: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as ApiError;
+    throw new Error(err.message ?? "Failed to request password reset");
+  }
+}
+
 // ─── Current user (own profile) ───────────────────────────────────────────────
 
 export interface ApiUserProfile {

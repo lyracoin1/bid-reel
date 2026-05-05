@@ -1,8 +1,10 @@
 /**
- * ForgotPasswordModal — email-based password reset via Supabase.
+ * ForgotPasswordModal — email-based password reset via the BidReel API.
  *
  * Step 1: User enters their email address.
- * Step 2: Supabase sends a recovery link; bilingual success message shown.
+ * Step 2: The API server checks the rate limit (max 3 per 24h per email),
+ *         calls Supabase resetPasswordForEmail, and returns a generic response.
+ * Step 3: Bilingual success message is shown regardless of outcome.
  *
  * The user then clicks the link in their email which opens
  * https://www.bid-reel.com/reset-password where they set a new password.
@@ -15,7 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, X, Mail, CheckCircle2 } from "lucide-react";
 import { useLang } from "@/contexts/LanguageContext";
-import { supabase } from "@/lib/supabase";
+import { requestPasswordResetApi } from "@/lib/api-client";
 
 interface Props {
   open: boolean;
@@ -59,31 +61,14 @@ export default function ForgotPasswordModal({ open, onClose }: Props) {
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail) return;
 
-    if (!supabase) {
-      setError(isAr ? "خدمة المصادقة غير متاحة." : "Authentication is not configured.");
-      return;
-    }
-
     setLoading(true);
     try {
-      const { error: sbErr } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-        redirectTo: "https://www.bid-reel.com/reset-password",
-      });
-      if (sbErr) {
-        const msg = sbErr.message ?? "";
-        if (
-          msg === "Failed to fetch" ||
-          msg.toLowerCase().includes("network") ||
-          msg.toLowerCase().includes("fetch")
-        ) {
-          setError(isAr ? "خطأ في الشبكة. تحقّق من اتصالك." : "Network error. Check your connection.");
-          return;
-        }
-      }
-      // Always show success regardless of whether the email is registered —
-      // prevents email-enumeration attacks.
+      await requestPasswordResetApi(trimmedEmail);
+      // Always show success — the API always returns 200 regardless of whether
+      // the email is registered or the rate limit was reached (no enumeration).
       setSent(true);
     } catch {
+      // Network-level failure only — the API itself always returns 200.
       setError(isAr ? "خطأ في الشبكة. تحقّق من اتصالك." : "Network error. Check your connection.");
     } finally {
       setLoading(false);
@@ -141,8 +126,8 @@ export default function ForgotPasswordModal({ open, onClose }: Props) {
             <p className="text-sm text-muted-foreground text-center leading-relaxed">
               {sent
                 ? (isAr
-                    ? "تم إرسال رابط إعادة تعيين كلمة السر. يرجى التحقق من بريدك الإلكتروني."
-                    : "Password reset link sent. Please check your email.")
+                    ? "إذا كان البريد الإلكتروني مسجّلاً، فسيصل إليك رابط إعادة التعيين. تحقّق من صندوق الوارد."
+                    : "If this email is registered, a reset link has been sent. Check your inbox.")
                 : (isAr
                     ? "أدخل بريدك الإلكتروني وسنرسل إليك رابط إعادة التعيين."
                     : "Enter your email and we'll send you a reset link.")}

@@ -8,8 +8,13 @@
  *   2. Link opens https://www.bid-reel.com/reset-password?code=... (PKCE) or
  *      https://www.bid-reel.com/reset-password#access_token=...&type=recovery
  *   3. Supabase JS client (detectSessionInUrl: true) automatically exchanges
- *      the code/token for a session and fires the PASSWORD_RECOVERY auth event.
- *   4. This page listens for that event, then shows the new-password form.
+ *      the code/token for a session.
+ *   4. ⚠ PKCE recovery bug in Supabase auth-js: when the flow type is PKCE,
+ *      _getSessionFromURL returns redirectType=null, so _initialize() fires
+ *      SIGNED_IN instead of PASSWORD_RECOVERY (see GoTrueClient.js).
+ *      This page therefore handles SIGNED_IN and INITIAL_SESSION in addition
+ *      to PASSWORD_RECOVERY, using the module-level URL snapshot to confirm
+ *      this load was triggered by a recovery link.
  *   5. On submit: supabase.auth.updateUser({ password }) → success → /login.
  */
 
@@ -19,6 +24,22 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Lock, Eye, EyeOff, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { useLang } from "@/contexts/LanguageContext";
 import { supabase } from "@/lib/supabase";
+
+// ── Module-level URL snapshot ─────────────────────────────────────────────────
+// Captured synchronously at module evaluation time, before Supabase's async
+// _initialize() can call history.replaceState and strip the ?code= parameter.
+// This is the only reliable way to detect a PKCE recovery link after the fact.
+const _initialSearch = typeof window !== "undefined" ? window.location.search : "";
+const _initialHash   = typeof window !== "undefined" ? window.location.hash   : "";
+
+// True when this page load was opened via a Supabase password-recovery link.
+// Covers both flows:
+//   • PKCE (default in Supabase v2): ?code=<single-use code>
+//   • Implicit (legacy):             #access_token=...&type=recovery
+const _isRecoveryPageLoad =
+  _initialSearch.includes("code=")         ||  // PKCE recovery / magic-link
+  _initialHash.includes("type=recovery")   ||  // implicit recovery token (hash)
+  _initialSearch.includes("type=recovery");    // implicit recovery token (query)
 
 type PageState = "waiting" | "form" | "success" | "invalid";
 
@@ -49,23 +70,33 @@ export default function ResetPassword() {
 
     let unsubscribed = false;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (unsubscribed) return;
       if (event === "PASSWORD_RECOVERY") {
+        // Implicit flow: Supabase fires this when the hash contains type=recovery.
+        setPageState("form");
+      } else if (
+        (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
+        session &&
+        _isRecoveryPageLoad
+      ) {
+        // PKCE flow fix: Supabase auth-js v2 fires SIGNED_IN (not PASSWORD_RECOVERY)
+        // for PKCE recovery codes because _getSessionFromURL returns redirectType=null.
+        // INITIAL_SESSION covers the race where the exchange completes before this
+        // subscriber is registered. Since _isRecoveryPageLoad is only true when the
+        // page was opened with a recovery code/token in the URL, a valid session here
+        // is always a recovery session — safe to show the form.
         setPageState("form");
       } else if (event === "SIGNED_OUT") {
         setPageState(prev => prev === "waiting" ? "invalid" : prev);
       }
     });
 
-    // Fallback: if there's already an active session and the URL contains
-    // a recovery marker (e.g. page reloaded after INITIAL_SESSION fired),
-    // move straight to the form.
-    const isRecoveryUrl =
-      window.location.hash.includes("type=recovery") ||
-      window.location.search.includes("type=recovery");
-
-    if (isRecoveryUrl) {
+    // Belt-and-suspenders: if Supabase already exchanged the code and established
+    // the session before this useEffect ran (detectSessionInUrl raced ahead),
+    // getSession() returns the established session immediately. Covers both PKCE
+    // (?code=) and implicit (#type=recovery) recovery links.
+    if (_isRecoveryPageLoad) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session && !unsubscribed) setPageState("form");
       });

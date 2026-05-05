@@ -78,6 +78,7 @@ async function insertAuction(payload: {
   video_url: string;
   thumbnail_url: string;
   image_urls?: string[] | null;
+  media_type?: string;
   created_at: string;
   ends_at: string;
   media_purge_after: string;
@@ -835,6 +836,20 @@ router.post("/auctions", requireAuth, async (req, res) => {
     return;
   }
 
+  // ── Determine initial media_type ───────────────────────────────────────────
+  // Computed before the DB insert so the row starts with the correct type.
+  // Audio uploads start as "processing" (an MP4 reel will be generated async).
+  // Video uploads are immediately "video". Photo listings are "album" or "image".
+  const isAudioUpload = /\.(mp3|m4a|aac|ogg|opus)(\?|$)/i.test(videoUrl);
+  const isVideoUpload = !isAudioUpload && /\.(mp4|mov|webm|avi)(\?|$)/i.test(videoUrl);
+  const initialMediaType: string = isAudioUpload
+    ? "processing"
+    : isVideoUpload
+    ? "video"
+    : imageUrls && imageUrls.length > 1
+    ? "album"
+    : "image";
+
   // ── Timestamps ─────────────────────────────────────────────────────────────
   // durationHours is validated by the schema (1–48). We defensively
   // re-coerce + re-validate here because this value is fed directly into
@@ -870,6 +885,7 @@ router.post("/auctions", requireAuth, async (req, res) => {
     video_url: videoUrl,
     thumbnail_url: thumbnailUrl,
     image_urls: imageUrls && imageUrls.length > 0 ? imageUrls : null,
+    media_type: initialMediaType,
     created_at: createdAt.toISOString(),
     ends_at: endsAt.toISOString(),
     media_purge_after: mediaPurgeAfter.toISOString(),
@@ -893,11 +909,7 @@ router.post("/auctions", requireAuth, async (req, res) => {
   logger.info({ auctionId: auction.id, sellerId }, "Auction created");
 
   // ── Async media processing (fire-and-forget) ───────────────────────────────
-  // Route to the correct processor by inspecting the videoUrl file extension.
-  // The original URL is always valid immediately; processing happens in the background.
-  const isAudioUpload = /\.(mp3|m4a|aac|ogg|opus)(\?|$)/i.test(videoUrl);
-  const isVideoUpload = !isAudioUpload && /\.(mp4|mov|webm|avi)(\?|$)/i.test(videoUrl);
-
+  // isAudioUpload / isVideoUpload were computed above before insertAuction.
   if (isAudioUpload) {
     // Combine the audio with cover image(s) into an MP4 reel, then update
     // video_url / thumbnail_url in the DB so the feed plays it as a standard

@@ -3,6 +3,28 @@ import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/** Per-slide image with a visible placeholder on load error. */
+function SlideImage({ src, alt, loading }: { src: string; alt: string; loading: "lazy" | "eager" }) {
+  const [error, setError] = useState(false);
+  if (error) {
+    return (
+      <div className="flex items-center justify-center w-full h-full bg-zinc-900/60">
+        <span className="text-xs text-white/30">Image unavailable</span>
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading={loading}
+      decoding="async"
+      className="max-w-full max-h-full w-auto h-auto object-contain"
+      onError={() => setError(true)}
+    />
+  );
+}
+
 interface ImageSliderProps {
   images: string[];
   alt?: string;
@@ -29,14 +51,7 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
     // mobile browsers and Capacitor's Android WebView.
     return (
       <div className={cn("flex items-center justify-center bg-black overflow-hidden", className)}>
-        <img
-          src={images[0]}
-          alt={alt}
-          loading="lazy"
-          decoding="async"
-          className="max-w-full max-h-full w-auto h-auto object-contain"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-        />
+        <SlideImage src={images[0]} alt={alt} loading="lazy" />
       </div>
     );
   }
@@ -69,14 +84,7 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
             {/* Only load current slide and its immediate neighbours; blank the rest
                 to avoid the browser eagerly fetching every album image upfront. */}
             {Math.abs(i - current) <= 1 ? (
-              <img
-                src={src}
-                alt={`${alt} ${i + 1}`}
-                loading={i === current ? "eager" : "lazy"}
-                decoding="async"
-                className="max-w-full max-h-full w-auto h-auto object-contain"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-              />
+              <SlideImage src={src} alt={`${alt} ${i + 1}`} loading={i === current ? "eager" : "lazy"} />
             ) : (
               <div className="w-full h-full bg-black" />
             )}

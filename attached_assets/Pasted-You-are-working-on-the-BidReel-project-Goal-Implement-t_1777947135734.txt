@@ -1,0 +1,188 @@
+You are working on the BidReel project.
+
+Goal:
+Implement the full safe media-system upgrade in controlled phases, preserving the current React + Vite + Capacitor architecture while fixing existing rendering bugs and upgrading audio+image auctions into a proper video reel system.
+
+Critical rules:
+- Do NOT rewrite the app.
+- Do NOT migrate to Flutter/React Native.
+- Do NOT refactor unrelated systems.
+- Do NOT scan the whole repo.
+- Work ONLY on files directly related to:
+  - media upload
+  - auction creation
+  - media rendering
+  - feed cards
+  - auction detail
+  - backend media processing
+  - DB schema if needed
+- Keep all current business logic intact:
+  - auctions
+  - bidding
+  - WhatsApp gating
+  - subscriptions
+  - Secure Deals
+  - pull-to-refresh
+  - infinite scroll
+  - current feed performance logic
+- Verify builds before final response.
+
+==================================================
+PHASE 1 — FIX CURRENT MEDIA RENDERING BUGS
+==================================================
+
+Problems to fix:
+1. Image-only auctions can break because mediaUrl may become empty.
+2. Broken images currently disappear silently with display:none.
+3. Feed/detail should never show empty dark cards due to media failure.
+4. Type detection is fragile.
+
+Required fixes:
+- If auction has image_urls and no valid video_url:
+  - Force mediaUrl = first valid image
+  - Force album/image rendering path correctly
+- Replace silent image failure hiding with:
+  - visible placeholder
+  - safe fallback UI
+- Improve media type detection safely:
+  - Prefer existing metadata when available
+  - Keep extension fallback
+- Ensure:
+  - images remain images
+  - videos remain videos
+  - albums remain albums
+- Preserve current:
+  - lazy loading
+  - preload strategy
+  - video near-viewport loading
+  - one-video-at-a-time logic
+
+==================================================
+PHASE 2 — FIX CURRENT AUDIO + IMAGE SYSTEM
+==================================================
+
+Current issue:
+Audio auctions may show:
+- sound only
+- black video
+- deleted cover image URLs
+- inconsistent rendering
+
+Best system:
+ALL audio + image auctions must become MP4 reels.
+
+Required fixes:
+- After successful audio reel generation:
+  - video_url = generated MP4
+  - thumbnail_url = generated thumbnail
+  - image_urls cleaned or safely updated
+- Frontend must render final processed audio auctions ONLY as video
+- Prevent long-term audio-only fallback
+- If processing fails:
+  - clear placeholder
+  - “media processing failed” state
+  - no broken auction card
+- Temporary processing state allowed until conversion completes
+
+==================================================
+PHASE 3 — UPGRADE TO BEST-IN-CLASS AUDIO REEL SYSTEM
+==================================================
+
+Implement the optimal system:
+
+CASE A — Single image + audio:
+- Generate one MP4
+- Static cover image
+- Full audio
+- Compatible Android video reel
+
+CASE B — Multiple images + audio:
+- Generate slideshow MP4
+- All uploaded images included
+- Auto image transitions
+- Duration per image:
+  total audio duration / image count
+- Smooth transitions preferred if lightweight
+- Final output:
+  one MP4 reel
+
+Technical requirements:
+- H.264
+- AAC
+- yuv420p
+- +faststart
+- 720x720 or safe mobile format
+- Android WebView compatible
+- Avoid codec/layout issues
+- Maintain low file size
+
+==================================================
+PHASE 4 — STORAGE + CLEANUP SAFETY
+==================================================
+
+After successful processing:
+- Remove temporary raw audio files
+- Remove obsolete temporary image assets if no longer needed
+- Prevent stale deleted URLs in DB
+- Ensure R2 lifecycle remains safe
+- Preserve media until auction expiration
+- Do NOT break existing cleanup scheduler
+
+==================================================
+PHASE 5 — OPTIONAL STRUCTURAL DB IMPROVEMENT
+==================================================
+
+If safe:
+Introduce explicit media_type support.
+
+Preferred values:
+- video
+- album
+- image
+- audio_reel
+- processing
+- failed
+
+Important:
+- If this requires migration, provide migration file or SQL script
+- Do NOT apply destructive schema changes
+- Maintain backward compatibility
+- Existing auctions must still render safely
+
+==================================================
+PHASE 6 — TESTING + VALIDATION
+==================================================
+
+Must verify:
+- Image-only auctions
+- Multi-image albums
+- Standard videos
+- Audio + single image
+- Audio + multiple images slideshow
+- Failed media fallback
+- Feed browsing performance
+- Auction detail rendering
+- Android WebView compatibility
+- TypeScript build
+- Backend build
+- No regression in current feed speed
+
+==================================================
+FINAL RESPONSE FORMAT
+==================================================
+
+Provide:
+1. Exact files changed
+2. Exact bugs fixed
+3. Audio reel system improvements
+4. Multi-image slideshow implementation details
+5. Storage/R2 cleanup changes
+6. Performance impact
+7. Build verification results
+8. Remaining risks/manual Android tests needed
+9. IMPORTANT:
+   - If migration is needed, provide:
+     - full migration SQL
+     OR
+     - exact migration filename/path
+   so I can run it manually myself.

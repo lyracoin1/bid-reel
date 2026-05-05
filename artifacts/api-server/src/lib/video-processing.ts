@@ -194,7 +194,7 @@ export async function processVideoAsync(
     // ── 6. Update auction row with optimized URLs ─────────────────────────
     const { error: updateErr } = await supabaseAdmin
       .from("auctions")
-      .update({ video_url: vidUpload.publicUrl, thumbnail_url: thumbUpload.publicUrl })
+      .update({ video_url: vidUpload.publicUrl, thumbnail_url: thumbUpload.publicUrl, media_type: "video" })
       .eq("id", auctionId);
     if (updateErr) throw new Error(`DB update: ${updateErr.message}`);
 
@@ -213,13 +213,14 @@ export async function processVideoAsync(
       );
     }
   } catch (err) {
-    // Log only — original video_url is still valid and playable
     logger.error(
       { auctionId, jobId, err: String(err) },
       "video-processing: ❌ failed — original URL preserved in DB",
     );
+    try {
+      await supabaseAdmin.from("auctions").update({ media_type: "failed" }).eq("id", auctionId);
+    } catch { /* non-fatal */ }
   } finally {
-    // Always clean up temp files regardless of success or failure
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }
 }
@@ -391,9 +392,16 @@ export async function processAudioReelAsync(
     ]);
 
     // ── 8. Update auction row with generated MP4 URLs ─────────────────────
+    // Clear image_urls: the original cover images are deleted from R2 below,
+    // so keeping stale URLs in the DB would cause 404s on any cache miss.
     const { error: updateErr } = await supabaseAdmin
       .from("auctions")
-      .update({ video_url: vidUpload.publicUrl, thumbnail_url: thumbUpload.publicUrl })
+      .update({
+        video_url: vidUpload.publicUrl,
+        thumbnail_url: thumbUpload.publicUrl,
+        media_type: "video",
+        image_urls: null,
+      })
       .eq("id", auctionId);
     if (updateErr) throw new Error(`DB update: ${updateErr.message}`);
 
@@ -410,6 +418,9 @@ export async function processAudioReelAsync(
     }
   } catch (err) {
     logger.error({ auctionId, jobId, err: String(err) }, "audio-reel: ❌ failed — original URL preserved");
+    try {
+      await supabaseAdmin.from("auctions").update({ media_type: "failed" }).eq("id", auctionId);
+    } catch { /* non-fatal */ }
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }

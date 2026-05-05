@@ -158,8 +158,9 @@ export default function AuctionDetail() {
   }, [auction?.id, auction?.type]);
 
   // Audio: auto-play when detail page mounts or auction changes.
+  // Covers both legacy "audio" type and "processing" (audio reel being generated).
   useEffect(() => {
-    if (!auction || auction.type !== "audio") return;
+    if (!auction || (auction.type !== "audio" && auction.type !== "processing")) return;
     const el = audioRef.current;
     if (!el) return;
     el.muted = getGlobalMuted();
@@ -252,7 +253,9 @@ export default function AuctionDetail() {
   const winner = state === "ended" && highestBid ? highestBid : null;
   const isAlbum = auction.type === "album" && (auction.images?.length ?? 0) > 1;
   const isVideo = auction.type === "video";
-  const isAudio = auction.type === "audio";
+  const isProcessing = auction.type === "processing";
+  const isFailed = auction.type === "failed";
+  const isAudio = auction.type === "audio" || isProcessing;
   const isSeller = !!currentUser && auction.seller.id === currentUser.id;
   const topBidUserId = highestBid?.user.id;
   const bidStatus = getUserBidStatus(auction.id, topBidUserId);
@@ -464,8 +467,8 @@ export default function AuctionDetail() {
           {isAlbum ? (
             <ImageSlider images={auction.images!} alt={auction.title} className="w-full h-full" />
           ) : isAudio ? (
-            /* ── Audio auction ─────────────────────────────────────────────── */
-            /* Cover image(s) displayed via ImageSlider; audio plays separately. */
+            /* ── Audio / Processing auction ──────────────────────────────────── */
+            /* Cover image(s) displayed via ImageSlider; audio plays separately.  */
             <>
               {(auction.images?.length ?? 0) > 0 ? (
                 <ImageSlider images={auction.images!} alt={auction.title} className="w-full h-full" />
@@ -483,6 +486,14 @@ export default function AuctionDetail() {
                 playsInline
                 preload="auto"
               />
+              {isProcessing && (
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
+                  <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm rounded-full px-4 py-2 border border-white/15">
+                    <div className="w-3.5 h-3.5 rounded-full border-2 border-white/50 border-t-transparent animate-spin" />
+                    <span className="text-xs font-semibold text-white/60">Processing media…</span>
+                  </div>
+                </div>
+              )}
               {/* Mute / unmute control */}
               <button
                 onClick={() => setMuted(!isMuted)}
@@ -492,6 +503,12 @@ export default function AuctionDetail() {
                 {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
               </button>
             </>
+          ) : isFailed ? (
+            /* ── Failed media ────────────────────────────────────────────────── */
+            <div className="w-full h-full flex flex-col items-center justify-center gap-4 bg-zinc-950">
+              <span className="text-4xl select-none">⚠️</span>
+              <p className="text-sm text-white/40 text-center px-8">Media processing failed.<br/>This listing is still active for bidding.</p>
+            </div>
           ) : isVideo ? (
             <>
               {videoError ? (
@@ -547,13 +564,32 @@ export default function AuctionDetail() {
               </button>
             </>
           ) : (
-            <img
-              src={auction.mediaUrl} alt={auction.title}
-              className={cn(
-                "max-w-full max-h-full",
-                state !== "active" && "opacity-80",
-              )}
-            />
+            /* Single image / album with 0–1 images */
+            auction.mediaUrl ? (
+              <img
+                src={auction.mediaUrl} alt={auction.title}
+                className={cn(
+                  "max-w-full max-h-full",
+                  state !== "active" && "opacity-80",
+                )}
+                onError={(e) => {
+                  const el = e.currentTarget as HTMLImageElement;
+                  el.style.display = "none";
+                  const parent = el.parentElement;
+                  if (parent && !parent.querySelector("[data-img-error]")) {
+                    const ph = document.createElement("div");
+                    ph.setAttribute("data-img-error", "1");
+                    ph.className = "flex items-center justify-center w-full h-full";
+                    ph.innerHTML = '<span style="font-size:13px;color:rgba(255,255,255,0.3)">Media unavailable</span>';
+                    parent.appendChild(ph);
+                  }
+                }}
+              />
+            ) : (
+              <div className="flex items-center justify-center w-full h-full">
+                <span className="text-sm text-white/30">No media</span>
+              </div>
+            )
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent pointer-events-none" />
 

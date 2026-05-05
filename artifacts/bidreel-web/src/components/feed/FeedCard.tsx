@@ -46,6 +46,28 @@ function formatViewCount(n: number): string {
   return `${(n / 1_000_000).toFixed(n < 10_000_000 ? 1 : 0).replace(/\.0$/, "")}M`;
 }
 
+/** Single image with a visible placeholder on load error. */
+function MediaImageWithFallback({ src, alt, className }: { src: string; alt: string; className: string }) {
+  const [error, setError] = useState(false);
+  if (error || !src) {
+    return (
+      <div className={cn("flex items-center justify-center bg-zinc-900", className)}>
+        <span className="text-xs text-white/30">Media unavailable</span>
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      className={className}
+      onError={() => setError(true)}
+    />
+  );
+}
+
 function AlbumIcon({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -169,7 +191,8 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   const watching = isWatching(auction.id);
   const saved = isSaved(auction.id);
   const isVideo = auction.type === "video";
-  const isAudio = auction.type === "audio";
+  const isProcessing = auction.type === "processing";
+  const isAudio = auction.type === "audio" || isProcessing;
 
   // ── Content signal (Interested / Not Interested) ──────────────────────────
   // Initialise from the server-returned userSignal so the button state is
@@ -443,6 +466,14 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
             playsInline
             preload="none"
           />
+          {isProcessing && (
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
+              <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm rounded-full px-3 py-1.5 border border-white/15">
+                <div className="w-3 h-3 rounded-full border-2 border-white/50 border-t-transparent animate-spin" />
+                <span className="text-[11px] font-semibold text-white/60">Processing…</span>
+              </div>
+            </div>
+          )}
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent via-35% to-black/90 pointer-events-none" />
           {state !== "active" && <div className="absolute inset-0 bg-black/25 pointer-events-none" />}
         </div>
@@ -455,15 +486,20 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
           {state !== "active" && <div className="absolute inset-0 bg-black/25 pointer-events-none" />}
         </div>
       ) : (
-        /* ── Single image ─────────────────────────────────────────────────── */
+        /* ── Single image / image / failed ────────────────────────────────── */
         <div className="absolute inset-0 cursor-pointer" onClick={() => setLocation(`/auction/${auction.id}`)}>
-          <img
-            src={auction.mediaUrl} alt={auction.title}
-            loading="lazy"
-            decoding="async"
-            className={cn("w-full h-full object-cover transition-transform duration-700", isActive ? "scale-100" : "scale-105")}
-            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-          />
+          {auction.type === "failed" ? (
+            <div className="w-full h-full bg-zinc-950 flex flex-col items-center justify-center gap-3">
+              <span className="text-3xl select-none">⚠️</span>
+              <span className="text-xs text-white/40">Media unavailable</span>
+            </div>
+          ) : (
+            <MediaImageWithFallback
+              src={auction.mediaUrl}
+              alt={auction.title}
+              className={cn("w-full h-full object-cover transition-transform duration-700", isActive ? "scale-100" : "scale-105")}
+            />
+          )}
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent via-35% to-black/90 pointer-events-none" />
           {state !== "active" && <div className="absolute inset-0 bg-black/25 pointer-events-none" />}
         </div>

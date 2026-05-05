@@ -109,20 +109,46 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
   const imageUrls: string[] = Array.isArray(r.image_urls) && r.image_urls.length > 0
     ? r.image_urls as string[]
     : [];
+  const dbMediaType = r.media_type as string | null | undefined;
   const isVideoUrl = (url: string) => /\.(mp4|mov|webm|avi)(\?|$)/i.test(url);
   const isAudioUrl = (url: string) => /\.(mp3|m4a|aac|ogg|opus)(\?|$)/i.test(url);
-  const isAudio = videoUrl ? isAudioUrl(videoUrl) : false;
 
-  // For audio auctions:
-  //   mediaUrl  = the audio file URL (for <audio src={mediaUrl}>)
-  //   images    = cover image(s) from image_urls; fall back to thumbnail_url on
-  //               legacy rows created before image_urls was populated for audio.
-  // For other types mediaUrl and images work as before.
-  const audioImages: string[] | undefined = isAudio
+  // Determine auction type.
+  // Priority 1: explicit media_type column written by the server at insert/update time.
+  // Priority 2: extension-based detection on video_url (legacy rows without the column).
+  let auctionType: Auction['type'];
+  if (dbMediaType === 'video') {
+    auctionType = 'video';
+  } else if (dbMediaType === 'album') {
+    auctionType = 'album';
+  } else if (dbMediaType === 'image') {
+    auctionType = 'image';
+  } else if (dbMediaType === 'processing') {
+    auctionType = 'processing';
+  } else if (dbMediaType === 'failed') {
+    auctionType = 'failed';
+  } else {
+    // Legacy rows without media_type: fall back to extension regex.
+    const legacyIsAudio = videoUrl ? isAudioUrl(videoUrl) : false;
+    auctionType = legacyIsAudio
+      ? 'audio'
+      : (videoUrl && isVideoUrl(videoUrl))
+      ? 'video'
+      : imageUrls.length > 1
+      ? 'album'
+      : 'image';
+  }
+
+  // Audio-type auctions (both "audio" legacy and "processing") keep the audio
+  // file in video_url. Cover images come from image_urls or thumbnail_url fallback.
+  const isAudioLike = auctionType === 'audio' || auctionType === 'processing';
+  const audioImages: string[] | undefined = isAudioLike
     ? (imageUrls.length > 0 ? imageUrls : (thumbUrl && thumbUrl !== videoUrl ? [thumbUrl] : undefined))
     : undefined;
 
-  const mediaUrl = videoUrl ?? thumbUrl ?? '';
+  // Fix: for image/album auctions with no video_url and no thumbnail_url but with
+  // image_urls, use the first image so the card never renders with an empty src.
+  const mediaUrl = videoUrl ?? thumbUrl ?? (imageUrls.length > 0 ? imageUrls[0] : '');
 
   return {
     id: raw.id,
@@ -133,19 +159,10 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
     startsAt: raw.starts_at,
     endsAt: raw.ends_at,
     mediaUrl,
-    // Keep thumbnailUrl separate so FeedCard can use it as a video poster.
-    // For video auctions: thumbUrl is the thumbnail image.
-    // For image auctions: thumbUrl may equal mediaUrl — fine as a poster fallback.
     thumbnailUrl: thumbUrl ?? null,
-    audioUrl: isAudio ? (videoUrl ?? undefined) : undefined,
-    images: isAudio ? audioImages : (imageUrls.length > 0 ? imageUrls : undefined),
-    type: isAudio
-      ? 'audio'
-      : (videoUrl && isVideoUrl(videoUrl))
-      ? 'video'
-      : imageUrls.length > 0
-      ? 'album'
-      : 'album',
+    audioUrl: isAudioLike ? (videoUrl ?? undefined) : undefined,
+    images: isAudioLike ? audioImages : (imageUrls.length > 0 ? imageUrls : undefined),
+    type: auctionType,
     seller: apiProfileToUser(raw.seller, raw.seller_id),
     likes: r.like_count ?? 0,
     views: r.views_count ?? 0,
@@ -198,7 +215,9 @@ export async function refreshAuctions(): Promise<void> {
         prev.views       === next.views        &&
         prev.status      === next.status       &&
         prev.isLikedByMe === next.isLikedByMe  &&
-        prev.buyerId     === next.buyerId
+        prev.buyerId     === next.buyerId      &&
+        prev.type        === next.type         &&
+        prev.mediaUrl    === next.mediaUrl
       ) {
         return prev; // unchanged — preserve reference, memo stays intact ✓
       }

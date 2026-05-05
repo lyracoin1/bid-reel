@@ -1,0 +1,95 @@
+IMPORTANT: READ-ONLY ANALYSIS ONLY.
+Do NOT modify any code, do NOT fix anything yet, do NOT refactor, do NOT run migrations.
+
+I need a deep investigation of the BidReel Plus subscription system (Google Play Billing), completely isolated from the marketplace payment, escrow, and vault systems.
+
+Problem description:
+- When user clicks "Subscribe", Google Play opens
+- When trying to add a card → shows "Not available"
+- After attempted fixes → now shows "Subscription failed, try again"
+
+This subscription system MUST be treated as completely separate from:
+- transaction payments
+- escrow
+- vault
+- payout system
+
+========================
+WHAT TO ANALYZE
+========================
+
+1. Google Play Billing integration (subscriptions ONLY)
+- Where is the subscription logic implemented?
+- Which files handle:
+  - subscription purchase flow
+  - purchase_token handling
+  - product_id / subscription_id
+- Is it using subscriptions API or one-time products API incorrectly?
+
+2. Product configuration
+- Identify the exact subscription product ID used
+- Check if:
+  - product is ACTIVE in Google Play Console
+  - it is a SUBSCRIPTION (not one-time product)
+  - base plans and offers are configured correctly
+
+3. Client → Server flow
+- What happens when user clicks "Subscribe"?
+- Is the purchase handled client-side correctly?
+- What data is sent to backend?
+- Is backend expecting wrong fields?
+
+4. Purchase verification
+- Does backend use:
+  - purchases.subscriptions.get (correct)
+  OR
+  - purchases.products.get (WRONG for subscriptions)
+- Check for mismatches between product type and verification method
+
+5. Error sources
+- Identify possible causes for:
+  - "Not available" when adding payment method
+  - "Subscription failed, try again"
+- Check:
+  - region restrictions
+  - test account setup
+  - license testers
+  - Play Store environment (internal testing vs production)
+
+6. Environment separation (CRITICAL)
+- Confirm subscription system is NOT interfering with:
+  - /transactions/pay-now
+  - Play purchase verification for digital deals
+- Ensure no shared logic is incorrectly reused
+
+7. Logs & failure points
+- Identify exact failure point in:
+  - frontend (Play Billing response)
+  - backend (verification)
+- Show exact error messages or failure codes if available
+
+========================
+OUTPUT REQUIRED
+========================
+
+Provide a structured report:
+
+- Files responsible for subscription system
+- Exact product IDs used
+- Whether system is using correct Google Play API (subscriptions vs products)
+- Root cause of:
+  - "Not available"
+  - "Subscription failed"
+- Whether this is:
+  - configuration issue (Google Play Console)
+  - client issue
+  - backend verification issue
+
+IMPORTANT:
+- DO NOT FIX ANYTHING
+- DO NOT CHANGE ANY CODE
+- DO NOT TOUCH PAYMENT SYSTEM
+- Only analyze and explain clearly
+
+Goal:
+Understand exactly why BidReel Plus subscription is failing, without affecting the marketplace payment system.

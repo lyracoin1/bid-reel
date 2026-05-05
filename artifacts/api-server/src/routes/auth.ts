@@ -102,8 +102,6 @@ router.post("/auth/forgot-password", async (req, res) => {
 
   try {
     // ── Step 1: check / upsert the rate-limit row ──────────────────────────
-    const windowCutoff = new Date(Date.now() - RESET_WINDOW_MS).toISOString();
-
     const { data: existing, error: selectErr } = await supabaseAdmin
       .from("password_reset_requests")
       .select("id, request_count, window_start")
@@ -116,7 +114,10 @@ router.post("/auth/forgot-password", async (req, res) => {
     }
 
     if (existing) {
-      const windowActive = existing.window_start > windowCutoff;
+      // Compare as numeric timestamps to avoid ISO-string format mismatch.
+      // Supabase returns TIMESTAMPTZ as "...+00:00" but toISOString() emits "...Z".
+      // String comparison of these formats is unreliable; Date.getTime() is not.
+      const windowActive = new Date(existing.window_start).getTime() > Date.now() - RESET_WINDOW_MS;
 
       if (windowActive && existing.request_count >= RESET_MAX_PER_WINDOW) {
         // Rate limit reached — do NOT call Supabase. Log and return generic success.

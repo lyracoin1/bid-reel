@@ -55,6 +55,13 @@ const FULL_DEAL_SQL = `
     t.external_payment_confirmed_at,
     t.external_payment_warning_reason,
     t.buyer_info_visible,
+    t.deal_type,
+    t.vault_revealed_at,
+    t.vault_ack_status,
+    t.vault_ack_at,
+    -- vault_ciphertext and vault_iv are intentionally excluded from all admin list/detail
+    -- responses. Admins access vault plaintext only via POST /admin/secure-deals/:dealId/vault-review
+    -- which requires a written reason and records a mandatory audit row.
 
     pp.id          AS payment_proof_id,
     pp.file_url    AS payment_proof_url,
@@ -108,6 +115,11 @@ function shapeRow(
     external_payment_confirmed_at:  row.external_payment_confirmed_at ?? null,
     external_payment_warning_reason: row.external_payment_warning_reason ?? null,
     buyer_info_visible:             Boolean(row.buyer_info_visible),
+    deal_type:                      row.deal_type ?? "physical",
+    vault_revealed_at:              row.vault_revealed_at ?? null,
+    vault_ack_status:               row.vault_ack_status ?? null,
+    vault_ack_at:                   row.vault_ack_at ?? null,
+    // vault_ciphertext and vault_iv never included — access only via /vault-review
 
     seller: profileMap.get(row.seller_id) ?? null,
     buyer:  row.buyer_id ? (profileMap.get(row.buyer_id) ?? null) : null,

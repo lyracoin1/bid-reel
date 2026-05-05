@@ -348,8 +348,81 @@ export async function bootstrapTransactionsTable(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_product_media_seller_id ON product_media (seller_id);
     `);
 
+    // ── Digital Vault columns on transactions (Phase 1) ───────────────────────
+    // All added safely with ADD COLUMN IF NOT EXISTS — no risk to existing rows.
+    // deal_type defaults to 'physical' so all current rows remain unaffected.
+    // vault_ciphertext and vault_iv store AES-256-GCM encrypted vault data.
+    // vault_ciphertext and vault_iv are intentionally excluded from all normal
+    // GET responses — only the /reveal and /vault-review endpoints return plaintext.
+    await client.query(`
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS deal_type          TEXT        NOT NULL DEFAULT 'physical'
+                                                      CHECK (deal_type IN ('physical', 'digital'));
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS vault_ciphertext   TEXT        NULL;
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS vault_iv           TEXT        NULL;
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS vault_revealed_at  TIMESTAMPTZ NULL;
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS vault_ack_status   TEXT        NULL
+                                                      CHECK (vault_ack_status IN ('accepted', 'disputed'));
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS vault_ack_at       TIMESTAMPTZ NULL;
+    `);
+
+    // ── digital_deal_disputes (Digital Vault Phase 1) ─────────────────────────
+    // Buyer-raised disputes about digital vault contents after revealing.
+    // Separate from shipping_fee_disputes — different reasons and resolution flow.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS digital_deal_disputes (
+        id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        deal_id     TEXT         NOT NULL,
+        buyer_id    UUID         NOT NULL,
+        reason      TEXT         NOT NULL CHECK (char_length(reason) <= 2000),
+        status      TEXT         NOT NULL DEFAULT 'open'
+                      CHECK (status IN ('open', 'resolved_buyer', 'resolved_seller')),
+        admin_note  TEXT,
+        created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        resolved_at TIMESTAMPTZ
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_digital_disputes_deal_id
+        ON digital_deal_disputes (deal_id);
+      CREATE INDEX IF NOT EXISTS idx_digital_disputes_buyer_id
+        ON digital_deal_disputes (buyer_id);
+      CREATE INDEX IF NOT EXISTS idx_digital_disputes_status
+        ON digital_deal_disputes (status);
+    `);
+
+    // ── vault_access_audit (Digital Vault Phase 1) ────────────────────────────
+    // Immutable audit trail of every vault reveal — buyer reveals and admin reviews.
+    // Plaintext vault contents are NEVER stored in this table.
+    // access_type examples: 'buyer_reveal', 'admin_dispute_review', 'admin_compliance_review'
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS vault_access_audit (
+        id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        deal_id     TEXT         NOT NULL,
+        admin_id    UUID         NULL,
+        buyer_id    UUID         NULL,
+        access_type TEXT         NOT NULL,
+        reason      TEXT         NULL,
+        created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_vault_audit_deal_id
+        ON vault_access_audit (deal_id);
+      CREATE INDEX IF NOT EXISTS idx_vault_audit_admin_id
+        ON vault_access_audit (admin_id)
+        WHERE admin_id IS NOT NULL;
+    `);
+
     _bootstrapped = true;
-    logger.info("pg-pool: transactions, payment_proofs, shipment_proofs, delivery_proofs, shipping_fee_disputes, seller_penalties, escrow, product_media bootstrapped");
+    logger.info(
+      "pg-pool: transactions, payment_proofs, shipment_proofs, delivery_proofs, " +
+      "shipping_fee_disputes, seller_penalties, escrow, product_media, " +
+      "digital_deal_disputes, vault_access_audit bootstrapped",
+    );
   } catch (err) {
     logger.error({ err }, "pg-pool: failed to bootstrap transactions table");
   } finally {

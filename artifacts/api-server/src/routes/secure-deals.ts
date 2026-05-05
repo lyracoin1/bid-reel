@@ -135,12 +135,17 @@ router.get("/secure-deals/:dealId", async (req, res) => {
 
   try {
     const { rows } = await pool.query(
+      // vault_ciphertext and vault_iv are intentionally excluded — they must never
+      // appear in public responses. Only /secure-deals/:dealId/reveal returns plaintext
+      // to the confirmed buyer, and only /admin/secure-deals/:dealId/vault-review
+      // returns plaintext to an audited admin.
       `SELECT deal_id, seller_id, buyer_id, product_name, price, currency,
               description, delivery_method, media_urls, terms,
               payment_status, payment_date, paid_amount, shipment_status,
               funds_released, payment_link, release_date, created_at, updated_at,
               external_payment_warning, external_payment_confirmed_at,
-              external_payment_warning_reason, buyer_info_visible
+              external_payment_warning_reason, buyer_info_visible,
+              deal_type, vault_revealed_at, vault_ack_status, vault_ack_at
        FROM transactions WHERE deal_id = $1`,
       [dealId],
     );

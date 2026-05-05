@@ -1,0 +1,94 @@
+Proceed with Phase 1 only for the Digital Vault redesign.
+
+Important:
+
+* Do NOT remove any Coming Soon blocks.
+* Do NOT modify the public UI yet.
+* Do NOT connect this to the feed/auction system yet.
+* Do NOT delete or rewrite the old physical Secure Deals code.
+* Only add the backend/database foundation for digital vault security.
+
+Trust policy update:
+BidReel must act as the trusted middle layer between seller and buyer.
+
+The vault should be hidden from buyers before payment and encrypted in the database, but it must be reviewable by authorized BidReel admins only in these cases:
+
+* buyer/seller dispute
+* fraud report
+* illegal or prohibited content concern
+* legal/compliance requirement
+
+Admins must NOT casually see vault contents in normal lists or deal views.
+Admin vault access must require:
+
+* admin authentication
+* a dispute/compliance reason
+* audit logging: admin ID, deal ID, reason, timestamp
+* no plaintext vault data in logs
+
+Seller-facing policy:
+When a seller enters vault data, the system must clearly support this policy later:
+“Vault data is hidden from buyers before payment. BidReel may review vault data only in cases of dispute, fraud, policy violation, or legal/compliance requirement.”
+
+Implement Phase 1:
+
+1. Add transaction columns safely using `ADD COLUMN IF NOT EXISTS`:
+
+   * `deal_type TEXT DEFAULT 'physical'`
+   * `vault_ciphertext TEXT NULL`
+   * `vault_iv TEXT NULL`
+   * `vault_revealed_at TIMESTAMPTZ NULL`
+   * `vault_ack_status TEXT NULL`
+   * `vault_ack_at TIMESTAMPTZ NULL`
+
+2. Add a `digital_deal_disputes` table safely if it does not exist.
+
+3. Add a `vault_access_audit` table:
+
+   * `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`
+   * `deal_id TEXT NOT NULL`
+   * `admin_id UUID NULL`
+   * `buyer_id UUID NULL`
+   * `access_type TEXT NOT NULL`
+
+     * examples: `buyer_reveal`, `admin_dispute_review`, `admin_compliance_review`
+   * `reason TEXT`
+   * `created_at TIMESTAMPTZ DEFAULT NOW()`
+
+4. Add a server-side encryption utility:
+
+   * AES-256-GCM
+   * Use `VAULT_ENCRYPTION_KEY` from environment secrets
+   * Never log plaintext vault contents
+   * Reject digital vault writes if the key is missing
+   * Store only ciphertext + IV in the database
+
+5. Add backend routes only:
+
+   * Seller-only vault create/update before payment
+   * Buyer-only reveal after payment
+   * Buyer-only acknowledge vault
+   * Buyer-only digital dispute after reveal
+   * Admin-only list/resolve digital disputes
+   * Admin-only vault review endpoint for disputes/compliance
+
+6. Authorization rules:
+
+   * Seller can write/update vault only before payment
+   * Buyer can reveal only after `payment_status = 'secured'`
+   * Only the confirmed `buyer_id` can reveal
+   * Admin can reveal vault only through the admin review endpoint with a required reason
+   * Every buyer reveal and admin reveal must insert a row into `vault_access_audit`
+   * Normal user/admin list endpoints must exclude `vault_ciphertext` and `vault_iv`
+
+7. Keep existing Secure Deals behavior unchanged for now.
+
+8. After implementing, run build/type checks and summarize:
+
+   * files changed
+   * endpoints added
+   * how vault data is protected
+   * how admin review is audited
+   * anything still pending for Phase 2
+
+Do not implement frontend UI in this step.

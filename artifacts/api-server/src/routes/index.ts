@@ -32,6 +32,7 @@ import externalPaymentWarningRouter from "./external-payment-warning";
 import productMediaRouter from "./product-media";
 import buyerInfoRouter from "./buyer-info";
 import receiptRouter from "./receipt";
+import digitalVaultRouter from "./digital-vault";
 
 const router: IRouter = Router();
 
@@ -75,6 +76,10 @@ router.use(buyerInfoRouter);
 // receiptRouter registered before adminRouter because it defines
 // GET /admin/receipts which would otherwise be swallowed by /admin subrouter.
 router.use(receiptRouter);
+// digitalVaultRouter registered before adminRouter because it defines
+// /admin/digital-disputes and /admin/secure-deals/:dealId/vault-review which
+// would otherwise be swallowed by the /admin subrouter.
+router.use(digitalVaultRouter);
 router.use("/admin", adminRouter);
 router.use(auctionRouter);
 router.use(billingRouter);

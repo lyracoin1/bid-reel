@@ -323,21 +323,33 @@ export async function processAudioReelAsync(
     // ── 4. Generate MP4 ───────────────────────────────────────────────────
     // Common video filter: letterbox/pillarbox to 720×720, black bars, no stretch.
     // fps=5: enough for smooth still/slide transitions, keeps file size small.
+    // format=yuv420p: MUST be the last filter — flattens any alpha channel from
+    // PNG/WebP inputs before libx264 encoding.  libx264 only accepts YUV planar
+    // pixel formats; without this the encoder receives RGBA and either crashes
+    // or silently produces a corrupt stream.
     const scaleFilter =
       `scale=720:720:force_original_aspect_ratio=decrease,` +
-      `pad=720:720:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=5`;
+      `pad=720:720:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=5,format=yuv420p`;
 
     if (imagePaths.length === 1) {
       // ── Single image: static frame over audio ─────────────────────────
       // -loop 1         : hold the image for the full audio duration
+      // -map 0:v -map 1:a: explicitly route image→video, audio→audio so
+      //                   ffmpeg's auto-selection can't pick the wrong stream
       // -tune stillimage: optimise libx264 for a static background
-      // -shortest       : cut video stream when audio ends
+      // -pix_fmt yuv420p: belt-and-suspenders enforcement after format= filter
+      // -t {dur}        : explicit duration is more reliable than -shortest
+      //                   when combined with -loop 1 (infinite video stream);
+      //                   falls back to -shortest only if probe returned 0
+      const durArg = dur > 0 ? `-t ${dur.toFixed(3)}` : `-shortest`;
       await shell(
         `ffmpeg -y -loop 1 -i "${imagePaths[0]}" -i "${audioPath}" ` +
+        `-map 0:v -map 1:a ` +
         `-vf "${scaleFilter}" ` +
         `-c:v libx264 -tune stillimage -crf 28 -preset veryfast ` +
+        `-pix_fmt yuv420p ` +
         `-c:a aac -b:a 128k ` +
-        `-shortest -movflags +faststart ` +
+        `${durArg} -movflags +faststart ` +
         `"${outPath}"`,
       );
     } else {
@@ -362,12 +374,17 @@ export async function processAudioReelAsync(
       const listPath = path.join(tmpDir, "slide_list.txt");
       await fs.writeFile(listPath, listLines.join("\n"));
 
+      // Use explicit -t when duration is known; -shortest as fallback.
+      // Both streams are finite here so either works, but -t is more precise.
+      const slideDurArg = dur > 0 ? `-t ${dur.toFixed(3)}` : `-shortest`;
       await shell(
         `ffmpeg -y -f concat -safe 0 -i "${listPath}" -i "${audioPath}" ` +
+        `-map 0:v -map 1:a ` +
         `-vf "${scaleFilter}" ` +
         `-c:v libx264 -crf 28 -preset veryfast ` +
+        `-pix_fmt yuv420p ` +
         `-c:a aac -b:a 128k ` +
-        `-shortest -movflags +faststart ` +
+        `${slideDurArg} -movflags +faststart ` +
         `"${outPath}"`,
       );
     }

@@ -771,6 +771,7 @@ export default function CreateAuction() {
           currencyCode: effectiveCurrency.code,
           currencyLabel: effectiveCurrency.label,
           durationHours: duration,
+          mediaKind: postType === "audio" ? "audio" : postType === "video" ? "video" : "photos",
         });
         setUploadProgress(null);
         // REPLACE — publish is terminal; back from the new auction detail

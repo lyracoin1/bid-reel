@@ -538,6 +538,10 @@ export interface CreateAuctionInput {
   /** All uploaded image URLs for multi-image (album) listings. Include all
    *  images in order; the first item should match `videoUrl`. */
   imageUrls?: string[];
+  /** Explicit media kind so the server routes to the correct processing
+   *  pipeline without relying on fragile URL-extension heuristics.
+   *  Especially important for .webm which is ambiguous (audio or video). */
+  mediaKind?: "audio" | "video" | "photos";
   lat: number;
   lng: number;
   currencyCode?: string;

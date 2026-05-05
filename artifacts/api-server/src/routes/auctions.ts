@@ -719,6 +719,10 @@ const createAuctionSchema = z.object({
     .max(48, "durationHours must be at most 48")
     .optional()
     .default(24),
+  /** Explicit media kind from the client.  When present, takes priority over
+   *  URL-extension heuristics for routing to the correct processing pipeline.
+   *  Especially important for .webm files which are ambiguous (audio/video). */
+  mediaKind: z.enum(["audio", "video", "photos"]).optional(),
 }).superRefine((val, ctx) => {
   // Sale-type / price consistency:
   //   auction → startPrice required, fixedPrice ignored
@@ -767,7 +771,7 @@ router.post("/auctions", requireAuth, async (req, res) => {
     return;
   }
 
-  const { title, description, category, startPrice, saleType, fixedPrice, minIncrement, videoUrl, thumbnailUrl, imageUrls, lat, lng, currencyCode, currencyLabel, durationHours } =
+  const { title, description, category, startPrice, saleType, fixedPrice, minIncrement, videoUrl, thumbnailUrl, imageUrls, lat, lng, currencyCode, currencyLabel, durationHours, mediaKind } =
     parsed.data;
   const sellerId = req.user!.id;
   // Sale-type normalization:
@@ -865,8 +869,19 @@ router.post("/auctions", requireAuth, async (req, res) => {
   // Computed before the DB insert so the row starts with the correct type.
   // Audio uploads start as "processing" (an MP4 reel will be generated async).
   // Video uploads are immediately "video". Photo listings are "album" or "image".
-  const isAudioUpload = /\.(mp3|m4a|aac|ogg|opus)(\?|$)/i.test(videoUrl);
-  const isVideoUpload = !isAudioUpload && /\.(mp4|mov|webm|avi)(\?|$)/i.test(videoUrl);
+  //
+  // When the client supplies `mediaKind` (preferred), we trust it directly —
+  // this removes the fragile URL-extension heuristic and correctly handles
+  // .webm files which are ambiguous (audio/webm and video/webm both → .webm).
+  // Clients that don't send mediaKind fall back to the extension regex for
+  // backwards compatibility.
+  const isAudioUpload =
+    mediaKind === "audio" ||
+    (!mediaKind && /\.(mp3|m4a|aac|ogg|opus)(\?|$)/i.test(videoUrl));
+  const isVideoUpload =
+    !isAudioUpload &&
+    (mediaKind === "video" ||
+      (!mediaKind && /\.(mp4|mov|webm|avi)(\?|$)/i.test(videoUrl)));
   const initialMediaType: string = isAudioUpload
     ? "processing"
     : isVideoUpload

@@ -1,0 +1,44 @@
+IMPORTANT: Do NOT modify, delete, refactor, or execute anything. Do NOT change any files, database entries, configurations, or logic. This is a READ-ONLY analysis request.
+
+I need you to analyze the current system and provide a detailed report about all existing Payment and Security mechanisms in the project.
+
+Please carefully inspect the codebase (and database structure if accessible) and answer the following:
+
+1. What payment systems are currently implemented?
+   - Payment flows (checkout, escrow, wallet, etc.)
+   - Payment confirmation logic
+   - Refund or dispute handling (if any)
+
+2. What security mechanisms are currently in place?
+   - Authentication and authorization
+   - Data protection (encryption, hashing, masking)
+   - Access control (who can see what)
+   - Anti-fraud or abuse prevention (if exists)
+
+3. How does the system currently handle:
+   - Product visibility
+   - Sensitive data exposure
+   - Order completion logic
+   - Auctions or bidding (if implemented)
+
+4. Are there any existing rules, policies, or logic that:
+   - Prevent selling digital-only products
+   - Assume physical product delivery
+   - Conflict with hiding product data until payment is completed
+
+5. Based on your findings, clearly separate:
+   - What can remain unchanged
+   - What may conflict with a digital-only marketplace model
+   - What would likely need modification (no changes now, just analysis)
+
+Context for future implementation (DO NOT IMPLEMENT):
+We are planning a system where users sell digital products only (e.g., domains, game accounts, codes, files). Sellers input sensitive product data (like usernames, passwords, access info), which must remain hidden. The product appears in a public auction. Once a buyer wins or pays, ONLY THEN the product data is revealed to the buyer.
+
+IMPORTANT AGAIN:
+- Do NOT make any changes
+- Do NOT suggest code edits directly in files
+- Do NOT run migrations
+- Do NOT delete anything
+- Only provide a structured analysis report
+
+The goal is to fully understand the current system before deciding what to keep, remove, or modify.

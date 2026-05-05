@@ -1,3 +1,12 @@
+/**
+ * /forgot-password — admin password recovery request page.
+ *
+ * Calls supabase.auth.resetPasswordForEmail() which triggers Supabase + Resend
+ * to send a recovery email. Always shows success after the request regardless
+ * of whether the email is registered (prevents email-enumeration attacks).
+ * Only genuine network/config errors are surfaced.
+ */
+
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { Loader2, Mail, AlertCircle, CheckCircle2, ArrowRight } from "lucide-react";
@@ -28,10 +37,20 @@ export default function ForgotPassword() {
       );
 
       if (resetError) {
-        setError(resetError.message);
-        return;
+        const msg = resetError.message ?? "";
+        // Only surface genuine network/config failures — never reveal whether
+        // the email is registered in the system.
+        if (
+          msg === "Failed to fetch" ||
+          msg.toLowerCase().includes("network") ||
+          msg.toLowerCase().includes("fetch")
+        ) {
+          setError("خطأ في الشبكة، يرجى التحقق من اتصالك");
+          return;
+        }
       }
 
+      // Always show success — prevents email-enumeration attacks.
       setSent(true);
     } catch {
       setError("خطأ في الشبكة، يرجى التحقق من اتصالك");

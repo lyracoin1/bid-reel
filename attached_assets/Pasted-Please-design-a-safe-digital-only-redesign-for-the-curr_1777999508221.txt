@@ -1,0 +1,64 @@
+Please design a safe digital-only redesign for the current Secure Deals / payment protection system, but do not edit any files yet.
+
+Important:
+Do NOT remove the existing Coming Soon blocks.
+Do NOT delete the old physical-delivery code yet.
+Only inspect and propose the safest implementation plan.
+
+Goal:
+Convert Secure Deals into a protected digital product sale flow.
+
+Core idea:
+A seller creates a protected digital product deal. The seller enters public listing info plus a private hidden vault. The vault must stay completely hidden until the buyer pays successfully. After payment, only the winning/paying buyer can reveal the vault.
+
+Digital products examples:
+
+* domain transfer details
+* game account access
+* license key
+* download link
+* digital product credentials
+* account handover instructions
+
+Important security rule:
+Nobody should see the vault contents before payment except the seller who created it.
+After payment, only the confirmed buyer should be able to reveal it.
+Do not expose vault contents in normal API responses, feed responses, logs, notifications, or admin lists.
+
+Please propose:
+
+1. What database fields/tables should be added for the digital vault?
+2. Should the vault be encrypted? If yes, where should encryption/decryption happen?
+3. What backend endpoints are needed?
+
+   * create/update vault
+   * reveal vault after payment
+   * buyer acknowledgement
+   * dispute flow
+4. What authorization checks are required?
+5. How should the flow work step by step:
+
+   * seller creates digital deal
+   * deal appears in main auction/feed under digital category
+   * buyer bids or buys
+   * buyer pays
+   * vault unlocks
+   * buyer confirms or disputes
+   * escrow releases
+6. What parts of the current physical Secure Deals flow should be kept?
+7. What parts should be disabled or ignored for digital-only deals?
+8. How can we reuse the existing transactions, escrow, ratings, notifications, and payment verification logic?
+9. How should the frontend hide the vault before payment?
+10. How should the frontend show the vault after payment without leaking it anywhere else?
+11. Should admins be able to see vault contents or only metadata?
+12. What migration strategy is safest without breaking existing code?
+13. What exact files will likely need changes later?
+14. What risks or edge cases should we handle?
+15. Please give a recommended phased implementation plan:
+
+* Phase 1: database + backend vault security
+* Phase 2: frontend create/reveal UI
+* Phase 3: connect to auction/feed
+* Phase 4: disputes/release/rating polish
+
+Do not write code yet. Give me a clear implementation plan first so we can approve the design before touching the app.

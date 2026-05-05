@@ -323,10 +323,13 @@ export async function processAudioAsync(
   } catch (err) {
     logger.error(
       { auctionId, jobId, err: String(err) },
-      "audio-processing: ❌ failed — original URL preserved in DB",
+      "audio-processing: ❌ transcoding failed — falling back to original uploaded audio URL",
     );
+    // Keep media_type = "audio" (NOT "failed") so the feed renders an <audio>
+    // player pointing at the original uploaded file, which is still in video_url.
+    // Setting "failed" would black out the card and make the audio unreachable.
     try {
-      await supabaseAdmin.from("auctions").update({ media_type: "failed" }).eq("id", auctionId);
+      await supabaseAdmin.from("auctions").update({ media_type: "audio" }).eq("id", auctionId);
     } catch { /* non-fatal */ }
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});

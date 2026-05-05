@@ -128,9 +128,27 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [videoError, setVideoError] = useState(false);
 
-  // Reset video-error state whenever this card displays a different auction.
-  // Guards against stale error state if the component is reused without remounting.
+  // ── Audio playback speed (1 → 1.5 → 2 → back to 1) ──────────────────────
+  const SPEED_STEPS = [1, 1.5, 2] as const;
+  type SpeedStep = typeof SPEED_STEPS[number];
+  const [audioSpeed, setAudioSpeed] = useState<SpeedStep>(1);
+
+  const cycleSpeed = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setAudioSpeed((prev) => {
+      const idx = SPEED_STEPS.indexOf(prev);
+      return SPEED_STEPS[(idx + 1) % SPEED_STEPS.length];
+    });
+  }, []);
+
+  // Keep audioElement.playbackRate in sync with state.
   useEffect(() => {
+    if (audioRef.current) audioRef.current.playbackRate = audioSpeed;
+  }, [audioSpeed]);
+
+  // Reset speed to 1x whenever this card shows a different auction.
+  useEffect(() => {
+    setAudioSpeed(1);
     setVideoError(false);
   }, [auction.id]);
 
@@ -543,6 +561,16 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
             aria-label={isMuted ? "Unmute" : "Mute"}
           >
             {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+          </button>
+        )}
+        {/* Speed control — audio only */}
+        {isAudio && (
+          <button
+            onClick={cycleSpeed}
+            className="w-11 h-11 rounded-full bg-black/50 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white active:scale-90 transition-transform"
+            aria-label={`Playback speed: ${audioSpeed}x`}
+          >
+            <span className="text-[11px] font-bold leading-none">{audioSpeed}x</span>
           </button>
         )}
         {/* 3-dot menu — 44dp touch target */}

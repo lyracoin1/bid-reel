@@ -235,7 +235,7 @@ export async function uploadMediaApi(
 
   // Strip charset or codec suffixes Android sometimes appends (e.g. "video/mp4; codecs=avc1")
   const mimeType = (file.type || "").split(";")[0].trim()
-    || (fileType === "video" ? "video/mp4" : "image/jpeg");
+    || (fileType === "video" ? "video/mp4" : fileType === "audio" ? "audio/webm" : "image/jpeg");
 
   // Build URL with string concatenation — NOT new URL() — so it works with
   // both relative paths ("/api") used on web AND absolute URLs used on Android.
@@ -342,7 +342,7 @@ export async function uploadMediaPresignedApi(
   if (!token) { redirectToLogin(); throw new Error("Not authenticated"); }
 
   const mimeType = (file.type || "").split(";")[0].trim()
-    || (fileType === "video" ? "video/mp4" : "image/jpeg");
+    || (fileType === "video" ? "video/mp4" : fileType === "audio" ? "audio/webm" : "image/jpeg");
 
   const presignUrl = `${API_BASE}/media/presign-upload`;
 

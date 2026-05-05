@@ -122,6 +122,28 @@ export default function AuctionDetail() {
   // the thumbnail shows again while the new video is fetching its first frame.
   const [videoHasData, setVideoHasData] = useState(false);
   const [videoError, setVideoError] = useState(false);
+
+  // ── Audio playback speed (1 → 1.5 → 2 → back to 1) ──────────────────────
+  const SPEED_STEPS = [1, 1.5, 2] as const;
+  type SpeedStep = typeof SPEED_STEPS[number];
+  const [audioSpeed, setAudioSpeed] = useState<SpeedStep>(1);
+
+  const cycleSpeed = useCallback(() => {
+    setAudioSpeed((prev) => {
+      const idx = SPEED_STEPS.indexOf(prev);
+      return SPEED_STEPS[(idx + 1) % SPEED_STEPS.length];
+    });
+  }, []);
+
+  // Keep audioElement.playbackRate in sync with state.
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.playbackRate = audioSpeed;
+  }, [audioSpeed]);
+
+  // Reset speed to 1x when navigating to a different auction.
+  useEffect(() => {
+    setAudioSpeed(1);
+  }, [id]);
   const { isRefreshing, refresh } = useBidPolling();
   const { pullDistance, pullProgress, isRefreshing: isPulling } =
     usePullToRefresh(scrollRef, refresh);
@@ -494,14 +516,23 @@ export default function AuctionDetail() {
                   </div>
                 </div>
               )}
-              {/* Mute / unmute control */}
-              <button
-                onClick={() => setMuted(!isMuted)}
-                className="absolute bottom-4 right-4 z-30 w-10 h-10 rounded-full bg-black/55 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white active:scale-90 transition-transform"
-                aria-label={isMuted ? "Unmute" : "Mute"}
-              >
-                {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-              </button>
+              {/* Mute / unmute + speed controls */}
+              <div className="absolute bottom-4 right-4 z-30 flex items-center gap-2">
+                <button
+                  onClick={cycleSpeed}
+                  className="h-10 px-3 rounded-full bg-black/55 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white active:scale-90 transition-transform"
+                  aria-label={`Playback speed: ${audioSpeed}x`}
+                >
+                  <span className="text-[12px] font-bold leading-none">{audioSpeed}x</span>
+                </button>
+                <button
+                  onClick={() => setMuted(!isMuted)}
+                  className="w-10 h-10 rounded-full bg-black/55 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white active:scale-90 transition-transform"
+                  aria-label={isMuted ? "Unmute" : "Mute"}
+                >
+                  {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                </button>
+              </div>
             </>
           ) : isFailed ? (
             /* ── Failed media ────────────────────────────────────────────────── */

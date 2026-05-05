@@ -417,6 +417,54 @@ export async function bootstrapTransactionsTable(): Promise<void> {
         WHERE admin_id IS NOT NULL;
     `);
 
+    // ── Point 2: auction_id on transactions ───────────────────────────────────
+    // Optional link from a Secure Deal back to its source auction in Supabase.
+    // Enables the full flow: auction/listing → deal → payment → vault reveal.
+    // NULL for deals created without an auction origin (direct P2P deals).
+    await client.query(`
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS auction_id TEXT NULL;
+
+      CREATE INDEX IF NOT EXISTS idx_transactions_auction_id
+        ON transactions (auction_id)
+        WHERE auction_id IS NOT NULL;
+    `);
+
+    // ── Point 4: vault_dispute_resolution on transactions ─────────────────────
+    // Records the admin's resolution outcome for a digital vault dispute so that
+    // vault_ack_status does not remain ambiguously 'disputed' after resolution.
+    // Values: 'resolved_buyer' (dispute upheld) | 'resolved_seller' (overridden).
+    // NULL until an admin resolves a dispute via POST /admin/digital-disputes/:id/resolve.
+    await client.query(`
+      ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS vault_dispute_resolution TEXT NULL;
+    `);
+
+    // ── Point 4: admin_note + resolved_by_admin on escrow ────────────────────
+    // admin_note:        human-readable explanation recorded when admin intervenes.
+    // resolved_by_admin: UUID of the admin who resolved a disputed escrow.
+    await client.query(`
+      ALTER TABLE escrow
+        ADD COLUMN IF NOT EXISTS admin_note        TEXT NULL;
+      ALTER TABLE escrow
+        ADD COLUMN IF NOT EXISTS resolved_by_admin UUID NULL;
+    `);
+
+    // ── Point 4: extend escrow status to include 'refunded' ──────────────────
+    // 'refunded' is set when admin resolves an escrow dispute in the buyer's favour.
+    // The actual payout to the buyer is handled externally/manually.
+    // We DROP the old auto-named constraint and ADD the new one with 'refunded'.
+    // DROP IF EXISTS is a no-op on first run; safe to re-run on every startup.
+    await client.query(`
+      ALTER TABLE escrow DROP CONSTRAINT IF EXISTS escrow_status_check;
+      ALTER TABLE escrow ADD CONSTRAINT escrow_status_check
+        CHECK (status IN ('pending', 'released', 'disputed', 'refunded'));
+    `).catch(() => {
+      // Constraint rename may fail if another constraint covers the same column —
+      // log and continue. The column still has a NOT NULL DEFAULT 'pending' guard.
+      logger.warn("pg-pool: could not update escrow status CHECK constraint (non-fatal — constraint may already be up to date)");
+    });
+
     _bootstrapped = true;
     logger.info(
       "pg-pool: transactions, payment_proofs, shipment_proofs, delivery_proofs, " +

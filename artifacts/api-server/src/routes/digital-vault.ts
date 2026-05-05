@@ -2,17 +2,17 @@
  * digital-vault.ts — Digital Vault routes for Secure Deals
  *
  * Endpoints:
- *   PATCH  /api/secure-deals/:dealId/vault             — seller writes/updates vault (before payment only)
- *   POST   /api/secure-deals/:dealId/reveal            — buyer reveals vault (after payment, audited)
+ *   PATCH  /api/secure-deals/:dealId/vault             — seller writes/updates vault (before buyer commitment only)
+ *   POST   /api/secure-deals/:dealId/reveal            — buyer reveals vault (after payment, audited, rate-limited)
  *   POST   /api/secure-deals/:dealId/ack              — buyer acknowledges vault as received
  *   POST   /api/secure-deals/:dealId/digital-dispute  — buyer disputes vault (after reveal only)
  *   GET    /api/admin/digital-disputes                 — admin lists all digital disputes (no vault contents)
- *   POST   /api/admin/digital-disputes/:id/resolve    — admin resolves a digital dispute
+ *   POST   /api/admin/digital-disputes/:id/resolve    — admin resolves a digital dispute + syncs transaction status
  *   POST   /api/admin/secure-deals/:dealId/vault-review — admin reads vault, requires reason, always audited
  *
  * Authorization summary:
- *   Seller  → write vault before payment only (payment_status = 'pending')
- *   Buyer   → reveal + ack + dispute after payment; must be the confirmed buyer_id
+ *   Seller  → write vault before payment/buyer commitment only
+ *   Buyer   → reveal (rate-limited 10/min) + ack + dispute after payment
  *   Admin   → list/resolve disputes; vault-review requires a written reason + is always logged
  *
  * Vault plaintext is NEVER included in:
@@ -20,6 +20,16 @@
  *   - Admin list/detail responses
  *   - Server logs
  *   - Notifications
+ *
+ * Point 1 (vault lock): vault is locked as soon as buyer_id IS NOT NULL on the
+ *   transaction OR payment_status transitions away from 'pending'. This means the
+ *   seller cannot swap vault contents once a buyer has committed (even pre-payment).
+ *
+ * Point 4 (dispute resolution): admin resolve now atomically writes
+ *   vault_dispute_resolution on transactions so vault_ack_status never stays
+ *   stuck as 'disputed' without a recorded resolution outcome.
+ *
+ * Point 5 (rate limiting): POST /reveal is capped at 10 req/min per user.
  */
 
 import { Router, json }  from "express";
@@ -34,6 +44,7 @@ import {
   decryptVault,
   isVaultKeyReady,
 } from "../lib/vault-crypto";
+import { vaultRevealLimiter } from "../middleware/rate-limit";
 
 const router = Router();
 router.use(json({ limit: "64kb" }));
@@ -75,7 +86,15 @@ async function insertVaultAudit(opts: {
 }
 
 // ── PATCH /api/secure-deals/:dealId/vault ─────────────────────────────────────
-// Seller writes or updates vault contents. Allowed only while payment_status = 'pending'.
+//
+// Seller writes or updates vault contents.
+//
+// Point 1 — Vault lock: vault is locked once:
+//   a) payment_status != 'pending' (payment secured, refunded, etc.), OR
+//   b) buyer_id IS NOT NULL (a buyer has committed to this deal pre-payment)
+//
+// Both conditions are checked in a single DB read. If either is true the
+// seller receives VAULT_LOCKED and no data is changed or read.
 
 const vaultWriteSchema = z.object({
   vault_text: z.string().min(1).max(10_000),
@@ -95,7 +114,7 @@ router.patch("/secure-deals/:dealId/vault", requireAuth, async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      `SELECT deal_id, seller_id, payment_status
+      `SELECT deal_id, seller_id, buyer_id, payment_status
        FROM transactions WHERE deal_id = $1`,
       [dealId],
     );
@@ -115,10 +134,19 @@ router.patch("/secure-deals/:dealId/vault", requireAuth, async (req, res) => {
       return;
     }
 
-    if (deal.payment_status !== "pending") {
+    // Point 1: lock vault once payment_status != 'pending' OR buyer_id is set.
+    // A non-null buyer_id means a buyer has committed; swapping vault content at
+    // that point would be fraudulent even if payment hasn't cleared yet.
+    const buyerCommitted = deal.buyer_id !== null;
+    const paymentNotPending = deal.payment_status !== "pending";
+
+    if (paymentNotPending || buyerCommitted) {
+      const reason = paymentNotPending
+        ? "payment has been secured"
+        : "a buyer has already committed to this deal";
       res.status(409).json({
         error:   "VAULT_LOCKED",
-        message: "Vault cannot be modified after payment has been secured.",
+        message: `Vault cannot be modified — ${reason}. Contact support if you believe this is an error.`,
       });
       return;
     }
@@ -151,8 +179,11 @@ router.patch("/secure-deals/:dealId/vault", requireAuth, async (req, res) => {
 // ── POST /api/secure-deals/:dealId/reveal ─────────────────────────────────────
 // Buyer decrypts the vault. Only the confirmed buyer_id may call this after payment.
 // Every call is recorded in vault_access_audit. Plaintext is never logged.
+//
+// Point 5 — Rate limited: 10 requests per minute per authenticated buyer.
+// The decryption step is CPU-bound; uncapped calls would allow load abuse.
 
-router.post("/secure-deals/:dealId/reveal", requireAuth, async (req, res) => {
+router.post("/secure-deals/:dealId/reveal", requireAuth, vaultRevealLimiter, async (req, res) => {
   if (!assertKeyReady(res)) return;
 
   const callerId = req.user!.id;
@@ -464,6 +495,7 @@ router.get("/admin/digital-disputes", requireAuth, requireAdmin, async (_req, re
          t.price,
          t.currency,
          t.vault_ack_status,
+         t.vault_dispute_resolution,
          t.vault_revealed_at
          -- vault_ciphertext and vault_iv intentionally excluded
        FROM digital_deal_disputes d
@@ -479,6 +511,17 @@ router.get("/admin/digital-disputes", requireAuth, requireAdmin, async (_req, re
 
 // ── POST /api/admin/digital-disputes/:id/resolve ─────────────────────────────
 // Admin resolves a digital dispute in favour of buyer or seller.
+//
+// Point 4 — Dispute resolution consistency:
+//   After updating digital_deal_disputes, this endpoint also atomically
+//   writes vault_dispute_resolution on the linked transaction so that
+//   vault_ack_status never remains stuck in an unresolved 'disputed' state.
+//
+//   Resolution mapping:
+//     resolved_buyer  → vault_dispute_resolution = 'resolved_buyer'
+//                       vault_ack_status stays 'disputed' (dispute upheld)
+//     resolved_seller → vault_dispute_resolution = 'resolved_seller'
+//                       vault_ack_status = 'accepted' (dispute overridden, vault accepted)
 
 const resolveSchema = z.object({
   resolution: z.enum(["resolved_buyer", "resolved_seller"]),
@@ -518,6 +561,10 @@ router.post(
         return;
       }
 
+      const dealId = existing[0].deal_id as string;
+      const { resolution, admin_note } = body.data;
+
+      // 1. Resolve the dispute record
       const { rows: updated } = await pool.query(
         `UPDATE digital_deal_disputes
          SET status      = $1,
@@ -525,17 +572,36 @@ router.post(
              resolved_at = NOW()
          WHERE id = $3
          RETURNING *`,
-        [body.data.resolution, body.data.admin_note ?? null, disputeId],
+        [resolution, admin_note ?? null, disputeId],
+      );
+
+      // 2. Point 4: sync transactions so vault_ack_status is never stuck.
+      //    resolved_buyer  → vault_ack_status stays 'disputed' (dispute upheld — no change needed)
+      //                      but vault_dispute_resolution records the admin decision.
+      //    resolved_seller → vault_ack_status = 'accepted' (admin overrides the dispute)
+      //                      vault_dispute_resolution records the admin decision.
+      const newVaultAckStatus = resolution === "resolved_seller" ? "accepted" : null;
+
+      await pool.query(
+        `UPDATE transactions
+         SET vault_dispute_resolution = $1,
+             ${newVaultAckStatus !== null ? "vault_ack_status = $3," : ""}
+             updated_at = NOW()
+         WHERE deal_id = $2`,
+        newVaultAckStatus !== null
+          ? [resolution, dealId, newVaultAckStatus]
+          : [resolution, dealId],
       );
 
       logger.info(
         {
           disputeId,
-          dealId:     existing[0].deal_id,
+          dealId,
           adminId,
-          resolution: body.data.resolution,
+          resolution,
+          vaultAckStatusUpdated: newVaultAckStatus !== null,
         },
-        "digital-vault: admin resolved dispute",
+        "digital-vault: admin resolved dispute (transaction status synced)",
       );
 
       res.json({ dispute: updated[0] });

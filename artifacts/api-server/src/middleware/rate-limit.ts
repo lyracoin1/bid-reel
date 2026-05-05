@@ -55,3 +55,19 @@ export const markSoldLimiter = rateLimit({
   limit: 30,
   keyGenerator: keyByUserOrIp,
 });
+
+/**
+ * Digital Vault reveal — 10 requests per minute per authenticated buyer.
+ *
+ * The reveal endpoint runs AES-256-GCM decryption on every call. Without a
+ * cap, a misbehaving or compromised client could loop the endpoint and cause
+ * unthrottled CPU load. Legitimate buyers need to reveal a vault at most a
+ * handful of times (first open + re-reads), so 10/min is comfortably above
+ * any real-world need.
+ */
+export const vaultRevealLimiter = rateLimit({
+  ...baseOptions,
+  windowMs: 60_000,
+  limit: 10,
+  keyGenerator: keyByUserOrIp,
+});

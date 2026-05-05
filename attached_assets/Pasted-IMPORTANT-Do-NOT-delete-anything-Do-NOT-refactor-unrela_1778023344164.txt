@@ -1,0 +1,48 @@
+IMPORTANT: Do NOT delete anything. Do NOT refactor unrelated code. Do NOT remove any existing security or payment protection.
+
+Now implement the Digital-Only Marketplace flow safely, based on the previous read-only analysis.
+
+Required changes:
+
+1. Lock digital vault data before payment
+- Sellers may create or edit vault data only while there is no buyer/payment commitment.
+- Once a buyer places a valid bid, wins an auction, starts checkout, or a transaction is created, the seller must NOT be able to edit, replace, or clear the vault data.
+- Return a clear error if the seller tries to update locked vault data.
+
+2. Connect auctions fully with the Digital Vault
+- Ensure every digital auction/listing is linked to its vault record.
+- Flow must be:
+  auction/listing → winning buyer/payment → transaction → vault reveal
+- The buyer must never receive hidden vault data from auction/listing endpoints.
+- Vault reveal must only work after confirmed payment.
+
+3. Add Web Payments support planning/structure
+- Do not break the existing Google Play payment flow.
+- Add the needed backend structure/hooks/interfaces for future web payment providers such as Stripe.
+- If Stripe or another provider is not configured, fail safely with a clear message.
+- Do not accept fake or client-confirmed payments.
+
+4. Complete dispute resolution logic
+- When an admin resolves a digital dispute, also update the related transaction status consistently.
+- Ensure transactions.vault_ack_status does not remain stuck as "disputed" after admin resolution.
+- Add or complete escrow dispute resolution if missing.
+- Make sure funds cannot be released while a dispute is active.
+
+5. Add rate limiting to vault reveal endpoints
+- Add a safe rate limit for vault reveal/decrypt endpoints.
+- Suggested: 10 requests per minute per authenticated buyer.
+- Do not expose plaintext in logs or error messages.
+
+Extra requirements:
+- Keep existing AES-GCM vault encryption.
+- Keep existing audit logging.
+- Keep existing requireAuth, requireAdmin, and ban checks.
+- Keep Google Play payment verification intact.
+- Do not expose usernames, passwords, access codes, file links, or other digital product secrets before payment.
+- Add clear comments only where needed.
+- After implementation, provide a report listing:
+  - Files changed
+  - Database changes or migrations added
+  - New guards/checks added
+  - How each of the 5 required points was handled
+  - Any remaining TODOs

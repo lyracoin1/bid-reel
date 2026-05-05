@@ -5,15 +5,29 @@
  * Seller profile data is fetched from Supabase cloud (read-only, admin key).
  *
  * Endpoints
- *   GET    /api/secure-deals/:dealId         — public; read deal + seller_name
+ *   GET    /api/secure-deals/:dealId         — public; read deal + seller_name + vault_has_content
  *   POST   /api/secure-deals                 — auth required; seller creates deal
- *   POST   /api/transactions/pay-now         — auth required; buyer pays
+ *   POST   /api/transactions/pay-now         — auth required; buyer pays (Play / Stripe / dev)
  *   POST   /api/secure-deals/:dealId/pay     — alias for pay-now (backward compat)
  *   PATCH  /api/secure-deals/:dealId/ship    — auth required (seller only)
  *
- * PAYMENT GATEWAY INTEGRATION POINT
- *   POST /api/transactions/pay-now performs a placeholder charge.
- *   Replace the gateway block before going live (Google Play Billing / Stripe).
+ * PAYMENT GATEWAY INTEGRATION POINTS
+ *   Mode A — Google Play Billing (native Android): purchase_token + product_id in body.
+ *            Verified via verifyPlayInAppPurchase() — amount comes from Google's receipt.
+ *   Mode B — Development placeholder: no purchase_token; blocked in production.
+ *   Mode C — Web payment provider (Stripe): web_payment_provider + web_payment_intent_id.
+ *            Verified via verifyWebPayment() — amount comes from provider's receipt.
+ *            Requires STRIPE_SECRET_KEY secret. Fails safely when not configured.
+ *
+ * Point 2 — Auction linkage:
+ *   createDealSchema accepts an optional auction_id field. When set, the deal row
+ *   records which auction it originated from, enabling the full flow:
+ *     auction/listing → winning buyer/payment → transaction → vault reveal
+ *   The auction_id is visible on the deal GET response for traceability.
+ *
+ * Point 2 — vault_has_content:
+ *   GET /api/secure-deals/:dealId returns vault_has_content (boolean) so the
+ *   frontend knows whether a vault is populated — without exposing the ciphertext.
  */
 
 import { Router, type IRouter } from "express";
@@ -23,6 +37,7 @@ import { pool } from "../lib/pg-pool";
 import { supabaseAdmin } from "../lib/supabase";
 import { logger } from "../lib/logger";
 import { verifyPlayInAppPurchase } from "../lib/play-verify";
+import { verifyWebPayment } from "../lib/web-payment";
 
 const router: IRouter = Router();
 
@@ -72,6 +87,9 @@ const createDealSchema = z.object({
   media_urls:      z.array(z.string().url()).max(10).optional().default([]),
   terms:           z.string().max(2000).optional(),
   payment_link:    z.string().url().optional(),
+  // Point 2: optional link back to the source auction in Supabase.
+  // When set, the full flow is: auction → this deal → vault reveal.
+  auction_id:      z.string().uuid().optional(),
 });
 
 function buildFallbackPaymentLink(dealId: string): string {
@@ -116,11 +134,16 @@ const payNowSchema = z.object({
   buyer_id:       z.string().uuid(),
   amount:         z.number().positive(),
   currency:       z.string().min(2).max(5),
-  // Google Play Billing — present only when paying from native Android.
-  // When provided the backend verifies the token and uses priceAmountMicros
-  // from Google as the authoritative paid_amount, overriding the `amount` field.
+  // Mode A — Google Play Billing (native Android).
+  // When provided, the backend verifies the token with Google and uses
+  // priceAmountMicros as the authoritative paid_amount, ignoring `amount`.
   purchase_token: z.string().min(1).optional(),
   product_id:     z.string().min(1).optional(),
+  // Mode C — Web payment provider (e.g. Stripe).
+  // When provided, the backend verifies the PaymentIntent with the provider
+  // and uses the provider's charged amount, ignoring `amount`.
+  web_payment_provider:    z.enum(["stripe"]).optional(),
+  web_payment_intent_id:   z.string().min(1).optional(),
 });
 
 const shipSchema = z.object({
@@ -129,6 +152,9 @@ const shipSchema = z.object({
 });
 
 // ── GET /api/secure-deals/:dealId  (public — buyer reads deal by link) ────────
+//
+// Point 2 — vault_has_content: returns a boolean flag so the frontend knows
+// whether a vault is populated. The ciphertext itself is NEVER returned here.
 
 router.get("/secure-deals/:dealId", async (req, res) => {
   const { dealId } = req.params;
@@ -145,7 +171,11 @@ router.get("/secure-deals/:dealId", async (req, res) => {
               funds_released, payment_link, release_date, created_at, updated_at,
               external_payment_warning, external_payment_confirmed_at,
               external_payment_warning_reason, buyer_info_visible,
-              deal_type, vault_revealed_at, vault_ack_status, vault_ack_at
+              deal_type, vault_revealed_at, vault_ack_status, vault_ack_at,
+              vault_dispute_resolution, auction_id,
+              -- vault_has_content: true when the seller has populated the vault.
+              -- Lets the frontend show "Vault ready" without exposing the secret.
+              (vault_ciphertext IS NOT NULL AND vault_iv IS NOT NULL) AS vault_has_content
        FROM transactions WHERE deal_id = $1`,
       [dealId],
     );
@@ -205,22 +235,24 @@ router.post("/secure-deals", requireAuth, async (req, res) => {
       hasDescription:  !!d.description,
       hasTerms:        !!d.terms,
       mediaCount:      (d.media_urls ?? []).length,
+      auctionId:       d.auction_id ?? null,
     }, "POST /secure-deals: attempting insert");
 
     const { rows } = await pool.query(
       `INSERT INTO transactions
          (deal_id, seller_id, product_name, price, currency, description,
-          delivery_method, media_urls, terms, payment_link)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          delivery_method, media_urls, terms, payment_link, auction_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        RETURNING *`,
       [
         d.deal_id, sellerId, d.product_name, d.price, d.currency,
         d.description ?? null, d.delivery_method,
         d.media_urls ?? [], d.terms ?? null, paymentLink,
+        d.auction_id ?? null,
       ],
     );
 
-    logger.info({ dealId: d.deal_id, sellerId }, "Secure deal created");
+    logger.info({ dealId: d.deal_id, sellerId, auctionId: d.auction_id ?? null }, "Secure deal created");
     res.status(201).json({ deal: rows[0] });
   } catch (err: any) {
     if (err?.code === "23505") {
@@ -245,12 +277,15 @@ router.post("/secure-deals", requireAuth, async (req, res) => {
 
 // ── POST /api/transactions/pay-now  (primary buyer payment endpoint) ──────────
 //
-// Body: { deal_id, buyer_id, amount, currency }
+// Body: { deal_id, buyer_id, amount, currency, [purchase_token, product_id], [web_payment_provider, web_payment_intent_id] }
 //
 // Flow:
 //   1. Validate JWT → extract authenticated buyer ID (must match body.buyer_id)
 //   2. Load the deal, assert payment_status = 'pending'
-//   3. ── PAYMENT GATEWAY BLOCK (placeholder) ──
+//   3. ── PAYMENT GATEWAY BLOCK ──
+//      Mode A: Google Play Billing  (purchase_token + product_id present)
+//      Mode B: Dev placeholder      (no tokens; blocked in production)
+//      Mode C: Web payment provider (web_payment_provider + web_payment_intent_id present)
 //   4. Update DB: payment_status = 'secured', payment_date, buyer_id
 //   5. Fire placeholder notification
 //   6. Return updated deal
@@ -264,8 +299,11 @@ router.post("/transactions/pay-now", requireAuth, async (req, res) => {
     return;
   }
 
-  const { deal_id: dealId, buyer_id: bodyBuyerId, amount, currency,
-          purchase_token, product_id } = body.data;
+  const {
+    deal_id: dealId, buyer_id: bodyBuyerId, amount, currency,
+    purchase_token, product_id,
+    web_payment_provider, web_payment_intent_id,
+  } = body.data;
 
   // Prevent spoofing: the buyer_id in the body must match the authenticated user
   if (bodyBuyerId !== authenticatedBuyerId) {
@@ -310,41 +348,63 @@ router.post("/transactions/pay-now", requireAuth, async (req, res) => {
 
     // 2. ── PAYMENT GATEWAY BLOCK ──────────────────────────────────────────────
     //
-    // Two modes:
-    //
-    //   A) Google Play Billing (native Android — purchase_token present):
+    //   Mode A) Google Play Billing (native Android — purchase_token present):
     //      Verify the token with the Play Developer API.
     //      paid_amount comes from priceAmountMicros in the verified receipt —
     //      the buyer's self-reported `amount` field is ignored for security.
     //
-    //   B) Placeholder / web (no purchase_token):
+    //   Mode B) Placeholder / dev (no tokens of any kind):
     //      Allowed only in development (NODE_ENV !== 'production').
     //      paid_amount falls back to the buyer-entered `amount`.
     //
+    //   Mode C) Web payment provider (web_payment_provider + web_payment_intent_id):
+    //      Verify the PaymentIntent with the configured provider (e.g. Stripe).
+    //      paid_amount comes from the provider's verified receipt —
+    //      the buyer's self-reported `amount` field is ignored for security.
+    //      Fails safely with a clear error when the provider secret is not configured.
+    //
     let finalPaidAmount = amount;
+    let orderIdFromProvider: string | null = null;
 
     if (purchase_token && product_id) {
       // ── Mode A: Google Play Billing ────────────────────────────────────────
       const verified = await verifyPlayInAppPurchase(product_id, purchase_token);
-      // Use the amount Google actually charged, not what the client claimed
       finalPaidAmount = verified.paid_amount;
+      orderIdFromProvider = verified.order_id || null;
 
       logger.info(
         { dealId, product_id, order_id: verified.order_id, finalPaidAmount },
         "Secure deal: Play purchase verified",
       );
+
+    } else if (web_payment_provider && web_payment_intent_id) {
+      // ── Mode C: Web payment provider (e.g. Stripe) ────────────────────────
+      const verified = await verifyWebPayment({
+        provider:          web_payment_provider,
+        payment_intent_id: web_payment_intent_id,
+        expected_amount:   amount,
+        currency,
+      });
+      finalPaidAmount = verified.paid_amount;
+      orderIdFromProvider = verified.order_id || null;
+
+      logger.info(
+        { dealId, provider: web_payment_provider, payment_intent_id: web_payment_intent_id, finalPaidAmount },
+        "Secure deal: web payment verified",
+      );
+
     } else {
       // ── Mode B: placeholder (dev only) ────────────────────────────────────
       if (process.env["NODE_ENV"] === "production") {
         res.status(402).json({
           error: "PAYMENT_REQUIRED",
-          message: "A verified Google Play purchase token is required in production.",
+          message: "A verified payment token is required in production. Provide either a Google Play purchase_token or a web_payment_provider with web_payment_intent_id.",
         });
         return;
       }
       logger.warn(
         { dealId },
-        "Secure deal: using placeholder payment (no purchase_token) — dev mode only",
+        "Secure deal: using placeholder payment (no purchase_token or web token) — dev mode only",
       );
     }
     // ── END PAYMENT GATEWAY BLOCK ────────────────────────────────────────────
@@ -352,17 +412,19 @@ router.post("/transactions/pay-now", requireAuth, async (req, res) => {
     const now = new Date().toISOString();
 
     // 3. Atomic update — concurrent-request safe via WHERE payment_status = 'pending'
-    //    paid_amount is set from Google's verified receipt (or buyer-entered in dev).
+    //    paid_amount is set from the provider's verified receipt (or buyer-entered in dev).
+    //    order_id is stored when available from the provider.
     const { rows: updated } = await pool.query(
       `UPDATE transactions
        SET payment_status = 'secured',
            payment_date   = $1,
            buyer_id       = $2,
            paid_amount    = $3,
+           order_id       = COALESCE($5, order_id),
            updated_at     = $1
        WHERE deal_id = $4 AND payment_status = 'pending'
        RETURNING *`,
-      [now, authenticatedBuyerId, finalPaidAmount, dealId],
+      [now, authenticatedBuyerId, finalPaidAmount, dealId, orderIdFromProvider],
     );
 
     if (!updated.length) {
@@ -407,6 +469,8 @@ router.post("/transactions/pay-now", requireAuth, async (req, res) => {
 
 // ── POST /api/secure-deals/:dealId/pay  (backward-compat alias) ──────────────
 // Delegates to the same logic as /transactions/pay-now but reads deal_id from the URL.
+// NOTE: This alias uses a simple dev placeholder and does NOT support Play Billing
+// or web payment verification. New integrations should use /transactions/pay-now.
 
 router.post("/secure-deals/:dealId/pay", requireAuth, async (req, res) => {
   const buyerId = req.user!.id;

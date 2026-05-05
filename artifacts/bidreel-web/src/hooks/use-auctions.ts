@@ -208,6 +208,12 @@ export async function refreshAuctions(): Promise<void> {
       if (!prev) return next; // new auction — no existing reference to keep
       // Compare every field the card visibly renders. If all match, return
       // the SAME object reference so shallow equality checks pass.
+      // images is compared by value so that audio-reel processing (which
+      // clears image_urls in the DB once the MP4 is ready) causes a cache
+      // replacement rather than silently keeping the old stale array.
+      const imagesMatch =
+        prev.images === next.images ||
+        JSON.stringify(prev.images) === JSON.stringify(next.images);
       if (
         prev.currentBid  === next.currentBid  &&
         prev.bidCount    === next.bidCount     &&
@@ -217,7 +223,8 @@ export async function refreshAuctions(): Promise<void> {
         prev.isLikedByMe === next.isLikedByMe  &&
         prev.buyerId     === next.buyerId      &&
         prev.type        === next.type         &&
-        prev.mediaUrl    === next.mediaUrl
+        prev.mediaUrl    === next.mediaUrl     &&
+        imagesMatch
       ) {
         return prev; // unchanged — preserve reference, memo stays intact ✓
       }

@@ -1,0 +1,46 @@
+Implement minimal safe fixes for TWO confirmed media bugs only.
+
+Bug 1 — Multi-image album:
+Actual issue:
+When a listing has multiple images, the album/gallery auto-advances by itself. This is wrong. It slides through black/empty frames and only shows correctly again when it returns to the first image.
+
+Required behavior:
+- Image albums must NOT auto-play or auto-advance.
+- Only videos may auto-play.
+- Albums must stay on the current image.
+- User navigation only by manual swipe, arrows, or dots.
+- No automatic interval/timer for image galleries.
+- No black/empty frames.
+- Make ImageSlider stable on Android WebView:
+  - wrapper full width
+  - no width collapse
+  - each slide full width / min-width 100%
+  - keep lazy loading/performance behavior
+
+Bug 2 — Audio + cover image:
+Actual issue:
+Audio posts with a cover image can show a broken image because the original cover image is deleted from R2 while current clients may still have that old URL cached.
+
+Required behavior:
+- Do NOT delete original cover images immediately after audio processing.
+- Keep cover image URLs available long enough so existing feed/detail caches do not break.
+- Await the media_type = "video" update after processing instead of fire-and-forget.
+- Prevent any temporary state where the processed MP4 is treated as audio.
+- Ensure final refreshed post renders correctly as video.
+
+Also fix cache stability:
+- Update refreshAuctions stable-reference comparison to include images array changes.
+- Avoid keeping stale image arrays when image_urls changes.
+
+Fallback safety:
+- Verify logo-fallback.png exists where video-processing.ts expects it.
+- If missing, add safe fallback behavior that does not crash audio processing.
+
+Important:
+- Work only on files directly related to ImageSlider, media processing, and auction refresh/rendering.
+- Do NOT change payment.
+- Do NOT change Secure Deals.
+- Do NOT change upload architecture.
+- Do NOT refactor unrelated code.
+- Run typecheck/build after changes.
+- Report exact files changed and explain how each change fixes the two bugs.

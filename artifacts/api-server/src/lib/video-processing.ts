@@ -405,10 +405,12 @@ export async function processAudioReelAsync(
     ]);
 
     // ── 8. Update auction row with generated MP4 URLs ─────────────────────
-    // Critical: update URLs and clear image_urls (cover files are deleted from
-    // R2 below — stale URLs in the DB would cause 404s on cache miss).
-    // media_type is set in a separate best-effort call so a missing column
-    // (migration not yet run) does not block the URL update.
+    // Clears image_urls so new sessions never reference cover image URLs that
+    // will no longer be served. Cover images are intentionally NOT deleted from
+    // R2 here — existing cached sessions may still hold the old image_urls and
+    // would get 404s if we deleted them before those clients refresh. The R2
+    // objects are small and will be collected by the normal media-lifecycle
+    // scheduler when media_purge_after is reached.
     const { error: updateErr } = await supabaseAdmin
       .from("auctions")
       .update({
@@ -419,27 +421,28 @@ export async function processAudioReelAsync(
       .eq("id", auctionId);
     if (updateErr) throw new Error(`DB update: ${updateErr.message}`);
 
-    // Best-effort: set media_type (column may not exist — migration pending).
-    await supabaseAdmin
+    // Await media_type = "video" so the next feed fetch immediately renders
+    // the post as a standard video — no transient window where the processed
+    // MP4 URL is present but type is still "processing" (which would make the
+    // frontend treat the MP4 as audio). Column may not exist if the migration
+    // hasn't run yet; log a warning but don't fail the job.
+    const { error: mtErr } = await supabaseAdmin
       .from("auctions")
       .update({ media_type: "video" })
-      .eq("id", auctionId)
-      .then(({ error: mtErr }) => {
-        if (mtErr) {
-          logger.warn({ auctionId, err: mtErr.message }, "audio-reel: media_type set skipped — run the add_media_type migration");
-        }
-      });
+      .eq("id", auctionId);
+    if (mtErr) {
+      logger.warn({ auctionId, err: mtErr.message }, "audio-reel: media_type set skipped — run the add_media_type migration");
+    }
 
     logger.info({ auctionId, jobId }, "audio-reel: ✅ complete");
 
-    // ── 9. Remove originals from R2 (non-fatal) ───────────────────────────
+    // ── 9. Remove audio original from R2 (non-fatal) ──────────────────────
+    // Only the audio source is deleted — cover images are intentionally kept
+    // (see step 8 comment above).
     try {
       await deleteOriginal(audioUrl);
-      for (const imgUrl of coverImageUrls) {
-        await deleteOriginal(imgUrl);
-      }
     } catch (delErr) {
-      logger.warn({ auctionId, jobId, err: String(delErr) }, "audio-reel: cleanup failed (non-fatal)");
+      logger.warn({ auctionId, jobId, err: String(delErr) }, "audio-reel: audio cleanup failed (non-fatal)");
     }
   } catch (err) {
     logger.error({ auctionId, jobId, err: String(err) }, "audio-reel: ❌ failed — original URL preserved");

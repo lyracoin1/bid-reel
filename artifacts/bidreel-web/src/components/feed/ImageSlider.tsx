@@ -3,10 +3,10 @@ import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/** Per-slide image with a visible placeholder on load error. */
-function SlideImage({ src, alt, loading }: { src: string; alt: string; loading: "lazy" | "eager" }) {
-  const [error, setError] = useState(false);
-  if (error) {
+/** Per-slide image with a shimmer loading state and a visible error fallback. */
+function SlideImage({ src, alt }: { src: string; alt: string }) {
+  const [status, setStatus] = useState<"loading" | "loaded" | "error">("loading");
+  if (status === "error") {
     return (
       <div className="flex items-center justify-center w-full h-full bg-zinc-900/60">
         <span className="text-xs text-white/30">Image unavailable</span>
@@ -14,14 +14,24 @@ function SlideImage({ src, alt, loading }: { src: string; alt: string; loading: 
     );
   }
   return (
-    <img
-      src={src}
-      alt={alt}
-      loading={loading}
-      decoding="async"
-      className="max-w-full max-h-full w-auto h-auto object-contain"
-      onError={() => setError(true)}
-    />
+    <div className="relative w-full h-full flex items-center justify-center">
+      {/* Shimmer shown while the image is still downloading */}
+      {status === "loading" && (
+        <div className="absolute inset-0 bg-zinc-800/60 animate-pulse" />
+      )}
+      <img
+        src={src}
+        alt={alt}
+        loading="eager"
+        decoding="async"
+        className="max-w-full max-h-full w-auto h-auto object-contain"
+        onLoad={() => setStatus("loaded")}
+        onError={() => {
+          console.error("[ImageSlider] Failed to load image:", src);
+          setStatus("error");
+        }}
+      />
+    </div>
   );
 }
 
@@ -39,7 +49,7 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
   if (images.length === 1) {
     return (
       <div className={cn("flex items-center justify-center bg-black overflow-hidden", className)}>
-        <SlideImage src={images[0]} alt={alt} loading="eager" />
+        <SlideImage src={images[0]} alt={alt} />
       </div>
     );
   }
@@ -57,11 +67,19 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
     startX.current = null;
   };
 
-  // The sliding track is made explicitly wide (N × container width) so that
-  // Android WebView's flex implementation never collapses it. Each slide is
-  // 1/N of the track width = exactly one container width. Translating by
-  // -(current / N × 100%) moves by exactly one container width per step,
-  // with no black/empty frames between slides.
+  // ── Layout maths ────────────────────────────────────────────────────────────
+  // The track is N × container-width wide. Each slide is exactly 1/N of the
+  // track (= one container-width). Translating by -(current/N × 100%) of the
+  // track always moves by exactly one container-width per step.
+  //
+  // height: "100%" is applied as an inline style (not just a Tailwind class) on
+  // both the track and each slide. Inline styles are resolved before any CSS
+  // class lookups, which avoids an older Android-WebView bug where height:100%
+  // on a flex item inside a percentage-height flex container computes to zero.
+  //
+  // All slides always render <SlideImage> (no adjacency guard). This ensures
+  // every image starts fetching from the CDN the moment the slider mounts, so
+  // navigating to any slide shows a loading shimmer instead of a blank frame.
   const slideWidthPct = 100 / images.length;
   const translatePct  = current * slideWidthPct;
 
@@ -71,24 +89,22 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
+      {/* Track — always N × container-width wide */}
       <div
-        className="flex h-full transition-transform duration-300 ease-in-out"
+        className="flex transition-transform duration-300 ease-in-out"
         style={{
           width: `${images.length * 100}%`,
+          height: "100%",
           transform: `translateX(-${translatePct}%)`,
         }}
       >
         {images.map((src, i) => (
           <div
             key={i}
-            className="h-full flex items-center justify-center"
-            style={{ width: `${slideWidthPct}%` }}
+            className="flex items-center justify-center"
+            style={{ width: `${slideWidthPct}%`, height: "100%" }}
           >
-            {Math.abs(i - current) <= 1 ? (
-              <SlideImage src={src} alt={`${alt} ${i + 1}`} loading="eager" />
-            ) : (
-              <div className="w-full h-full bg-black" />
-            )}
+            <SlideImage src={src} alt={`${alt} ${i + 1}`} />
           </div>
         ))}
       </div>
@@ -115,8 +131,8 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
         </button>
       )}
 
-      {/* Dot indicators — stopPropagation prevents the parent container's
-          onClick (e.g. FeedCard navigate-to-detail) from firing on a dot tap. */}
+      {/* Dot indicators — stopPropagation prevents the FeedCard parent's
+          onClick (navigate-to-detail) from firing when a dot is tapped. */}
       <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5 z-10">
         {images.map((_, i) => (
           <motion.button

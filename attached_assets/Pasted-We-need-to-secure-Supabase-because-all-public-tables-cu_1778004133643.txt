@@ -1,0 +1,66 @@
+We need to secure Supabase because all public tables currently show RLS disabled.
+
+Do not apply changes yet.
+
+Please audit the current app and database usage, then generate a safe table-by-table RLS migration plan.
+
+Important:
+Do NOT blindly enable RLS.
+Do NOT break the app.
+Do NOT apply the SQL yet.
+Only inspect and produce the exact SQL we should review first.
+
+Please check all Supabase tables and categorize them:
+
+1. Public-read tables:
+
+* data that the feed or public marketplace must read
+
+2. User-private tables:
+
+* data each user should only read/write for themselves
+
+3. Owner-controlled tables:
+
+* data public can read but only owner can insert/update/delete
+
+4. Backend-only tables:
+
+* payment, secure deals, vault, admin, OTP, moderation, private logs
+
+5. Admin-only tables:
+
+* admin actions, moderation queue, reports, admin notifications
+
+For each table, provide:
+
+* current purpose
+* whether RLS should be enabled
+* SELECT policy
+* INSERT policy
+* UPDATE policy
+* DELETE policy
+* whether the frontend uses Supabase anon key directly or backend API
+* risk if policy is wrong
+
+Known important rules:
+
+* auctions: public/authenticated read as needed, owner write/update/delete
+* bids: authenticated users can read bids, bidder can insert/update own bid if app allows
+* profiles: users can read safe public profile fields, but only update their own profile
+* notifications: users only read/update their own notifications
+* reports: users can create reports, admins review them
+* transactions / vault / payments / password_reset_otps: backend-only, no direct anon access
+* admin tables: admin-only
+* views like v_auction_feed and v_public_profiles must not expose private fields
+
+Also check if any existing backend uses Supabase service role. If service role is used, explain which tables can be backend-only safely.
+
+Return:
+
+1. A complete table-by-table security plan
+2. The exact SQL migration to enable RLS and create policies
+3. Any app code changes needed before enabling RLS
+4. A safe rollout order so we can apply this without breaking production
+
+Again: do not apply anything yet.

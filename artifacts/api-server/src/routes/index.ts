@@ -2,7 +2,6 @@ import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import versionRouter from "./version";
 import authRouter from "./auth";
-import passwordResetRouter from "./password-reset";
 import usersRouter from "./users";
 import followsRouter from "./follows";
 import savesRouter from "./saves";
@@ -39,7 +38,6 @@ const router: IRouter = Router();
 router.use(healthRouter);
 router.use(versionRouter);
 router.use(authRouter);
-router.use(passwordResetRouter);
 // whatsappRouter must be registered BEFORE notificationRouter, because
 // notificationRouter applies a router-level requireAuth that would
 // otherwise intercept every subsequent /api/* request.

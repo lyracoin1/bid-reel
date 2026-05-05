@@ -2,8 +2,8 @@
  * whatsapp.ts — Real WhatsApp dispatch via Wapilot.
  *
  * Single integration point for outbound WhatsApp. Every caller
- * (auction-won, 24h reminder, 48h expired, password-reset OTP) goes
- * through `sendWhatsApp` — only this module knows about Wapilot.
+ * (auction-won, 24h reminder, 48h expired) goes through `sendWhatsApp`
+ * — only this module knows about Wapilot.
  *
  * Wapilot HTTP contract (verified live against api.wapilot.net — HTTP 200,
  * message_id returned):
@@ -51,7 +51,6 @@ export type WhatsAppKind =
   | "auction_won"
   | "purchase_reminder_24h"
   | "purchase_expired"
-  | "password_otp"
   | "test";
 
 export interface SendWhatsAppInput {

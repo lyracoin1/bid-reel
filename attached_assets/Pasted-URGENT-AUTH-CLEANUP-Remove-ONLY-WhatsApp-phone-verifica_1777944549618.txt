@@ -1,0 +1,97 @@
+URGENT AUTH CLEANUP — Remove ONLY WhatsApp/phone verification and password reset logic from authentication flows.
+
+STRICT SCOPE:
+Work ONLY on:
+
+* Login verification
+* Sign-up verification (if phone/WhatsApp based)
+* Forgot password
+* Reset password
+* OTP recovery/auth verification flows
+
+DO NOT TOUCH:
+
+* Seller WhatsApp contact buttons
+* Auction WhatsApp buttons
+* Buyer/seller communication
+* WhatsApp paywall logic
+* FeedCard WhatsApp
+* Auction detail WhatsApp
+* Profile WhatsApp fields
+* Secure Deals
+* Support systems
+* Any marketplace or seller-facing WhatsApp feature
+
+REMOVE ONLY:
+
+1. WhatsApp verification during login
+2. WhatsApp verification during password reset
+3. Phone number verification used for auth
+4. SMS/OTP auth tied to WhatsApp/phone
+5. Phone-based sign-in/sign-up
+6. Old auth routes related to:
+
+   * password-reset
+   * OTP verification
+   * phone verification
+7. WhatsApp deep links in auth
+8. Phone input fields used ONLY for authentication
+9. UI text mentioning:
+
+   * WhatsApp
+   * OTP
+   * phone verification
+   * رقم الهاتف
+   * واتساب
+   * رمز التحقق
+
+REPLACE WITH:
+USER APP:
+
+* Email/password login
+* Email verification via Supabase
+* Forgot password:
+  `supabase.auth.resetPasswordForEmail(email, { redirectTo: "https://www.bid-reel.com/reset-password" })`
+
+ADMIN APP:
+
+* Email/password login
+* Forgot password:
+  `supabase.auth.resetPasswordForEmail(email, { redirectTo: "https://admin.bid-reel.com/reset-password" })`
+
+SECURITY:
+
+* No email enumeration
+* Generic success responses
+* Production safe
+
+CODE RULES:
+
+* Remove obsolete state
+* Remove old modal steps
+* Remove dead components
+* Remove unused imports
+* Remove old backend calls ONLY if auth-specific
+* No refactors outside auth
+* Preserve architecture
+
+VERIFICATION:
+Search repo for:
+
+* whatsapp
+* WhatsApp
+* otp
+* password-reset
+* forgot-password phone
+* auth phone
+* verification code
+
+Ensure:
+
+* No WhatsApp auth popup remains
+* No phone reset modal remains
+* No login verification via WhatsApp remains
+* Seller/auction WhatsApp features remain untouched
+
+EXPECTED RESULT:
+BidReel auth system should use ONLY email-based authentication, email verification, and email password recovery, while ALL non-auth WhatsApp marketplace functionality remains fully intact.

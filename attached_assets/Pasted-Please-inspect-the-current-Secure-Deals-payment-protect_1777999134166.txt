@@ -1,0 +1,48 @@
+Please inspect the current Secure Deals / payment protection implementation again, but do not edit anything.
+
+I need a policy and logic audit before we decide what to keep, remove, or redesign.
+
+Context:
+We are considering changing this feature into a digital-products-only protected sale flow. A seller would list a digital product, hide the sensitive delivery data, generate a payment/deal code, and the listing would appear in the main auction/feed under digital interests. When a buyer wins/pays, the hidden digital product data is revealed to the buyer.
+
+Important clarification:
+The hidden data is NOT customer personal information. It is product delivery data, such as:
+
+* domain transfer info
+* game account details
+* license key
+* digital access credentials
+* downloadable product info
+* similar digital asset delivery data
+
+Please inspect and explain the current implementation only.
+
+Questions:
+
+1. What current rules, policies, restrictions, and validation logic exist in Secure Deals?
+2. What does the current flow assume is being sold?
+
+   * physical products?
+   * services?
+   * digital products?
+   * mixed items?
+3. What fields currently exist for item data, price, delivery method, terms, buyer/seller info, payment proof, shipping proof, disputes, ratings, and release/escrow status?
+4. Is there any current logic that would conflict with a digital-products-only flow?
+5. Is there any current logic that assumes physical shipping or in-person delivery?
+6. How is sensitive information currently stored, hidden, revealed, or protected?
+7. Is there any encryption, masking, access control, or reveal-after-payment logic already implemented?
+8. What database tables and fields are involved in Secure Deals and payment protection?
+9. What backend routes or APIs are involved?
+10. What frontend pages/components are involved?
+11. What are the current transaction statuses and who can change them?
+12. How are disputes handled currently?
+13. How are payments verified currently?
+14. Is there any automatic posting to the main auction/feed currently?
+15. Is Secure Deals currently connected to auctions, interests, categories, or digital-product categories?
+16. Is there any existing support for private hidden product data, such as credentials, codes, keys, domain transfer info, or account delivery info?
+17. What parts of the current implementation should likely be kept for a digital-products-only protected sale flow?
+18. What parts would likely need to be removed or changed because they are for physical delivery/shipping?
+19. Are there any TODOs, dead code, temporary logic, or incomplete pieces related to Secure Deals?
+20. Please summarize the current Secure Deals policy/logic step by step from seller creation to buyer payment to delivery/reveal/dispute.
+
+Do not make code changes. Do not delete Coming Soon blocks. Only inspect the current code and give a clear diagnosis so we can decide the new design safely.

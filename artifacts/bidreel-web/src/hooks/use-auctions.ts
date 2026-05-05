@@ -140,7 +140,7 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
   }
 
   // Audio-type auctions (both "audio" legacy and "processing") keep the audio
-  // file in video_url. Cover images come from image_urls or thumbnail_url fallback.
+  // file in video_url. Display images come from image_urls or thumbnail_url fallback.
   const isAudioLike = auctionType === 'audio' || auctionType === 'processing';
   const audioImages: string[] | undefined = isAudioLike
     ? (imageUrls.length > 0 ? imageUrls : (thumbUrl && thumbUrl !== videoUrl ? [thumbUrl] : undefined))

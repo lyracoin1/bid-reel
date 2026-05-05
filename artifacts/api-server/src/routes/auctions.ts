@@ -743,12 +743,17 @@ const createAuctionSchema = z.object({
 });
 
 // Columns returned to the client — never expose internal/deleted fields.
+// Must include every field read by backendToAuction so newly-created posts
+// arrive in the cache with complete data without requiring a feed refresh.
 const AUCTION_SELECT = [
   "id", "seller_id", "title", "description", "category",
   "start_price", "current_bid", "min_increment",
-  "video_url", "thumbnail_url",
+  "video_url", "thumbnail_url", "image_urls", "media_type",
   "bid_count", "like_count", "status",
   "starts_at", "ends_at", "created_at",
+  "sale_type", "fixed_price",
+  "currency_code", "currency_label",
+  "lat", "lng", "buyer_id",
 ].join(", ");
 
 router.post("/auctions", requireAuth, async (req, res) => {
@@ -935,10 +940,10 @@ router.post("/auctions", requireAuth, async (req, res) => {
     // video_url / thumbnail_url in the DB so the feed plays it as a standard
     // video.  While processing is in-flight the frontend falls back to the
     // ImageSlider + hidden <audio> path (type="audio").
-    const coverUrls: string[] = imageUrls && imageUrls.length > 0
+    const audioImageUrls: string[] = imageUrls && imageUrls.length > 0
       ? imageUrls
       : (thumbnailUrl && thumbnailUrl !== videoUrl ? [thumbnailUrl] : []);
-    void processAudioReelAsync(auction.id, videoUrl, coverUrls, sellerId)
+    void processAudioReelAsync(auction.id, videoUrl, audioImageUrls, sellerId)
       .catch(err => logger.error({ err: String(err), auctionId: auction.id }, "audio-reel: unhandled crash"));
   } else if (isVideoUpload) {
     void processVideoAsync(auction.id, videoUrl, sellerId)

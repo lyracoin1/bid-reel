@@ -185,10 +185,7 @@ export default function CreateAuction() {
   // ── Audio state ──────────────────────────────────────────────────────────────
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
-  const [coverFile, setCoverFile] = useState<File | null>(null);
-  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
-  const coverInputRef = useRef<HTMLInputElement>(null);
 
   // ── Recording state ──────────────────────────────────────────────────────────
   const [audioSource, setAudioSource] = useState<"upload" | "record">("upload");
@@ -595,22 +592,6 @@ export default function CreateAuction() {
     setAudioError(null);
   };
 
-  const handleCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    if (file.size > MAX_IMAGE_BYTES) return;
-    if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl);
-    setCoverFile(file);
-    setCoverPreviewUrl(URL.createObjectURL(file));
-  };
-
-  const clearCover = () => {
-    if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl);
-    setCoverFile(null);
-    setCoverPreviewUrl(null);
-  };
-
   // ── Submit ───────────────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
@@ -733,28 +714,8 @@ export default function CreateAuction() {
           return;
         }
 
-        // ── 2. Upload cover image(s) ─────────────────────────────────────────
-        // Cover images are stored in image_urls so the frontend can render them
-        // directly via ImageSlider without generating a video.
-        // When coverFile is absent we leave thumbnailUrl === videoUrl as the
-        // "no cover" sentinel; image_urls stays empty and the frontend shows
-        // a default placeholder.
-        if (coverFile) {
-          setUploadProgress(lang === "ar" ? "جارٍ رفع صورة الغلاف…" : "Uploading cover image…");
-          try {
-            const compressedCover = await compressListingThumbnail(coverFile);
-            thumbnailUrl = await uploadMedia(compressedCover, "image");
-            // Also store in image_urls so backendToAuction maps type → "audio"
-            // and ImageSlider has images to display.
-            allImageUrls = [thumbnailUrl];
-          } catch (err) {
-            setUploadProgress(null);
-            setSubmitError(describeSubmitError(err, "upload_image", lang));
-            return;
-          }
-        } else {
-          thumbnailUrl = videoUrl; // backend detects equality → no cover
-        }
+        // Audio posts have no images — the feed shows a music note placeholder.
+        thumbnailUrl = videoUrl;
       } else {
         if (photoFiles.length === 0) {
           setSubmitError(lang === "ar" ? "يرجى إضافة صورة واحدة على الأقل." : "Please add at least one photo.");
@@ -762,7 +723,6 @@ export default function CreateAuction() {
         }
 
         const uploadedUrls: string[] = [];
-        let coverThumbnailUrl = "";
 
         try {
           for (let i = 0; i < photoFiles.length; i++) {
@@ -776,12 +736,6 @@ export default function CreateAuction() {
               : `Uploading photo ${i + 1} of ${photoFiles.length}…`);
             const url = await uploadMedia(displayFile, "image");
             uploadedUrls.push(url);
-
-            if (i === 0) {
-              const thumbFile = await compressListingThumbnail(photoFiles[i]);
-              setUploadProgress(lang === "ar" ? "جارٍ رفع الصورة المصغرة…" : "Uploading cover thumbnail…");
-              coverThumbnailUrl = await uploadMedia(thumbFile, "image");
-            }
           }
         } catch (err) {
           setUploadProgress(null);
@@ -789,7 +743,7 @@ export default function CreateAuction() {
           return;
         }
         videoUrl     = uploadedUrls[0];
-        thumbnailUrl = coverThumbnailUrl || uploadedUrls[0];
+        thumbnailUrl = uploadedUrls[0];
         allImageUrls = uploadedUrls;
       }
 
@@ -935,9 +889,6 @@ export default function CreateAuction() {
               <input ref={audioInputRef} type="file"
                 accept="audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/webm,audio/x-m4a,.mp3,.m4a,.aac,.ogg"
                 className="hidden" onChange={handleAudioSelect} />
-              <input ref={coverInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
-                className="hidden" onChange={handleCoverSelect} />
-
               {/* ── VIDEO MODE ── */}
               {postType === "video" ? (
                 <>
@@ -1116,10 +1067,7 @@ export default function CreateAuction() {
                           className="w-24 h-24 rounded-full overflow-hidden border-2 border-primary/40"
                           style={{ transformStyle: "preserve-3d" }}
                         >
-                          {coverFile
-                            ? <img src={coverPreviewUrl!} alt="Cover" className="w-full h-full object-cover" />
-                            : <img src="/images/logo-icon.png" alt="BidReel" className="w-full h-full object-cover bg-[#0e0e1a]" />
-                          }
+                          <img src="/images/logo-icon.png" alt="BidReel" className="w-full h-full object-cover bg-[#0e0e1a]" />
                         </motion.div>
                       </div>
 
@@ -1199,37 +1147,6 @@ export default function CreateAuction() {
                     </div>
                   )}
 
-                  {/* Optional cover image */}
-                  <div className="mb-5">
-                    <label className="block text-xs font-bold text-white/50 uppercase tracking-widest mb-2">
-                      {lang === "ar" ? "صورة الغلاف (اختياري)" : "Cover Image (optional)"}
-                    </label>
-                    {!coverFile ? (
-                      <button
-                        onClick={() => coverInputRef.current?.click()}
-                        className="w-full py-3.5 border border-dashed border-white/12 rounded-2xl bg-white/3 flex items-center justify-center gap-2 text-white/40 hover:border-primary/40 hover:text-primary/60 transition-all active:scale-[0.98]"
-                      >
-                        <ImageIcon size={16} />
-                        <span className="text-sm font-medium">
-                          {lang === "ar" ? "اختر صورة — الافتراضي: شعار BidReel" : "Pick image — default: BidReel logo"}
-                        </span>
-                      </button>
-                    ) : (
-                      <div className="flex items-center gap-3 rounded-2xl bg-white/5 border border-white/10 p-3">
-                        <div className="w-14 h-14 rounded-xl overflow-hidden border border-white/15 shrink-0">
-                          <img src={coverPreviewUrl!} alt="Cover" className="w-full h-full object-cover" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-white truncate">{coverFile.name}</p>
-                          <p className="text-xs text-white/40 mt-0.5">{(coverFile.size / 1024 / 1024).toFixed(1)} MB</p>
-                        </div>
-                        <button onClick={clearCover} className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center active:scale-95">
-                          <X size={14} className="text-red-400" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
                   <motion.button whileTap={{ scale: 0.97 }}
                     onClick={() => canProceedFromStep1 && setStep(2)}
                     disabled={!canProceedFromStep1}
@@ -1244,19 +1161,14 @@ export default function CreateAuction() {
                 <>
                   <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
                     {lang === "ar"
-                      ? "أضف حتى 6 صور. الحد الأقصى 20 ميغابايت لكل صورة. الصورة الأولى هي الغلاف."
-                      : "Add up to 6 photos. Max 20 MB each. The first photo is the cover shown in the feed."}
+                      ? "أضف حتى 6 صور. الحد الأقصى 20 ميغابايت لكل صورة."
+                      : "Add up to 6 photos. Max 20 MB each."}
                   </p>
 
                   <div className="grid grid-cols-3 gap-2 mb-4">
                     {photoPreviewUrls.map((src, i) => (
                       <div key={i} className="relative aspect-square rounded-xl overflow-hidden">
                         <img src={src} className="w-full h-full object-cover" alt={`Photo ${i + 1}`} />
-                        {i === 0 && (
-                          <div className="absolute top-1 left-1 bg-primary/90 rounded px-1.5 py-0.5 text-[9px] font-bold text-white">
-                            {lang === "ar" ? "غلاف" : "COVER"}
-                          </div>
-                        )}
                         <button onClick={() => removePhoto(i)}
                           className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center">
                           <X size={10} className="text-white" />

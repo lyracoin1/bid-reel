@@ -468,12 +468,12 @@ export default function AuctionDetail() {
             <ImageSlider images={auction.images!} alt={auction.title} className="w-full h-full" />
           ) : isAudio ? (
             /* ── Audio / Processing auction ──────────────────────────────────── */
-            /* Cover image(s) displayed via ImageSlider; audio plays separately.  */
+            /* Images displayed via ImageSlider if present; audio plays separately. */
             <>
               {(auction.images?.length ?? 0) > 0 ? (
                 <ImageSlider images={auction.images!} alt={auction.title} className="w-full h-full" />
               ) : (
-                /* No cover — placeholder with music note */
+                /* No images — placeholder with music note */
                 <div className="w-full h-full bg-gradient-to-br from-purple-950/80 via-background to-background flex items-center justify-center">
                   <Music size={80} className="text-primary/30" />
                 </div>
@@ -512,7 +512,7 @@ export default function AuctionDetail() {
           ) : isVideo ? (
             <>
               {videoError ? (
-                /* Graceful fallback: video failed to load — show cover image(s) */
+                /* Graceful fallback: video failed to load — show images if available */
                 (auction.images?.length ?? 0) > 0 ? (
                   <ImageSlider images={auction.images!} alt={auction.title} className="w-full h-full" />
                 ) : auction.thumbnailUrl ? (

@@ -420,7 +420,7 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
             />
           )}
           {videoError ? (
-            /* Graceful fallback: video failed to load — show cover image(s) */
+            /* Graceful fallback: video failed to load — show images if available */
             (auction.images?.length ?? 0) > 0 ? (
               <ImageSlider images={auction.images!} alt={auction.title} className="absolute inset-0 w-full h-full" />
             ) : auction.thumbnailUrl ? (
@@ -443,13 +443,13 @@ function FeedCard({ auction, isActive, isNear }: FeedCardProps) {
         </div>
       ) : isAudio ? (
         /* ── Audio auction ────────────────────────────────────────────────── */
-        /* Show cover image(s) with ImageSlider; play audio separately.       */
+        /* Show images with ImageSlider if present; play audio separately.    */
         <div className="absolute inset-0" onClick={() => setLocation(`/auction/${auction.id}`)}>
           <div className={cn("absolute inset-0 transition-transform duration-700", isActive ? "scale-100" : "scale-105")}>
             {(auction.images?.length ?? 0) > 0 ? (
               <ImageSlider images={auction.images!} alt={auction.title} className="w-full h-full" />
             ) : (
-              /* No cover image — dark placeholder with music note */
+              /* No images — dark placeholder with music note */
               <div className="w-full h-full bg-gradient-to-br from-purple-950/80 via-background to-background flex items-center justify-center">
                 <Music size={72} className="text-primary/30" />
               </div>

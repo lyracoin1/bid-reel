@@ -119,7 +119,7 @@ export async function compressListingImage(file: File): Promise<File> {
   return compressImage(file, { maxPx: 1080, quality: 0.82 });
 }
 
-/** Preset for auction cover thumbnails — 480 px long edge, quality 0.78. */
+/** Preset for listing thumbnails (e.g. video poster frames) — 480 px long edge, quality 0.78. */
 export async function compressListingThumbnail(file: File): Promise<File> {
   return compressImage(file, { maxPx: 480, quality: 0.78 });
 }

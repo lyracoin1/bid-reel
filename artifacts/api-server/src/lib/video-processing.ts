@@ -258,9 +258,9 @@ async function probeDuration(filePath: string): Promise<number> {
 const MAX_OUTPUT_SIZE_BYTES = 30 * 1024 * 1024;
 
 /**
- * Convert an uploaded audio file + cover image(s) into a mobile-optimised MP4 reel.
+ * Convert an uploaded audio file + image(s) into a mobile-optimised MP4 reel.
  *
- * coverImageUrls behaviour:
+ * imageUrls behaviour:
  *   • []  or null → use the BidReel logo as a static background frame
  *   • [url]       → static frame for the full audio duration
  *   • [u1, u2, …] → slideshow: each image shown for audioDuration/N seconds,
@@ -276,12 +276,12 @@ const MAX_OUTPUT_SIZE_BYTES = 30 * 1024 * 1024;
 export async function processAudioReelAsync(
   auctionId: string,
   audioUrl: string,
-  coverImageUrls: string[],
+  imageUrls: string[],
   userId: string,
 ): Promise<void> {
   const jobId  = randomUUID().slice(0, 8);
   const tmpDir = path.join(tmpdir(), `bidreel-audio-${jobId}`);
-  logger.info({ auctionId, jobId, imageCount: coverImageUrls.length }, "audio-reel: job started");
+  logger.info({ auctionId, jobId, imageCount: imageUrls.length }, "audio-reel: job started");
 
   try {
     await fs.mkdir(tmpDir, { recursive: true });
@@ -301,23 +301,23 @@ export async function processAudioReelAsync(
       throw new Error(`Audio too long: ${Math.round(dur)}s exceeds ${MAX_AUDIO_DURATION_S}s limit`);
     }
 
-    // ── 3. Download / prepare cover image(s) ──────────────────────────────
-    const coverPaths: string[] = [];
+    // ── 3. Download / prepare image(s) ────────────────────────────────────
+    const imagePaths: string[] = [];
 
-    if (coverImageUrls.length === 0) {
-      // No cover — use BidReel logo as a static frame
+    if (imageUrls.length === 0) {
+      // No images — use BidReel logo as a static frame
       const logoPath = path.join(tmpDir, "cover_0.jpg");
       await fs.copyFile(LOGO_FALLBACK_PATH, logoPath);
-      coverPaths.push(logoPath);
+      imagePaths.push(logoPath);
       logger.info({ auctionId, jobId }, "audio-reel: using BidReel logo fallback");
     } else {
-      for (let i = 0; i < coverImageUrls.length; i++) {
+      for (let i = 0; i < imageUrls.length; i++) {
         const imgPath = path.join(tmpDir, `cover_${i}.jpg`);
-        const imgBytes = await downloadMedia(coverImageUrls[i]);
+        const imgBytes = await downloadMedia(imageUrls[i]);
         await fs.writeFile(imgPath, imgBytes);
-        coverPaths.push(imgPath);
+        imagePaths.push(imgPath);
       }
-      logger.info({ auctionId, jobId, count: coverPaths.length }, "audio-reel: cover image(s) downloaded");
+      logger.info({ auctionId, jobId, count: imagePaths.length }, "audio-reel: image(s) downloaded");
     }
 
     // ── 4. Generate MP4 ───────────────────────────────────────────────────
@@ -327,13 +327,13 @@ export async function processAudioReelAsync(
       `scale=720:720:force_original_aspect_ratio=decrease,` +
       `pad=720:720:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=5`;
 
-    if (coverPaths.length === 1) {
+    if (imagePaths.length === 1) {
       // ── Single image: static frame over audio ─────────────────────────
       // -loop 1         : hold the image for the full audio duration
       // -tune stillimage: optimise libx264 for a static background
       // -shortest       : cut video stream when audio ends
       await shell(
-        `ffmpeg -y -loop 1 -i "${coverPaths[0]}" -i "${audioPath}" ` +
+        `ffmpeg -y -loop 1 -i "${imagePaths[0]}" -i "${audioPath}" ` +
         `-vf "${scaleFilter}" ` +
         `-c:v libx264 -tune stillimage -crf 28 -preset veryfast ` +
         `-c:a aac -b:a 128k ` +
@@ -346,17 +346,17 @@ export async function processAudioReelAsync(
       // (minimum 2 s per slide so fast content isn't invisible).
       // The concat demuxer feeds images as a video stream; audio is mixed in.
       const safeDur  = dur > 0 ? dur : 30; // fallback 30 s if probe failed
-      const slideDur = Math.max(2, safeDur / coverPaths.length);
+      const slideDur = Math.max(2, safeDur / imagePaths.length);
 
       // Build the concat file list.  The last entry is duplicated with a tiny
       // duration to work around the concat demuxer's last-frame truncation bug.
       const listLines: string[] = [];
-      for (const p of coverPaths) {
+      for (const p of imagePaths) {
         listLines.push(`file '${p.replace(/'/g, "'\\''")}'`);
         listLines.push(`duration ${slideDur.toFixed(3)}`);
       }
       // Duplicate last frame to avoid black tail
-      listLines.push(`file '${coverPaths[coverPaths.length - 1].replace(/'/g, "'\\''")}'`);
+      listLines.push(`file '${imagePaths[imagePaths.length - 1].replace(/'/g, "'\\''")}'`);
       listLines.push(`duration 0.1`);
 
       const listPath = path.join(tmpDir, "slide_list.txt");
@@ -374,7 +374,7 @@ export async function processAudioReelAsync(
 
     const outStat = await fs.stat(outPath);
     logger.info(
-      { auctionId, jobId, kb: Math.round(outStat.size / 1024), slides: coverPaths.length },
+      { auctionId, jobId, kb: Math.round(outStat.size / 1024), slides: imagePaths.length },
       "audio-reel: MP4 generated",
     );
 

@@ -18,7 +18,7 @@ import { buildOutbidMessage } from "../lib/whatsappTemplates";
 import { getBidderCol, getBidderUserId, hasWinnerBidIdCol } from "../lib/dbSchema";
 import { deleteMediaFile } from "../lib/media-lifecycle";
 import { runAuctionLifecycle } from "../lib/auction-lifecycle";
-import { processVideoAsync, processAudioReelAsync } from "../lib/video-processing";
+import { processVideoAsync, processAudioAsync } from "../lib/video-processing";
 import { assertOwnedMediaUrl } from "../lib/r2";
 import { buildUserFeedContext, scoreAuction } from "../lib/feed-ranking";
 import { recordEngagement } from "./views";
@@ -883,7 +883,7 @@ router.post("/auctions", requireAuth, async (req, res) => {
     (mediaKind === "video" ||
       (!mediaKind && /\.(mp4|mov|webm|avi)(\?|$)/i.test(videoUrl)));
   const initialMediaType: string = isAudioUpload
-    ? "processing"
+    ? "audio"
     : isVideoUpload
     ? "video"
     : imageUrls && imageUrls.length > 1
@@ -951,15 +951,11 @@ router.post("/auctions", requireAuth, async (req, res) => {
   // ── Async media processing (fire-and-forget) ───────────────────────────────
   // isAudioUpload / isVideoUpload were computed above before insertAuction.
   if (isAudioUpload) {
-    // Combine the audio with cover image(s) into an MP4 reel, then update
-    // video_url / thumbnail_url in the DB so the feed plays it as a standard
-    // video.  While processing is in-flight the frontend falls back to the
-    // ImageSlider + hidden <audio> path (type="audio").
-    const audioImageUrls: string[] = imageUrls && imageUrls.length > 0
-      ? imageUrls
-      : (thumbnailUrl && thumbnailUrl !== videoUrl ? [thumbnailUrl] : []);
-    void processAudioReelAsync(auction.id, videoUrl, audioImageUrls, sellerId)
-      .catch(err => logger.error({ err: String(err), auctionId: auction.id }, "audio-reel: unhandled crash"));
+    // Normalize audio to AAC/M4A 128 kbps (audio only — no video stream,
+    // no image, no reel). The DB row already has media_type="audio" so the
+    // feed renders an <audio> player immediately without waiting for this job.
+    void processAudioAsync(auction.id, videoUrl, sellerId)
+      .catch(err => logger.error({ err: String(err), auctionId: auction.id }, "audio-processing: unhandled crash"));
   } else if (isVideoUpload) {
     void processVideoAsync(auction.id, videoUrl, sellerId)
       .catch(err => logger.error({ err: String(err), auctionId: auction.id }, "video-processing: unhandled crash"));

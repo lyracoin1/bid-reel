@@ -127,6 +127,11 @@ function backendToAuction(raw: ApiAuctionRaw, bids: ApiAuctionBid[] = []): Aucti
     auctionType = 'processing';
   } else if (dbMediaType === 'failed') {
     auctionType = 'failed';
+  } else if (dbMediaType === 'audio') {
+    // Explicit audio type written by the server for audio-only posts.
+    // Handled here so .webm audio URLs are not misdetected as video
+    // by the legacy extension regex below.
+    auctionType = 'audio';
   } else {
     // Legacy rows without media_type: fall back to extension regex.
     const legacyIsAudio = videoUrl ? isAudioUrl(videoUrl) : false;

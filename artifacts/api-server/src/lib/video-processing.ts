@@ -238,7 +238,102 @@ export async function processVideoAsync(
   }
 }
 
-// ─── Audio → MP4 reel ────────────────────────────────────────────────────────
+// ─── Audio-only processing ───────────────────────────────────────────────────
+
+/**
+ * Lightweight audio normalization — no image, no video stream, no logo.
+ *
+ * Called fire-and-forget after an audio auction is inserted with
+ * `media_type = "audio"`.  The pipeline:
+ *   1. Downloads the uploaded audio from R2
+ *   2. Transcodes to AAC/M4A 128 kbps  (-vn strips any embedded cover-art track)
+ *   3. Uploads result to processed/{userId}/{jobId}_audio.m4a
+ *   4. Updates video_url + thumbnail_url in the DB (both point to the audio file)
+ *   5. Deletes the original pending file
+ *
+ * The DB row keeps media_type = "audio" throughout so the feed renders an
+ * <audio> player without waiting for this background job to complete.
+ */
+export async function processAudioAsync(
+  auctionId: string,
+  audioUrl: string,
+  userId: string,
+): Promise<void> {
+  const jobId  = randomUUID().slice(0, 8);
+  const tmpDir = path.join(tmpdir(), `bidreel-audio-${jobId}`);
+  logger.info({ auctionId, jobId }, "audio-processing: job started");
+
+  try {
+    await fs.mkdir(tmpDir, { recursive: true });
+
+    const audioIn  = path.join(tmpDir, "audio.tmp");
+    const audioOut = path.join(tmpDir, "audio_128k.m4a");
+
+    // ── 1. Download ────────────────────────────────────────────────────────
+    const audioBytes = await downloadMedia(audioUrl);
+    await fs.writeFile(audioIn, audioBytes);
+    logger.info(
+      { auctionId, jobId, kb: Math.round(audioBytes.length / 1024) },
+      "audio-processing: downloaded",
+    );
+
+    // ── 2. Transcode (audio only) ──────────────────────────────────────────
+    // -vn           : strip any embedded video / cover-art stream
+    // -c:a aac      : normalize to AAC (accepts mp3/m4a/webm/ogg/opus input)
+    // -b:a 128k     : target 128 kbps — good quality, compact file size
+    await shell(
+      `ffmpeg -y -i "${audioIn}" -vn -c:a aac -b:a 128k "${audioOut}"`,
+    );
+    const outStat = await fs.stat(audioOut);
+    logger.info(
+      { auctionId, jobId, kb: Math.round(outStat.size / 1024) },
+      "audio-processing: transcoded",
+    );
+
+    // ── 3. Upload to R2 ────────────────────────────────────────────────────
+    const outBytes     = await fs.readFile(audioOut);
+    const processedKey = `processed/${userId}/${jobId}_audio.m4a`;
+    const { publicUrl: processedUrl } = await r2Upload(processedKey, outBytes, "audio/mp4");
+
+    // ── 4. Update DB ───────────────────────────────────────────────────────
+    // Both video_url and thumbnail_url point to the processed audio URL.
+    // Keeping them equal preserves the sentinel (thumbnailUrl === videoUrl)
+    // used by backendToAuction to identify audio posts with no cover image.
+    const { error: updateErr } = await supabaseAdmin
+      .from("auctions")
+      .update({
+        video_url: processedUrl,
+        thumbnail_url: processedUrl,
+        media_type: "audio",
+      })
+      .eq("id", auctionId);
+    if (updateErr) throw new Error(`DB update: ${updateErr.message}`);
+
+    logger.info({ auctionId, jobId }, "audio-processing: ✅ complete");
+
+    // ── 5. Delete original ─────────────────────────────────────────────────
+    try {
+      await deleteOriginal(audioUrl);
+    } catch (delErr) {
+      logger.warn(
+        { auctionId, jobId, err: String(delErr) },
+        "audio-processing: could not delete original (non-fatal)",
+      );
+    }
+  } catch (err) {
+    logger.error(
+      { auctionId, jobId, err: String(err) },
+      "audio-processing: ❌ failed — original URL preserved in DB",
+    );
+    try {
+      await supabaseAdmin.from("auctions").update({ media_type: "failed" }).eq("id", auctionId);
+    } catch { /* non-fatal */ }
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+// ─── Audio → MP4 reel (deprecated — no longer called) ────────────────────────
 
 /** Probe the duration (seconds) of a local media file via ffprobe. */
 async function probeDuration(filePath: string): Promise<number> {

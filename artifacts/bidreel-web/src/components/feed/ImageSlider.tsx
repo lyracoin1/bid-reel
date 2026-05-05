@@ -3,56 +3,40 @@ import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/** Per-slide image with a shimmer loading state and a visible error fallback. */
-function SlideImage({ src, alt }: { src: string; alt: string }) {
-  const [status, setStatus] = useState<"loading" | "loaded" | "error">("loading");
-  if (status === "error") {
-    return (
-      <div className="flex items-center justify-center w-full h-full bg-zinc-900/60">
-        <span className="text-xs text-white/30">Image unavailable</span>
-      </div>
-    );
-  }
-  return (
-    <div className="relative w-full h-full flex items-center justify-center">
-      {/* Shimmer shown while the image is still downloading */}
-      {status === "loading" && (
-        <div className="absolute inset-0 bg-zinc-800/60 animate-pulse" />
-      )}
-      <img
-        src={src}
-        alt={alt}
-        loading="eager"
-        decoding="async"
-        className="max-w-full max-h-full w-auto h-auto object-contain"
-        onLoad={() => setStatus("loaded")}
-        onError={() => {
-          console.error("[ImageSlider] Failed to load image:", src);
-          setStatus("error");
-        }}
-      />
-    </div>
-  );
-}
-
 interface ImageSliderProps {
   images: string[];
   alt?: string;
   className?: string;
 }
 
+/**
+ * Image carousel that renders one slide at a time and swaps `src` on
+ * index change. No CSS sliding track, no translateX, no percentage-of-
+ * percentage width math.
+ *
+ * This matches the approach that was confirmed working in the original
+ * FeedCard implementation (commit 05843f5). The previous "sliding track"
+ * rewrite (commit 2442332) introduced two bugs:
+ *
+ *   1. An adjacency guard (`Math.abs(i - current) <= 1`) that rendered a
+ *      solid black <div> for non-adjacent slides. When the user navigated
+ *      to those slides the <img> was created for the first time at that
+ *      moment — no pre-load — so they saw blank/black while the network
+ *      request was in flight, which looked like broken images.
+ *
+ *   2. A CSS percentage-of-percentage chain (`width: (100/N)%` of a
+ *      `width: N*100%` flex container) that can misbehave on older
+ *      Android WebViews.
+ *
+ * The fix is minimal: one <img> in the DOM, `key={src}` so React remounts
+ * it on every index change (ensuring onLoad/onError fire correctly), and
+ * the same swipe + arrow + dot controls as before.
+ */
 export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
   const [current, setCurrent] = useState(0);
   const startX = useRef<number | null>(null);
 
   if (images.length === 0) return null;
-  if (images.length === 1) {
-    return (
-      <div className={cn("flex items-center justify-center bg-black overflow-hidden", className)}>
-        <SlideImage src={images[0]} alt={alt} />
-      </div>
-    );
-  }
 
   const prev = () => setCurrent(c => Math.max(0, c - 1));
   const next = () => setCurrent(c => Math.min(images.length - 1, c + 1));
@@ -67,21 +51,7 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
     startX.current = null;
   };
 
-  // ── Layout maths ────────────────────────────────────────────────────────────
-  // The track is N × container-width wide. Each slide is exactly 1/N of the
-  // track (= one container-width). Translating by -(current/N × 100%) of the
-  // track always moves by exactly one container-width per step.
-  //
-  // height: "100%" is applied as an inline style (not just a Tailwind class) on
-  // both the track and each slide. Inline styles are resolved before any CSS
-  // class lookups, which avoids an older Android-WebView bug where height:100%
-  // on a flex item inside a percentage-height flex container computes to zero.
-  //
-  // All slides always render <SlideImage> (no adjacency guard). This ensures
-  // every image starts fetching from the CDN the moment the slider mounts, so
-  // navigating to any slide shows a loading shimmer instead of a blank frame.
-  const slideWidthPct = 100 / images.length;
-  const translatePct  = current * slideWidthPct;
+  const src = images[current];
 
   return (
     <div
@@ -89,24 +59,19 @@ export function ImageSlider({ images, alt = "", className }: ImageSliderProps) {
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      {/* Track — always N × container-width wide */}
-      <div
-        className="flex transition-transform duration-300 ease-in-out"
-        style={{
-          width: `${images.length * 100}%`,
-          height: "100%",
-          transform: `translateX(-${translatePct}%)`,
-        }}
-      >
-        {images.map((src, i) => (
-          <div
-            key={i}
-            className="flex items-center justify-center"
-            style={{ width: `${slideWidthPct}%`, height: "100%" }}
-          >
-            <SlideImage src={src} alt={`${alt} ${i + 1}`} />
-          </div>
-        ))}
+      {/* Single image — src and key both change on index change.
+          key forces React to unmount/remount the img so onLoad fires
+          reliably for every slide, not just the first. */}
+      <div className="w-full h-full flex items-center justify-center">
+        <img
+          key={src}
+          src={src}
+          alt={`${alt} ${current + 1}`}
+          loading="eager"
+          decoding="async"
+          className="max-w-full max-h-full w-auto h-auto object-contain"
+          onError={() => console.error("[ImageSlider] failed to load:", src)}
+        />
       </div>
 
       {/* Left arrow */}

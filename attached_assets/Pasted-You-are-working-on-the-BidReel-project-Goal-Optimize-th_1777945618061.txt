@@ -1,0 +1,130 @@
+You are working on the BidReel project.
+
+Goal:
+Optimize the current React + Vite + Capacitor Android app without changing the architecture, and fix media display issues in the feed/detail pages.
+
+Very important rules:
+- Do NOT rewrite the app in Flutter or React Native.
+- Do NOT change the current architecture.
+- Do NOT scan or refactor the whole repo.
+- Work only on the files directly related to feed cards, auction detail media, video/image rendering, lazy loading, and Android release optimization if needed.
+- Make minimal, safe, targeted changes.
+- Keep Supabase, Cloudflare R2, Express API, Vite, and Capacitor exactly as they are.
+- Do not break existing auction, bidding, subscription, WhatsApp, or Secure Deals logic.
+- Verify build before final response.
+
+Main problems to fix:
+1. Feed browsing must be lighter and faster.
+2. Videos should not all load at the same time.
+3. Only one video should play at a time.
+4. Videos must pause when they leave the viewport.
+5. Video preload must be limited, especially on Android WebView.
+6. Images are sometimes breaking or not displaying.
+7. Some uploaded media that contains both image/preview and audio is currently playing sound only, without showing the visual part. This must be displayed as video with both visual and audio whenever the media file is a video.
+8. Android WebView may distort, zoom, or hide media if object-fit is used incorrectly.
+9. The app should stay lightweight, stable, and low-risk.
+
+Required implementation plan:
+
+Step 1 — Audit only the relevant media files
+Find the components/hooks responsible for:
+- Feed card media rendering.
+- Auction detail media rendering.
+- Video playback.
+- Image rendering.
+- Media type detection.
+- Cloudflare R2 media URLs.
+- Any shared media component if it exists.
+
+Likely files may include, but are not limited to:
+- artifacts/bidreel-web/src/components/FeedCard.tsx
+- artifacts/bidreel-web/src/pages/auction-detail.tsx
+- Any media/video/image helper used by those files.
+
+Do not modify unrelated files.
+
+Step 2 — Fix media type detection
+Make media rendering reliable:
+- If the media URL or metadata indicates video, render it as `<video>`, not as `<img>`.
+- If the media URL or metadata indicates image, render it as `<img>`.
+- Support common video formats: mp4, webm, mov, m4v.
+- Support common image formats: jpg, jpeg, png, webp, gif.
+- Do not rely only on file extension if the app already stores a media type field.
+- Prefer existing backend/media metadata if available.
+- Add a safe fallback: if an image fails to load, try rendering as video if the URL looks like a video or the media item has video-like metadata.
+- Add a safe fallback: if a video fails, show a clean placeholder instead of broken UI.
+
+Important bug:
+Some media currently plays audio only and no image appears. Treat this as a video-rendering problem. The visual part must appear with the audio. Do not render those files as audio-only.
+
+Step 3 — Make video loading lightweight
+For all feed videos:
+- Use `preload="metadata"` or `preload="none"` where safe.
+- Do not eager-load all videos in the feed.
+- Load video source only when the card is close to the viewport.
+- Use IntersectionObserver or existing visibility logic.
+- Pause the video when it leaves the viewport.
+- Ensure only one video can play at a time.
+- Avoid creating one timer/observer per media item if there is already a shared optimized mechanism.
+- Keep memory usage low on Android WebView.
+
+Step 4 — Fix image loading
+For images:
+- Use `loading="lazy"`.
+- Use `decoding="async"`.
+- Add proper `onError` handling so broken images do not destroy the card.
+- Keep a clean fallback UI if the image URL fails.
+- Do not block the whole card if one media item fails.
+
+Step 5 — Fix Android WebView media layout
+Avoid media distortion or invisible video on Android:
+- Do not use layout that causes the video to zoom, stretch, or disappear.
+- Prefer a safe container with max width/max height.
+- Use `playsInline`.
+- Use `muted` only where autoplay requires it, but do not remove user audio functionality.
+- Keep controls disabled/enabled according to the current app UX.
+- Make sure video with audio can show both visual and sound when user plays it.
+- Avoid relying on CSS that Android WebView handles badly, especially aggressive object-fit/object-cover on video if it causes distortion.
+
+Step 6 — Keep browsing smooth
+Optimize the feed:
+- Prevent unnecessary re-renders in FeedCard if possible.
+- Do not add heavy animations.
+- Do not add large new dependencies.
+- Preserve current UI and business logic.
+- Keep share, bidding, WhatsApp gating, subscription gating, and auction status logic unchanged.
+
+Step 7 — Android release size check
+Check current Android release configuration only if relevant:
+- Verify release builds use Android App Bundle when publishing.
+- Verify R8/minify/shrinkResources are configured safely for release.
+- Do not change signing configs.
+- Do not break Capacitor build.
+- If changing Gradle config, make minimal safe changes only.
+
+Step 8 — Verification
+Run the correct checks:
+- Frontend typecheck/build for bidreel-web.
+- If Android files are changed, run the safe Android/Gradle check available in the environment.
+- Confirm no TypeScript errors introduced.
+- Confirm no unrelated files were modified.
+
+Expected final result:
+- Feed is lighter and faster.
+- Videos do not all load at once.
+- Only one video plays at a time.
+- Videos pause outside viewport.
+- Images no longer break the UI.
+- Video media with audio also shows the visual video, not audio-only.
+- Android WebView media display is stable.
+- Current architecture remains React + Vite + Capacitor.
+- No rewrite.
+- No broad refactor.
+
+Final response format:
+1. List exact files changed.
+2. Explain what was fixed in simple terms.
+3. Mention how video loading was optimized.
+4. Mention how broken images/video fallback was handled.
+5. Mention build/check results.
+6. Mention any remaining risk or manual test needed on a real Android device.

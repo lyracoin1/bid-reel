@@ -1,0 +1,82 @@
+You are working on the BidReel project.
+
+Goal:
+Before making any changes, inspect and explain the current media system.
+
+Do NOT modify any files yet.
+Do NOT refactor.
+Do NOT scan unrelated areas.
+Only inspect the files related to:
+- Feed media rendering
+- Auction detail media rendering
+- Image display
+- Video display
+- Audio recording / audio playback if connected to auction media
+- Media upload metadata
+- Cloudflare R2 media URLs
+- Feed scrolling / pull-to-refresh / swipe behavior
+
+Questions to answer:
+
+1. Current media structure
+- How does BidReel currently store auction media?
+- Is media stored as URLs only, or is there a media type field?
+- Where are images, videos, and audio files saved?
+- Are they all stored in the same array/table/field?
+- Does the app distinguish between image, video, and audio clearly?
+
+2. Feed rendering
+- Which file/component renders media in the feed?
+- How does it decide whether to render `<img>`, `<video>`, or audio?
+- Does it use file extension, metadata, MIME type, or something else?
+- Does the feed currently lazy-load images?
+- Does the feed currently lazy-load videos?
+- Does it preload all videos or only visible/near-visible videos?
+
+3. Auction detail rendering
+- Which file/page renders media on auction detail?
+- Is its logic the same as the feed or duplicated?
+- Could feed and detail behave differently for the same media?
+
+4. Audio + image / audio + visual problem
+- Is there any current system where a user records audio separately from an image?
+- Is audio supposed to be merged with image into one video file, or displayed as separate image + audio?
+- If a media item has audio and image/thumbnail, where is that represented in the data?
+- Why can some media play sound only without showing the visual part?
+- Is the file actually a video with audio, or is it audio-only with a separate image?
+- What code path causes it to render as audio-only or invisible video?
+
+5. Scrolling and browsing logic
+- How does feed scrolling currently work?
+- Is there pull-to-refresh?
+- Is there infinite scroll?
+- Is there an IntersectionObserver?
+- Is only one video allowed to play at a time?
+- Are videos paused when they leave the viewport?
+- Does Android WebView behave differently because of CSS/object-fit/layout?
+
+6. Current optimization status
+- Are routes already lazy-loaded?
+- Is FeedCard memoized?
+- Is there a shared countdown/timer system?
+- Are images using `loading="lazy"` and `decoding="async"`?
+- Are videos using `preload="metadata"` or `preload="none"`?
+- Are video sources mounted only near viewport, or always mounted?
+
+7. Risks before fixing
+- What is the safest minimal fix path?
+- Which files must be changed?
+- Which files should NOT be touched?
+- What logic is already working and must not be broken?
+- What is the most likely root cause for broken images?
+- What is the most likely root cause for audio-only media?
+
+Final response format:
+- Do not change code.
+- Give a clear audit report.
+- List exact files inspected.
+- Explain current media flow from upload → storage/R2 → feed → detail.
+- Explain current scrolling/video loading logic.
+- Explain why images break.
+- Explain why audio plays without visual.
+- Recommend the safest next implementation plan, but do not implement it yet.

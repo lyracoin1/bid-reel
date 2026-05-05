@@ -42,6 +42,7 @@ const SubscriptionPage        = lazy(() => import("@/pages/subscription"));
 const SecureDealCreatePage    = lazy(() => import("@/pages/secure-deal-create"));
 const SecureDealPayPage       = lazy(() => import("@/pages/secure-deal-pay"));
 const ChildSafetyPage         = lazy(() => import("@/pages/child-safety"));
+const ResetPassword           = lazy(() => import("@/pages/reset-password"));
 
 // ── Suspense fallback — shown during lazy chunk fetch ────────────────────────
 // Minimal spinner that matches the app's dark background, keeping the
@@ -74,6 +75,10 @@ const queryClient = new QueryClient({
  */
 const _isOAuthCallback =
   typeof window !== "undefined" &&
+  // Exclude the password-recovery landing page — its code= param is a
+  // recovery token, not an OAuth grant; OAuthCallbackHandler must not
+  // intercept it and redirect the user away to /feed.
+  !window.location.pathname.endsWith("/reset-password") &&
   (window.location.search.includes("code=") ||
     window.location.hash.includes("access_token="));
 
@@ -121,6 +126,7 @@ function Router() {
           <Route path="/secure-deals/create" component={SecureDealCreatePage} />
           <Route path="/secure-deals/pay/:dealId" component={SecureDealPayPage} />
           <Route path="/child-safety" component={ChildSafetyPage} />
+          <Route path="/reset-password" component={ResetPassword} />
 
           <Route component={NotFound} />
         </Switch>

@@ -1,48 +1,57 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useLocation } from "wouter";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { getToken, API_BASE } from "@/lib/api-client";
 import { CapApp, isNative, openInBrowser } from "@/lib/capacitor-app";
+import { useLang } from "@/contexts/LanguageContext";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface VersionResponse {
   minVersionCode: number;
-  currentVersionCode: number;
+  latestVersionCode: number;
+  currentVersionCode: number;   // kept for backward compat
+  updateRequired: boolean;
+  updateMessageEn: string;
+  updateMessageAr: string;
   playStoreUrl: string;
+}
+
+type UpdateCheckResult =
+  | { status: "ok" }
+  | { status: "mandatory"; playStoreUrl: string; messageEn: string; messageAr: string }
+  | { status: "optional";  playStoreUrl: string; messageEn: string; messageAr: string };
+
+interface UpdateInfo {
+  playStoreUrl: string;
+  messageEn: string;
+  messageAr: string;
 }
 
 // ── Update check ─────────────────────────────────────────────────────────────
 
 /**
- * Checks whether the installed build needs a mandatory update.
+ * Compares the installed versionCode against the server's version config.
  *
- * Only runs on native (Capacitor Android) — on web the version check is a
- * no-op so the browser preview is never blocked by a version gate.
+ * Only runs on native (Capacitor Android). On web it is always a no-op so the
+ * browser preview is never blocked by a version gate.
  *
- * Returns:
- *   { needsUpdate: true,  playStoreUrl }  — versionCode < minVersionCode
- *   { needsUpdate: false }               — up-to-date or check failed/skipped
+ * mandatory  →  updateRequired flag OR installedCode < minVersionCode
+ * optional   →  installedCode < latestVersionCode  (and not mandatory)
+ * ok         →  up-to-date, check failed, or running on web
  */
-async function checkForUpdate(): Promise<
-  { needsUpdate: true; playStoreUrl: string } | { needsUpdate: false }
-> {
-  if (!isNative()) return { needsUpdate: false };
+async function checkForUpdate(): Promise<UpdateCheckResult> {
+  if (!isNative()) return { status: "ok" };
 
   try {
-    // Get the installed versionCode from the native layer.
-    const info = await CapApp.getInfo();
-    // Capacitor exposes versionCode as `build` (string on Android).
+    const info         = await CapApp.getInfo();
     const installedCode = parseInt(info.build, 10);
 
     if (isNaN(installedCode)) {
       console.warn("[update-check] Could not parse build number:", info.build);
-      return { needsUpdate: false };
+      return { status: "ok" };
     }
 
-    // Ask our server for the minimum acceptable versionCode.
-    // Short timeout (5 s) — on a slow connection we must not block the user
-    // indefinitely; if the server is unreachable we let them in as-is.
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5_000);
 
@@ -58,25 +67,43 @@ async function checkForUpdate(): Promise<
 
     if (!res.ok) {
       console.warn("[update-check] /version returned", res.status, "— skipping check");
-      return { needsUpdate: false };
+      return { status: "ok" };
     }
 
     const data = (await res.json()) as VersionResponse;
-    const { minVersionCode, playStoreUrl } = data;
+    const {
+      minVersionCode,
+      latestVersionCode,
+      updateRequired,
+      updateMessageEn,
+      updateMessageAr,
+      playStoreUrl,
+    } = data;
 
     console.log(
-      `[update-check] installed=${installedCode} minRequired=${minVersionCode}`,
+      `[update-check] installed=${installedCode}  min=${minVersionCode}  latest=${latestVersionCode}  forceRequired=${updateRequired}`,
     );
 
-    if (installedCode < minVersionCode) {
-      return { needsUpdate: true, playStoreUrl };
+    const payload = {
+      playStoreUrl,
+      messageEn: updateMessageEn ?? "A new version of BidReel is available.",
+      messageAr: updateMessageAr ?? "يتوفر إصدار جديد من BidReel.",
+    };
+
+    // Mandatory: server forced it, or the build is below the minimum gate.
+    if (updateRequired || installedCode < minVersionCode) {
+      return { status: "mandatory", ...payload };
     }
 
-    return { needsUpdate: false };
+    // Optional: a newer build exists but the user's version still works.
+    if (installedCode < latestVersionCode) {
+      return { status: "optional", ...payload };
+    }
+
+    return { status: "ok" };
   } catch (err) {
-    // Network failure, abort, or unexpected error — let the user continue.
     console.warn("[update-check] Check failed (non-blocking):", err);
-    return { needsUpdate: false };
+    return { status: "ok" };
   }
 }
 
@@ -84,68 +111,100 @@ async function checkForUpdate(): Promise<
 
 type SplashStatus =
   | "checking"          // version check in progress
-  | "update-required"   // redirecting to Play Store
+  | "update-mandatory"  // user must update before continuing
+  | "update-optional"   // newer version available; user can dismiss
   | "authenticating";   // version ok — checking auth token
 
 export default function Splash() {
   const [, setLocation] = useLocation();
-  const [status, setStatus] = useState<SplashStatus>("checking");
+  const { lang, dir } = useLang();
+  const isAr = lang === "ar";
 
+  const [status, setStatus]         = useState<SplashStatus>("checking");
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [opening, setOpening]       = useState(false);
+
+  // ── Auth check (runs after version check passes or user taps "Later") ──────
+  const runAuthCheck = useCallback(async () => {
+    setStatus("authenticating");
+    const token = await getToken();
+    if (!token) {
+      setLocation("/login", { replace: true });
+      return;
+    }
+    setLocation("/feed", { replace: true });
+  }, [setLocation]);
+
+  // ── Start-up sequence ─────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
     const run = async () => {
-      // ── Step 1: version check (native only) ───────────────────────────────
-      const updateResult = await checkForUpdate();
-
+      const result = await checkForUpdate();
       if (cancelled) return;
 
-      if (updateResult.needsUpdate) {
-        setStatus("update-required");
-        // Open Play Store in the system browser.
-        await openInBrowser(updateResult.playStoreUrl);
-        // Keep the "Update Required" screen visible — do NOT navigate further.
-        // The OS will bring the app back when the user returns, at which point
-        // they'll have updated (or they dismissed Play Store). Either way the
-        // splash re-runs on next cold start.
+      if (result.status === "mandatory") {
+        setUpdateInfo({
+          playStoreUrl: result.playStoreUrl,
+          messageEn:    result.messageEn,
+          messageAr:    result.messageAr,
+        });
+        setStatus("update-mandatory");
+        // Do NOT navigate — keep the mandatory screen visible.
         return;
       }
 
-      // ── Step 2: auth check ────────────────────────────────────────────────
-      setStatus("authenticating");
-
-      const token = await getToken();
-      if (cancelled) return;
-
-      if (!token) {
-        // REPLACE — splash is a one-shot redirect; back from /login must NOT
-        // return to the splash screen.
-        setLocation("/login", { replace: true });
+      if (result.status === "optional") {
+        setUpdateInfo({
+          playStoreUrl: result.playStoreUrl,
+          messageEn:    result.messageEn,
+          messageAr:    result.messageAr,
+        });
+        setStatus("update-optional");
+        // Auth check runs when the user taps "Later" (or "Update").
         return;
       }
-      // Authenticated users always go to /feed.
-      setLocation("/feed", { replace: true });
+
+      // No update needed — proceed straight to auth.
+      await runAuthCheck();
     };
 
     void run();
     return () => { cancelled = true; };
-  }, [setLocation]);
+  }, [runAuthCheck]);
 
+  // ── Open Play Store ────────────────────────────────────────────────────────
+  const handleUpdate = async () => {
+    if (!updateInfo || opening) return;
+    setOpening(true);
+    try {
+      await openInBrowser(updateInfo.playStoreUrl);
+    } finally {
+      // Re-enable the button — user may have dismissed Play Store without
+      // installing (especially for optional updates).
+      setOpening(false);
+    }
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="relative w-full h-[100dvh] bg-background flex flex-col items-center justify-center overflow-hidden">
-
-      {/* Abstract background */}
+    <div
+      dir={dir}
+      className="relative w-full h-[100dvh] bg-background flex flex-col items-center justify-center overflow-hidden"
+    >
+      {/* ── Background ──────────────────────────────────────────────────── */}
       <div className="absolute inset-0 z-0">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[100px] mix-blend-screen animate-pulse" />
         <div className="absolute bottom-1/4 right-1/4 w-[30rem] h-[30rem] bg-indigo-600/10 rounded-full blur-[120px] mix-blend-screen" />
         <img
           src={`${import.meta.env.BASE_URL}images/splash-bg.jpg`}
-          alt="Atmosphere"
+          alt=""
+          aria-hidden
           className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-overlay"
         />
       </div>
 
-      {/* Content */}
+      {/* ── Logo + wordmark (always visible) ────────────────────────────── */}
       <div className="relative z-10 flex flex-col items-center">
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
@@ -169,65 +228,199 @@ export default function Splash() {
           BidReel
         </motion.h1>
 
-        {status === "update-required" ? (
-          /* Update required overlay */
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.4 }}
-            className="flex flex-col items-center gap-3 mt-2 px-6 text-center"
-          >
-            <p className="text-lg font-semibold text-white">
-              Update Required
-            </p>
-            <p className="text-sm text-muted-foreground max-w-[260px]">
-              A new version of BidReel is available. Please update to continue.
-            </p>
-            <motion.div
-              className="mt-2 px-6 py-2.5 rounded-full bg-primary text-white text-sm font-semibold"
-              animate={{ scale: [1, 1.04, 1] }}
-              transition={{ duration: 1.6, repeat: Infinity }}
+        {/* Tagline — hidden during update screens */}
+        <AnimatePresence>
+          {(status === "checking" || status === "authenticating") && (
+            <motion.p
+              key="tagline"
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.6, delay: 0.5 }}
+              className="text-lg text-muted-foreground font-medium text-center max-w-[250px]"
             >
-              Opening Google Play…
-            </motion.div>
-          </motion.div>
-        ) : (
-          <motion.p
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
-            className="text-lg text-muted-foreground font-medium text-center max-w-[250px]"
-          >
-            Bid on anything.<br />Watch it happen.
-          </motion.p>
-        )}
+              Bid on anything.<br />Watch it happen.
+            </motion.p>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Loading dots — hidden when update screen is shown */}
-      {status !== "update-required" && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.2 }}
-          className="absolute bottom-20 flex gap-2"
-        >
-          {[0, 1, 2].map((i) => (
+      {/* ── Mandatory update — full-screen blocker ───────────────────────── */}
+      <AnimatePresence>
+        {status === "update-mandatory" && updateInfo && (
+          <motion.div
+            key="mandatory"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center px-6 bg-background/90 backdrop-blur-sm"
+          >
             <motion.div
-              key={i}
-              animate={{
-                scale: [1, 1.5, 1],
-                opacity: [0.3, 1, 0.3],
-              }}
-              transition={{
-                duration: 1,
-                repeat: Infinity,
-                delay: i * 0.2,
-              }}
-              className="w-2.5 h-2.5 rounded-full bg-primary"
-            />
-          ))}
-        </motion.div>
-      )}
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.1, duration: 0.3 }}
+              className="w-full max-w-sm flex flex-col items-center gap-5 text-center"
+            >
+              {/* Icon */}
+              <div className="w-20 h-20 rounded-3xl bg-primary/15 border border-primary/30 flex items-center justify-center">
+                <img
+                  src={`${import.meta.env.BASE_URL}images/logo-icon.png`}
+                  alt="BidReel"
+                  className="w-12 h-12 rounded-xl"
+                />
+              </div>
+
+              {/* Bilingual heading */}
+              <div className="flex flex-col gap-1">
+                <h2 className="text-2xl font-display font-bold text-white">
+                  {isAr ? "تحديث إجباري" : "Update Required"}
+                </h2>
+                <p className="text-sm font-medium text-muted-foreground">
+                  {isAr ? "Update Required" : "تحديث إجباري"}
+                </p>
+              </div>
+
+              {/* Message */}
+              <p className="text-sm text-muted-foreground leading-relaxed max-w-[280px]">
+                {isAr ? updateInfo.messageAr : updateInfo.messageEn}
+              </p>
+
+              {/* Update button */}
+              <motion.button
+                whileTap={{ scale: 0.96 }}
+                onClick={handleUpdate}
+                disabled={opening}
+                className="w-full max-w-[240px] py-4 rounded-2xl bg-primary text-primary-foreground font-bold text-base shadow-lg shadow-primary/30 disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {opening ? (
+                  <span className="opacity-70">
+                    {isAr ? "جارٍ الفتح…" : "Opening…"}
+                  </span>
+                ) : (
+                  <>
+                    <span>{isAr ? "تحديث" : "Update"}</span>
+                    <span className="opacity-50 text-sm font-normal">
+                      {isAr ? "· Update" : "· تحديث"}
+                    </span>
+                  </>
+                )}
+              </motion.button>
+
+              <p className="text-xs text-muted-foreground/40 mt-1">
+                {isAr
+                  ? "يجب التحديث للمتابعة"
+                  : "You must update to continue"}
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Optional update — bottom sheet over splash ───────────────────── */}
+      <AnimatePresence>
+        {status === "update-optional" && updateInfo && (
+          <motion.div
+            key="optional"
+            initial={{ y: "100%", opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: "100%", opacity: 0 }}
+            transition={{ type: "spring", damping: 28, stiffness: 300 }}
+            className="absolute bottom-0 inset-x-0 z-20 pb-safe"
+          >
+            <div className="mx-4 mb-6 bg-card border border-border rounded-3xl p-6 shadow-2xl">
+
+              {/* Handle */}
+              <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-5" />
+
+              {/* Header row */}
+              <div className="flex items-start gap-3 mb-3">
+                <div className="w-11 h-11 rounded-xl bg-primary/15 border border-primary/20 flex items-center justify-center shrink-0">
+                  <img
+                    src={`${import.meta.env.BASE_URL}images/logo-icon.png`}
+                    alt="BidReel"
+                    className="w-7 h-7 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <p className="text-base font-bold text-white leading-snug">
+                    {isAr ? "يتوفر تحديث جديد" : "A new version is available"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {isAr ? "A new version is available" : "يتوفر تحديث جديد"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Message */}
+              <p className="text-sm text-muted-foreground leading-relaxed mb-5">
+                {isAr ? updateInfo.messageAr : updateInfo.messageEn}
+              </p>
+
+              {/* Buttons */}
+              <div className="flex flex-col gap-2.5">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleUpdate}
+                  disabled={opening}
+                  className="w-full py-3.5 rounded-2xl bg-primary text-primary-foreground font-bold text-base shadow-lg shadow-primary/25 disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {opening ? (
+                    <span className="opacity-70">
+                      {isAr ? "جارٍ الفتح…" : "Opening…"}
+                    </span>
+                  ) : (
+                    <>
+                      <span>{isAr ? "تحديث" : "Update"}</span>
+                      <span className="opacity-50 text-sm font-normal">
+                        {isAr ? "· Update" : "· تحديث"}
+                      </span>
+                    </>
+                  )}
+                </motion.button>
+
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={runAuthCheck}
+                  className="w-full py-3 rounded-2xl bg-white/6 border border-white/8 text-white/70 font-medium text-sm hover:text-white transition-colors"
+                >
+                  {isAr ? "لاحقاً · Later" : "Later · لاحقاً"}
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Animated loading dots (checking / authenticating only) ───────── */}
+      <AnimatePresence>
+        {(status === "checking" || status === "authenticating") && (
+          <motion.div
+            key="dots"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ delay: 1.2 }}
+            className="absolute bottom-20 flex gap-2"
+          >
+            {[0, 1, 2].map((i) => (
+              <motion.div
+                key={i}
+                animate={{
+                  scale:   [1, 1.5, 1],
+                  opacity: [0.3, 1, 0.3],
+                }}
+                transition={{
+                  duration: 1,
+                  repeat: Infinity,
+                  delay: i * 0.2,
+                }}
+                className="w-2.5 h-2.5 rounded-full bg-primary"
+              />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

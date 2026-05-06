@@ -2,14 +2,14 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Crown, Check, Zap, MessageCircle, ShieldCheck,
-  TrendingDown, HeadphonesIcon, Sparkles, RotateCcw, FileText,
+  TrendingDown, HeadphonesIcon, Sparkles, FileText,
   Loader2, AlertCircle, CheckCircle2, Smartphone,
 } from "lucide-react";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { useLang } from "@/contexts/LanguageContext";
 import { useCurrentUser, refreshCurrentUser } from "@/hooks/use-current-user";
 import {
-  startSubscription, restoreSubscription, isSubscriptionAvailable,
+  startSubscription, isSubscriptionAvailable,
 } from "@/lib/subscription-billing";
 
 const FEATURES = [
@@ -92,8 +92,8 @@ const ERROR_LABELS: Record<string, { en: string; ar: string }> = {
     ar: "Google Play غير متاح مؤقتاً. حاول مرة أخرى بعد دقائق.",
   },
   play_item_already_owned: {
-    en: "You already have an active subscription. Try restoring it below.",
-    ar: "لديك اشتراك نشط بالفعل. جرّب استعادته أدناه.",
+    en: "You already have an active subscription.",
+    ar: "لديك اشتراك نشط بالفعل.",
   },
   play_developer_error: {
     en: "A configuration error occurred with the subscription. Please contact support.",
@@ -122,11 +122,6 @@ const ERROR_LABELS: Record<string, { en: string; ar: string }> = {
     ar: "تم التحقق من الاشتراك لكن تعذر تحديث حسابك. تواصل مع الدعم.",
   },
 
-  // Restore errors
-  no_active_subscription: {
-    en: "No active subscription found. If you already subscribed, tap Subscribe — Google Play will not charge you again.",
-    ar: "لا يوجد اشتراك نشط. إن كنت قد اشتركت سابقاً، اضغط اشترك — لن يتم خصم أي مبلغ إضافي.",
-  },
 };
 
 function goBack() {
@@ -146,7 +141,6 @@ export default function SubscriptionPage() {
   const isNative  = isSubscriptionAvailable();
 
   const [subscribing, setSubscribing] = useState(false);
-  const [restoring,   setRestoring]   = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   function mapError(errorKey: string | undefined, fallbackEn: string, fallbackAr: string): string {
@@ -182,29 +176,6 @@ export default function SubscriptionPage() {
       }
     } finally {
       setSubscribing(false);
-    }
-  }
-
-  async function handleRestore() {
-    if (restoring) return;
-    setFeedback(null);
-    setRestoring(true);
-    try {
-      const result = await restoreSubscription(currentUser?.id ?? "");
-      if (result.success) {
-        setFeedback({
-          type: "success",
-          msg: ar ? "تم استعادة الاشتراك بنجاح ✅" : "Subscription restored successfully ✅",
-        });
-        await refreshCurrentUser();
-      } else {
-        setFeedback({
-          type: "error",
-          msg: mapError(result.error, "Could not restore subscription. Please try again.", "فشل استعادة الاشتراك. حاول مرة أخرى."),
-        });
-      }
-    } finally {
-      setRestoring(false);
     }
   }
 
@@ -409,22 +380,6 @@ export default function SubscriptionPage() {
               {btnLabel}
             </motion.button>
 
-            {!isPremium && (
-              <motion.button
-                whileTap={{ scale: restoring ? 1 : 0.97 }}
-                onClick={() => { void handleRestore(); }}
-                disabled={restoring}
-                className="w-full py-3 rounded-2xl bg-white/5 border border-white/10 text-white/50 font-semibold text-sm flex items-center justify-center gap-2 hover:bg-white/8 transition disabled:opacity-60"
-              >
-                {restoring
-                  ? <Loader2 size={14} className="animate-spin" />
-                  : <RotateCcw size={14} />
-                }
-                {restoring
-                  ? (ar ? "جارٍ الاستعادة..." : "Restoring…")
-                  : (ar ? "استعادة الاشتراك" : "Restore Subscription")}
-              </motion.button>
-            )}
           </motion.div>
 
           {/* Legal */}

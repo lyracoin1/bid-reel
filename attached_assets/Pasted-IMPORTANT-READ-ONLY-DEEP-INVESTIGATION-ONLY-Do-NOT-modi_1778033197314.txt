@@ -1,0 +1,70 @@
+IMPORTANT: READ-ONLY DEEP INVESTIGATION ONLY.
+Do NOT modify code yet.
+
+BidReel Plus subscription was working before recent security/payment changes:
+- Google Play purchase sheet opened
+- price appeared
+- payment method form appeared
+
+Now it shows:
+"بيدريل برو غير متاح مؤقتاً. حاول مرة أخرى لاحقاً."
+Current frontend error key appears to be: no_offer_token.
+
+I need a full investigation of what changed and why subscription offer details are no longer returned.
+
+Focus ONLY on BidReel Plus subscription. Do NOT touch marketplace payments, escrow, vault, payouts, or admin.
+
+Investigate these suspected causes:
+
+1. Product ID mismatch
+- Search all frontend/backend/native files for:
+  bidreel_plus
+  BidReel Pro
+  BidReel Plus
+  monthly
+- Confirm productId is exactly "bidreel_plus" everywhere.
+- Confirm no code changed it to another id or label.
+
+2. Billing type mismatch
+- Confirm querySkuDetails and launchBillingFlow both use SUBS, not INAPP.
+- Confirm no shared payment logic from secure-deals or /transactions/pay-now is being reused for subscriptions.
+
+3. Plugin / native Billing changes
+- Inspect BillingPlugin.java and subscription-billing.ts.
+- Check if recent edits to PENDING / PLAY_PURCHASE_EMPTY / no_offer_token handling accidentally changed querySkuDetails, productDetails parsing, or offer_token_present.
+- Confirm queryProductDetailsAsync returns ProductDetails for bidreel_plus.
+- Log productDetails.subscriptionOfferDetails size, basePlanId, offerId, offerToken presence.
+
+4. Recent git diff
+- Compare current code to the previous working commit if possible.
+- Focus on files changed after "security/payment" work:
+  - subscription-billing.ts
+  - subscription.tsx
+  - BillingPlugin.java
+  - billing.ts
+  - any payment config/env files
+  - any Capacitor/Android build files
+- Identify the exact change that may have broken subscription offer retrieval.
+
+5. Environment / package issue
+- Confirm package name used by Android app equals Google Play package.
+- Confirm GOOGLE_PLAY_PACKAGE_NAME is not affecting client-side Billing.
+- Confirm web payment / marketplace payment changes did not overwrite billing configuration.
+
+6. Wrong error mapping suspicion
+- Confirm "no_offer_token" is truly caused by missing offerToken from Google.
+- Check if the app may be mapping another error incorrectly into no_offer_token.
+- Print the raw Play Billing response object before converting it to no_offer_token.
+
+7. Build/deploy suspicion
+- Confirm the installed app version contains the latest subscription code.
+- Confirm the AAB uploaded to internal testing contains the modified BillingPlugin.java.
+- Confirm no stale cached web bundle is being loaded inside the wrapped app.
+
+Output required:
+- Exact file and line where no_offer_token is returned
+- Raw object returned from querySkuDetails
+- Whether subscriptionOfferDetails is actually empty or only parsed incorrectly
+- All subscription-related files changed recently
+- Most likely root cause
+- Safe fix plan, but DO NOT implement yet

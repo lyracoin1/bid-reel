@@ -58,21 +58,74 @@ const FEATURES = [
 ];
 
 const ERROR_LABELS: Record<string, { en: string; ar: string }> = {
+  // Auth errors
   not_authenticated: {
     en: "Please sign in to subscribe.",
     ar: "سجّل الدخول أولاً للاشتراك.",
   },
+  no_auth_token: {
+    en: "Your session has expired. Please sign in again.",
+    ar: "انتهت جلستك. سجّل الدخول مجدداً.",
+  },
+
+  // Purchase flow errors
   no_purchase_token: {
     en: "Purchase was not completed. Please try again.",
     ar: "لم يكتمل الشراء. حاول مرة أخرى.",
   },
-  no_auth_token: {
-    en: "Session expired. Please sign in again.",
-    ar: "انتهت الجلسة. سجّل الدخول مجدداً.",
+  no_offer_token: {
+    en: "BidReel Plus is temporarily unavailable. Please try again later.",
+    ar: "بيدريل برو غير متاح مؤقتاً. حاول مرة أخرى لاحقاً.",
   },
+
+  // Google Play Billing response codes
+  play_billing_unavailable: {
+    en: "Google Play Billing is unavailable. Please check your payment method is set up in Google Play, then try again.",
+    ar: "خدمة الدفع عبر Google Play غير متاحة. تأكد من إعداد طريقة دفع في Google Play ثم أعد المحاولة.",
+  },
+  play_item_unavailable: {
+    en: "BidReel Plus is not available in your region.",
+    ar: "بيدريل برو غير متاح في منطقتك.",
+  },
+  play_service_unavailable: {
+    en: "Google Play is temporarily unavailable. Please try again in a few minutes.",
+    ar: "Google Play غير متاح مؤقتاً. حاول مرة أخرى بعد دقائق.",
+  },
+  play_item_already_owned: {
+    en: "You already have an active subscription. Try restoring it below.",
+    ar: "لديك اشتراك نشط بالفعل. جرّب استعادته أدناه.",
+  },
+  play_developer_error: {
+    en: "A configuration error occurred with the subscription. Please contact support.",
+    ar: "حدث خطأ في إعداد الاشتراك. تواصل مع الدعم.",
+  },
+  play_error: {
+    en: "Google Play returned an error. Please try again.",
+    ar: "أعاد Google Play خطأً. حاول مرة أخرى.",
+  },
+
+  // Backend errors
+  BILLING_NOT_CONFIGURED: {
+    en: "Subscription service is not yet configured on the server. Please contact support.",
+    ar: "خدمة الاشتراك غير مهيأة على الخادم. تواصل مع الدعم.",
+  },
+  PURCHASE_INVALID: {
+    en: "Subscription is not active or has expired. Please subscribe again.",
+    ar: "الاشتراك غير نشط أو منتهي الصلاحية. اشترك مجدداً.",
+  },
+  GOOGLE_API_ERROR: {
+    en: "Could not verify your subscription with Google. Please try again.",
+    ar: "تعذر التحقق من اشتراكك مع Google. حاول مرة أخرى.",
+  },
+  DB_ERROR: {
+    en: "Subscription verified but your account could not be updated. Please contact support.",
+    ar: "تم التحقق من الاشتراك لكن تعذر تحديث حسابك. تواصل مع الدعم.",
+  },
+
+  // Restore errors
   no_active_subscription: {
-    en: "No active subscription found for this account.",
-    ar: "لم يتم العثور على اشتراك نشط لهذا الحساب.",
+    en: "No active subscription found. If you already subscribed, tap Subscribe — Google Play will not charge you again.",
+    ar: "لا يوجد اشتراك نشط. إن كنت قد اشتركت سابقاً، اضغط اشترك — لن يتم خصم أي مبلغ إضافي.",
   },
 };
 
@@ -115,7 +168,11 @@ export default function SubscriptionPage() {
           msg: ar ? "تم تفعيل اشتراكك بنجاح! 🎉" : "Subscription activated successfully! 🎉",
         });
         await refreshCurrentUser();
-      } else if (result.error === "Purchase canceled" || result.error === "no_purchase_token") {
+      } else if (
+        result.error === "Purchase canceled" ||
+        result.error === "play_user_canceled" ||
+        result.error === "no_purchase_token"
+      ) {
         // User dismissed the Play sheet — no feedback needed
       } else {
         setFeedback({

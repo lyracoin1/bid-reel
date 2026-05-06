@@ -1,0 +1,105 @@
+IMPORTANT: This is a FIX TASK, not analysis. You must identify and FIX all issues in the BidReel Plus subscription system.
+
+DO NOT touch or modify:
+- Secure Deals payment system
+- Escrow system
+- Vault encryption
+- Payout system
+
+This task is ONLY for the subscription system (BidReel Plus) using Google Play Billing.
+
+========================
+GOAL
+========================
+
+Make the subscription system fully functional and production-ready:
+
+- Subscription purchase must succeed (no generic "failed" errors)
+- Google Play flow must work correctly for testers and real users
+- Backend verification must succeed (no 503, no silent failure)
+- Error messages must be clear and specific
+- Restore subscription must either work or be removed
+
+========================
+TASKS TO FIX
+========================
+
+1. Fix backend verification (CRITICAL)
+- Ensure GOOGLE_PLAY_SERVICE_ACCOUNT_JSON is correctly loaded and parsed
+- If missing or invalid → return a clear structured error
+- Validate that purchases.subscriptions.get is working correctly
+- Log full verification result (without exposing sensitive data)
+
+2. Fix subscription failure handling (frontend + backend)
+- Replace generic "Subscription failed, try again" with real error messages
+- Map Google Play Billing response codes properly:
+  - BILLING_UNAVAILABLE
+  - ITEM_UNAVAILABLE
+  - USER_CANCELED
+  - SERVICE_UNAVAILABLE
+  - ERROR
+- Show meaningful messages in UI
+
+3. Fix purchase flow validation
+- Ensure product_id "bidreel_plus" is correctly passed everywhere
+- Ensure type = "SUBS" is used consistently
+- Ensure offerToken is valid before launching billing
+- If offerToken missing → show explicit error
+
+4. Ensure verification happens BEFORE acknowledgment
+- Keep correct order:
+  purchase → send to backend → verify → then acknowledge
+- If verification fails → DO NOT acknowledge
+
+5. Fix restore subscription
+- If restore endpoint is missing:
+  EITHER:
+    - implement POST /billing/restore properly
+  OR:
+    - remove restore button completely from UI
+- Do NOT leave a broken button
+
+6. Add strict logging (IMPORTANT)
+- Log:
+  - purchaseToken received
+  - backend verification response
+  - billing response codes
+- Logs must help identify exact failure point
+
+7. Validate environment correctness
+- Detect if running in:
+  - test environment
+  - production
+- Show clear logs indicating which environment is active
+
+8. Protect subscription endpoint
+- Add requireAuth to /billing/verify
+- Do NOT trust userId from request body
+- Use authenticated user instead
+
+========================
+EXPECTED RESULT
+========================
+
+After fix:
+
+- Clicking "Subscribe" opens Play Billing
+- Testers see test card and purchase succeeds
+- Backend verifies successfully (no 503)
+- UI shows success clearly
+- No generic error messages remain
+- Restore works OR is removed
+
+========================
+OUTPUT REQUIRED
+========================
+
+Provide a report:
+
+- Files modified
+- Exact fixes applied
+- What caused the failure originally
+- Confirmation that:
+  - purchase works
+  - verification works
+  - errors are handled correctly

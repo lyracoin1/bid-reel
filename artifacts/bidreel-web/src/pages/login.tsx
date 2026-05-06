@@ -49,7 +49,7 @@ export default function Login() {
   const [forgotOpen, setForgotOpen] = useState(false);
 
   const copy = {
-    title:     lang === "ar" ? "مرحباً بك في BidReel" : "Welcome to BidReel",
+    title:     lang === "ar" ? "احصل على أعلى سعر في BidReel" : "Welcome to BidReel",
     emailLbl:  lang === "ar" ? "البريد الإلكتروني" : "Email",
     passwordLbl: lang === "ar" ? "كلمة المرور" : "Password",
     confirmLbl: lang === "ar" ? "تأكيد كلمة المرور" : "Confirm password",

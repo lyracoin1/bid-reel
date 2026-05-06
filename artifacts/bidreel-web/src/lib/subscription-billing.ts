@@ -1,15 +1,14 @@
 /**
  * subscription-billing.ts
  *
- * Shared subscription purchase + restore flow for BidReel Pro (SUBS type).
+ * Subscription purchase flow for BidReel Pro (SUBS type).
  *
  * Used by:
  *   - src/pages/auction-detail.tsx  (premium gate "Subscribe now" button)
  *   - src/pages/subscription.tsx    (dedicated subscription page)
  *
  * Flow:
- *   startSubscription()   → querySkuDetails → launchBillingFlow → /billing/verify → sendAck
- *   restoreSubscription() → /billing/restore  (checks DB premium status on backend)
+ *   startSubscription() → querySkuDetails → launchBillingFlow → /billing/verify → sendAck
  *
  * IMPORTANT:
  *   - Never acknowledge a purchase before the backend has verified it.
@@ -21,6 +20,8 @@
  *   no_auth_token            — session expired
  *   no_offer_token           — Play Console base plan has no active offer
  *   no_purchase_token        — purchase resolved without a token
+ *   subscription_pending     — payment method requires additional steps; purchase is in PENDING state
+ *   play_purchase_empty      — code=OK but Google Play returned no purchase object
  *   play_user_canceled       — user dismissed the Play sheet (BillingResponseCode=1)
  *   play_service_unavailable — Google Play service temporarily down (code=2)
  *   play_billing_unavailable — payment method / region issue (code=3)
@@ -32,7 +33,6 @@
  *   PURCHASE_INVALID         — subscription expired or cancelled
  *   GOOGLE_API_ERROR         — server could not reach Google Play API
  *   DB_ERROR                 — server could not update the profile
- *   no_active_subscription   — restore found no active subscription
  */
 
 import { BillingPlugin } from "capacitor-billing";
@@ -82,6 +82,16 @@ function parseBillingError(rawMessage: string): string {
   // Offer token guard from the plugin
   if (rawMessage.includes("offerToken") || rawMessage.includes("offer details")) {
     return "no_offer_token";
+  }
+
+  // PENDING purchase — payment method requires additional steps in Google Play
+  if (rawMessage === "SUBSCRIPTION_PENDING" || rawMessage.includes("pending")) {
+    return "subscription_pending";
+  }
+
+  // code=OK but Google Play returned no purchase object
+  if (rawMessage === "PLAY_PURCHASE_EMPTY") {
+    return "play_purchase_empty";
   }
 
   return "play_error";

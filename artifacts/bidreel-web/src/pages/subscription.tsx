@@ -103,6 +103,14 @@ const ERROR_LABELS: Record<string, { en: string; ar: string }> = {
     en: "Google Play returned an error. Please try again.",
     ar: "أعاد Google Play خطأً. حاول مرة أخرى.",
   },
+  subscription_pending: {
+    en: "Your subscription is pending. Please wait for Google Play to confirm it.",
+    ar: "اشتراكك قيد الانتظار. يرجى الانتظار حتى يؤكده Google Play.",
+  },
+  play_purchase_empty: {
+    en: "Google Play did not return a purchase. If you were already charged, please contact support.",
+    ar: "لم يُعِد Google Play أي عملية شراء. إذا تم خصم مبلغ منك، تواصل مع الدعم.",
+  },
 
   // Backend errors
   BILLING_NOT_CONFIGURED: {
@@ -164,8 +172,7 @@ export default function SubscriptionPage() {
         await refreshCurrentUser();
       } else if (
         result.error === "Purchase canceled" ||
-        result.error === "play_user_canceled" ||
-        result.error === "no_purchase_token"
+        result.error === "play_user_canceled"
       ) {
         // User dismissed the Play sheet — no feedback needed
       } else {

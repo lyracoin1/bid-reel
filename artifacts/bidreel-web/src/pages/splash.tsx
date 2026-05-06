@@ -117,7 +117,7 @@ type SplashStatus =
 
 export default function Splash() {
   const [, setLocation] = useLocation();
-  const { lang, dir } = useLang();
+  const { lang, dir, t } = useLang();
   const isAr = lang === "ar";
 
   const [status, setStatus]         = useState<SplashStatus>("checking");
@@ -239,7 +239,7 @@ export default function Splash() {
               transition={{ duration: 0.6, delay: 0.5 }}
               className="text-lg text-muted-foreground font-medium text-center max-w-[250px]"
             >
-              Bid on anything.<br />Watch it happen.
+              {t("splash_tagline")}
             </motion.p>
           )}
         </AnimatePresence>

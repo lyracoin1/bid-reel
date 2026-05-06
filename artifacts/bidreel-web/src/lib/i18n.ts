@@ -195,7 +195,9 @@ export type TKey =
   | "aria_save_auction" | "aria_unsave_auction"
   | "aria_share_auction"
   | "aria_remind_me" | "aria_remove_reminder"
-  | "aria_buy_now";
+  | "aria_buy_now"
+  // Login
+  | "login_title";
 
 type Translations = Record<TKey, string>;
 
@@ -432,6 +434,7 @@ const en: Translations = {
   notif_title_auction_started: "🟢 Auction is live!", notif_body_auction_started: "An auction you watch just started",
   notif_title_account_warning: "Account warning ⚠️", notif_body_account_warning: "Your account has received a warning",
   notif_title_admin_message: "Message from BidReel", notif_body_admin_message: "You have a new message",
+  login_title: "Get the Highest Price on BidReel",
 };
 
 const ar: Translations = {
@@ -667,6 +670,7 @@ const ar: Translations = {
   notif_title_auction_started: "🟢 المزاد مباشر!", notif_body_auction_started: "بدأ مزاد تتابعه",
   notif_title_account_warning: "تحذير الحساب ⚠️", notif_body_account_warning: "تلقّى حسابك تحذيراً",
   notif_title_admin_message: "رسالة من بيدريل", notif_body_admin_message: "لديك رسالة جديدة",
+  login_title: "احصل على أعلى سعر في BidReel",
 };
 
 const ru: Translations = {
@@ -902,6 +906,7 @@ const ru: Translations = {
   notif_title_auction_started: "🟢 Аукцион начался!", notif_body_auction_started: "Аукцион, за которым вы следите, начался",
   notif_title_account_warning: "Предупреждение аккаунта ⚠️", notif_body_account_warning: "Ваш аккаунт получил предупреждение",
   notif_title_admin_message: "Сообщение от BidReel", notif_body_admin_message: "У вас новое сообщение",
+  login_title: "Получи лучшую цену на BidReel",
 };
 
 const es: Translations = {
@@ -1137,6 +1142,7 @@ const es: Translations = {
   notif_title_auction_started: "🟢 ¡La subasta está en vivo!", notif_body_auction_started: "Empezó una subasta que sigues",
   notif_title_account_warning: "Advertencia de cuenta ⚠️", notif_body_account_warning: "Tu cuenta recibió una advertencia",
   notif_title_admin_message: "Mensaje de BidReel", notif_body_admin_message: "Tienes un nuevo mensaje",
+  login_title: "Consigue el mejor precio en BidReel",
 };
 
 const fr: Translations = {
@@ -1372,6 +1378,7 @@ const fr: Translations = {
   notif_title_auction_started: "🟢 L'enchère est en direct !", notif_body_auction_started: "Une enchère que vous suivez vient de commencer",
   notif_title_account_warning: "Avertissement de compte ⚠️", notif_body_account_warning: "Votre compte a reçu un avertissement",
   notif_title_admin_message: "Message de BidReel", notif_body_admin_message: "Vous avez un nouveau message",
+  login_title: "Obtenez le meilleur prix sur BidReel",
 };
 
 const tr: Translations = {
@@ -1607,6 +1614,7 @@ const tr: Translations = {
   notif_title_auction_started: "🟢 Açık artırma başladı!", notif_body_auction_started: "Takip ettiğin bir açık artırma başladı",
   notif_title_account_warning: "Hesap uyarısı ⚠️", notif_body_account_warning: "Hesabın bir uyarı aldı",
   notif_title_admin_message: "BidReel'den mesaj", notif_body_admin_message: "Yeni bir mesajın var",
+  login_title: "BidReel'de En Yüksek Fiyatı Al",
 };
 
 export const TRANSLATIONS: Record<Language, Translations> = { en, ar, ru, es, fr, tr };

@@ -32,7 +32,7 @@ type Mode = "signin" | "signup";
 export default function Login() {
   const [, setLocation] = useLocation();
   const search = useSearch();
-  const { lang, dir } = useLang();
+  const { lang, dir, t } = useLang();
   const isRtl = dir === "rtl";
 
   // Support ?tab=signup so the admin preview panel and deep-links can open
@@ -49,7 +49,7 @@ export default function Login() {
   const [forgotOpen, setForgotOpen] = useState(false);
 
   const copy = {
-    title:     lang === "ar" ? "احصل على أعلى سعر في BidReel" : "Welcome to BidReel",
+    title:     t("login_title"),
     emailLbl:  lang === "ar" ? "البريد الإلكتروني" : "Email",
     passwordLbl: lang === "ar" ? "كلمة المرور" : "Password",
     confirmLbl: lang === "ar" ? "تأكيد كلمة المرور" : "Confirm password",

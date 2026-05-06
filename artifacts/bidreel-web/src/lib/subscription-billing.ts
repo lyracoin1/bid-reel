@@ -81,6 +81,11 @@ function parseBillingError(rawMessage: string): string {
 
   // Offer token guard from the plugin
   if (rawMessage.includes("offerToken") || rawMessage.includes("offer details")) {
+    console.error(
+      "[Billing][DIAG] parseBillingError → no_offer_token via offerToken/offer-details match."
+      + " raw_message=\"" + rawMessage + "\""
+      + " PATH=B (plugin rejected during querySkuDetails or launchBillingFlow)",
+    );
     return "no_offer_token";
   }
 
@@ -158,7 +163,17 @@ export async function startSubscription(userId: string): Promise<SubscriptionRes
   );
 
   if (!sku.offer_token_present) {
-    console.error("[Billing] ABORT: no offer token returned — base plan may be inactive or unpublished in Play Console");
+    console.error(
+      "[Billing][DIAG] → no_offer_token."
+      + " PATH=A (querySkuDetails resolved but subscriptionOfferDetails empty)."
+      + " offer_count=" + (sku.offer_count ?? "undefined")
+      + " base_plan_id=" + (sku.base_plan_id ?? "undefined")
+      + " offer_id=" + (sku.offer_id ?? "undefined")
+      + " productId=" + (sku.productId ?? "undefined")
+      + " price=" + (sku.price ?? "undefined")
+      + " FIX: Check Play Console → bidreel_plus → Base plans & offers."
+      + " Ensure at least one base plan is ACTIVE and has a published offer.",
+    );
     return { success: false, error: "no_offer_token" };
   }
 

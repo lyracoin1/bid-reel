@@ -20,7 +20,13 @@ import { deleteMediaFile } from "../lib/media-lifecycle";
 import { runAuctionLifecycle } from "../lib/auction-lifecycle";
 import { processVideoAsync, processAudioAsync } from "../lib/video-processing";
 import { assertOwnedMediaUrl } from "../lib/r2";
-import { buildUserFeedContext, scoreAuction } from "../lib/feed-ranking";
+import {
+  buildUserFeedContext,
+  scoreAuction,
+  computeUserActivityGroup,
+  getRecommendationTag,
+  type UserActivityGroup,
+} from "../lib/feed-ranking";
 import { recordEngagement } from "./views";
 import {
   buyNowLimiter,
@@ -237,6 +243,7 @@ router.get("/auctions", async (req, res) => {
     seller: (typeof profileMap extends Map<string, infer V> ? V : null) | null;
     user_signal: "interested" | "not_interested" | null;
     views_count: number;
+    recommendation_tag: string | null;
   };
 
   // ── Cursor for next page ──────────────────────────────────────────────────
@@ -254,6 +261,7 @@ router.get("/auctions", async (req, res) => {
     seller: profileMap.get(a.seller_id) ?? null,
     user_signal: null as "interested" | "not_interested" | null,
     views_count: viewMap.get(a.id as string) ?? 0,
+    recommendation_tag: null as string | null,
   }));
 
   // ── Feed intelligence ranking (optional — skipped for unauthenticated) ──────
@@ -261,21 +269,23 @@ router.get("/auctions", async (req, res) => {
   // Verifies the Bearer token without hard-requiring auth, so anonymous users
   // still get the default recency-ordered feed.
   //
-  // For authenticated users, a weighted relevance score is computed per auction
-  // using existing behavioural signals (no new tables needed):
+  // For authenticated users:
+  //   1. User context (signals, bids, saves, likes, follows) is fetched in parallel
+  //      with the user's is_premium flag.
+  //   2. Auctions the user marked not_interested are hard-filtered out.
+  //   3. Every remaining auction receives a relevance score:
+  //        +100 interested signal        +80 bid this     +50 save this
+  //        +35  like this               +15 popularity    +60/30 ending soon
+  //        +40  hot (bid≥5 + <24h)      seller affinity   category affinity
+  //      Premium users get ×1.2 on all seller/category affinity components.
+  //   4. Each auction receives a recommendation_tag:
+  //        "hot" | "ending_soon" | "recommended_for_you" | null
+  //   5. The user's activity group is returned at the top level of the response:
+  //        "power_bidder" | "active_user" | "casual_browser" | "new_user"
   //
-  //   EXACT_INTERESTED / NOT_INTERESTED   ±100   (explicit button press)
-  //   User bid on this auction             +80   (strongest implicit positive)
-  //   User saved this auction              +50
-  //   User follows this seller             +30
-  //   Seller interest signals              +8 each, capped at +20
-  //   Seller bid history                   +8 each, capped at +15
-  //   Category interest signals            +5 each, capped at +10
-  //   Seller not-interested signals        −8 each, floor  −20
-  //   Category not-interested signals      −5 each, floor  −10
-  //
-  // Array.sort is stable in V8 so equal-score items keep created_at DESC order.
-  // Failures in any single data source degrade gracefully to empty (non-fatal).
+  // Failures in any data source degrade gracefully — feed still returns unranked.
+  let userActivityGroup: UserActivityGroup | null = null;
+
   const authHeader = req.headers["authorization"];
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.slice(7);
@@ -283,7 +293,29 @@ router.get("/auctions", async (req, res) => {
 
     if (user) {
       try {
-        const ctx = await buildUserFeedContext(user.id);
+        // Fetch user context and premium status in parallel
+        const [ctx, profileRow] = await Promise.all([
+          buildUserFeedContext(user.id),
+          supabaseAdmin
+            .from("profiles")
+            .select("is_premium")
+            .eq("id", user.id)
+            .maybeSingle()
+            .then(r => r.data),
+        ]);
+
+        const isPremium = !!(profileRow as { is_premium?: boolean } | null)?.is_premium;
+
+        // Whether the user has any positive behavioural signals at all
+        const hasSignals =
+          ctx.biddedAuctionIds.size   > 0 ||
+          ctx.savedAuctionIds.size    > 0 ||
+          ctx.likedAuctionIds.size    > 0 ||
+          ctx.followedSellerIds.size  > 0 ||
+          ctx.allSignals.size         > 0;
+
+        // Activity group — computed from context with no extra query
+        userActivityGroup = computeUserActivityGroup(ctx);
 
         // Tag each auction with the user's exact signal for the frontend UI
         feed = feed.map((a) => ({
@@ -292,28 +324,61 @@ router.get("/auctions", async (req, res) => {
             "interested" | "not_interested" | null,
         }));
 
-        // Score and sort — stable sort preserves recency within equal scores
+        // Hard suppress: remove auctions explicitly marked not_interested
+        const countBefore = feed.length;
+        feed = feed.filter(
+          (a) => ctx.allSignals.get((a as { id: string }).id) !== "not_interested",
+        );
+        const suppressed = countBefore - feed.length;
+
+        // Score every remaining auction
         const scores = new Map<string, number>();
         for (const item of feed) {
-          const id         = (item as { id: string }).id;
-          const seller_id  = (item as { seller_id: string }).seller_id;
-          const category   = (item as { category: string }).category;
-          scores.set(id, scoreAuction({ id, seller_id, category }, ctx));
+          const id                   = (item as { id: string }).id;
+          const seller_id            = (item as { seller_id: string }).seller_id;
+          const category             = (item as { category: string }).category;
+          const bid_count            = (item as { bid_count?: number }).bid_count ?? 0;
+          const ends_at              = (item as { ends_at?: string | null }).ends_at ?? null;
+          const qualified_views_count = viewMap.get(id) ?? 0;
+          scores.set(id, scoreAuction(
+            { id, seller_id, category, bid_count, ends_at, qualified_views_count },
+            ctx,
+            isPremium,
+          ));
         }
+
+        // Sort descending by score — stable sort keeps created_at DESC within ties
         feed.sort((a, b) =>
           (scores.get((b as { id: string }).id) ?? 0) -
           (scores.get((a as { id: string }).id) ?? 0),
         );
 
+        // Attach recommendation_tag to each auction
+        feed = feed.map((a) => {
+          const id        = (a as { id: string }).id;
+          const bid_count = (a as { bid_count?: number }).bid_count ?? 0;
+          const ends_at   = (a as { ends_at?: string | null }).ends_at ?? null;
+          const tag = getRecommendationTag(
+            { bid_count, ends_at },
+            scores.get(id) ?? 0,
+            hasSignals,
+          );
+          return { ...a, recommendation_tag: tag };
+        });
+
         logger.info(
           {
-            userId:      user.id,
-            signals:     ctx.allSignals.size,
-            follows:     ctx.followedSellerIds.size,
-            bids:        ctx.biddedAuctionIds.size,
-            saves:       ctx.savedAuctionIds.size,
+            userId:        user.id,
+            isPremium,
+            activityGroup: userActivityGroup,
+            signals:       ctx.allSignals.size,
+            follows:       ctx.followedSellerIds.size,
+            bids:          ctx.biddedAuctionIds.size,
+            saves:         ctx.savedAuctionIds.size,
+            likes:         ctx.likedAuctionIds.size,
+            suppressed,
           },
-          "GET /auctions → ranked with weighted intelligence model",
+          "GET /auctions → ranked with personalized intelligence model",
         );
       } catch (err) {
         // Ranking failed — return unranked (recency-ordered) feed rather than 500
@@ -326,7 +391,7 @@ router.get("/auctions", async (req, res) => {
   }
 
   logger.info({ count: feed.length, hasNextCursor: nextCursor !== null }, "GET /auctions → returning auctions");
-  res.json({ auctions: feed, nextCursor });
+  res.json({ auctions: feed, nextCursor, user_activity_group: userActivityGroup });
 });
 
 // ─── GET /api/auctions/mine ───────────────────────────────────────────────────

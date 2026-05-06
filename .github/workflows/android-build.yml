@@ -83,5 +83,6 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_JSON }}
           packageName: ${{ secrets.PACKAGE_NAME }}
           releaseFiles: artifacts/bidreel-web/android/app/build/outputs/bundle/release/*.aab
-          tracks: internal
+          track: internal
           status: draft
+          changesNotSentForReview: true

@@ -1,0 +1,463 @@
+diff --git a/android/src/main/java/de/carstenklaffke/billing/BillingPlugin.java b/android/src/main/java/de/carstenklaffke/billing/BillingPlugin.java
+index bf96aaa058feaf25224db8721eb53b91153d0298..8185ac61cf256d81be0ffc0db37912942c54e6a8 100644
+--- a/android/src/main/java/de/carstenklaffke/billing/BillingPlugin.java
++++ b/android/src/main/java/de/carstenklaffke/billing/BillingPlugin.java
+@@ -1,5 +1,7 @@
+ package de.carstenklaffke.billing;
+ 
++import android.util.Log;
++
+ import com.android.billingclient.api.AcknowledgePurchaseParams;
+ import com.android.billingclient.api.BillingClient;
+ import com.android.billingclient.api.BillingClientStateListener;
+@@ -24,6 +26,8 @@ import java.util.List;
+ @CapacitorPlugin()
+ public class BillingPlugin extends Plugin {
+ 
++    private static final String TAG = "BidReelBilling";
++
+     private BillingClient createNewBillingClient(PurchasesUpdatedListener listener) {
+         return BillingClient.newBuilder(bridge.getActivity())
+                 .setListener(listener)
+@@ -37,82 +41,167 @@ public class BillingPlugin extends Plugin {
+ 
+     private PurchasesUpdatedListener createPurchasesUpdatedListener(final PluginCall call) {
+         return (billingResult, purchases) -> {
+-            if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK && purchases != null) {
++            int code = billingResult.getResponseCode();
++            String msg = billingResult.getDebugMessage();
++
++            if (code == BillingClient.BillingResponseCode.OK && purchases != null) {
++                Log.d(TAG, "purchasesUpdated OK — count: " + purchases.size());
+                 for (Purchase purchase : purchases) {
+-                    if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
++                    int state = purchase.getPurchaseState();
++                    Log.d(TAG, "purchasesUpdated — purchaseState: " + state
++                            + " orderId: " + purchase.getOrderId()
++                            + " products: " + purchase.getProducts()
++                            + " acknowledged: " + purchase.isAcknowledged());
++                    if (state == Purchase.PurchaseState.PURCHASED) {
+                         try {
+                             JSObject ret = new JSObject(purchase.getOriginalJson());
++                            Log.d(TAG, "purchasesUpdated — resolving, purchaseToken present: "
++                                    + (purchase.getPurchaseToken() != null && !purchase.getPurchaseToken().isEmpty()));
+                             call.resolve(ret);
+                         } catch (JSONException e) {
++                            Log.e(TAG, "purchasesUpdated — JSONException: " + e.getMessage());
+                             e.printStackTrace();
+                         }
++                    } else if (state == Purchase.PurchaseState.PENDING) {
++                        Log.w(TAG, "purchasesUpdated — purchase PENDING (payment method requires additional steps)");
++                        call.reject("SUBSCRIPTION_PENDING");
+                     }
+                 }
+-            } else if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.USER_CANCELED) {
++            } else if (code == BillingClient.BillingResponseCode.OK) {
++                Log.e(TAG, "purchasesUpdated — code=OK but purchases list is null");
++                call.reject("PLAY_PURCHASE_EMPTY");
++            } else if (code == BillingClient.BillingResponseCode.USER_CANCELED) {
++                Log.d(TAG, "purchasesUpdated — USER_CANCELED (code=1)");
+                 call.reject("Purchase canceled");
+             } else {
+-                call.reject("Error during purchase: " + billingResult.getDebugMessage());
++                Log.e(TAG, "purchasesUpdated — error code: " + code + " message: " + msg);
++                call.reject("Error during purchase: " + msg + " (code=" + code + ")");
+             }
+         };
+     }
+ 
+     @PluginMethod()
+     public void querySkuDetails(final PluginCall call) {
+-        BillingClient billingClient = createNewBillingClient((billingResult, purchases) -> { /* Empty listener */ });
++        String productId   = call.getString("product", "fullversion");
++        String productType = call.getString("type", "INAPP").equals("SUBS")
++                ? BillingClient.ProductType.SUBS
++                : BillingClient.ProductType.INAPP;
++
++        Log.d(TAG, "querySkuDetails — productId: " + productId + " type: " + productType);
++
++        BillingClient billingClient = createNewBillingClient((billingResult, purchases) -> { /* unused */ });
+ 
+         startBillingClientConnection(billingClient, new BillingClientStateListener() {
+             @Override
+             public void onBillingSetupFinished(BillingResult billingResult) {
+-                if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+-                    List<QueryProductDetailsParams.Product> productList = new ArrayList<>();
+-                    productList.add(QueryProductDetailsParams.Product.newBuilder()
+-                            .setProductId(call.getString("product", "fullversion"))
+-                            .setProductType(call.getString("type", "INAPP").equals("SUBS") ? BillingClient.ProductType.SUBS : BillingClient.ProductType.INAPP)
+-                            .build());
+-
+-                    QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
+-                            .setProductList(productList)
+-                            .build();
++                int code = billingResult.getResponseCode();
++                Log.d(TAG, "querySkuDetails setup — responseCode: " + code
++                        + " msg: " + billingResult.getDebugMessage());
++
++                if (code != BillingClient.BillingResponseCode.OK) {
++                    Log.e(TAG, "querySkuDetails — billing setup failed code=" + code);
++                    call.reject("Billing service not connected (code=" + code + ")");
++                    return;
++                }
+ 
+-                    billingClient.queryProductDetailsAsync(params, (billingResult1, productDetailsList) -> {
+-                        if (billingResult1.getResponseCode() == BillingClient.BillingResponseCode.OK && productDetailsList != null && !productDetailsList.isEmpty()) {
+-                            ProductDetails productDetails = productDetailsList.get(0);
+-                            JSObject ret = new JSObject();
+-                            ret.put("productId", productDetails.getProductId());
+-                            ret.put("title", productDetails.getName());
+-                            ret.put("description", productDetails.getDescription());
+-
+-                            if (productDetails.getOneTimePurchaseOfferDetails() != null) {
+-                                ProductDetails.OneTimePurchaseOfferDetails offerDetails = productDetails.getOneTimePurchaseOfferDetails();
+-                                ret.put("price", offerDetails.getFormattedPrice());
+-                                ret.put("price_amount_micros", offerDetails.getPriceAmountMicros());
+-                                ret.put("price_currency_code", offerDetails.getPriceCurrencyCode());
+-                            }
+-
+-                            if (productDetails.getSubscriptionOfferDetails() != null && !productDetails.getSubscriptionOfferDetails().isEmpty()) {
+-                                ProductDetails.SubscriptionOfferDetails subscriptionOfferDetails = productDetails.getSubscriptionOfferDetails().get(0);
+-                                ProductDetails.PricingPhases pricingPhases = subscriptionOfferDetails.getPricingPhases();
+-                                ProductDetails.PricingPhase pricingPhase = pricingPhases.getPricingPhaseList().get(0);
+-
+-                                ret.put("price", pricingPhase.getFormattedPrice());
+-                                ret.put("price_amount_micros", pricingPhase.getPriceAmountMicros());
+-                                ret.put("currency_code", pricingPhase.getPriceCurrencyCode());
+-                                ret.put("billing_period", pricingPhase.getBillingPeriod());
+-                                ret.put("recurrence_mode", pricingPhase.getRecurrenceMode());
+-                            }
++                List<QueryProductDetailsParams.Product> productList = new ArrayList<>();
++                productList.add(QueryProductDetailsParams.Product.newBuilder()
++                        .setProductId(productId)
++                        .setProductType(productType)
++                        .build());
+ 
+-                            call.resolve(ret);
+-                        } else {
+-                            call.reject("Error retrieving product details: " + billingResult1.getDebugMessage());
++                QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
++                        .setProductList(productList)
++                        .build();
++
++                billingClient.queryProductDetailsAsync(params, (billingResult1, productDetailsList) -> {
++                    int qCode = billingResult1.getResponseCode();
++                    int count = (productDetailsList != null) ? productDetailsList.size() : -1;
++                    Log.d(TAG, "querySkuDetails query — responseCode: " + qCode
++                            + " msg: " + billingResult1.getDebugMessage()
++                            + " productsReturned: " + count);
++
++                    if (qCode != BillingClient.BillingResponseCode.OK
++                            || productDetailsList == null || productDetailsList.isEmpty()) {
++                        Log.e(TAG, "querySkuDetails — product not found or query failed code=" + qCode);
++                        call.reject("Error retrieving product details: "
++                                + billingResult1.getDebugMessage() + " (code=" + qCode + ")");
++                        return;
++                    }
++
++                    ProductDetails productDetails = productDetailsList.get(0);
++                    JSObject ret = new JSObject();
++                    ret.put("productId", productDetails.getProductId());
++                    ret.put("title", productDetails.getName());
++                    ret.put("description", productDetails.getDescription());
++
++                    if (productDetails.getOneTimePurchaseOfferDetails() != null) {
++                        ProductDetails.OneTimePurchaseOfferDetails od =
++                                productDetails.getOneTimePurchaseOfferDetails();
++                        ret.put("price", od.getFormattedPrice());
++                        ret.put("price_amount_micros", od.getPriceAmountMicros());
++                        ret.put("price_currency_code", od.getPriceCurrencyCode());
++                    }
++
++                    List<ProductDetails.SubscriptionOfferDetails> offerList =
++                            productDetails.getSubscriptionOfferDetails();
++
++                    if (offerList != null && !offerList.isEmpty()) {
++                        int offerCount = offerList.size();
++                        ret.put("offer_count", offerCount);
++                        Log.d(TAG, "querySkuDetails — offer count: " + offerCount);
++
++                        for (int i = 0; i < offerList.size(); i++) {
++                            ProductDetails.SubscriptionOfferDetails sod = offerList.get(i);
++                            String tok      = sod.getOfferToken();
++                            boolean hasTok  = tok != null && !tok.isEmpty();
++                            Log.d(TAG, "querySkuDetails — offer[" + i + "]:"
++                                    + " basePlanId=" + sod.getBasePlanId()
++                                    + " offerId=" + (sod.getOfferId() != null ? sod.getOfferId() : "(none)")
++                                    + " offerToken_present=" + hasTok
++                                    + " offerToken_length=" + (hasTok ? tok.length() : 0));
+                         }
+-                    });
+-                } else {
+-                    call.reject("Billing service not connected");
+-                }
++
++                        ProductDetails.SubscriptionOfferDetails first = offerList.get(0);
++                        String basePlanId  = first.getBasePlanId();
++                        String offerId     = first.getOfferId();
++                        String offerToken  = first.getOfferToken();
++                        boolean hasToken   = offerToken != null && !offerToken.isEmpty();
++
++                        ret.put("base_plan_id",        basePlanId);
++                        ret.put("offer_id",             offerId != null ? offerId : "");
++                        ret.put("offer_token",          offerToken != null ? offerToken : "");
++                        ret.put("offer_token_present",  hasToken);
++
++                        ProductDetails.PricingPhase phase =
++                                first.getPricingPhases().getPricingPhaseList().get(0);
++                        ret.put("price",               phase.getFormattedPrice());
++                        ret.put("price_amount_micros", phase.getPriceAmountMicros());
++                        ret.put("currency_code",       phase.getPriceCurrencyCode());
++                        ret.put("billing_period",      phase.getBillingPeriod());
++                        ret.put("recurrence_mode",     phase.getRecurrenceMode());
++
++                        Log.d(TAG, "querySkuDetails — basePlanId: " + basePlanId
++                                + " offerToken_present: " + hasToken
++                                + " offerToken_length: " + (hasToken ? offerToken.length() : 0)
++                                + " price: " + phase.getFormattedPrice()
++                                + " currency: " + phase.getPriceCurrencyCode()
++                                + " billing_period: " + phase.getBillingPeriod());
++                    } else {
++                        Log.e(TAG, "querySkuDetails — NO subscription offer details for " + productId
++                                + " (base plan inactive or not published in Play Console)");
++                        ret.put("offer_count",         0);
++                        ret.put("offer_token",         "");
++                        ret.put("offer_token_present", false);
++                    }
++
++                    call.resolve(ret);
++                });
+             }
+ 
+             @Override
+             public void onBillingServiceDisconnected() {
++                Log.e(TAG, "querySkuDetails — billing service disconnected");
+                 call.reject("Billing service disconnected");
+             }
+         });
+@@ -120,66 +209,117 @@ public class BillingPlugin extends Plugin {
+ 
+     @PluginMethod()
+     public void launchBillingFlow(final PluginCall call) {
++        String productId   = call.getString("product", "fullversion");
++        String productType = call.getString("type", "INAPP").equals("SUBS")
++                ? BillingClient.ProductType.SUBS
++                : BillingClient.ProductType.INAPP;
++
++        Log.d(TAG, "launchBillingFlow — productId: " + productId + " type: " + productType);
++
+         BillingClient billingClient = createNewBillingClient(createPurchasesUpdatedListener(call));
+ 
+         startBillingClientConnection(billingClient, new BillingClientStateListener() {
+             @Override
+             public void onBillingSetupFinished(BillingResult billingResult) {
+-                if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+-                    List<QueryProductDetailsParams.Product> productList = new ArrayList<>();
+-                    productList.add(QueryProductDetailsParams.Product.newBuilder()
+-                            .setProductId(call.getString("product", "fullversion"))
+-                            .setProductType(call.getString("type", "INAPP").equals("SUBS") ? BillingClient.ProductType.SUBS : BillingClient.ProductType.INAPP)
+-                            .build());
+-
+-                    QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
+-                            .setProductList(productList)
+-                            .build();
++                int code = billingResult.getResponseCode();
++                Log.d(TAG, "launchBillingFlow setup — responseCode: " + code
++                        + " msg: " + billingResult.getDebugMessage());
+ 
+-                    billingClient.queryProductDetailsAsync(params, (billingResult1, productDetailsList) -> {
+-                        if (billingResult1.getResponseCode() == BillingClient.BillingResponseCode.OK && productDetailsList != null && !productDetailsList.isEmpty()) {
+-                            ProductDetails productDetails = productDetailsList.get(0);
+-
+-                            if (productDetails.getSubscriptionOfferDetails() != null && !productDetails.getSubscriptionOfferDetails().isEmpty()) {
+-                                ProductDetails.SubscriptionOfferDetails subscriptionOfferDetails = productDetails.getSubscriptionOfferDetails().get(0);
+-                                String offerToken = subscriptionOfferDetails.getOfferToken();
+-
+-                                BillingFlowParams billingFlowParams = BillingFlowParams.newBuilder()
+-                                        .setProductDetailsParamsList(Arrays.asList(
+-                                                BillingFlowParams.ProductDetailsParams.newBuilder()
+-                                                        .setProductDetails(productDetails)
+-                                                        .setOfferToken(offerToken)
+-                                                        .build()))
+-                                        .build();
+-
+-                                BillingResult billingResult2 = billingClient.launchBillingFlow(bridge.getActivity(), billingFlowParams);
+-                                if (billingResult2.getResponseCode() != BillingClient.BillingResponseCode.OK) {
+-                                    call.reject("Error launching billing flow: " + billingResult2.getDebugMessage());
+-                                }
+-                            } else {
+-                                BillingFlowParams billingFlowParams = BillingFlowParams.newBuilder()
+-                                        .setProductDetailsParamsList(Arrays.asList(
+-                                                BillingFlowParams.ProductDetailsParams.newBuilder()
+-                                                        .setProductDetails(productDetails)
+-                                                        .build()))
+-                                        .build();
+-
+-                                BillingResult billingResult2 = billingClient.launchBillingFlow(bridge.getActivity(), billingFlowParams);
+-                                if (billingResult2.getResponseCode() != BillingClient.BillingResponseCode.OK) {
+-                                    call.reject("Error launching billing flow: " + billingResult2.getDebugMessage());
+-                                }
+-                            }
+-                        } else {
+-                            call.reject("Error retrieving product details: " + billingResult1.getDebugMessage());
+-                        }
+-                    });
+-                } else {
+-                    call.reject("Billing service not connected");
++                if (code != BillingClient.BillingResponseCode.OK) {
++                    Log.e(TAG, "launchBillingFlow — billing setup failed code=" + code);
++                    call.reject("Billing service not connected (code=" + code + ")");
++                    return;
+                 }
++
++                List<QueryProductDetailsParams.Product> productList = new ArrayList<>();
++                productList.add(QueryProductDetailsParams.Product.newBuilder()
++                        .setProductId(productId)
++                        .setProductType(productType)
++                        .build());
++
++                QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
++                        .setProductList(productList)
++                        .build();
++
++                billingClient.queryProductDetailsAsync(params, (billingResult1, productDetailsList) -> {
++                    int qCode = billingResult1.getResponseCode();
++                    int count = (productDetailsList != null) ? productDetailsList.size() : -1;
++                    Log.d(TAG, "launchBillingFlow query — responseCode: " + qCode
++                            + " msg: " + billingResult1.getDebugMessage()
++                            + " productsReturned: " + count);
++
++                    if (qCode != BillingClient.BillingResponseCode.OK
++                            || productDetailsList == null || productDetailsList.isEmpty()) {
++                        Log.e(TAG, "launchBillingFlow — product query failed code=" + qCode);
++                        call.reject("Error retrieving product details: "
++                                + billingResult1.getDebugMessage() + " (code=" + qCode + ")");
++                        return;
++                    }
++
++                    ProductDetails productDetails = productDetailsList.get(0);
++                    List<ProductDetails.SubscriptionOfferDetails> offerList =
++                            productDetails.getSubscriptionOfferDetails();
++
++                    if (offerList == null || offerList.isEmpty()) {
++                        Log.e(TAG, "launchBillingFlow — ABORT: no subscription offer details for " + productId);
++                        call.reject("No subscription offer details found for product: " + productId);
++                        return;
++                    }
++
++                    int offerCount = offerList.size();
++                    Log.d(TAG, "launchBillingFlow — offer count: " + offerCount);
++
++                    for (int i = 0; i < offerList.size(); i++) {
++                        ProductDetails.SubscriptionOfferDetails sod = offerList.get(i);
++                        String tok     = sod.getOfferToken();
++                        boolean hasTok = tok != null && !tok.isEmpty();
++                        Log.d(TAG, "launchBillingFlow — offer[" + i + "]:"
++                                + " basePlanId=" + sod.getBasePlanId()
++                                + " offerId=" + (sod.getOfferId() != null ? sod.getOfferId() : "(none)")
++                                + " offerToken_present=" + hasTok
++                                + " offerToken_length=" + (hasTok ? tok.length() : 0));
++                    }
++
++                    ProductDetails.SubscriptionOfferDetails selectedOffer = offerList.get(0);
++                    String offerToken  = selectedOffer.getOfferToken();
++                    String basePlanId  = selectedOffer.getBasePlanId();
++                    boolean hasToken   = offerToken != null && !offerToken.isEmpty();
++
++                    Log.d(TAG, "launchBillingFlow — selected offer basePlanId: " + basePlanId
++                            + " offerToken_present: " + hasToken
++                            + " offerToken_length: " + (hasToken ? offerToken.length() : 0));
++
++                    if (!hasToken) {
++                        Log.e(TAG, "launchBillingFlow — ABORT: offerToken is empty for basePlanId=" + basePlanId);
++                        call.reject("No valid offerToken for basePlanId=" + basePlanId);
++                        return;
++                    }
++
++                    BillingFlowParams billingFlowParams = BillingFlowParams.newBuilder()
++                            .setProductDetailsParamsList(Arrays.asList(
++                                    BillingFlowParams.ProductDetailsParams.newBuilder()
++                                            .setProductDetails(productDetails)
++                                            .setOfferToken(offerToken)
++                                            .build()))
++                            .build();
++
++                    BillingResult billingResult2 =
++                            billingClient.launchBillingFlow(bridge.getActivity(), billingFlowParams);
++                    int launchCode = billingResult2.getResponseCode();
++                    Log.d(TAG, "launchBillingFlow — launchBillingFlow responseCode: " + launchCode
++                            + " msg: " + billingResult2.getDebugMessage());
++
++                    if (launchCode != BillingClient.BillingResponseCode.OK) {
++                        Log.e(TAG, "launchBillingFlow — flow launch failed code=" + launchCode);
++                        call.reject("Error launching billing flow: "
++                                + billingResult2.getDebugMessage() + " (code=" + launchCode + ")");
++                    }
++                });
+             }
+ 
+             @Override
+             public void onBillingServiceDisconnected() {
++                Log.e(TAG, "launchBillingFlow — billing service disconnected");
+                 call.reject("Billing service disconnected");
+             }
+         });
+@@ -187,32 +327,43 @@ public class BillingPlugin extends Plugin {
+ 
+     @PluginMethod()
+     public void sendAck(final PluginCall call) {
+-        BillingClient billingClient = createNewBillingClient((billingResult, purchases) -> { /* Empty listener */ });
++        Log.d(TAG, "sendAck — called");
++        BillingClient billingClient = createNewBillingClient((billingResult, purchases) -> { /* unused */ });
+ 
+         startBillingClientConnection(billingClient, new BillingClientStateListener() {
+             @Override
+             public void onBillingSetupFinished(BillingResult billingResult) {
+-                if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+-                    AcknowledgePurchaseParams acknowledgePurchaseParams = AcknowledgePurchaseParams.newBuilder()
+-                            .setPurchaseToken(call.getString("purchaseToken"))
+-                            .build();
+-                    billingClient.acknowledgePurchase(acknowledgePurchaseParams, billingResult1 -> {
+-                        if (billingResult1.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+-                            call.resolve();
+-                        } else {
+-                            call.reject("Error acknowledging purchase: " + billingResult1.getDebugMessage());
+-                        }
+-                    });
+-                } else {
+-                    call.reject("Billing service not connected");
++                int code = billingResult.getResponseCode();
++                Log.d(TAG, "sendAck setup — responseCode: " + code);
++
++                if (code != BillingClient.BillingResponseCode.OK) {
++                    Log.e(TAG, "sendAck — billing setup failed code=" + code);
++                    call.reject("Billing service not connected (code=" + code + ")");
++                    return;
+                 }
++
++                AcknowledgePurchaseParams acknowledgePurchaseParams = AcknowledgePurchaseParams.newBuilder()
++                        .setPurchaseToken(call.getString("purchaseToken"))
++                        .build();
++
++                billingClient.acknowledgePurchase(acknowledgePurchaseParams, billingResult1 -> {
++                    int ackCode = billingResult1.getResponseCode();
++                    Log.d(TAG, "sendAck — acknowledgePurchase responseCode: " + ackCode);
++                    if (ackCode == BillingClient.BillingResponseCode.OK) {
++                        call.resolve();
++                    } else {
++                        Log.e(TAG, "sendAck — failed code=" + ackCode + " msg=" + billingResult1.getDebugMessage());
++                        call.reject("Error acknowledging purchase: "
++                                + billingResult1.getDebugMessage() + " (code=" + ackCode + ")");
++                    }
++                });
+             }
+ 
+             @Override
+             public void onBillingServiceDisconnected() {
++                Log.e(TAG, "sendAck — billing service disconnected");
+                 call.reject("Billing service disconnected");
+             }
+         });
+     }
+ }
+-

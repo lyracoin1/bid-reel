@@ -18,7 +18,7 @@
  * Error codes returned in SubscriptionResult.error:
  *   not_authenticated        — user not signed in
  *   no_auth_token            — session expired
- *   no_offer_token           — Play Console base plan has no active offer
+ *   no_offer_token           — Play Console base plan has no active offer / offer_token empty
  *   no_purchase_token        — purchase resolved without a token
  *   subscription_pending     — payment method requires additional steps; purchase is in PENDING state
  *   play_purchase_empty      — code=OK but Google Play returned no purchase object
@@ -57,11 +57,19 @@ export interface SubscriptionResult {
 //   "Error during purchase: [debug msg] (code=N)"
 //   "Billing service not connected (code=N)"
 //   "No valid offerToken for basePlanId=..."
+//   "SUBSCRIPTION_PENDING"
+//   "PLAY_PURCHASE_EMPTY"
 // We extract the code and return a structured error key the UI can map.
 
 function parseBillingError(rawMessage: string): string {
   // Explicit user cancel (no code suffix in the plugin's message)
   if (rawMessage === "Purchase canceled") return "play_user_canceled";
+
+  // PENDING purchase — exact sentinel string set by the patched plugin
+  if (rawMessage === "SUBSCRIPTION_PENDING") return "subscription_pending";
+
+  // code=OK but Google Play returned no purchase object — exact sentinel
+  if (rawMessage === "PLAY_PURCHASE_EMPTY") return "play_purchase_empty";
 
   const codeMatch = /\(code=(\d+)\)/.exec(rawMessage);
   if (codeMatch) {
@@ -79,24 +87,14 @@ function parseBillingError(rawMessage: string): string {
     }
   }
 
-  // Offer token guard from the plugin
+  // Offer token guard — matches plugin rejections from launchBillingFlow
   if (rawMessage.includes("offerToken") || rawMessage.includes("offer details")) {
     console.error(
       "[Billing][DIAG] parseBillingError → no_offer_token via offerToken/offer-details match."
       + " raw_message=\"" + rawMessage + "\""
-      + " PATH=B (plugin rejected during querySkuDetails or launchBillingFlow)",
+      + " PATH=B (plugin rejected during launchBillingFlow)",
     );
     return "no_offer_token";
-  }
-
-  // PENDING purchase — payment method requires additional steps in Google Play
-  if (rawMessage === "SUBSCRIPTION_PENDING" || rawMessage.includes("pending")) {
-    return "subscription_pending";
-  }
-
-  // code=OK but Google Play returned no purchase object
-  if (rawMessage === "PLAY_PURCHASE_EMPTY") {
-    return "play_purchase_empty";
   }
 
   return "play_error";
@@ -126,14 +124,15 @@ export async function startSubscription(userId: string): Promise<SubscriptionRes
   console.log("[Billing] Step 1: querySkuDetails — product=" + SUBSCRIPTION_PRODUCT_ID + " type=SUBS");
 
   let sku: {
-    productId?:         string;
-    title?:             string;
-    price?:             string;
-    currency_code?:     string;
-    billing_period?:    string;
-    offer_count?:       number;
-    base_plan_id?:      string;
-    offer_id?:          string;
+    productId?:           string;
+    title?:               string;
+    price?:               string;
+    currency_code?:       string;
+    billing_period?:      string;
+    offer_count?:         number;
+    base_plan_id?:        string;
+    offer_id?:            string;
+    offer_token?:         string;
     offer_token_present?: boolean;
   };
 
@@ -149,30 +148,30 @@ export async function startSubscription(userId: string): Promise<SubscriptionRes
     return { success: false, error: parseBillingError(msg) };
   }
 
+  const offerTokenPresent = Boolean(sku.offer_token_present) && Boolean(sku.offer_token);
+
   console.log(
-    "[Billing] Step 1 OK:"
-    + " productId="        + (sku.productId       ?? "?")
-    + " title="            + (sku.title            ?? "?")
-    + " price="            + (sku.price            ?? "?")
-    + " currency="         + (sku.currency_code    ?? "?")
-    + " billing_period="   + (sku.billing_period   ?? "?")
-    + " offer_count="      + (sku.offer_count      ?? "?")
-    + " base_plan_id="     + (sku.base_plan_id     ?? "?")
-    + " offer_id="         + (sku.offer_id         ?? "?")
-    + " offer_token_present=" + (sku.offer_token_present ?? "?"),
+    "[Billing] Step 1 result:"
+    + " productId="           + (sku.productId       ?? "?")
+    + " price_present="       + Boolean(sku.price)
+    + " offer_token_present=" + Boolean(sku.offer_token_present)
+    + " offer_token_present=" + offerTokenPresent
+    + " offer_count="         + (sku.offer_count      ?? "?")
+    + " base_plan_id="        + (sku.base_plan_id     ?? "?")
+    + " billing_period="      + (sku.billing_period   ?? "?"),
   );
 
-  if (!sku.offer_token_present) {
+  if (!offerTokenPresent) {
     console.error(
       "[Billing][DIAG] → no_offer_token."
-      + " PATH=A (querySkuDetails resolved but subscriptionOfferDetails empty)."
-      + " offer_count=" + (sku.offer_count ?? "undefined")
-      + " base_plan_id=" + (sku.base_plan_id ?? "undefined")
-      + " offer_id=" + (sku.offer_id ?? "undefined")
-      + " productId=" + (sku.productId ?? "undefined")
-      + " price=" + (sku.price ?? "undefined")
-      + " FIX: Check Play Console → bidreel_plus → Base plans & offers."
-      + " Ensure at least one base plan is ACTIVE and has a published offer.",
+      + " PATH=A (querySkuDetails resolved but subscriptionOfferDetails empty or token absent)."
+      + " offer_token_present=" + Boolean(sku.offer_token_present)
+      + " offer_token_empty="   + (!sku.offer_token)
+      + " offer_count="         + (sku.offer_count  ?? "undefined")
+      + " base_plan_id="        + (sku.base_plan_id ?? "undefined")
+      + " productId="           + (sku.productId    ?? "undefined")
+      + " price="               + (sku.price        ?? "undefined")
+      + " FIX: Play Console → bidreel_plus → Base plans & offers → ensure base plan is ACTIVE.",
     );
     return { success: false, error: "no_offer_token" };
   }
@@ -265,4 +264,3 @@ export async function startSubscription(userId: string): Promise<SubscriptionRes
 
   return { success: true };
 }
-

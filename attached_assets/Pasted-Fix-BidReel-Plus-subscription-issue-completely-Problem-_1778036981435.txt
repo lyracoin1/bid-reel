@@ -1,0 +1,91 @@
+Fix BidReel Plus subscription issue completely.
+
+Problem:
+BidReel Plus used to open Google Play and show the subscription price.
+After recent changes, it now shows:
+"بيدريل برو غير متاح مؤقتاً. حاول مرة أخرى لاحقاً"
+
+Known error:
+no_offer_token
+
+Important context:
+Manus claimed it fixed BillingPlugin.java, but it likely modified node_modules/.../BillingPlugin.java, which is NOT reliable for GitHub Actions builds.
+We need the real fix inside the actual Android build source.
+
+Scope:
+ONLY BidReel Plus subscription.
+Do NOT touch:
+- marketplace payments
+- secure deals
+- escrow
+- vault
+- payouts
+- admin
+- GitHub Actions/workflows
+- security/payment settings flow
+
+Tasks:
+
+1. Find the real BillingPlugin.java used by the Android build
+- Search the project for BillingPlugin.java
+- Identify which one is actually included in the Android Gradle build
+- Do NOT rely on node_modules unless the build actually copies it into Android
+
+2. Fix querySkuDetails output
+Inside the real BillingPlugin.java, in querySkuDetails for SUBS:
+- Ensure subscriptionOfferDetails is read correctly
+- Ensure offerToken is extracted
+- Ensure the returned JS object includes:
+  offer_token
+  offer_count
+  base_plan_id
+  offer_id
+  price
+  currency_code
+  billing_period
+
+Required line:
+ret.put("offer_token", subscriptionOfferDetails.getOfferToken());
+
+3. Fix TypeScript subscription parsing
+In subscription-billing.ts:
+- Confirm productId is exactly "bidreel_plus"
+- Confirm type is "SUBS"
+- Confirm the code checks the returned offer_token/price correctly
+- no_offer_token should happen only if Google truly returns no offer/price
+
+4. Fix pending mapping bug
+If this exists:
+rawMessage.includes("pending")
+replace it with:
+rawMessage === "SUBSCRIPTION_PENDING"
+
+5. Add temporary useful logs
+Do not log purchaseToken.
+Log only:
+- productId
+- price exists true/false
+- offer_token exists true/false
+- offer_count
+- base_plan_id
+- billing_period
+
+6. Build check
+Run frontend build if available.
+Do NOT change GitHub Actions.
+Do NOT upload to Google Play manually.
+
+7. Commit and push
+Run:
+git add .
+git commit -m "fix BidReel Plus subscription offer token"
+git push origin main
+
+Report:
+- real BillingPlugin.java path
+- confirm it is NOT only node_modules
+- files changed
+- exact fix applied
+- whether subscription-billing.ts was updated
+- confirmation workflows were not touched
+- what I should test after GitHub Actions finishes
